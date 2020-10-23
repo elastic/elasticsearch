@@ -25,14 +25,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -152,18 +150,26 @@ public class FetchSourcePhaseTests extends ESTestCase {
     private HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes,
                                                             SearchHit.NestedIdentity nestedIdentity) throws IOException {
         FetchSourceContext fetchSourceContext = new FetchSourceContext(fetchSource, includes, excludes);
-        SearchContext searchContext = new FetchSourcePhaseTestSearchContext(fetchSourceContext);
+        FetchContext fetchContext = mock(FetchContext.class);
+        when(fetchContext.fetchSourceContext()).thenReturn(fetchSourceContext);
+        when(fetchContext.getIndexName()).thenReturn("index");
 
         final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null, null);
 
         // We don't need a real index, just a LeafReaderContext which cannot be mocked.
         MemoryIndex index = new MemoryIndex();
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
-        HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1, null, new HashMap<>());
+        HitContext hitContext = new HitContext(
+            searchHit,
+            leafReaderContext,
+            1,
+            new SourceLookup(),
+            new HashMap<>()
+        );
         hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
 
         FetchSourcePhase phase = new FetchSourcePhase();
-        FetchSubPhaseProcessor processor = phase.getProcessor(searchContext);
+        FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);
         if (fetchSource == false) {
             assertNull(processor);
         } else {
@@ -173,30 +179,4 @@ public class FetchSourcePhaseTests extends ESTestCase {
         return hitContext;
     }
 
-    private static class FetchSourcePhaseTestSearchContext extends TestSearchContext {
-        final FetchSourceContext context;
-        final IndexShard indexShard;
-
-        FetchSourcePhaseTestSearchContext(FetchSourceContext context) {
-            super(null);
-            this.context = context;
-            this.indexShard = mock(IndexShard.class);
-            when(indexShard.shardId()).thenReturn(new ShardId("index", "index", 1));
-        }
-
-        @Override
-        public boolean sourceRequested() {
-            return context != null && context.fetchSource();
-        }
-
-        @Override
-        public FetchSourceContext fetchSourceContext() {
-            return context;
-        }
-
-        @Override
-        public IndexShard indexShard() {
-            return indexShard;
-        }
-    }
 }

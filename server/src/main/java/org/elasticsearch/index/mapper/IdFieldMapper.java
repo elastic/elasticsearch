@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -95,14 +96,15 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(c.isIdFieldDataEnabled()));
 
     static final class IdFieldType extends TermBasedFieldType {
 
-        public static final IdFieldType INSTANCE = new IdFieldType();
+        private final BooleanSupplier fieldDataEnabled;
 
-        private IdFieldType() {
-            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        IdFieldType(BooleanSupplier fieldDataEnabled) {
+            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            this.fieldDataEnabled = fieldDataEnabled;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
@@ -115,6 +117,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public boolean isSearchable() {
             // The _id field is always searchable.
             return true;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
@@ -143,6 +150,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            if (fieldDataEnabled.getAsBoolean() == false) {
+                throw new IllegalArgumentException("Fielddata access on the _id field is disallowed, "
+                    + "you can re-enable it by updating the dynamic cluster setting: "
+                    + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
+            }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
                     name(),
                     TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
@@ -153,18 +165,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 @Override
                 public IndexFieldData<?> build(
                     IndexFieldDataCache cache,
-                    CircuitBreakerService breakerService,
-                    MapperService mapperService
+                    CircuitBreakerService breakerService
                 ) {
-                    if (mapperService.isIdFieldDataEnabled() == false) {
-                        throw new IllegalArgumentException("Fielddata access on the _id field is disallowed, "
-                            + "you can re-enable it by updating the dynamic cluster setting: "
-                            + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
-                    }
                     deprecationLogger.deprecate("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache,
-                        breakerService, mapperService);
-                    return new IndexFieldData<LeafFieldData>() {
+                        breakerService);
+                    return new IndexFieldData<>() {
                         @Override
                         public String getFieldName() {
                             return fieldData.getFieldName();
@@ -251,17 +257,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    private IdFieldMapper() {
-        super(new IdFieldType());
+    private IdFieldMapper(BooleanSupplier fieldDataEnabled) {
+        super(new IdFieldType(fieldDataEnabled));
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    public void preParse(ParseContext context) {
         BytesRef id = Uid.encodeId(context.sourceToParse().id());
         context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));
     }
@@ -270,5 +271,4 @@ public class IdFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
 }

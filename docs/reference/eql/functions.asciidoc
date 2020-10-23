@@ -6,9 +6,10 @@
 <titleabbrev>Function reference</titleabbrev>
 ++++
 
-experimental::[]
+beta::[]
 
-{es} supports the following <<eql-functions,EQL functions>>.
+{es} supports the following <<eql-functions,EQL functions>>. Most EQL functions
+are case-sensitive by default.
 
 [discrete]
 [[eql-fn-add]]
@@ -62,7 +63,7 @@ If using a field as the argument, this parameter supports only
 === `between`
 
 Extracts a substring that's between a provided `left` and `right` text in a
-source string.
+source string. Matching is case-sensitive.
 
 *Example*
 [source,eql]
@@ -77,12 +78,6 @@ between(file.path, "\\\\", "\\\\", false)                 // returns "Windows"
 // Sets greedy matching to true
 between(file.path, "\\\\", "\\\\", true)                  // returns "Windows\\System32"
 
-// Case sensitivity defaults to false.
-between(file.path, "system32\\\\", ".exe", false, false)  // returns "cmd"
-// Sets case sensitivity to true
-between(file.path, "system32\\\\", ".exe", false, true)   // returns ""
-between(file.path, "System32\\\\", ".exe", false, true)   // returns "cmd"
-
 // empty source string
 between("", "system32\\\\", ".exe")                       // returns ""
 between("", "", "")                                       // returns ""
@@ -94,7 +89,7 @@ between(null, "system32\\\\", ".exe")                     // returns null
 *Syntax*
 [source,txt]
 ----
-between(<source>, <left>, <right>[, <greedy_matching>, <case_sensitive>])
+between(<source>, <left>, <right>[, <greedy_matching>])
 ----
 
 *Parameters*
@@ -109,10 +104,8 @@ Source string. Empty strings return an empty string (`""`), regardless of the
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<left>`::
@@ -125,10 +118,8 @@ whitespace.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<right>`::
@@ -141,10 +132,8 @@ whitespace.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<greedy_matching>`::
@@ -152,10 +141,6 @@ field data types:
 If `true`, match the longest possible substring, similar to `.*` in regular
 expressions. If `false`, match the shortest possible substring, similar to `.*?`
 in regular expressions. Defaults to `false`.
-
-`<case_sensitive>`::
-(Optional, boolean)
-If `true`, matching is case-sensitive. Defaults to `false`.
 
 *Returns:* string or `null`
 
@@ -262,10 +247,8 @@ Returns the quotient of a provided dividend and divisor.
 [WARNING]
 ====
 If both the dividend and divisor are integers, the `divide` function _rounds
-down_ any returned floating point numbers to the nearest integer.
-
-EQL queries in {es} should account for this rounding. To avoid rounding, convert
-either the dividend or divisor to a float.
+down_ any returned floating point numbers to the nearest integer. To avoid
+rounding, convert either the dividend or divisor to a float.
 
 [%collapsible]
 .**Example**
@@ -358,7 +341,8 @@ If using a field as the argument, this parameter supports only
 [[eql-fn-endswith]]
 === `endsWith`
 
-Returns `true` if a source string ends with a provided substring.
+Returns `true` if a source string ends with a provided substring. Matching is
+case-sensitive.
 
 *Example*
 [source,eql]
@@ -399,10 +383,8 @@ Source string. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<substring>`::
@@ -414,10 +396,8 @@ Substring to search for. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 *Returns:* boolean or `null`
@@ -426,7 +406,8 @@ field data types:
 [[eql-fn-indexof]]
 === `indexOf`
 
-Returns the first position of a provided substring in a source string.
+Returns the first position of a provided substring in a source string. Matching
+is case-sensitive.
 
 If an optional start position is provided, this function returns the first
 occurrence of the substring at or after the start position.
@@ -477,10 +458,8 @@ Source string. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<substring>`::
@@ -498,10 +477,8 @@ Otherwise, empty strings return `0`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<start_pos>`::
@@ -564,75 +541,11 @@ String for which to return the character length. If `null`, the function returns
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 *Returns:* integer or `null`
-
-[discrete]
-[[eql-fn-match]]
-=== `match`
-
-Returns `true` if a source string matches one or more provided regular
-expressions.
-
-*Example*
-[source,eql]
-----
-match("explorer.exe", "[a-z]*?.exe")           // returns true
-match("explorer.exe", "[a-z]*?.exe", "[1-9]")  // returns true
-match("explorer.exe", "[1-9]")                 // returns false
-match("explorer.exe", "")                      // returns false
-
-// process.name = "explorer.exe"
-match(process.name, "[a-z]*?.exe")             // returns true
-match(process.name, "[a-z]*?.exe", "[1-9]")    // returns true
-match(process.name, "[1-9]")                   // returns false
-match(process.name, "")                        // returns false
-
-// null handling
-match(null, "[a-z]*?.exe")                     // returns null
-----
-
-*Syntax*
-[source,txt]
-----
-match(<source>, <reg_exp>[, ...])
-----
-
-*Parameters*
-
-`<source>`::
-+
---
-(Required, string or `null`)
-Source string. If `null`, the function returns `null`.
-
-If using a field as the argument, this parameter supports only the following
-field data types:
-
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
---
-
-`<reg_exp>`::
-+
---
-(Required{multi-arg-ref}, string)
-Regular expression used to match the source string. For supported syntax, see
-<<regexp-syntax>>.
-https://docs.oracle.com/javase/tutorial/essential/regex/pre_char_classes.html[Predefined
-character classes] are not supported.
-
-Fields are not supported as arguments.
---
-
-*Returns:* boolean or `null`
 
 [discrete]
 [[eql-fn-modulo]]
@@ -811,10 +724,8 @@ ignored. Empty strings (`""`) are not supported.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 
 If this argument is `null`, the function returns `null`.
 --
@@ -838,7 +749,8 @@ Fields are not supported as arguments.
 [[eql-fn-startswith]]
 === `startsWith`
 
-Returns `true` if a source string begins with a provided substring.
+Returns `true` if a source string begins with a provided substring. Matching is
+case-sensitive.
 
 *Example*
 [source,eql]
@@ -879,10 +791,8 @@ Source string. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<substring>`::
@@ -894,10 +804,8 @@ Substring to search for. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 *Returns:* boolean or `null`
@@ -941,7 +849,8 @@ If using a field as the argument, this parameter does not support the
 [[eql-fn-stringcontains]]
 === `stringContains`
 
-Returns `true` if a source string contains a provided substring.
+Returns `true` if a source string contains a provided substring. Matching is
+case-sensitive.
 
 *Example*
 [source,eql]
@@ -978,10 +887,8 @@ Source string to search. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 
 `<substring>`::
 (Required, string or `null`)
@@ -990,10 +897,8 @@ Substring to search for. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 
 *Returns:* boolean or `null`
 
@@ -1105,7 +1010,7 @@ If using a field as the argument, this parameter supports only
 === `wildcard`
 
 Returns `true` if a source string matches one or more provided wildcard
-expressions.
+expressions. Matching is case-sensitive.
 
 *Example*
 [source,eql]
@@ -1147,10 +1052,8 @@ Source string. If `null`, the function returns `null`.
 If using a field as the argument, this parameter supports only the following
 field data types:
 
-* <<keyword,`keyword`>>
-* <<constant-keyword-field-type,`constant_keyword`>>
-* <<text,`text`>> field with a <<keyword,`keyword`>> or
-  <<constant-keyword-field-type,`constant_keyword`>> sub-field
+* A type in the <<keyword,`keyword`>> family
+* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
 --
 
 `<wildcard_exp>`::

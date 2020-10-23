@@ -6,9 +6,7 @@
 <titleabbrev>Syntax reference</titleabbrev>
 ++++
 
-experimental::[]
-
-IMPORTANT: {es} supports a subset of EQL syntax. See <<eql-syntax-limitations>>.
+beta::[]
 
 [discrete]
 [[eql-basic-syntax]]
@@ -34,7 +32,7 @@ process where process.name == "svchost.exe"
 [[eql-syntax-event-categories]]
 ==== Event categories
 
-In {es}, an event category is a valid, indexed value of the
+An event category is a valid, indexed value of the
 <<eql-required-fields,event category field>>. You can set the event category
 field using the `event_category_field` parameter of the EQL search API.
 
@@ -54,11 +52,61 @@ any where network.protocol == "http"
 ----
 
 [discrete]
+[[eql-syntax-escape-an-event-category]]
+===== Escape an event category
+
+Use enclosing double quotes (`"`) or three enclosing double quotes (`"""`) to
+escape event categories that:
+
+* Contain a special character, such as a hyphen (`-`) or dot (`.`)
+* Contain a space
+* Start with a numeral
+
+[source,eql]
+----
+".my.event.category"
+"my-event-category"
+"my event category"
+"6eventcategory"
+
+""".my.event.category"""
+"""my-event-category"""
+"""my event category"""
+"""6eventcategory"""
+----
+
+[discrete]
+[[eql-syntax-escape-a-field-name]]
+===== Escape a field name
+
+Use enclosing enclosing backticks (+++`+++) to escape field names that:
+
+* Contain a hyphen (`-`)
+* Contain a space
+* Start with a numeral
+
+[source,eql]
+----
+`my-field`
+`my field`
+`6myfield`
+----
+
+Use double backticks (+++``+++) to escape any backticks (+++`+++) in the field
+name.
+
+[source,eql]
+----
+my`field -> `my``field`
+----
+
+[discrete]
 [[eql-syntax-conditions]]
 ==== Conditions
 
 A condition consists of one or more criteria an event must match.
-You can specify and combine these criteria using the following operators:
+You can specify and combine these criteria using the following operators. Most
+EQL operators are case-sensitive by default.
 
 [discrete]
 [[eql-syntax-comparison-operators]]
@@ -66,16 +114,64 @@ You can specify and combine these criteria using the following operators:
 
 [source,eql]
 ----
-<   <=   ==   !=   >=   >
+<   <=   ==   :   !=   >=   >
 ----
 
-You cannot use comparison operators to compare a variable, such as a field
-value, to another variable, even if those variables are modified using a
-<<eql-functions,function>>.
+`<` (less than)::
+Returns `true` if the value to the left of the operator is less than the value
+to the right. Otherwise returns `false`.
 
-.*Example*
-[%collapsible]
+`<=` (less than or equal) ::
+Returns `true` if the value to the left of the operator is less than or equal to
+the value to the right. Otherwise returns `false`.
+
+`==` (equal, case-sensitive)::
+Returns `true` if the values to the left and right of the operator are equal.
+Otherwise returns `false`. For strings, matching is case-sensitive.
+
+`:` (equal, case-insensitive)::
+Returns `true` if strings to the left and right of the operator are equal.
+Otherwise returns `false`. Matching is case-insensitive and can only be used to
+compare strings.
+
+[IMPORTANT]
 ====
+Avoid using the `==` or `:` operators to perform exact matching on
+<<text,`text`>> field values.
+
+By default, {es} changes the values of `text` fields as part of <<analysis,
+analysis>>. This can make finding exact matches for `text` field values
+difficult.
+
+To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
+DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
+====
+
+`!=` (not equal, case-sensitive)::
+Returns `true` if the values to the left and right of the operator are not
+equal. Otherwise returns `false`. For strings, matching is case-sensitive.
+
+`>=` (greater than or equal) ::
+Returns `true` if the value to the left of the operator is greater than or equal
+to the value to the right. Otherwise returns `false`. When comparing strings,
+the operator uses a case-sensitive lexicographic order.
+
+`>` (greater than)::
+Returns `true` if the value to the left of the operator is greater than the
+value to the right. Otherwise returns `false`. When comparing strings,
+the operator uses a case-sensitive lexicographic order.
+
+NOTE: `=` is not supported as an equal operator. Use `==` or `:` instead.
+
+You cannot chain comparison operators. Instead, use a
+<<eql-syntax-logical-operators,logical operator>> between comparisons. For
+example, `foo < bar <= baz` is not supported. However, you can rewrite the
+expression as `foo < bar and bar <= baz`, which is supported.
+
+You also cannot use comparison operators to compare a field to another field.
+This applies even if the fields are changed using a <<eql-functions,function>>.
+
+*Example* +
 The following EQL query compares the `process.parent_name` field
 value to a static value, `foo`. This comparison is supported.
 
@@ -95,48 +191,6 @@ and `process.name` fields to static values.
 ----
 process where process.parent.name == "foo" and process.name == "foo"
 ----
-====
-
-[IMPORTANT]
-====
-Avoid using the equal operator (`==`) to perform exact matching on
-<<text,`text`>> field values.
-
-By default, {es} changes the values of `text` fields as part of <<analysis,
-analysis>>. This can make finding exact matches for `text` field values
-difficult.
-
-To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
-DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
-====
-
-.*Definitions*
-[%collapsible]
-====
-`<` (less than)::
-Returns `true` if the value to the left of the operator is less than the value
-to the right. Otherwise returns `false`.
-
-`<=` (less than or equal) ::
-Returns `true` if the value to the left of the operator is less than or equal to
-the value to the right. Otherwise returns `false`.
-
-`==` (equal)::
-Returns `true` if the values to the left and right of the operator are equal.
-Otherwise returns `false`.
-
-`!=` (not equal)::
-Returns `true` if the values to the left and right of the operator are not
-equal. Otherwise returns `false`.
-
-`>=` (greater than or equal) ::
-Returns `true` if the value to the left of the operator is greater than or equal
-to the value to the right. Otherwise returns `false`.
-
-`>` (greater than)::
-Returns `true` if the value to the left of the operator is greater than the
-value to the right. Otherwise returns `false`.
-====
 
 [discrete]
 [[eql-syntax-logical-operators]]
@@ -147,9 +201,6 @@ value to the right. Otherwise returns `false`.
 and  or  not
 ----
 
-.*Definitions*
-[%collapsible]
-====
 `and`::
 Returns `true` only if the condition to the left and right _both_ return `true`.
 Otherwise returns `false.
@@ -160,7 +211,6 @@ Otherwise returns `false.
 
 `not`::
 Returns `true` if the condition to the right is `false`.
-====
 
 [discrete]
 [[eql-syntax-lookup-operators]]
@@ -172,15 +222,13 @@ user.name in ("Administrator", "SYSTEM", "NETWORK SERVICE")
 user.name not in ("Administrator", "SYSTEM", "NETWORK SERVICE")
 ----
 
-.*Definitions*
-[%collapsible]
-====
-`in`::
-Returns `true` if the value is contained in the provided list.
+`in` (case-sensitive)::
+Returns `true` if the value is contained in the provided list. For strings,
+matching is case-sensitive.
 
-`not in`::
-Returns `true` if the value is not contained in the provided list.
-====
+`not in` (case-sensitive)::
+Returns `true` if the value is not contained in the provided list. For strings,
+matching is case-sensitive.
 
 [discrete]
 [[eql-syntax-math-operators]]
@@ -191,9 +239,6 @@ Returns `true` if the value is not contained in the provided list.
 +  -  *  /  %
 ----
 
-.*Definitions*
-[%collapsible]
-====
 `+` (add)::
 Adds the values to the left and right of the operator.
 
@@ -205,23 +250,15 @@ Multiplies the values to the left and right of the operator.
 
 `/` (Divide)::
 Divides the value to the left of the operator by the value to the right.
-
-`%` (modulo)::
-Divides the value to the left of the operator by the value to the right. Returns only the remainder.
-====
-
++
 [[eql-divide-operator-float-rounding]]
 [WARNING]
 ====
 If both the dividend and divisor are integers, the divide (`\`) operation
-_rounds down_ any returned floating point numbers to the nearest integer.
+_rounds down_ any returned floating point numbers to the nearest integer. To
+avoid rounding, convert either the dividend or divisor to a float.
 
-EQL queries in {es} should account for this rounding. To avoid rounding, convert
-either the dividend or divisor to a float.
-
-[%collapsible]
-.**Example**
-=====
+*Example* +
 The `process.args_count` field is a <<number,`long`>> integer field containing a
 count of process arguments.
 
@@ -248,38 +285,14 @@ The following EQL query changes the integer `4` to the equivalent float `4.0`.
 ----
 process where ( 4.0 / process.args_count ) == 1
 ----
-=====
 ====
 
-[discrete]
-[[eql-syntax-strings]]
-==== Strings
-
-Strings are enclosed with double quotes (`"`) or single quotes (`'`).
-
-[source,eql]
-----
-"hello world"
-"hello world with 'substring'"
-----
-
-[discrete]
-[[eql-syntax-wildcards]]
-===== Wildcards
-
-You can use the wildcard operator (`*`) within a string to match specific
-patterns. You can use wildcards with the `==` (equal) or `!=` (not equal)
-operators:
-
-[source,eql]
-----
-field == "example*wildcard"
-field != "example*wildcard"
-----
+`%` (modulo)::
+Divides the value to the left of the operator by the value to the right. Returns only the remainder.
 
 [discrete]
 [[eql-syntax-match-any-condition]]
-===== Match any condition
+==== Match any condition
 
 To match events solely on event category, use the `where true` condition.
 
@@ -299,20 +312,30 @@ any where true
 ----
 
 [discrete]
-[[eql-syntax-escaped-characters]]
-===== Escaped characters
+[[eql-syntax-strings]]
+==== Strings
+
+Strings are enclosed in double quotes (`"`).
+
+[source,eql]
+----
+"hello world"
+----
+
+Strings enclosed in single quotes (`'`) are not supported.
+
+[discrete]
+[[eql-syntax-escape-characters]]
+===== Escape characters in a string
 
 When used within a string, special characters, such as a carriage return or
 double quote (`"`), must be escaped with a preceding backslash (`\`).
 
 [source,eql]
 ----
-"example \t of \n escaped \r characters"
+"example \r of \" escaped \n characters"
 ----
 
-.*Escape sequences*
-[%collapsible]
-====
 [options="header"]
 |====
 | Escape sequence | Literal character
@@ -321,49 +344,30 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 |`\t`             | A tab character
 |`\\`             | A backslash (`\`) character
 |`\"`             | A double quote (`"`) character
-|`\'`             | A single quote (`'`) character
 |====
-====
+
+IMPORTANT: The single quote (`'`) character is reserved for future use. You
+cannot use an escaped single quote (`\'`) for literal strings. Use an escaped
+double quote (`\"`) instead.
 
 [discrete]
 [[eql-syntax-raw-strings]]
 ===== Raw strings
 
-Raw strings are preceded by a question mark (`?`) and treat backslashes (`\`) as
-literal characters.
+Raw strings treat special characters, such as backslashes (`\`), as literal
+characters. Raw strings are enclosed in three double quotes (`"""`).
 
 [source,eql]
 ----
-?"String with a literal 'blackslash' \ character included"
+"""Raw string with a literal double quote " and blackslash \ included"""
 ----
 
-You can escape single quotes (`'`) and double quotes (`"`) with a backslash, but
-the backslash remains in the resulting string.
+A raw string cannot contain three consecutive double quotes (`"""`). Instead,
+use a regular string with the `\"` escape sequence.
 
 [source,eql]
 ----
-?"\""
-----
-
-[NOTE]
-====
-Raw strings cannot contain only a single backslash or end in an odd number of
-backslashes.
-====
-
-[discrete]
-[[eql-syntax-non-alpha-field-names]]
-==== Non-alphanumeric field names
-
-Field names containing non-alphanumeric characters, such as underscores (`_`),
-dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
-
-[source,eql]
-----
-`my_field`
-`my.field`
-`my-field`
-`my field`
+"String containing \"\"\" three double quotes"
 ----
 
 [discrete]
@@ -383,9 +387,7 @@ sequence
   ...
 ----
 
-.*Example*
-[%collapsible]
-====
+*Example* +
 The following EQL sequence query matches this series of ordered events:
 
 . Start with an event with:
@@ -402,7 +404,6 @@ sequence
   [ file where file.extension == "exe" ]
   [ process where true ]
 ----
-====
 
 [discrete]
 [[eql-with-maxspan-keywords]]
@@ -422,9 +423,7 @@ sequence with maxspan=30s
   ...
 ----
 
-.*Example*
-[%collapsible]
-====
+*Example* +
 The following sequence query uses a `maxspan` value of `15m` (15 minutes).
 Events in a matching sequence must occur within 15 minutes of the first event's
 timestamp.
@@ -435,7 +434,6 @@ sequence with maxspan=15m
   [ file where file.extension == "exe" ]
   [ process where true ]
 ----
-====
 
 [discrete]
 [[eql-by-keyword]]
@@ -453,9 +451,7 @@ sequence by field_foo
   ...
 ----
 
-.*Example*
-[%collapsible]
-====
+*Example* +
 The following sequence query uses the `by` keyword to constrain matching events
 to:
 
@@ -480,7 +476,6 @@ sequence by user.name
   [ file where file.extension == "exe" ] by file.path
   [ process where true ] by process.path
 ----
-====
 
 You can combine the `sequence by` and `with maxspan` keywords to constrain a
 sequence by both field values and a timespan.
@@ -493,9 +488,7 @@ sequence by field_foo with maxspan=30s
   ...
 ----
 
-.*Example*
-[%collapsible]
-====
+*Example* +
 The following sequence query uses the `sequence by` keyword and `with maxspan`
 keywords to match only a sequence of events that:
 
@@ -508,7 +501,6 @@ sequence by user.name with maxspan=15m
   [ file where file.extension == "exe" ] by file.path
   [ process where true ] by process.path
 ----
-====
 
 [discrete]
 [[eql-until-keyword]]
@@ -563,9 +555,7 @@ a process terminates, its PID can be reused.
 You can search for a sequence of events with the same PID value using the `by`
 and `sequence by` keywords.
 
-.*Example*
-[%collapsible]
-=====
+*Example* +
 The following EQL query uses the `sequence by` keyword to match a
 sequence of events that share the same `process.pid` value.
 
@@ -575,16 +565,12 @@ sequence by process.pid
   [ process where event.type == "start" and process.name == "cmd.exe" ]
   [ process where file.extension == "exe" ]
 ----
-=====
 
 However, due to PID reuse, this can result in a matching sequence that
 contains events across unrelated processes. To prevent false positives, you can
 use the `until` keyword to end matching sequences before a process termination
 event.
 
-.*Example*
-[%collapsible]
-=====
 The following EQL query uses the `until` keyword to end sequences before
 `process` events with an `event.type` of `stop`. These events indicate a process
 has been terminated.
@@ -596,16 +582,14 @@ sequence by process.pid
   [ process where file.extension == "exe" ]
 until [ process where event.type == "stop" ]
 ----
-=====
-
 ====
 
 [discrete]
 [[eql-functions]]
 === Functions
 
-{es} supports several of EQL's built-in functions. You can use these functions
-to convert data types, perform math, manipulate strings, and more.
+You can use EQL functions to convert data types, perform math, manipulate
+strings, and more. Most functions are case-sensitive by default.
 
 For a list of supported functions, see <<eql-function-ref>>.
 
@@ -616,9 +600,7 @@ often use functions to transform indexed data, you can speed up search by making
 these changes during indexing instead. However, that often means slower index
 speeds.
 
-.*Example*
-[%collapsible]
-=====
+*Example* +
 An index contains the `file.path` field. `file.path` contains the full path to a
 file, including the file extension.
 
@@ -649,7 +631,6 @@ calls:
 ----
 file where file.extension in ("exe", "dll")
 ----
-=====
 
 We recommend testing and benchmarking any indexing changes before deploying them
 in production. See <<tune-for-indexing-speed>> and <<tune-for-search-speed>>.
@@ -670,9 +651,7 @@ Pipes are delimited using the pipe (`|`) character.
 event_category where condition | pipe
 ----
 
-.*Example*
-[%collapsible]
-====
+*Example* +
 The following EQL query uses the `tail` pipe to return only the 10 most recent
 events matching the query.
 
@@ -681,7 +660,6 @@ events matching the query.
 authentication where agent.id == 4624
 | tail 10
 ----
-====
 
 You can pass the output of a pipe to another pipe. This lets you use multiple
 pipes with a single query.
@@ -692,7 +670,23 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 [[eql-syntax-limitations]]
 === Limitations
 
-{es} EQL does not support the following features and syntax.
+EQL does not support the following features and syntax.
+
+[discrete]
+[[eql-compare-fields]]
+==== Comparing fields
+
+You cannot use EQL comparison operators to compare a field to
+another field. This applies even if the fields are changed using a
+<<eql-functions,function>>.
+
+[discrete]
+[[eql-array-fields]]
+==== Array field values are not supported
+
+EQL does not support <<array,array>> field values, also known as
+_multi-value fields_. EQL searches on array field values may return inconsistent
+results.
 
 [discrete]
 [[eql-nested-fields]]
@@ -704,26 +698,46 @@ sub-fields of a `nested` field. However, data streams and indices containing
 
 [discrete]
 [[eql-unsupported-syntax]]
-==== Unsupported syntax
+==== Differences from Endgame EQL syntax
 
-{es} supports a subset of {eql-ref}/index.html[EQL syntax]. {es} cannot run EQL
-queries that contain:
+{es} EQL differs from the {eql-ref}/index.html[Elastic Endgame EQL syntax] as
+follows:
 
-* Array functions:
-** {eql-ref}/functions.html#arrayContains[`arrayContains`]
-** {eql-ref}/functions.html#arrayCount[`arrayCount`]
-** {eql-ref}/functions.html#arraySearch[`arraySearch`]
+* Most operators and functions in {es} EQL are case-sensitive. For
+case-insensitive equality comparisons, use the `:` operator.
 
-* {eql-ref}/joins.html[Joins]
+* Comparisons using the `==` and `!=` operators do not expand wildcard
+characters. For example, `process_name == "cmd*.exe"` interprets `*` as a
+literal asterisk, not a wildcard. For case-sensitive wildcard matching, use the
+<<eql-fn-wildcard,`wildcard`>> function.
 
-* {eql-ref}/basic-syntax.html#event-relationships[Lineage-related keywords]:
-** `child of`
-** `descendant of`
-** `event of`
+* `=` cannot be substituted for the `==` operator.
 
-* The following {eql-ref}/pipes.html[pipes]:
-** {eql-ref}/pipes.html#count[`count`]
-** {eql-ref}/pipes.html#filter[`filter`]
-** {eql-ref}/pipes.html#sort[`sort`]
-** {eql-ref}/pipes.html#unique[`unique`]
-** {eql-ref}/pipes.html#unique-count[`unique_count`]
+* Strings enclosed in single quotes (`'`) are not supported. Enclose strings in
+double quotes (`"`) instead.
+
+* `?"` and `?'` do not indicate raw strings. Enclose raw strings in
+three double quotes (`"""`) instead.
+
+* {es} EQL does not support:
+
+** Array functions:
+*** {eql-ref}/functions.html#arrayContains[`arrayContains`]
+*** {eql-ref}/functions.html#arrayCount[`arrayCount`]
+*** {eql-ref}/functions.html#arraySearch[`arraySearch`]
+
+** The {eql-ref}//functions.html#match[`match`] function
+
+** {eql-ref}/joins.html[Joins]
+
+** {eql-ref}/basic-syntax.html#event-relationships[Lineage-related keywords]:
+*** `child of`
+*** `descendant of`
+*** `event of`
+
+** The following {eql-ref}/pipes.html[pipes]:
+*** {eql-ref}/pipes.html#count[`count`]
+*** {eql-ref}/pipes.html#filter[`filter`]
+*** {eql-ref}/pipes.html#sort[`sort`]
+*** {eql-ref}/pipes.html#unique[`unique`]
+*** {eql-ref}/pipes.html#unique-count[`unique_count`]

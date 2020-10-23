@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -152,7 +153,8 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             case UPGRADED:
                 client().performRequest(waitForYellow);
                 verifyContinuousTransformHandlesData(3);
-                assertLegacyTemplateMatchesIndexMappings(".transform-internal-005", ".transform-internal-005");
+                IndexMappingTemplateAsserter.assertLegacyTemplateMatchesIndexMappings(client(),
+                    ".transform-internal-005", ".transform-internal-005");
                 cleanUpTransforms();
                 break;
             default:
@@ -329,7 +331,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         final Request getStats = new Request("GET", getTransformEndpoint() + id + "/_stats");
         Response response = client().performRequest(getStats);
         assertEquals(200, response.getStatusLine().getStatusCode());
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         try (XContentParser parser = xContentType.xContent().createParser(
             NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
             response.getEntity().getContent())) {

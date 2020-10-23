@@ -345,6 +345,7 @@ as such may be:
 Like most design decisions, this is the basis of a trade-off in which we have chosen to provide fast performance at the cost of some (typically small) inaccuracies.
 However, the `size` and `shard size` settings covered in the next section provide tools to help control the accuracy levels.
 
+[[significanttext-aggregation-parameters]]
 ==== Parameters
 
 ===== Significance heuristics

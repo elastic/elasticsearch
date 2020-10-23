@@ -149,7 +149,7 @@ public final class MappingLookup implements Iterable<Mapper> {
      * A smart analyzer used for indexing that takes into account specific analyzers configured
      * per {@link FieldMapper}.
      */
-    public Analyzer indexAnalyzer() {
+    public FieldNameAnalyzer indexAnalyzer() {
         return this.indexAnalyzer;
     }
 

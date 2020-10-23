@@ -1,5 +1,3 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -23,4 +21,3 @@ dependencyLicenses {
   ignoreSha 'x-pack-core'
 }
 
-integTest.enabled = false

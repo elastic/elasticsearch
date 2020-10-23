@@ -11,7 +11,6 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -28,7 +27,6 @@ public abstract class AbstractEqlIntegTestCase extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(EqlPlugin.EQL_ENABLED_SETTING.getKey(), true);
         settings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         return settings.build();
     }

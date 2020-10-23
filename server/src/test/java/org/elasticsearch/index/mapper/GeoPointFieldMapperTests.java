@@ -19,19 +19,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -44,16 +37,40 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointFieldMapper.Builder> {
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "doc_values");
-    }
+public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "geo_point");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
+            GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
+            assertTrue(gpfm.ignoreMalformed());
+        });
+        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+            GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
+            assertFalse(gpfm.ignoreZValue());
+        });
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "41.12,-71.34"));
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+    }
+
+    @Override
+    protected Object getSampleValueForDocument() {
+        return stringEncode(1.3, 1.2);
+    }
+
+    public final void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     public void testGeoHashValue() throws Exception {
@@ -175,14 +192,14 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", true)));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-        boolean ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
+        boolean ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", false)));
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-        ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
+        ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(false));
     }
 
@@ -192,7 +209,7 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
             b.startObject("fields");
             {
                 b.startObject("geohash").field("type", "keyword").field("doc_values", false).endObject();  // test geohash as keyword
-                b.startObject("latlon").field("type", "text").field("doc_values", false).endObject();  // test geohash as text
+                b.startObject("latlon").field("type", "text").endObject();  // test geohash as text
             }
             b.endObject();
         }));
@@ -299,41 +316,8 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         );
     }
 
-    public void testFetchSourceValue() {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        AbstractGeometryFieldMapper<?, ?> mapper = new GeoPointFieldMapper.Builder("field").build(context);
-        SourceLookup sourceLookup = new SourceLookup();
-
-        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
-        Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));
-        String wktPoint = "POINT (42.0 27.1)";
-        String otherWktPoint = "POINT (30.0 50.0)";
-
-        // Test a single point in [lon, lat] array format.
-        Object sourceValue = List.of(42.0, 27.1);
-        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
-
-        // Test a single point in "lat, lon" string format.
-        sourceValue = "27.1,42.0";
-        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
-
-        // Test a list of points in [lon, lat] array format.
-        sourceValue = List.of(List.of(42.0, 27.1), List.of(30.0, 50.0));
-        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
-
-        // Test a single point in well-known text format.
-        sourceValue = "POINT (42.0 27.1)";
-        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
-    }
-
-    @Override
-    protected GeoPointFieldMapper.Builder newBuilder() {
-        return new GeoPointFieldMapper.Builder("geo");
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
     }
 }

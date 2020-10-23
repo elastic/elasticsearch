@@ -51,10 +51,6 @@ testClusters.integTest {
   testDistribution = 'DEFAULT'
   plugin repositoryPlugin.path
 
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
-
   keystore 'azure.client.searchable_snapshots.account', azureAccount
   if (azureKey != null && azureKey.isEmpty() == false) {
     keystore 'azure.client.searchable_snapshots.key', azureKey

@@ -33,9 +33,9 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,10 +56,10 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
     static final String FIELD_NAME_PREFIX = "_percolator_document_slot";
 
     @Override
-    public FetchSubPhaseProcessor getProcessor(SearchContext searchContext) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
 
         List<PercolateContext> percolateContexts = new ArrayList<>();
-        List<PercolateQuery> percolateQueries = locatePercolatorQuery(searchContext.query());
+        List<PercolateQuery> percolateQueries = locatePercolatorQuery(fetchContext.query());
         boolean singlePercolateQuery = percolateQueries.size() == 1;
         for (PercolateQuery pq : percolateQueries) {
             percolateContexts.add(new PercolateContext(pq, singlePercolateQuery));

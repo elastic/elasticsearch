@@ -10,8 +10,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack-ccr'
 
-integTest.enabled = false
-
 // Integration Test classes that cannot run with the security manager
 String[] noSecurityManagerITClasses = ["**/CloseFollowerIndexIT.class"]
 

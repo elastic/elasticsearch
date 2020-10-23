@@ -112,6 +112,8 @@ include::indices/delete-component-template.asciidoc[]
 
 include::indices/delete-index-template.asciidoc[]
 
+include::indices/delete-index-template-v1.asciidoc[]
+
 include::indices/flush.asciidoc[]
 
 include::indices/forcemerge.asciidoc[]

@@ -38,13 +38,12 @@ end::target-index-aliases[]
 
 tag::allow-no-indices[]
 `allow_no_indices`::
-(Optional, boolean) If `true`,
-the request does *not* return an error
-if a wildcard expression
-or `_all` value retrieves only missing or closed indices.
-+
-This parameter also applies to <<indices-aliases,index aliases>>
-that point to a missing or closed index.
+(Optional, boolean)
+If `false`, the request returns an error if any wildcard expression,
+<<indices-aliases,index alias>>, or `_all` value targets only missing or closed
+indices. This behavior applies even if the request targets other open indices.
+For example, a request targeting `foo*,bar*` returns an error if an index
+starts with `foo` but no index starts with `bar`.
 end::allow-no-indices[]
 
 tag::allow-no-match-transforms1[]
@@ -149,7 +148,11 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}.
+The _destination index_ for the {transform}. The mappings of the destination 
+index are deduced based on the source fields when possible. If alternate 
+mappings are required, use the 
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API] 
+prior to starting the {transform}.
 end::dest-index[]
 
 tag::dest-pipeline[]
@@ -509,8 +512,8 @@ end::index-metric[]
 tag::index-template[]
 `<index-template>`::
 (Required, string)
-Comma-separated list or wildcard expression of index template names
-used to limit the request.
+Comma-separated list of index template names used to limit the request. Wildcard
+(`*`) expressions are supported.
 end::index-template[]
 
 tag::component-template[]
@@ -651,7 +654,7 @@ The method for transforming the data. These objects define the pivot function
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following aggregations are 
+Defines how to aggregate the grouped data. The following aggregations are
 supported:
 +
 --
@@ -664,6 +667,7 @@ supported:
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
+* <<search-aggregations-bucket-missing-aggregation,Missing>>
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
 * <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
@@ -673,7 +677,7 @@ supported:
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 
 
-IMPORTANT: {transforms-cap} support a subset of the functionality in 
+IMPORTANT: {transforms-cap} support a subset of the functionality in
 aggregations. See <<transform-limitations>>.
 
 --
@@ -685,7 +689,7 @@ Defines how to group the data. More than one grouping can be defined
 +
 --
 * <<_date_histogram,Date histogram>>
-* <<_geotile_grid,Geotile Grid>> 
+* <<_geotile_grid,Geotile Grid>>
 * <<_histogram,Histogram>>
 * <<_terms,Terms>>
 
@@ -776,7 +780,7 @@ end::scroll[]
 tag::scroll_size[]
 `scroll_size`::
 (Optional, integer) Size of the scroll request that powers the operation.
-Defaults to 100.
+Defaults to 1000.
 end::scroll_size[]
 
 tag::search-failures[]

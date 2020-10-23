@@ -366,6 +366,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
             new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, null, null, null, null));
         putAnalytics(firstJob);
+        startAnalytics(firstJobId);
+        waitUntilAnalyticsIsStopped(firstJobId);
 
         String secondJobId = "regression_two_jobs_with_same_randomize_seed_2";
         String secondJobDestIndex = secondJobId + "_dest";
@@ -375,11 +377,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, randomizeSeed, null, null, null));
 
         putAnalytics(secondJob);
-
-        // Let's run both jobs in parallel and wait until they are finished
-        startAnalytics(firstJobId);
         startAnalytics(secondJobId);
-        waitUntilAnalyticsIsStopped(firstJobId);
         waitUntilAnalyticsIsStopped(secondJobId);
 
         // Now we compare they both used the same training rows
@@ -700,7 +698,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "          \"type\": \"double\"\n" +
             "        }," +
             "        \"" + DISCRETE_NUMERICAL_FEATURE_FIELD + "\": {\n" +
-            "          \"type\": \"long\"\n" +
+            "          \"type\": \"unsigned_long\"\n" +
             "        }," +
             "        \"" + DEPENDENT_VARIABLE_FIELD + "\": {\n" +
             "          \"type\": \"double\"\n" +

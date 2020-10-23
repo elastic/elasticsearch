@@ -15,39 +15,32 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
-import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.AbstractLongFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFieldQueryTestCase<LongScriptFieldDistanceFeatureQuery> {
-    private final CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory = ctx -> null;
+    private final Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> null;
 
     @Override
     protected LongScriptFieldDistanceFeatureQuery createTestInstance() {
         long origin = randomLong();
         long pivot = randomValueOtherThan(origin, ESTestCase::randomLong);
-        return new LongScriptFieldDistanceFeatureQuery(randomScript(), leafFactory, randomAlphaOfLength(5), origin, pivot, randomFloat());
+        return new LongScriptFieldDistanceFeatureQuery(randomScript(), leafFactory, randomAlphaOfLength(5), origin, pivot);
     }
 
     @Override
     protected LongScriptFieldDistanceFeatureQuery copy(LongScriptFieldDistanceFeatureQuery orig) {
-        return new LongScriptFieldDistanceFeatureQuery(
-            orig.script(),
-            leafFactory,
-            orig.fieldName(),
-            orig.origin(),
-            orig.pivot(),
-            orig.boost()
-        );
+        return new LongScriptFieldDistanceFeatureQuery(orig.script(), leafFactory, orig.fieldName(), orig.origin(), orig.pivot());
     }
 
     @Override
@@ -56,8 +49,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
         String fieldName = orig.fieldName();
         long origin = orig.origin();
         long pivot = orig.pivot();
-        float boost = orig.boost();
-        switch (randomInt(4)) {
+        switch (randomInt(3)) {
             case 0:
                 script = randomValueOtherThan(script, this::randomScript);
                 break;
@@ -70,13 +62,10 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             case 3:
                 pivot = randomValueOtherThan(origin, () -> randomValueOtherThan(orig.pivot(), ESTestCase::randomLong));
                 break;
-            case 4:
-                boost = randomValueOtherThan(boost, ESTestCase::randomFloat);
-                break;
             default:
                 fail();
         }
-        return new LongScriptFieldDistanceFeatureQuery(script, leafFactory, fieldName, origin, pivot, boost);
+        return new LongScriptFieldDistanceFeatureQuery(script, leafFactory, fieldName, origin, pivot);
     }
 
     @Override
@@ -86,26 +75,32 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                CheckedFunction<LeafReaderContext, AbstractLongScriptFieldScript, IOException> leafFactory =
-                    ctx -> new DateScriptFieldScript(Map.of(), new SearchLookup(null, null), null, ctx) {
-                        @Override
-                        public void execute() {
-                            for (Object timestamp : (List<?>) getSource().get("timestamp")) {
-                                emitValue(((Number) timestamp).longValue());
-                            }
+                Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new DateFieldScript(
+                    "test",
+                    Map.of(),
+                    new SearchLookup(null, null),
+                    null,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {
+                        for (Object timestamp : (List<?>) getSource().get("timestamp")) {
+                            emit(((Number) timestamp).longValue());
                         }
-                    };
+                    }
+                };
                 LongScriptFieldDistanceFeatureQuery query = new LongScriptFieldDistanceFeatureQuery(
                     randomScript(),
                     leafFactory,
                     "test",
                     1595432181351L,
-                    6L,
-                    between(1, 100)
+                    3L
                 );
-                TopDocs td = searcher.search(query, 1);
-                assertThat(td.scoreDocs[0].score, equalTo(query.boost()));
+                TopDocs td = searcher.search(query, 2);
+                assertThat(td.scoreDocs[0].score, equalTo(1.0f));
                 assertThat(td.scoreDocs[0].doc, equalTo(1));
+                assertThat(td.scoreDocs[1].score, equalTo(.5f));
+                assertThat(td.scoreDocs[1].doc, equalTo(0));
             }
         }
     }
@@ -119,7 +114,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
                 float boost = randomFloat();
                 assertThat(
                     query.createWeight(searcher, ScoreMode.COMPLETE, boost).scorer(reader.leaves().get(0)).getMaxScore(randomInt()),
-                    equalTo(query.boost() * boost)
+                    equalTo(boost)
                 );
             }
         }
@@ -129,9 +124,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
     protected void assertToString(LongScriptFieldDistanceFeatureQuery query) {
         assertThat(
             query.toString(query.fieldName()),
-            equalTo(
-                "LongScriptFieldDistanceFeatureQuery(origin=" + query.origin() + ",pivot=" + query.pivot() + ",boost=" + query.boost() + ")"
-            )
+            equalTo("LongScriptFieldDistanceFeatureQuery(origin=" + query.origin() + ",pivot=" + query.pivot() + ")")
         );
     }
 

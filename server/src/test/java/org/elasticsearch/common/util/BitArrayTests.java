@@ -37,6 +37,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class BitArrayTests extends ESTestCase {
+
     public void testRandom() {
         try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
             int numBits = randomIntBetween(1000, 10000);
@@ -111,6 +112,75 @@ public class BitArrayTests extends ESTestCase {
         BigArrays bigArrays = new BigArrays(null, breaker, CircuitBreaker.REQUEST, true);
         try (BitArray bitArray = new BitArray(1, bigArrays)) {
             bitArray.clear(100000000);
+        }
+    }
+
+    public void testOr() {
+        try (BitArray bitArray1 = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE);
+             BitArray bitArray2 = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE);
+             BitArray bitArrayFull = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int numBits = randomIntBetween(1000, 10000);
+            for (int step = 0; step < 3; step++) {
+                for (int i = 0; i < numBits; i++) {
+                    if (randomBoolean()) {
+                        if (rarely()) {
+                            bitArray1.set(i);
+                            bitArray2.set(i);
+                        } else if (randomBoolean()) {
+                            bitArray1.set(i);
+                        } else {
+                            bitArray2.set(i);
+                        }
+                        bitArrayFull.set(i);
+                    }
+                }
+                bitArray1.or(bitArray2);
+                for (int i = 0; i < numBits; i++) {
+                    assertEquals(bitArrayFull.get(i), bitArray1.get(i));
+                }
+            }
+        }
+    }
+
+    public void testNextBitSet() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int numBits = randomIntBetween(1000, 10000);
+            for (int step = 0; step < 3; step++) {
+                for (int i = 0; i < numBits; i++) {
+                    if (randomBoolean()) {
+                        bitArray.set(i);
+                    }
+                }
+                long next = bitArray.nextSetBit(0);
+                for (int i = 0; i < numBits; i++) {
+                    if (i == next) {
+                        assertEquals(true, bitArray.get(i));
+                        if (i < numBits - 1) {
+                            next = bitArray.nextSetBit(i + 1);
+                        }
+                    } else {
+                        assertEquals(false, bitArray.get(i));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testCardinality() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int numBits = randomIntBetween(1000, 10000);
+            long cardinality = 0;
+            for (int step = 0; step < 3; step++) {
+                for (int i = 0; i < numBits; i++) {
+                    if (randomBoolean()) {
+                        if (bitArray.get(i) == false) {
+                            cardinality++;
+                        }
+                        bitArray.set(i);
+                    }
+                }
+                assertEquals(cardinality, bitArray.cardinality());
+            }
         }
     }
 }

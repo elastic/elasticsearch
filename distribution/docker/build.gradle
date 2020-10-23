@@ -6,7 +6,6 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.docker.DockerBuildTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
-
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
@@ -15,7 +14,6 @@ apply plugin: 'elasticsearch.rest-resources'
 testFixtures.useFixture()
 
 configurations {
-  dockerPlugins
   aarch64DockerSource
   dockerSource
   aarch64OssDockerSource
@@ -23,10 +21,10 @@ configurations {
 }
 
 dependencies {
-  aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar")
-  dockerSource project(path: ":distribution:archives:linux-tar")
-  aarch64OssDockerSource project(path: ":distribution:archives:oss-linux-aarch64-tar")
-  ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
+  aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration:"default")
+  dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
+  aarch64OssDockerSource project(path: ":distribution:archives:oss-linux-aarch64-tar", configuration:"default")
+  ossDockerSource project(path: ":distribution:archives:oss-linux-tar", configuration:"default")
 }
 
 ext.expansions = { Architecture architecture, boolean oss, DockerBase base, boolean local ->
@@ -60,7 +58,7 @@ ext.expansions = { Architecture architecture, boolean oss, DockerBase base, bool
 RUN curl --retry 8 -S -L \\
       --output /opt/elasticsearch.tar.gz \\
       https://artifacts.elastic.co/downloads/elasticsearch/$elasticsearch
-"""
+""".trim()
   }
 
   return [
@@ -146,8 +144,6 @@ void addCopyDockerContextTask(Architecture architecture, boolean oss, DockerBase
         from configurations.dockerSource
       }
     }
-
-    from configurations.dockerPlugins
   }
 }
 
@@ -167,6 +163,46 @@ tasks.register("copyKeystore", Sync) {
     file("${buildDir}/certs").setReadable(true, false)
     file("${buildDir}/certs/testnode.jks").setReadable(true, false)
   }
+}
+
+tasks.register("checkSecurityAuditLayoutPatternIdentical") {
+  // the two log4j2.properties files containing security audit configuration for archive and docker builds respectively
+  def originalLog4j = project(":x-pack:plugin:core").file('src/main/config/log4j2.properties')
+  def dockerLog4j = project.file("src/docker/config/log4j2.properties")
+  inputs.files(originalLog4j, dockerLog4j)
+  def patternPropertyKey = "appender.audit_rolling.layout.pattern"
+  doLast {
+    def coreLog4jProperties = new Properties()
+    originalLog4j.withInputStream { input ->
+      coreLog4jProperties.load(input)
+    }
+
+    if (false == coreLog4jProperties.containsKey(patternPropertyKey)) {
+      throw new GradleException("The [${originalLog4j.getPath()}] file changed such that the layout pattern is not " +
+              "referred to by the property named [${patternPropertyKey}]. Please update the task [${name}] " +
+              "definition from project [${path}] to reflect the new name for the layout pattern property.")
+    }
+
+    def dockerLog4jProperties = new Properties()
+    dockerLog4j.withInputStream { input ->
+      dockerLog4jProperties.load(input)
+    }
+
+    if (false == dockerLog4jProperties.containsKey(patternPropertyKey)) {
+      throw new GradleException("The [${dockerLog4j.getPath()}] file changed such that the layout pattern is not " +
+              "referred to by the property named [${patternPropertyKey}]. Please update the task [${name}] " +
+              "definition from project [${path}] to reflect the new name for the layout pattern property.")
+    }
+
+    if (false == coreLog4jProperties.getProperty(patternPropertyKey).equals(dockerLog4jProperties.getProperty(patternPropertyKey))) {
+      throw new GradleException("The property value for the layout pattern [${patternPropertyKey}] is NOT identical " +
+              "between the [${originalLog4j.getPath()}] and the [${dockerLog4j.getPath()}] files.")
+    }
+  }
+}
+
+tasks.named("precommit").configure {
+  dependsOn 'checkSecurityAuditLayoutPatternIdentical'
 }
 
 elasticsearch_distributions {
@@ -229,6 +265,12 @@ void addBuildDockerImage(Architecture architecture, boolean oss, DockerBase base
     TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, oss, base, "DockerContext"))
     dependsOn(copyContextTask)
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
+
+    if (base == DockerBase.UBI) {
+      baseImages = [ base.getImage() ]
+    } else {
+      baseImages = [ base.getImage(), 'alpine:latest' ]
+    }
 
     String version = VersionProperties.elasticsearch
     if (oss) {

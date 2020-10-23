@@ -23,20 +23,16 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,8 +41,34 @@ import static org.hamcrest.Matchers.notNullValue;
 public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
+    protected Object getSampleValueForDocument() {
+        return "2016-03-11";
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "date");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("format", b -> b.field("format", "yyyy-MM-dd"));
+        checker.registerConflictCheck("locale", b -> b.field("locale", "es"));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "34500000"));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((DateFieldMapper)m).getIgnoreMalformed()));
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
     }
 
     public void testDefaults() throws Exception {
@@ -219,13 +241,18 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
-    public void testBadNullValue() {
+    public void testBadNullValue() throws IOException {
 
         MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("null_value", ""))));
+            () -> createDocumentMapper(Version.V_8_0_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo"))));
 
         assertThat(e.getMessage(),
-            equalTo("Failed to parse mapping: Error parsing [null_value] on field [field]: cannot parse empty date"));
+            equalTo("Failed to parse mapping: Error parsing [null_value] on field [field]: " +
+                "failed to parse date field [foo] with format [strict_date_optional_time||epoch_millis]"));
+
+        createDocumentMapper(Version.V_7_9_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
+
+        assertWarnings("Error parsing [foo] as date in [null_value] on field [field]); [null_value] will be ignored");
     }
 
     public void testNullConfigValuesFail() {
@@ -260,8 +287,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             .field("format", "yyyy/MM/dd")));
 
         assertThat(mapperService.fieldType("field"), notNullValue());
-        assertFalse(mapperService.fieldType("field")
-            .getTextSearchInfo().isStored());
+        assertFalse(mapperService.fieldType("field").isStored());
 
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> merge(mapperService, fieldMapping(b -> b.field("type", "date").field("format", "epoch_millis"))));
@@ -284,65 +310,27 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("Error parsing [format] on field [field]: Invalid"));
     }
 
-    public void testFetchSourceValue() {
-        DateFieldMapper mapper = createMapper(Resolution.MILLISECONDS, null);
-        String date = "2020-05-15T21:33:02.000Z";
-        assertEquals(List.of(date), fetchSourceValue(mapper, date));
-        assertEquals(List.of(date), fetchSourceValue(mapper, 1589578382000L));
 
-        DateFieldMapper mapperWithFormat = createMapper(Resolution.MILLISECONDS, "yyyy/MM/dd||epoch_millis");
-        String dateInFormat = "1990/12/29";
-        assertEquals(List.of(dateInFormat), fetchSourceValue(mapperWithFormat, dateInFormat));
-        assertEquals(List.of(dateInFormat), fetchSourceValue(mapperWithFormat, 662428800000L));
 
-        DateFieldMapper mapperWithMillis = createMapper(Resolution.MILLISECONDS, "epoch_millis");
-        String dateInMillis = "662428800000";
-        assertEquals(List.of(dateInMillis), fetchSourceValue(mapperWithMillis, dateInMillis));
-        assertEquals(List.of(dateInMillis), fetchSourceValue(mapperWithMillis, 662428800000L));
-
-        String nullValueDate = "2020-05-15T21:33:02.000Z";
-        DateFieldMapper nullValueMapper = createMapper(Resolution.MILLISECONDS, null, nullValueDate);
-        assertEquals(List.of(nullValueDate), fetchSourceValue(nullValueMapper, null));
+    public void testFetchDocValuesMillis() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "date").field("format", "strict_date_time||epoch_millis"))
+        );
+        MappedFieldType ft = mapperService.fieldType("field");
+        DocValueFormat format = ft.docValueFormat(null, null);
+        String date = "2020-05-15T21:33:02.123Z";
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
     }
 
-    public void testParseSourceValueWithFormat() {
-        DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time", "1970-12-29T00:00:00.000Z");
-        String date = "1990-12-29T00:00:00.000Z";
-        assertEquals(List.of("1990/12/29"), fetchSourceValue(mapper, date, "yyyy/MM/dd"));
-        assertEquals(List.of("662428800000"), fetchSourceValue(mapper, date, "epoch_millis"));
-        assertEquals(List.of("1970/12/29"), fetchSourceValue(mapper, null, "yyyy/MM/dd"));
-    }
-
-    public void testParseSourceValueNanos() {
-        DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time||epoch_millis");
+    public void testFetchDocValuesNanos() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "date_nanos").field("format", "strict_date_time||epoch_millis"))
+        );
+        MappedFieldType ft = mapperService.fieldType("field");
+        DocValueFormat format = ft.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123456789Z";
-        assertEquals(List.of("2020-05-15T21:33:02.123456789Z"), fetchSourceValue(mapper, date));
-        assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchSourceValue(mapper, 1589578382123L));
-
-        String nullValueDate = "2020-05-15T21:33:02.123456789Z";
-        DateFieldMapper nullValueMapper = createMapper(Resolution.NANOSECONDS, "strict_date_time||epoch_millis", nullValueDate);
-        assertEquals(List.of(nullValueDate), fetchSourceValue(nullValueMapper, null));
-    }
-
-    private DateFieldMapper createMapper(Resolution resolution, String format) {
-        return createMapper(resolution, format, null);
-    }
-
-    private DateFieldMapper createMapper(Resolution resolution, String format, String nullValue) {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        Map<String, Object> mapping = new HashMap<>();
-        mapping.put("type", "date_nanos");
-        if (format != null) {
-            mapping.put("format", format);
-        }
-        if (nullValue != null) {
-            mapping.put("null_value", nullValue);
-        }
-
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder("field", resolution, null, false);
-        builder.parse("field", null, mapping);
-        return builder.build(context);
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
+        assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
     }
 }

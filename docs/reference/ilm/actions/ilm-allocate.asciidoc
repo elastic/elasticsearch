@@ -2,7 +2,7 @@
 [[ilm-allocate]]
 === Allocate
 
-Phases allowed: warm, cold, frozen.
+Phases allowed: warm, cold.
 
 Updates the index settings to change which nodes are allowed to host the index shards
 and change the number of replicas.

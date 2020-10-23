@@ -40,6 +40,8 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.gradle.util.Util.capitalize;
+
 public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
 
     private ArchiveOperations archiveOperations;
@@ -71,7 +73,8 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
             task.dependsOn(checkNotice);
         });
 
-        if (project.getName().contains("zip") || project.getName().contains("tar")) {
+        String projectName = project.getName();
+        if (projectName.contains("oss") == false && (projectName.contains("zip") || projectName.contains("tar"))) {
             project.getExtensions().add("licenseName", "Elastic License");
             project.getExtensions().add("licenseUrl", project.getExtensions().getExtraProperties().get("elasticLicenseUrl"));
             TaskProvider<Task> checkMlCppNoticeTask = registerCheckMlCppNoticeTask(
@@ -246,8 +249,4 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         return "build" + Arrays.stream(projectName.split("-")).map(f -> capitalize(f)).collect(Collectors.joining());
     }
 
-    private static String capitalize(String str) {
-        if (str == null) return str;
-        return str.substring(0, 1).toUpperCase() + str.substring(1);
-    }
 }

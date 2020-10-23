@@ -7,11 +7,11 @@
 <titleabbrev>EQL search</titleabbrev>
 ++++
 
-experimental::[]
+beta::[]
 
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 
-In {es}, EQL assumes each document in a data stream or index corresponds to an
+EQL assumes each document in a data stream or index corresponds to an
 event.
 
 [source,console]
@@ -19,7 +19,7 @@ event.
 GET /my-index-000001/_eql/search
 {
   "query": """
-    process where process.name = "regsvr32.exe"
+    process where process.name == "regsvr32.exe"
   """
 }
 ----
@@ -56,15 +56,33 @@ To search all data streams and indices in a cluster, use
 [[eql-search-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+`allow_no_indices`::
+(Optional, boolean)
 +
-Defaults to `false`.
+NOTE: This parameter's behavior differs from the `allow_no_indices` parameter
+used in other <<multi-index,multi-target APIs>>.
++
+If `false`, the request returns an error if any wildcard expression,
+<<indices-aliases,index alias>>, or `_all` value targets only missing or closed
+indices. This behavior applies even if the request targets other open indices.
+For example, a request targeting `foo*,bar*` returns an error if an index
+starts with `foo` but no index starts with `bar`.
++
+If `true`, only requests that exclusively target missing or closed indices
+return an error. For example, a request targeting `foo*,bar*` does not return an
+error if an index starts with `foo` but no index starts with `bar`. However, a
+request that targets only `bar*` still returns an error.
++
+Defaults to `true`.
+
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+`ignore_unavailable`::
+(Optional, boolean) If `true`, missing or closed indices are not included in the
+response. Defaults to `true`.
 
 `keep_alive`::
 +
@@ -131,11 +149,6 @@ used.
 [[eql-search-api-request-body]]
 ==== {api-request-body-title}
 
-`case_sensitive`::
-(Optional, boolean)
-If `true`, matching for the <<eql-search-api-request-query-param,EQL query>> is
-case sensitive. Defaults to `false`.
-
 `event_category_field`::
 (Required*, string)
 Field containing the event classification, such as `process`, `file`, or
@@ -145,8 +158,8 @@ Defaults to `event.category`, as defined in the {ecs-ref}/ecs-event.html[Elastic
 Common Schema (ECS)]. If a data stream or index does not contain the
 `event.category` field, this value is required.
 +
-The event category field is typically mapped as a <<keyword,`keyword`>> or
-<<constant-keyword-field-type,constant keyword>> field.
+The event category field must be mapped as a field type in the
+<<keyword,`keyword`>> family.
 
 `fetch_size`::
 (Optional, integer)
@@ -215,9 +228,6 @@ If both parameters are specified, only the query parameter is used.
 `query`::
 (Required, string)
 <<eql-syntax,EQL>> query you wish to run.
-+
-IMPORTANT: This parameter supports a subset of EQL syntax. See
-<<eql-unsupported-syntax>>.
 
 `size`::
 (Optional, integer or float)
@@ -260,8 +270,8 @@ Events in the API response are sorted by this field's value, converted to
 milliseconds since the {wikipedia}/Unix_time[Unix epoch], in
 ascending order.
 
-The timestamp field is typically mapped as a <<date,`date`>> or
-<<date_nanos,`date_nanos`>> field.
+The timestamp field should be mapped as a <<date,`date`>>. The
+<<date_nanos,`date_nanos`>> field type is not supported.
 --
 
 [[eql-search-api-wait-for-completion-timeout]]

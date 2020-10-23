@@ -28,12 +28,13 @@ public final class Types {
             .collect(Collectors.toUnmodifiableSet());
 
     private static final Set<String> NUMERICAL_TYPES =
-        Stream.concat(Stream.of(NumberType.values()).map(NumberType::typeName), Stream.of("scaled_float"))
+        Stream.concat(Stream.of(NumberType.values()).map(NumberType::typeName), Stream.of("scaled_float", "unsigned_long"))
             .collect(Collectors.toUnmodifiableSet());
 
     private static final Set<String> DISCRETE_NUMERICAL_TYPES =
-        Stream.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG)
-            .map(NumberType::typeName)
+        Stream.concat(
+            Stream.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG).map(NumberType::typeName),
+            Stream.of("unsigned_long"))
             .collect(Collectors.toUnmodifiableSet());
 
     private static final Set<String> BOOL_TYPES = Collections.singleton(BooleanFieldMapper.CONTENT_TYPE);

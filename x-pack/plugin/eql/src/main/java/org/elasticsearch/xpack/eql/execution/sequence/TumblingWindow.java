@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.eql.session.EmptyPayload;
 import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
+import org.elasticsearch.xpack.ql.util.ActionListeners;
 
 import java.util.Iterator;
 import java.util.List;
@@ -35,7 +36,7 @@ import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHi
  * Since queries can return different number of results, to avoid creating incorrect sequences,
  * all searches are 'boxed' to a base query.
  * The base query is initially the first query - when no results are found, the next query gets promoted.
- * 
+ *
  * This allows the window to find any follow-up results even if they are found outside the initial window
  * of a base query.
  */
@@ -55,10 +56,12 @@ public class TumblingWindow implements Executable {
 
     private static class WindowInfo {
         private final int baseStage;
+        private final Ordinal begin;
         private final Ordinal end;
 
-        WindowInfo(int baseStage, Ordinal end) {
+        WindowInfo(int baseStage, Ordinal begin, Ordinal end) {
             this.baseStage = baseStage;
+            this.begin = begin;
             this.end = end;
         }
     }
@@ -103,12 +106,20 @@ public class TumblingWindow implements Executable {
 
         log.trace("Found [{}] hits", hits.size());
 
+        Ordinal begin = null, end = null;
         if (hits.isEmpty() == false) {
             if (matcher.match(baseStage, wrapValues(base, hits)) == false) {
                 payload(listener);
                 return;
             }
+
+            // get borders for the rest of the queries - but only when at least one result is found
+            begin = base.ordinal(hits.get(0));
+            end = base.ordinal(hits.get(hits.size() - 1));
+
+            log.trace("Found base [{}] window {}->{}", base.stage(), begin, end);
         }
+
 
         // only one result means there aren't going to be any matches
         // so move the window boxing to the next stage
@@ -120,7 +131,7 @@ public class TumblingWindow implements Executable {
                 if (until != null && hits.size() == 1) {
                     // find "until" ordinals - early on to discard data in-flight to avoid matching
                     // hits that can occur in other documents
-                    untilCriterion(new WindowInfo(baseStage, base.ordinal(hits.get(0))), listener, next);
+                    untilCriterion(new WindowInfo(baseStage, begin, end), listener, next);
                 } else {
                     next.run();
                 }
@@ -132,16 +143,10 @@ public class TumblingWindow implements Executable {
             return;
         }
 
-        // get borders for the rest of the queries
-        Ordinal begin = base.ordinal(hits.get(0));
-        Ordinal end = base.ordinal(hits.get(hits.size() - 1));
-
         // update current query for the next request
         base.queryRequest().nextAfter(end);
 
-        log.trace("Found base [{}] window {}->{}", base.stage(), begin, end);
-
-        WindowInfo info = new WindowInfo(baseStage, end);
+        WindowInfo info = new WindowInfo(baseStage, begin, end);
 
         // no more queries to run
         if (baseStage + 1 < maxStages) {
@@ -211,7 +216,10 @@ public class TumblingWindow implements Executable {
         log.trace("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
         client.query(request, wrap(r -> {
+            Ordinal boundary = reversed ? window.begin : window.end;
             List<SearchHit> hits = searchHits(r);
+            // filter hits that are escaping the window (same timestamp but different tiebreaker)
+            hits = trim(hits, criterion, boundary, reversed);
 
             log.trace("Found [{}] hits", hits.size());
 
@@ -219,9 +227,9 @@ public class TumblingWindow implements Executable {
             if (hits.isEmpty()) {
                 // put the markers in place before the next call
                 if (reversed) {
-                    request.to(window.end);
-                } else {
                     request.from(window.end);
+                } else {
+                    request.to(window.end);
                 }
 
                 // if there are no candidates, advance the window
@@ -234,7 +242,19 @@ public class TumblingWindow implements Executable {
             }
             else {
                 // prepare the query for the next search
-                request.nextAfter(criterion.ordinal(hits.get(hits.size() - 1)));
+                // however when dealing with tiebreakers the same timestamp can contain different values that might
+                // be within or outside the window
+                // to make sure one is not lost, check the minimum ordinal between the one found (which might just outside
+                // the window - same timestamp but a higher tiebreaker) and the actual window end
+                Ordinal next = criterion.ordinal(hits.get(hits.size() - 1));
+
+                log.trace("Found range [{}] -> [{}]", criterion.ordinal(hits.get(0)), next);
+
+                // if the searchAfter is outside the window, trim it down
+                if (next.after(boundary)) {
+                    next = boundary;
+                }
+                request.nextAfter(next);
 
                 // if the limit has been reached, return what's available
                 if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
@@ -244,7 +264,8 @@ public class TumblingWindow implements Executable {
             }
 
             // keep running the query runs out of the results (essentially returns less than what we want)
-            if (hits.size() == windowSize) {
+            // however check if the window has been fully consumed
+            if (hits.size() == windowSize && request.after().before(boundary)) {
                 secondaryCriterion(window, currentStage, listener);
             }
             // looks like this stage is done, move on
@@ -258,8 +279,25 @@ public class TumblingWindow implements Executable {
                     advance(window.baseStage, listener);
                 }
             }
-
         }, listener::onFailure));
+    }
+
+    /**
+     * Trim hits outside the (upper) limit.
+     */
+    private List<SearchHit> trim(List<SearchHit> searchHits, Criterion<BoxedQueryRequest> criterion, Ordinal boundary, boolean reversed) {
+        int offset = 0;
+
+        for (int i = searchHits.size() - 1; i >=0 ; i--) {
+            Ordinal ordinal = criterion.ordinal(searchHits.get(i));
+            boolean withinBoundaries = reversed ? ordinal.afterOrAt(boundary) : ordinal.beforeOrAt(boundary);
+            if (withinBoundaries == false) {
+                offset++;
+            } else {
+                break;
+            }
+        }
+        return offset == 0 ? searchHits : searchHits.subList(0, searchHits.size() - offset);
     }
 
     /**
@@ -284,6 +322,10 @@ public class TumblingWindow implements Executable {
         } else {
             // otherwise just the upper limit
             request.to(window.end);
+            // and the lower limit if it hasn't been set
+            if (request.after() == null) {
+                request.nextAfter(window.begin);
+            }
         }
 
         return reverse;
@@ -296,14 +338,21 @@ public class TumblingWindow implements Executable {
 
         if (completed.isEmpty()) {
             listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
-            matcher.clear();
+            close(listener);
             return;
         }
 
-        client.get(hits(completed), wrap(hits -> {
-            listener.onResponse(new SequencePayload(completed, hits, false, timeTook()));
-            matcher.clear();
-        }, listener::onFailure));
+        // get results through search (to keep using PIT)
+        client.fetchHits(hits(completed), ActionListeners.map(listener, listOfHits -> {
+            SequencePayload payload = new SequencePayload(completed, listOfHits, false, timeTook());
+            close(listener);
+            return payload;
+        }));
+    }
+
+    private void close(ActionListener<Payload> listener) {
+        matcher.clear();
+        client.close(ActionListener.delegateFailure(listener, (l, r) -> {}));
     }
 
     private TimeValue timeTook() {
@@ -315,7 +364,7 @@ public class TumblingWindow implements Executable {
             final Iterator<Sequence> delegate = criteria.get(0).reverse() != criteria.get(1).reverse() ?
                     new ReversedIterator<>(sequences) :
                     sequences.iterator();
-            
+
             return new Iterator<>() {
 
                 @Override

@@ -17,7 +17,7 @@ PUT /_autoscaling/policy/<name>
 {
   "policy": {
     "deciders": {
-      "always": {
+      "fixed": {
       }
     }
   }
@@ -51,7 +51,7 @@ This API puts an autoscaling policy with the provided name.
 ==== {api-examples-title}
 
 This example puts an autoscaling policy named `my_autoscaling_policy` using the
-always autoscaling decider.
+fixed autoscaling decider.
 
 [source,console]
 --------------------------------------------------
@@ -59,7 +59,7 @@ PUT /_autoscaling/policy/my_autoscaling_policy
 {
   "policy": {
     "deciders": {
-      "always": {
+      "fixed": {
       }
     }
   }

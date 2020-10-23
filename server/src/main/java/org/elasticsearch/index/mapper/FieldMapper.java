@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,7 +52,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         Setting.boolSetting("index.mapping.ignore_malformed", false, Property.IndexScope);
     public static final Setting<Boolean> COERCE_SETTING =
         Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
-    public abstract static class Builder<T extends Builder<T>> extends Mapper.Builder<T> {
+    public abstract static class Builder extends Mapper.Builder {
 
         protected final FieldType fieldType;
         protected boolean omitNormsSet = false;
@@ -63,7 +61,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected boolean indexed = true;
         protected final MultiFields.Builder multiFieldsBuilder;
         protected CopyTo copyTo = CopyTo.empty();
-        protected float boost = 1.0f;
         protected Map<String, String> meta = Collections.emptyMap();
         // TODO move to KeywordFieldMapper.Builder
         protected boolean eagerGlobalOrdinals;
@@ -78,100 +75,95 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             multiFieldsBuilder = new MultiFields.Builder();
         }
 
-        public T index(boolean index) {
+        public Builder index(boolean index) {
             this.indexed = index;
             if (index == false) {
                 this.fieldType.setIndexOptions(IndexOptions.NONE);
             }
-            return builder;
+            return this;
         }
 
-        public T store(boolean store) {
+        public Builder store(boolean store) {
             this.fieldType.setStored(store);
-            return builder;
+            return this;
         }
 
-        public T docValues(boolean docValues) {
+        public FieldMapper.Builder docValues(boolean docValues) {
             this.hasDocValues = docValues;
-            return builder;
+            return this;
         }
 
-        public T storeTermVectors(boolean termVectors) {
+        public Builder storeTermVectors(boolean termVectors) {
             if (termVectors != this.fieldType.storeTermVectors()) {
                 this.fieldType.setStoreTermVectors(termVectors);
             } // don't set it to false, it is default and might be flipped by a more specific option
-            return builder;
+            return this;
         }
 
-        public T storeTermVectorOffsets(boolean termVectorOffsets) {
+        public Builder storeTermVectorOffsets(boolean termVectorOffsets) {
             if (termVectorOffsets) {
                 this.fieldType.setStoreTermVectors(termVectorOffsets);
             }
             this.fieldType.setStoreTermVectorOffsets(termVectorOffsets);
-            return builder;
+            return this;
         }
 
-        public T storeTermVectorPositions(boolean termVectorPositions) {
+        public Builder storeTermVectorPositions(boolean termVectorPositions) {
             if (termVectorPositions) {
                 this.fieldType.setStoreTermVectors(termVectorPositions);
             }
             this.fieldType.setStoreTermVectorPositions(termVectorPositions);
-            return builder;
+            return this;
         }
 
-        public T storeTermVectorPayloads(boolean termVectorPayloads) {
+        public Builder storeTermVectorPayloads(boolean termVectorPayloads) {
             if (termVectorPayloads) {
                 this.fieldType.setStoreTermVectors(termVectorPayloads);
             }
             this.fieldType.setStoreTermVectorPayloads(termVectorPayloads);
-            return builder;
+            return this;
         }
 
-        public T boost(float boost) {
-            this.boost = boost;
-            return builder;
-        }
-
-        public T omitNorms(boolean omitNorms) {
+        public Builder omitNorms(boolean omitNorms) {
             this.fieldType.setOmitNorms(omitNorms);
             this.omitNormsSet = true;
-            return builder;
+            return this;
         }
 
-        public T indexOptions(IndexOptions indexOptions) {
+        public Builder indexOptions(IndexOptions indexOptions) {
             this.fieldType.setIndexOptions(indexOptions);
             this.indexOptionsSet = true;
-            return builder;
+            return this;
         }
 
-        public T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
+        public Builder indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             this.indexAnalyzer = indexAnalyzer;
-            return builder;
+            return this;
         }
 
-        public T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
+        public Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             this.searchAnalyzer = searchAnalyzer;
-            return builder;
+            return this;
         }
 
-        public T searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
+        public Builder searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
             this.searchQuoteAnalyzer = searchQuoteAnalyzer;
-            return builder;
+            return this;
         }
 
-        public T setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+        public Builder setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-            return builder;
+            return this;
         }
 
-        public T addMultiField(Mapper.Builder<?> mapperBuilder) {
+        public Builder addMultiField(Mapper.Builder mapperBuilder) {
             multiFieldsBuilder.add(mapperBuilder);
-            return builder;
+            return this;
         }
 
-        public T copyTo(CopyTo copyTo) {
+        public Builder copyTo(CopyTo copyTo) {
             this.copyTo = copyTo;
-            return builder;
+            return this;
         }
 
         protected String buildFullName(BuilderContext context) {
@@ -179,10 +171,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         /** Set metadata on this field. */
-        public T meta(Map<String, String> meta) {
+        public Builder meta(Map<String, String> meta) {
             this.meta = meta;
-            return (T) this;
+            return this;
         }
+
+        @Override
+        public abstract FieldMapper build(BuilderContext context);
     }
 
     protected FieldType fieldType;
@@ -275,12 +270,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
 
-    /**
-     * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
-     */
-    public abstract ValueFetcher valueFetcher(MapperService mapperService, @Nullable String format);
-
-    protected void createFieldNamesField(ParseContext context) {
+    protected final void createFieldNamesField(ParseContext context) {
+        assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
@@ -398,7 +389,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
         }
         if (fieldType.storeTermVectors() != other.storeTermVectors()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
+            conflicts.add("mapper [" + name() + "] has different [term_vector] values");
         }
         if (fieldType.storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
             conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
@@ -450,10 +441,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-
-        if (includeDefaults || fieldType().boost() != 1.0f) {
-            builder.field("boost", fieldType().boost());
-        }
 
         if (includeDefaults || mappedFieldType.isSearchable() != indexedByDefault()) {
             builder.field("index", mappedFieldType.isSearchable());
@@ -514,28 +501,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return TypeParsers.INDEX_OPTIONS_DOCS;
             default:
                 throw new IllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
-        }
-    }
-
-    public static String termVectorOptionsToString(FieldType fieldType) {
-        if (!fieldType.storeTermVectors()) {
-            return "no";
-        } else if (!fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
-            return "yes";
-        } else if (fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
-            return "with_offsets";
-        } else {
-            StringBuilder builder = new StringBuilder("with");
-            if (fieldType.storeTermVectorPositions()) {
-                builder.append("_positions");
-            }
-            if (fieldType.storeTermVectorOffsets()) {
-                builder.append("_offsets");
-            }
-            if (fieldType.storeTermVectorPayloads()) {
-                builder.append("_payloads");
-            }
-            return builder.toString();
         }
     }
 

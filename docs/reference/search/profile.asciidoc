@@ -305,7 +305,7 @@ explanation text for the query, and is made available to help differentiating
 between parts of your query (e.g. both `message:get` and `message:search` are 
 TermQuery's and would appear identical otherwise.
 
-The `time_in_nanos` field shows that this query took ~1.8ms for the entire 
+The `time_in_nanos` field shows that this query took ~11.9ms for the entire 
 BooleanQuery to execute.  The recorded time is inclusive of all children.
 
 The `breakdown` field will give detailed stats about how the time was spent, 
@@ -794,7 +794,11 @@ This yields the following aggregation profile output:
               "initialize_count": 1,
               "reduce_count": 0,
               "collect": 45786,
-              "collect_count": 4
+              "collect_count": 4,
+              "build_leaf_collector": 18211,
+              "build_leaf_collector_count": 1,
+              "post_collection": 929,
+              "post_collection_count": 1
             },
             "debug": {
               "total_buckets": 1,
@@ -813,7 +817,11 @@ This yields the following aggregation profile output:
               "initialize_count": 1,
               "reduce_count": 0,
               "collect": 69401,
-              "collect_count": 4
+              "collect_count": 4,
+              "build_leaf_collector": 8150,
+              "build_leaf_collector_count": 1,
+              "post_collection": 1584,
+              "post_collection_count": 1
             },
             "children": [
               {
@@ -828,7 +836,11 @@ This yields the following aggregation profile output:
                   "initialize_count": 1,
                   "reduce_count": 0,
                   "collect": 61611,
-                  "collect_count": 4
+                  "collect_count": 4,
+                  "build_leaf_collector": 5564,
+                  "build_leaf_collector_count": 1,
+                  "post_collection": 471,
+                  "post_collection_count": 1
                 },
                 "debug": {
                   "total_buckets": 1,

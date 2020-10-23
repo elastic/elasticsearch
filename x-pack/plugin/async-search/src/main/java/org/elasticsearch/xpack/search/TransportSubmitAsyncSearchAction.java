@@ -143,7 +143,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 AsyncExecutionId searchId = new AsyncExecutionId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
                 Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
                         () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
-                return new AsyncSearchTask(id, type, action, parentTaskId, keepAlive,
+                return new AsyncSearchTask(id, type, action, parentTaskId, this::buildDescription, keepAlive,
                     originHeaders, taskHeaders, searchId, store.getClient(), nodeClient.threadPool(), aggReduceContextSupplier);
             }
         };
@@ -173,24 +173,12 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private void onFinalResponse(AsyncSearchTask searchTask,
                                  AsyncSearchResponse response,
                                  Runnable nextAction) {
-        if (searchTask.isCancelled()) {
-            // the task was cancelled so we ensure that there is nothing stored in the response index.
-            store.deleteResponse(searchTask.getExecutionId(), ActionListener.wrap(
-                resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
-                exc -> {
-                    logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]",
-                        searchTask.getExecutionId().getEncoded()), exc);
-                    unregisterTaskAndMoveOn(searchTask, nextAction);
-                }));
-            return;
-       }
-
         store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
             ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                 exc -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(exc);
                     if (cause instanceof DocumentMissingException == false &&
-                        cause instanceof VersionConflictEngineException == false) {
+                            cause instanceof VersionConflictEngineException == false) {
                         logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
                             searchTask.getExecutionId().getEncoded()), exc);
                     }

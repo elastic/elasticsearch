@@ -22,7 +22,7 @@ setup:
                 type: runtime
                 runtime_type: keyword
                 script: |
-                  emitValue(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
               # Test fetching from _source
               day_of_week_from_source:
                 type: runtime
@@ -30,7 +30,7 @@ setup:
                 script: |
                   Instant instant = Instant.ofEpochMilli(params._source.timestamp);
                   ZonedDateTime dt = ZonedDateTime.ofInstant(instant, ZoneId.of("UTC"));
-                  emitValue(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  emit(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ROOT));
               # Test fetching many values
               day_of_week_letters:
                 type: runtime
@@ -38,7 +38,7 @@ setup:
                 script: |
                   for (String dow: doc['day_of_week']) {
                     for (int i = 0; i < dow.length(); i++) {
-                      emitValue(dow.charAt(i).toString());
+                      emit(dow.charAt(i).toString());
                     }
                   }
               prefixed_node:
@@ -47,7 +47,7 @@ setup:
                 script:
                   source: |
                     for (String node : params._fields.node.values) {
-                      emitValue(params.prefix + node);
+                      emit(params.prefix + node);
                     }
                   params:
                     prefix: node_
@@ -79,7 +79,7 @@ setup:
   - match: {sensor.mappings.properties.day_of_week.runtime_type: keyword }
   - match:
       sensor.mappings.properties.day_of_week.script.source: |
-        emitValue(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+        emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
   - match: {sensor.mappings.properties.day_of_week.script.lang: painless }
 
 ---
@@ -95,9 +95,23 @@ setup:
         runtime_type: keyword
         script:
           source: |
-            emitValue(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+            emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
           lang: painless
         meta: {}
+
+---
+"fetch fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields: [day_of_week, day_of_week_from_source, day_of_week_letters, prefixed_node]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.day_of_week: [Thursday] }
+  - match: {hits.hits.0.fields.day_of_week_from_source: [Thursday] }
+  - match: {hits.hits.0.fields.day_of_week_letters: [T, a, d, h, r, s, u, y] }
+  - match: {hits.hits.0.fields.prefixed_node: [node_c] }
 
 ---
 "docvalue_fields":
@@ -140,6 +154,76 @@ setup:
               day_of_week: Monday
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"explain term query":
+  - do:
+      search:
+        index: sensor
+        explain: true
+        body:
+          query:
+            term:
+              day_of_week: Monday
+  - match: {hits.hits.0._explanation.value: 1.0}
+  - match: {hits.hits.0._explanation.description: "day_of_week:Monday"}
+  - match: {hits.hits.0._explanation.details.0.value: 1.0}
+  - match: {hits.hits.0._explanation.details.0.description: 'boost * runtime_field_score'}
+  - match: {hits.hits.0._explanation.details.0.details.0.value: 1.0}
+  - match: {hits.hits.0._explanation.details.0.details.0.description: 'boost'}
+  - match: {hits.hits.0._explanation.details.0.details.1.value: 1.0}
+  - match: {hits.hits.0._explanation.details.0.details.1.description: 'runtime_field_score is always 1'}
+
+---
+"explain term query with boost":
+  - do:
+      search:
+        index: sensor
+        explain: true
+        body:
+          query:
+            term:
+              day_of_week:
+                value: Monday
+                boost: 7
+  - match: {hits.hits.0._explanation.value: 7.0}
+  - match: {hits.hits.0._explanation.description: "day_of_week:Monday^7.0"}
+  - match: {hits.hits.0._explanation.details.0.value: 7.0}
+  - match: {hits.hits.0._explanation.details.0.description: 'boost * runtime_field_score'}
+  - match: {hits.hits.0._explanation.details.0.details.0.value: 7.0}
+  - match: {hits.hits.0._explanation.details.0.details.0.description: 'boost'}
+  - match: {hits.hits.0._explanation.details.0.details.1.value: 1.0}
+  - match: {hits.hits.0._explanation.details.0.details.1.description: 'runtime_field_score is always 1'}
+
+---
+"explain term query wrapped in script score":
+  - do:
+      search:
+        index: sensor
+        explain: true
+        body:
+          query:
+            script_score:
+              script:
+                source: _score * 1000
+              query:
+                term:
+                  day_of_week:
+                    value: Monday
+                    boost: 7
+  - match: {hits.hits.0._explanation.value: 7000.0}
+  - match: {hits.hits.0._explanation.description: "script score function, computed with script:\"Script{type=inline, lang='painless', idOrCode='_score * 1000', options={}, params={}}\""}
+  - match: {hits.hits.0._explanation.details.0.value: 7.0}
+  - match: {hits.hits.0._explanation.details.0.description: '_score: '}
+  - match: {hits.hits.0._explanation.details.0.details.0.value: 7.0}
+  - match: {hits.hits.0._explanation.details.0.details.0.description: "day_of_week:Monday^7.0"}
+  - match: {hits.hits.0._explanation.details.0.details.0.details.0.value: 7.0}
+  - match: {hits.hits.0._explanation.details.0.details.0.details.0.description: 'boost * runtime_field_score'}
+  - match: {hits.hits.0._explanation.details.0.details.0.details.0.details.0.value: 7.0}
+  - match: {hits.hits.0._explanation.details.0.details.0.details.0.details.0.description: 'boost'}
+  - match: {hits.hits.0._explanation.details.0.details.0.details.0.details.1.value: 1.0}
+  - match: {hits.hits.0._explanation.details.0.details.0.details.0.details.1.description: 'runtime_field_score is always 1'}
+
 
 ---
 "match query":
@@ -204,11 +288,11 @@ setup:
                   first_script:
                     type: runtime
                     runtime_type: keyword
-                    script: emitValue(doc['users.first'].value)
+                    script: emit(doc['users.first'].value)
                   last_script:
                     type: runtime
                     runtime_type: keyword
-                    script: emitValue(doc['users.last'].value)
+                    script: emit(doc['users.last'].value)
   - do:
       bulk:
         index: test

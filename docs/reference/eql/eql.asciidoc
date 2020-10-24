@@ -141,8 +141,8 @@ GET /my-index-000001/_eql/search
 === Search for a sequence of events
 
 Use EQL's <<eql-sequences,sequence syntax>> to search for a series of
-ordered events. List the events in ascending chronological order, with
-the most recent event listed last:
+ordered events. List the event items in ascending chronological order, 
+with the most recent event listed last:
 
 [source,console]
 ----

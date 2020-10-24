@@ -56,18 +56,8 @@ DELETE /_index_template/*
 [[add-documents-to-a-data-stream]]
 === Add documents to a data stream
 
-Use the following methods to add documents to a data stream:
-
-* <<data-streams-individual-indexing-requests>>
-* <<data-streams-bulk-indexing-requests>>
-
+To add an individual document, use the <<docs-index_,index API>>.
 <<ingest,Ingest pipelines>> are supported.
-
-[discrete]
-[[data-streams-individual-indexing-requests]]
-==== Add an individual document
-
-To add an individual document, submit an <<docs-index_,index API>> request.
 
 [source,console]
 ----
@@ -85,11 +75,6 @@ You cannot add new documents to a data stream using the index API's `PUT
 /<target>/_doc/<_id>` request format. To specify a document ID, use the `PUT
 /<target>/_create/<_id>` format instead. Only an
 <<docs-index-api-op_type,`op_type`>> of `create` is supported.
-
-
-[discrete]
-[[data-streams-bulk-indexing-requests]]
-==== Add documents in bulk
 
 To add multiple documents with a single request, use the <<docs-bulk,bulk API>>.
 Only `create` actions are supported.
@@ -171,8 +156,8 @@ POST /my-data-stream/_open/
 [[reindex-with-a-data-stream]]
 === Reindex with a data stream
 
-Use the <<docs-reindex,reindex API>> to copy documents to a data stream from an
-existing index, index alias, or data stream. Because data streams are
+Use the <<docs-reindex,reindex API>> to copy documents from an
+existing index, index alias, or data stream to a data stream. Because data streams are
 <<data-streams-append-only,append-only>>, a reindex into a data stream must use
 an `op_type` of `create`. A reindex cannot update existing documents in a data
 stream.
@@ -264,7 +249,7 @@ POST /my-data-stream/_delete_by_query
 === Update or delete documents in a backing index
 
 If needed, you can update or delete documents in a data stream by sending
-requests to the backing index containing the document. To do this, you need:
+requests to the backing index containing the document. You'll need:
 
 * The <<mapping-id-field,document ID>>
 * The name of the backing index containing the document

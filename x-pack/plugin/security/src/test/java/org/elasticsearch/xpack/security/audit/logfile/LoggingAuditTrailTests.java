@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,6 +46,8 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -419,6 +422,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Authentication authentication = createAuthentication();
 
         CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(keyName, keyRoleDescriptors, expiration);
+        createApiKeyRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         auditTrail.accessGranted(requestId, authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
         StringBuilder createKeyAuditEventStringBuilder = new StringBuilder();
         createKeyAuditEventStringBuilder.append("\"create\":{\"apikey\":{\"name\":\"" + keyName + "\",\"expiration\":" +
@@ -443,6 +447,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
+        grantApiKeyRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         grantApiKeyRequest.getGrant().setType(randomFrom(randomAlphaOfLength(8), null));
         grantApiKeyRequest.getGrant().setUsername(randomFrom(randomAlphaOfLength(8), null));
         grantApiKeyRequest.getGrant().setPassword(randomFrom(new SecureString("password not exposed"), null));
@@ -481,6 +486,39 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_apikey")
                 .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedGrantKeyAuditEventString, checkedFields.immutableMap());
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        PutRoleRequest putRoleRequest = new PutRoleRequest();
+        putRoleRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        RoleDescriptor roleDescriptor = randomFrom(allTestRoleDescriptors);
+        putRoleRequest.name(roleDescriptor.getName());
+        putRoleRequest.cluster(roleDescriptor.getClusterPrivileges());
+        putRoleRequest.addIndex(roleDescriptor.getIndicesPrivileges());
+        putRoleRequest.runAs(roleDescriptor.getRunAs());
+        putRoleRequest.conditionalCluster(roleDescriptor.getConditionalClusterPrivileges());
+        putRoleRequest.addApplicationPrivileges(roleDescriptor.getApplicationPrivileges());
+        putRoleRequest.metadata(roleDescriptor.getMetadata());
+        auditTrail.accessGranted(requestId, authentication, PutRoleAction.NAME, putRoleRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedPutRoleAuditEventString = output.get(1);
+        StringBuilder putRoleAuditEventStringBuilder = new StringBuilder();
+        putRoleAuditEventStringBuilder.append("\"put\":{\"role\":{\"name\":\"" + putRoleRequest.name() + "\",")
+                .append("\"privilege\":")
+                .append(auditedRolesMap.get(putRoleRequest.name()))
+                .append("}}");
+        String expectedPutRoleAuditEventString = putRoleAuditEventStringBuilder.toString();
+        assertThat(generatedPutRoleAuditEventString, containsString(expectedPutRoleAuditEventString));
+        generatedPutRoleAuditEventString = generatedPutRoleAuditEventString.replace(", " + expectedPutRoleAuditEventString, "");
+        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_role")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedPutRoleAuditEventString, checkedFields.immutableMap());
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {

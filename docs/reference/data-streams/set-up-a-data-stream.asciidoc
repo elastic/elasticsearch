@@ -150,8 +150,9 @@ PUT /_data_stream/my-data-stream-alt
 
 [discrete]
 [[get-info-about-a-data-stream]]
-=== Get information about a data stream
+=== Get information about the data stream
 
+You can get information about a data stream to verify it exists.
 In {kib}, open the menu and go to *Stack Management > Index Management*. In the
 *Data Streams* tab, click the data stream's name.
 
@@ -181,9 +182,9 @@ GET /_data_stream/my-data-stream
 
 [discrete]
 [[secure-a-data-stream]]
-=== Secure a data stream
+=== Secure the data stream
 
-To control access to a data stream and its
+To control access to the data stream and its
 data, use <<data-stream-privileges,{es}'s {security-features}>>.
 
 [discrete]

@@ -56,7 +56,7 @@ image::images/data-streams/data-streams-search-request.svg[align="center"]
 == Write index
 
 The most recently created backing index is the data stream’s write index.
-The stream only adds new documents to this index.
+The stream adds new documents to this index only.
 
 image::images/data-streams/data-streams-index-request.svg[align="center"]
 

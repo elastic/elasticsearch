@@ -383,9 +383,9 @@ type. The timestamp field should be mapped as a <<date,`date`>> field type.
 <<nested,`nested`>> field or the sub-fields of a `nested` field as the timestamp
 or event category field.
 
-[discrete]	
-[[eql-search-specify-a-sort-tiebreaker]]	
-=== Specify a sort tiebreaker	
+[discrete]
+[[eql-search-specify-a-sort-tiebreaker]]
+=== Specify a sort tiebreaker
 
 By default, the EQL search API returns matching events by timestamp. If two or
 more events share the same timestamp, {es} uses a tiebreaker field value to sort
@@ -394,16 +394,16 @@ the events in ascending, lexicographic order.
 `event.sequence` is the default tiebreaker field. To specify another tiebreaker
 field, use the `tiebreaker_field` parameter:
 
-[source,console]	
-----	
-GET /my-index-000001/_eql/search	
-{	
-  "tiebreaker_field": "event.id",	
-  "query": """	
-    process where process.name == "cmd.exe" and stringContains(process.executable, "System32")	
-  """	
-}	
-----	
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "tiebreaker_field": "event.id",
+  "query": """
+    process where process.name == "cmd.exe" and stringContains(process.executable, "System32")
+  """
+}
+----
 // TEST[setup:sec_logs]
 
 [discrete]
@@ -439,7 +439,7 @@ GET /my-index-000001/_eql/search
 EQL searches are designed to run on large volumes of data quickly, often
 returning results in milliseconds. For this reason, EQL searches are
 _synchronous_ by default. The search request waits for complete results before
-returning a response. 
+returning a response.
 
 However, complete results can take longer for searches across:
 

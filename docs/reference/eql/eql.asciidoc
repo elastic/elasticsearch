@@ -437,39 +437,14 @@ GET /my-index-000001/_eql/search
 [[eql-search-async]]
 === Run an async EQL search
 
-EQL searches are designed to run on large volumes of data quickly, often
-returning results in milliseconds. For this reason, EQL searches are
-_synchronous_ by default. The search request waits for complete results before
-returning a response.
+By default, EQL search requests are synchronous and wait for complete results
+before returning a response. However, complete results can take longer for
+searches across <<frozen-indices,frozen indices>> or
+<<modules-cross-cluster-search,multiple clusters>>.
 
-However, complete results can take longer for searches across:
-
-* <<frozen-indices,Frozen indices>>
-* <<modules-cross-cluster-search,Multiple clusters>>
-* Many shards
-
-To avoid long waits, use the `wait_for_completion_timeout` parameter to run an
-_asynchronous_, or _async_, EQL search.
-
-Set `wait_for_completion_timeout` to a duration you'd like to wait
-for complete search results. If the search request does not finish within this
-period, the search becomes async and returns a response that includes:
-
-* A search ID, which can be used to monitor the progress of the async search.
-* An `is_partial` value of `true`, meaning the response does not contain
-  complete search results.
-* An `is_running` value of `true`, meaning the search is async and ongoing.
-
-The async search continues to run in the background without blocking
-other requests.
-
-The following request searches the `frozen-my-index-000001` index, which has been
-<<frozen-indices,frozen>> for storage and is rarely searched.
-
-Because searches on frozen indices are expected to take longer to complete, the
-request contains a `wait_for_completion_timeout` parameter value of `2s` (two
-seconds). If the request does not return complete results in two seconds, the
-search becomes async and returns a search ID.
+To avoid long waits, run an async EQL search. Set the
+`wait_for_completion_timeout` parameter to a duration you'd like to wait for
+synchronous results.
 
 [source,console]
 ----
@@ -484,8 +459,16 @@ GET /frozen-my-index-000001/_eql/search
 // TEST[setup:sec_logs]
 // TEST[s/frozen-my-index-000001/my-index-000001/]
 
-After two seconds, the request returns the following response. Note `is_partial`
-and `is_running` properties are `true`, indicating an async search.
+If the request doesn't finish within the timeout period, the search becomes async
+and returns a response that includes:
+
+* A search ID
+* An `is_partial` value of `true`, indicating the search results are
+  incomplete
+* An `is_running` value of `true`, indicating the search is ongoing
+
+The async search continues to run in the background without blocking other
+requests.
 
 [source,console-result]
 ----
@@ -504,16 +487,9 @@ and `is_running` properties are `true`, indicating an async search.
 // TESTRESPONSE[s/"took": 2000/"took": $body.took/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
-Use the <<get-async-eql-search-api,get async EQL search API>> to check the progress
-of an async search.
-
-The get async EQL search API also accepts a `wait_for_completion_timeout`
-parameter. If an ongoing search does not complete during this period, the response
-returns an `is_partial` value of `true` and no search results.
-
-The following get async EQL search API request checks the progress of the
-previous async EQL search. The request specifies a `wait_for_completion_timeout`
-query parameter value of `2s` (two seconds).
+To check the progress of an async search, use the <<get-async-eql-search-api,get
+async EQL search API>> with the search ID. Specify how long you'd like for
+complete results in the `wait_for_completion_timeout` parameter.
 
 [source,console]
 ----
@@ -521,9 +497,9 @@ GET /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTo
 ----
 // TEST[skip: no access to search ID]
 
-The request returns the following response. Note `is_partial` and `is_running`
-are `false`, indicating the async search has finished and the search results
-in the `hits` property are complete.
+If the response's `is_running` value is `false`, the async search has finished.
+If the `is_partial` value is `false`, the returned search results are
+complete.
 
 [source,console-result]
 ----
@@ -546,12 +522,7 @@ in the `hits` property are complete.
 
 By default, the EQL search API stores async searches for five days. After this
 period, any searches and their results are deleted. Use the `keep_alive`
-parameter to change this retention period.
-
-In the following EQL search request, the `keep_alive` parameter is `2d` (two
-days). If the search becomes async, its results
-are stored on the cluster for two days. After two days, the async
-search and its results are deleted, even if it's still ongoing.
+parameter to change this retention period:
 
 [source,console]
 ----
@@ -570,10 +541,6 @@ You can use the <<get-async-eql-search-api,get async EQL search API>>'s
 `keep_alive` parameter to later change the retention period. The new retention
 period starts after the get request runs.
 
-The following request sets the `keep_alive` query parameter to `5d` (five days).
-The async search and its results are deleted five days after the get request
-executes.
-
 [source,console]
 ----
 GET /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?keep_alive=5d
@@ -583,8 +550,6 @@ GET /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTo
 Use the <<delete-async-eql-search-api,delete async EQL search API>> to
 manually delete an async EQL search before the `keep_alive` period ends. If the
 search is still ongoing, {es} cancels the search request.
-
-The following request deletes an async EQL search and its results.
 
 [source,console]
 ----
@@ -599,12 +564,8 @@ DELETE /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERn
 By default, the EQL search API only stores async searches that cannot be
 completed within the period set by `wait_for_completion_timeout`.
 
-To save the results of searches that complete during this period, set the
-`keep_on_completion` parameter to `true`.
-
-In the following search request, `keep_on_completion` is `true`. Search results
-are stored on the cluster, even if the search completes within the `2s`
-(two-second) period set by the `wait_for_completion_timeout` parameter.
+To save the results for a synchronous search, set `keep_on_completion` to
+`true`:
 
 [source,console]
 ----
@@ -619,9 +580,8 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-The API returns the following response. A search ID is provided in the `id`
-property. `is_partial` and `is_running` are `false`, indicating the EQL search
-was synchronous and returned complete results in `hits`.
+The response includes a search ID. `is_partial` and `is_running` are `false`,
+indicating the EQL search was synchronous and returned complete results.
 
 [source,console-result]
 ----
@@ -638,8 +598,8 @@ was synchronous and returned complete results in `hits`.
 // TESTRESPONSE[s/"took": 52/"took": $body.took/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
-Use the search ID and the <<get-async-eql-search-api,get async EQL search API>>
-to retrieve the same results later.
+Use the <<get-async-eql-search-api,get async EQL search API>> to get the
+same results later:
 
 [source,console]
 ----
@@ -647,9 +607,8 @@ GET /_eql/search/FjlmbndxNmJjU0RPdExBTGg0elNOOEEaQk9xSjJBQzBRMldZa1VVQ2pPa01YUTo
 ----
 // TEST[skip: no access to search ID]
 
-Saved synchronous searches are still subject to the retention period set by the
-`keep_alive` parameter. After this period, the search and its results are
-deleted.
+Saved synchronous searches are still subject to the `keep_alive` parameter's
+retention period. When this period ends, the search and its results are deleted.
 
 You can also manually delete saved synchronous searches using the
 <<delete-async-eql-search-api,delete async EQL search API>>.

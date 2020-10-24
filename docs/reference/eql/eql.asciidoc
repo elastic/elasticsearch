@@ -564,7 +564,7 @@ DELETE /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERn
 By default, the EQL search API only stores async searches that cannot be
 completed within the period set by `wait_for_completion_timeout`.
 
-To save the search results for a synchronous search, set `keep_on_completion` to
+To save the results for a synchronous search, set `keep_on_completion` to
 `true`:
 
 [source,console]

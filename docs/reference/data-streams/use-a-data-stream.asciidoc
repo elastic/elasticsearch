@@ -118,8 +118,8 @@ GET /_data_stream/my-data-stream/_stats?human=true
 [[manually-roll-over-a-data-stream]]
 === Manually roll over a data stream
 
-Use the <<indices-rollover-index,rollover API>> to manually roll over a data
-stream:
+Use the <<indices-rollover-index,rollover API>> to manually
+<<data-streams-rollover,roll over>> a data stream:
 
 [source,console]
 ----
@@ -130,11 +130,11 @@ POST /my-data-stream/_rollover/
 [[open-closed-backing-indices]]
 === Open closed backing indices
 
-You cannot search a closed backing index, even by searching its data
-stream. You also cannot <<update-docs-in-a-data-stream-by-query,update>> or
-<<delete-docs-in-a-data-stream-by-query,delete>> documents in a closed index.
+You cannot search a <<indices-closed,closed>> backing index, even by searching
+its data stream. You also cannot <<update-docs-in-a-data-stream-by-query,update>>
+or <<delete-docs-in-a-data-stream-by-query,delete>> documents in a closed index.
 
-To open individual backing indices, send an <<indices-open-close,open
+To re-open a closed backing index, submit an <<indices-open-close,open
 index API request>> directly to the index:
 
 [source,console]
@@ -142,8 +142,8 @@ index API request>> directly to the index:
 POST /.ds-my-data-stream-000001/_open/
 ----
 
-To open all backing indices, send an open index API request to the data
-stream:
+To re-open all closed backing indices for a data stream, submit an open index
+API request to the stream:
 
 [source,console]
 ----

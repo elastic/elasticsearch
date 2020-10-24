@@ -498,7 +498,7 @@ GET /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTo
 // TEST[skip: no access to search ID]
 
 If the response's `is_running` value is `false`, the async search has finished.
-If the `is_partial` value is `false`, the response's search results are
+If the `is_partial` value is `false`, the returned search results are
 complete.
 
 [source,console-result]

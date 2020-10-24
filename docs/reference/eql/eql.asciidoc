@@ -8,55 +8,47 @@
 
 beta::[]
 
-Event Query Language (EQL) is a query language for event-based, time series
-data, such as logs.
+Event Query Language (EQL) is a query language for event-based time series
+data, such as logs, metrics, and traces.
 
 [discrete]
 [[eql-advantages]]
 == Advantages of EQL
 
 * *EQL lets you express relationships between events.* +
-Many query languages allow you to match only single events. EQL lets you match a
+Many query languages allow you to match single events. EQL lets you match a
 sequence of events across different event categories and time spans.
 
 * *EQL has a low learning curve.* +
 <<eql-syntax,EQL syntax>> looks like other common query languages, such as SQL.
-It lets you write and read queries intuitively, which makes for quick, iterative
-searching.
+EQL lets you write and read queries intuitively, which makes for quick,
+iterative searching.
 
 * *EQL is designed for security use cases.* +
-While you can use EQL for any event-based data, we created EQL for threat
-hunting. EQL not only supports indicator of compromise (IOC) searching but
-makes it easy to describe activity that goes beyond IOCs.
+While you can use it for any event-based data, we created EQL for threat
+hunting. EQL not only supports indicator of compromise (IOC) searches but can
+describe activity that goes beyond IOCs.
 
 [discrete]
 [[eql-required-fields]]
 == Required fields
 
+To run an EQL search, the searched data stream or index must contain a
+_timestamp_ and _event category_ field. By default, EQL uses the `@timestamp`
+and `event.category` fields from the {ecs-ref}[Elastic Common Schema
+(ECS)]. To use a different timestamp or event category field, see
+<<specify-a-timestamp-or-event-category-field>>.
+
 TIP: While no schema is required to use EQL, we recommend using the
-{ecs-ref}[Elastic Common Schema (ECS)]. EQL searches are designed to work with
-core ECS fields by default.
-
-EQL assumes each document in a data stream or index corresponds to an event. To
-run an EQL search, each document must contain a _timestamp_ and _event category_
-field.
-
-EQL uses the `@timestamp` and `event.category` fields from the {ecs-ref}[ECS] as
-the default timestamp and event category fields. If your documents use a
-different timestamp or event category field, you must specify it in the search
-request. See <<specify-a-timestamp-or-event-category-field>>.
+{ecs-ref}[ECS]. EQL searches are designed to work with core ECS fields by
+default.
 
 [discrete]
 [[run-an-eql-search]]
 == Run an EQL search
 
-You can use the <<eql-search-api,EQL search API>> to run an EQL search. For
-supported query syntax, see <<eql-syntax>>.
-
-The following request searches `my-index-000001` for events with an
-`event.category` of `process` and a `process.name` of `regsvr32.exe`. Each
-document in `my-index-000001` includes a `@timestamp` and `event.category`
-field.
+Use the <<eql-search-api,EQL search API>> to run a <<eql-basic-syntax,basic
+EQL query>>:
 
 [source,console]
 ----
@@ -69,10 +61,9 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-By default, EQL searches return only the top 10 matching hits. For basic EQL
-queries, these hits are matching events and are included in the `hits.events`
-property. Matching events are sorted by timestamp, converted to milliseconds
-since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
+By default, basic EQL queries return the top 10 matching events in the
+`hits.events` property. These hits are sorted by timestamp, converted to
+milliseconds since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
 
 [source,console-result]
 ----
@@ -131,8 +122,7 @@ since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
 // TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
 
-You can use the `size` request body parameter to get a larger or smaller set of
-hits. For example, the following request retrieves up to `50` matching hits.
+Use the `size` parameter to get a smaller or larger set of hits:
 
 [source,console]
 ----
@@ -150,23 +140,9 @@ GET /my-index-000001/_eql/search
 [[eql-search-sequence]]
 === Search for a sequence of events
 
-You can use EQL's <<eql-sequences,sequence syntax>> to search for an ordered
-series of events.
-
-The following EQL search request matches a sequence that:
-
-. Starts with an event with:
-+
---
-* An `event.category` of `process`
-* A `process.name` of `regsvr32.exe`
---
-. Followed by an event with:
-+
---
-* An `event.category` of `file`
-* A `file.name` that contains the substring `scrobj.dll`
---
+Use EQL's <<eql-sequences,sequence syntax>> to search for a series of
+ordered events. List the event items in ascending chronological order, 
+with the most recent event listed last:
 
 [source,console]
 ----
@@ -247,12 +223,8 @@ Matching sequences are returned in the `hits.sequences` property.
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
 // TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
 
-You can use the <<eql-with-maxspan-keywords,`with maxspan` keywords>> to
-constrain a sequence to a specified timespan.
-
-The following EQL search request adds `with maxspan=1h` to the previous query.
-This ensures all events in a matching sequence occur within `1h` (one hour) of
-the first event's timestamp.
+Use the <<eql-with-maxspan-keywords,`with maxspan` keywords>> to constrain
+matching sequences to a timespan:
 
 [source,console]
 ----
@@ -267,11 +239,8 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-You can further constrain matching event sequences using the
-<<eql-by-keyword,`by` keyword>>.
-
-The following EQL search request adds `by process.pid` to each event item. This
-ensures events matching the sequence share the same `process.pid` field value.
+Use the <<eql-by-keyword,`by` keyword>> to match events that share the
+same field values:
 
 [source,console]
 ----
@@ -286,9 +255,8 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-Because the `process.pid` field is shared across all events in the sequence, it
-can be included using `sequence by`. The following query is equivalent to the
-previous one.
+If a field value should be shared across all events, use the `sequence by`
+keyword. The following query is equivalent to the previous one.
 
 [source,console]
 ----
@@ -303,8 +271,7 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-The API returns the following response. The `hits.sequences.join_keys` property
-contains the shared `process.pid` value for each matching event.
+The `hits.sequences.join_keys` property contains the shared field values.
 
 [source,console-result]
 ----
@@ -373,12 +340,8 @@ contains the shared `process.pid` value for each matching event.
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
 // TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
 
-You can use the <<eql-until-keyword,`until` keyword>> to specify an expiration
+Use the <<eql-until-keyword,`until` keyword>> to specify an expiration
 event for sequences. Matching sequences must end before this event.
-
-The following request adds `until [ process where event.type == "termination" ]`
-to the previous query. This ensures matching sequences end before a `process`
-event with an `event.type` of `termination`.
 
 [source,console]
 ----
@@ -398,25 +361,9 @@ GET /my-index-000001/_eql/search
 [[specify-a-timestamp-or-event-category-field]]
 === Specify a timestamp or event category field
 
-To run an EQL search, each searched document must contain a timestamp and event
-category field. The EQL search API uses the `@timestamp` and `event.category`
-fields from the {ecs-ref}[Elastic Common Schema (ECS)] by default. If your
-documents use a different timestamp or event category field, you must specify it
-in the search request using the `timestamp_field` or `event_category_field`
-parameters.
-
-The event category field must be mapped as a field type in the
-<<keyword,`keyword`>> family. The timestamp field should be mapped as a
-<<date,`date`>> field type. <<date_nanos,`date_nanos`>> timestamp fields are not
-supported.
-
-NOTE: You cannot use a <<nested,`nested`>> field or the sub-fields of a `nested`
-field as the timestamp or event category field. See <<eql-nested-fields>>.
-
-The following request uses the `timestamp_field` parameter to specify
-`file.accessed` as the timestamp field. The request also uses the
-`event_category_field` parameter to specify `file.type` as the event category
-field.
+The EQL search API uses the `@timestamp` and `event.category` fields from the
+{ecs-ref}[ECS] by default. To specify different fields, use the
+`timestamp_field` and `event_category_field` parameters:
 
 [source,console]
 ----
@@ -431,42 +378,41 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-[discrete]	
-[[eql-search-specify-a-sort-tiebreaker]]	
-=== Specify a sort tiebreaker	
+The event category field must be mapped as a <<keyword,`keyword`>> family field
+type. The timestamp field should be mapped as a <<date,`date`>> field type.
+<<date_nanos,`date_nanos`>> timestamp fields are not supported. You cannot use a
+<<nested,`nested`>> field or the sub-fields of a `nested` field as the timestamp
+or event category field.
 
-By default, the EQL search API sorts matching hits in the search response by
-timestamp. However, if two or more events share the same timestamp, you can use
-a tiebreaker field to sort the events in ascending, lexicographic order.
+[discrete]
+[[eql-search-specify-a-sort-tiebreaker]]
+=== Specify a sort tiebreaker
 
-The EQL search API uses `event.sequence` as the default tiebreaker field. You	
-can use the `tiebreaker_field` parameter to specify another field.	
+By default, the EQL search API returns matching events by timestamp. If two or
+more events share the same timestamp, {es} uses a tiebreaker field value to sort
+the events in ascending, lexicographic order.
 
-The following request specifies `event.id` as the tiebreaker field.	
+`event.sequence` is the default tiebreaker field. To specify another tiebreaker
+field, use the `tiebreaker_field` parameter:
 
-[source,console]	
-----	
-GET /my-index-000001/_eql/search	
-{	
-  "tiebreaker_field": "event.id",	
-  "query": """	
-    process where process.name == "cmd.exe" and stringContains(process.executable, "System32")	
-  """	
-}	
-----	
+[source,console]
+----
+GET /my-index-000001/_eql/search
+{
+  "tiebreaker_field": "event.id",
+  "query": """
+    process where process.name == "cmd.exe" and stringContains(process.executable, "System32")
+  """
+}
+----
 // TEST[setup:sec_logs]
 
 [discrete]
 [[eql-search-filter-query-dsl]]
 === Filter using query DSL
 
-You can use the `filter` parameter to specify an additional query using
-<<query-dsl,query DSL>>. This query filters the documents on which the EQL query
-runs.
-
-The following request uses a `range` query to filter `my-index-000001` to only
-documents with a `file.size` value greater than `1` but less than `1000000`
-bytes. The EQL query in `query` parameter then runs on these filtered documents.
+The `filter` parameter uses <<query-dsl,query DSL>> to limit the documents on
+which an EQL query runs.
 
 [source,console]
 ----
@@ -494,7 +440,7 @@ GET /my-index-000001/_eql/search
 EQL searches are designed to run on large volumes of data quickly, often
 returning results in milliseconds. For this reason, EQL searches are
 _synchronous_ by default. The search request waits for complete results before
-returning a response. 
+returning a response.
 
 However, complete results can take longer for searches across:
 
@@ -502,8 +448,8 @@ However, complete results can take longer for searches across:
 * <<modules-cross-cluster-search,Multiple clusters>>
 * Many shards
 
-To avoid long waits, you can use the `wait_for_completion_timeout` parameter to
-run an _asynchronous_, or _async_, EQL search.
+To avoid long waits, use the `wait_for_completion_timeout` parameter to run an
+_asynchronous_, or _async_, EQL search.
 
 Set `wait_for_completion_timeout` to a duration you'd like to wait
 for complete search results. If the search request does not finish within this
@@ -558,11 +504,11 @@ and `is_running` properties are `true`, indicating an async search.
 // TESTRESPONSE[s/"took": 2000/"took": $body.took/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
-You can use the the search ID and the <<get-async-eql-search-api,get async EQL
-search API>> to check the progress of an async search.
+Use the <<get-async-eql-search-api,get async EQL search API>> to check the progress
+of an async search.
 
 The get async EQL search API also accepts a `wait_for_completion_timeout`
-parameter. If ongoing search does not complete during this period, the response
+parameter. If an ongoing search does not complete during this period, the response
 returns an `is_partial` value of `true` and no search results.
 
 The following get async EQL search API request checks the progress of the
@@ -599,7 +545,7 @@ in the `hits` property are complete.
 === Change the search retention period
 
 By default, the EQL search API stores async searches for five days. After this
-period, any searches and their results are deleted. You can use the `keep_alive`
+period, any searches and their results are deleted. Use the `keep_alive`
 parameter to change this retention period.
 
 In the following EQL search request, the `keep_alive` parameter is `2d` (two
@@ -621,8 +567,8 @@ GET /my-index-000001/_eql/search
 // TEST[setup:sec_logs]
 
 You can use the <<get-async-eql-search-api,get async EQL search API>>'s
-`keep_alive`parameter to later change the retention period. The new
-retention period starts after the get request executes.
+`keep_alive` parameter to later change the retention period. The new retention
+period starts after the get request runs.
 
 The following request sets the `keep_alive` query parameter to `5d` (five days).
 The async search and its results are deleted five days after the get request
@@ -634,9 +580,9 @@ GET /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTo
 ----
 // TEST[skip: no access to search ID]
 
-You can use the <<delete-async-eql-search-api,delete async EQL search API>> to
+Use the <<delete-async-eql-search-api,delete async EQL search API>> to
 manually delete an async EQL search before the `keep_alive` period ends. If the
-search is still ongoing, this cancels the search request.
+search is still ongoing, {es} cancels the search request.
 
 The following request deletes an async EQL search and its results.
 
@@ -656,9 +602,9 @@ completed within the period set by `wait_for_completion_timeout`.
 To save the results of searches that complete during this period, set the
 `keep_on_completion` parameter to `true`.
 
-In the following search request, `keep_on_completion` is `true`. This means the
-search results are stored on the cluster, even if the search completes within
-the `2s` (two-second) period set by the `wait_for_completion_timeout` parameter.
+In the following search request, `keep_on_completion` is `true`. Search results
+are stored on the cluster, even if the search completes within the `2s`
+(two-second) period set by the `wait_for_completion_timeout` parameter.
 
 [source,console]
 ----
@@ -692,8 +638,8 @@ was synchronous and returned complete results in `hits`.
 // TESTRESPONSE[s/"took": 52/"took": $body.took/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
-You can use the search ID and the <<get-async-eql-search-api,get async EQL
-search API>> to retrieve the same results later.
+Use the search ID and the <<get-async-eql-search-api,get async EQL search API>>
+to retrieve the same results later.
 
 [source,console]
 ----

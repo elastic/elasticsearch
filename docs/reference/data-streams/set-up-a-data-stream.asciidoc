@@ -78,8 +78,9 @@ template is used for data streams.
 create data streams.
 
 If you use {agent}, assign your index templates a priority lower than `100` to
-avoid overriding the built-in templates. Use a non-overlapping index pattern or
-assign templates with an overlapping pattern a `priority` higher than `100`.
+avoid overriding the built-in templates. Otherwise, use a non-overlapping index
+pattern or assign templates with an overlapping pattern a `priority` higher than
+`100`.
 
 For example, if you don't use {agent} and want to create a template for the
 `logs-*` index pattern, assign your template a priority of `200`. This ensures

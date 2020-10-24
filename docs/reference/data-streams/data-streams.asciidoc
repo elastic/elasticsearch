@@ -83,8 +83,9 @@ the stream. This index also acts as the stream's first write index. A
 stream's new write index.
 
 We recommend using <<index-lifecycle-management,{ilm-init}>> to automatically
-roll over data streams. If needed, you can also
-<<manually-roll-over-a-data-stream,manually roll over>> a data stream.
+roll over data streams when the write index reaches a specified age or size.
+If needed, you can also <<manually-roll-over-a-data-stream,manually roll over>>
+a data stream.
 
 
 [discrete]
@@ -115,8 +116,8 @@ These name changes do not remove a backing index from its data stream.
 == Append-only
 
 Data streams are designed for use cases where existing data is rarely,
-if ever, updated. You cannot send update or deletion requests for existing documents
-directly to a data stream. Instead, use the
+if ever, updated. You cannot send update or deletion requests for existing
+documents directly to a data stream. Instead, use the
 <<update-docs-in-a-data-stream-by-query,update by query>> and
 <<delete-docs-in-a-data-stream-by-query,delete by query>> APIs.
 

@@ -145,8 +145,8 @@ POST /my-data-stream/_rollover/
 [[open-closed-backing-indices]]
 === Open closed backing indices
 
-A closed backing index cannot be searched, even for searches targeting its data
-stream. You also can't <<update-docs-in-a-data-stream-by-query,update>> or
+You cannot search a closed backing index, even by searching its data
+stream. You also cannot <<update-docs-in-a-data-stream-by-query,update>> or
 <<delete-docs-in-a-data-stream-by-query,delete>> documents in a closed index.
 
 To open individual backing indices, send an <<indices-open-close,open

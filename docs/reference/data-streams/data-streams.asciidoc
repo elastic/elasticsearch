@@ -7,7 +7,7 @@
 
 A {ref}/data-streams.html[data stream] lets you store append-only time series
 data across multiple indices while giving you a single named resource for
-requests. Data streams are often used to store and search logs, events, metrics,
+requests. Data streams are used to store and search logs, events, metrics,
 and other continuously generated data.
 
 You can submit indexing and search requests directly to a data stream. The
@@ -35,8 +35,8 @@ To configure its backing indices, each data stream requires a matching
 * Mappings and settings for the stream's backing indices.
 
 Every document indexed to a data stream must contain a `@timestamp` field,
-mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>>. If the index
-template does not contain a mapping for the `@timestamp` field, {es} maps
+mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field type. If the
+index template doesn't specify a mapping for the `@timestamp` field, {es} maps
 `@timestamp` as a `date` field  with default options.
 
 The same index template can be used for multiple data streams. You cannot
@@ -56,7 +56,7 @@ image::images/data-streams/data-streams-search-request.svg[align="center"]
 == Write index
 
 The most recently created backing index is the data stream’s write index.
-The stream adds new documents only to this index.
+The stream only adds new documents to this index.
 
 image::images/data-streams/data-streams-index-request.svg[align="center"]
 
@@ -108,7 +108,7 @@ recent backing index is named `.ds-web-server-logs-000034`.
 
 Some operations, such as a <<indices-shrink-index,shrink>> or
 <<snapshots-restore-snapshot,restore>>, can change a backing index's name.
-Name changes do not remove the index from the data stream.
+These name changes do not remove a backing index from its data stream.
 
 [discrete]
 [[data-streams-append-only]]

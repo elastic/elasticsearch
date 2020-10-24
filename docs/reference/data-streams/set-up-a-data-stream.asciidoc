@@ -68,8 +68,8 @@ template is used for data streams.
 
 * Mappings and settings for the stream's backing indices.
 
-If you don't specify a mapping for the `@timestamp` field, the field is mapped
-as a `date` field with default options.
+If the index template doesn't specify a mapping for the `@timestamp` field, {es}
+maps `@timestamp` as a `date` field  with default options.
 
 If using {ilm-init}, specify your lifecycle policy in the `index.lifecycle.name`
 setting.

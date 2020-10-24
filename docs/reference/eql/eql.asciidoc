@@ -463,8 +463,8 @@ If the request doesn't finish in the timeout duration, the search becomes async
 and returns a response that includes:
 
 * A search ID
-* An `is_partial` value of `true`, indicating the search results are not
-  complete
+* An `is_partial` value of `true`, indicating the search results are
+  incomplete
 * An `is_running` value of `true`, indicating the search is ongoing
 
 The async search continues to run in the background without blocking other

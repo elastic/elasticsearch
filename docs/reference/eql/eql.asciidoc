@@ -411,7 +411,7 @@ GET /my-index-000001/_eql/search
 === Filter using query DSL
 
 The `filter` parameter uses <<query-dsl,query DSL>> to limit the documents on
-which a EQL query runs.
+which an EQL query runs.
 
 [source,console]
 ----
@@ -507,7 +507,7 @@ Use the <<get-async-eql-search-api,get async EQL search API>> to check the progr
 of an async search.
 
 The get async EQL search API also accepts a `wait_for_completion_timeout`
-parameter. If ongoing search does not complete during this period, the response
+parameter. If an ongoing search does not complete during this period, the response
 returns an `is_partial` value of `true` and no search results.
 
 The following get async EQL search API request checks the progress of the
@@ -566,7 +566,7 @@ GET /my-index-000001/_eql/search
 // TEST[setup:sec_logs]
 
 Use the <<get-async-eql-search-api,get async EQL search API>>'s
-`keep_alive`parameter to later change the retention period. The new retention
+`keep_alive` parameter to later change the retention period. The new retention
 period starts after the get request runs.
 
 The following request sets the `keep_alive` query parameter to `5d` (five days).
@@ -601,9 +601,9 @@ completed within the period set by `wait_for_completion_timeout`.
 To save the results of searches that complete during this period, set the
 `keep_on_completion` parameter to `true`.
 
-In the following search request, `keep_on_completion` is `true`. This means the
-search results are stored on the cluster, even if the search completes within
-the `2s` (two-second) period set by the `wait_for_completion_timeout` parameter.
+In the following search request, `keep_on_completion` is `true`. Search results
+are stored on the cluster, even if the search completes within the `2s`
+(two-second) period set by the `wait_for_completion_timeout` parameter.
 
 [source,console]
 ----

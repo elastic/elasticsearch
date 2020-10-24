@@ -459,7 +459,7 @@ GET /frozen-my-index-000001/_eql/search
 // TEST[setup:sec_logs]
 // TEST[s/frozen-my-index-000001/my-index-000001/]
 
-If the request doesn't finish in the timeout duration, the search becomes async
+If the request doesn't finish within the timeout period, the search becomes async
 and returns a response that includes:
 
 * A search ID

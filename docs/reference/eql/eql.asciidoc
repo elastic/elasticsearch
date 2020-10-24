@@ -9,7 +9,7 @@
 beta::[]
 
 Event Query Language (EQL) is a query language for event-based time series
-data, such as logs, metrics, or traces.
+data, such as logs, metrics, and traces.
 
 [discrete]
 [[eql-advantages]]
@@ -565,7 +565,7 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-Use the <<get-async-eql-search-api,get async EQL search API>>'s
+You can use the <<get-async-eql-search-api,get async EQL search API>>'s
 `keep_alive` parameter to later change the retention period. The new retention
 period starts after the get request runs.
 

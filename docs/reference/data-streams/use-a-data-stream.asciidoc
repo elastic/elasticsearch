@@ -339,9 +339,9 @@ DELETE /.ds-my-data-stream-000003/_doc/bfspvnIBr7VVZlfp2lqX
 ----
 
 To delete or update multiple documents with a single request, use the
-<<docs-bulk,bulk API>>. For `index` actions, include valid
-<<bulk-optimistic-concurrency-control,`if_seq_no` and `if_primary_term`>>
-arguments.
+<<docs-bulk,bulk API>>'s `delete`, `index`, and `update` actions. For `index`
+actions, include valid <<bulk-optimistic-concurrency-control,`if_seq_no` and
+`if_primary_term`>> arguments.
 
 [source,console]
 ----

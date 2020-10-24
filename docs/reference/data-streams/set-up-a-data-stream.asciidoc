@@ -127,18 +127,9 @@ PUT /_index_template/my-data-stream-template
 [[create-a-data-stream]]
 === Create the data stream
 
-Create the data stream using one of the following methods:
-
-* <<index-documents-to-create-a-data-stream>>
-* <<manually-create-a-data-stream>>
-
-[discrete]
-[[index-documents-to-create-a-data-stream]]
-====  Index documents to automatically create the data stream
-
-Submit an <<add-documents-to-a-data-stream,indexing request>> to automatically
-create the data stream. The request must target the stream's name. This name
-must also match one of your template's index patterns.
+To automatically create the data stream, submit an
+<<add-documents-to-a-data-stream,indexing request>> to the stream. The stream's
+name must match one of your template's index patterns.
 
 [source,console]
 ----
@@ -153,13 +144,9 @@ POST /my-data-stream/_doc/
 ----
 // TEST[continued]
 
-[discrete]
-[[manually-create-a-data-stream]]
-====  Manually create the data stream
-
-Use the <<indices-create-data-stream,create data stream API>> to manually create
-the data stream. The stream's name must match one of your template's index
-patterns.
+You can also use the <<indices-create-data-stream,create data stream API>> to
+manually create the data stream. The stream's name must match one of your
+template's index patterns.
 
 [source,console]
 ----

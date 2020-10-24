@@ -202,7 +202,7 @@ image::images/data-streams/data-streams-list.png[Data Streams tab]
 .API example
 ====
 Use the <<indices-delete-data-stream,delete data stream API>> to delete a data
-stream and its backing indices.
+stream and its backing indices:
 
 [source,console]
 ----

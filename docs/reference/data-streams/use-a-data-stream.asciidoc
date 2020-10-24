@@ -141,7 +141,6 @@ index API request>> directly to the index:
 ----
 POST /.ds-my-data-stream-000001/_open/
 ----
-// TEST[continued]
 
 To open all backing indices, send an open index API request to the data
 stream:
@@ -150,7 +149,6 @@ stream:
 ----
 POST /my-data-stream/_open/
 ----
-// TEST[continued]
 
 [discrete]
 [[reindex-with-a-data-stream]]

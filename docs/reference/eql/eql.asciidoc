@@ -140,8 +140,9 @@ GET /my-index-000001/_eql/search
 [[eql-search-sequence]]
 === Search for a sequence of events
 
-Use EQL's <<eql-sequences,sequence syntax>> to search for a series of events in
-ascending chronological order, with the most recent event listed last:
+Use EQL's <<eql-sequences,sequence syntax>> to search for a series of
+ordered events. List the events in ascending chronological order, with
+the most recent event listed last:
 
 [source,console]
 ----
@@ -223,7 +224,7 @@ Matching sequences are returned in the `hits.sequences` property.
 // TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
 
 Use the <<eql-with-maxspan-keywords,`with maxspan` keywords>> to constrain
-events in matching sequences to a timespan:
+matching sequences to a timespan:
 
 [source,console]
 ----
@@ -238,7 +239,7 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-Use the <<eql-by-keyword,`by` keyword>> to only match events that share the
+Use the <<eql-by-keyword,`by` keyword>> to match events that share the
 same field values:
 
 [source,console]

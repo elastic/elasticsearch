@@ -5,7 +5,7 @@
 <titleabbrev>Data streams</titleabbrev>
 ++++
 
-A {ref}/data-streams.html[data stream] lets you store  append-only time series
+A data stream lets you store append-only time series
 data across multiple indices while giving you a single named resource for
 requests. Data streams are well-suited for logs, events, metrics, and other
 continuously generated data.

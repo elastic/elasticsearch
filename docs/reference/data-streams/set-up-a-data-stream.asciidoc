@@ -7,7 +7,6 @@ To set up a data stream, follow these steps:
 . <<configure-a-data-stream-ilm-policy>>.
 . <<create-a-data-stream-template>>.
 . <<create-a-data-stream>>.
-. <<get-info-about-a-data-stream>> to verify it exists.
 . <<secure-a-data-stream>>.
 
 [discrete]
@@ -155,10 +154,16 @@ PUT /_data_stream/my-data-stream-alt
 // TEST[continued]
 
 [discrete]
-[[get-info-about-a-data-stream]]
-=== Get information about the data stream
+[[secure-a-data-stream]]
+=== Secure the data stream
 
-You can get information about a data stream to verify it exists.
+To control access to the data stream and its
+data, use <<data-stream-privileges,{es}'s {security-features}>>.
+
+[discrete]
+[[get-info-about-a-data-stream]]
+=== Get information about a data stream
+
 In {kib}, open the menu and go to *Stack Management > Index Management*. In the
 *Data Streams* tab, click the data stream's name.
 
@@ -185,13 +190,6 @@ GET /_data_stream/my-data-stream
 ----
 // TEST[continued]
 ====
-
-[discrete]
-[[secure-a-data-stream]]
-=== Secure the data stream
-
-To control access to the data stream and its
-data, use <<data-stream-privileges,{es}'s {security-features}>>.
 
 [discrete]
 [[delete-a-data-stream]]

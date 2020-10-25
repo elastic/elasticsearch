@@ -561,11 +561,8 @@ DELETE /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERn
 [[eql-search-store-sync-eql-search]]
 === Store synchronous EQL searches
 
-By default, the EQL search API only stores async searches that cannot be
-completed within the period set by `wait_for_completion_timeout`.
-
-To save the results for a synchronous search, set `keep_on_completion` to
-`true`:
+By default, the EQL search API only stores async searches. To save a synchronous
+search, set `keep_on_completion` to `true`:
 
 [source,console]
 ----

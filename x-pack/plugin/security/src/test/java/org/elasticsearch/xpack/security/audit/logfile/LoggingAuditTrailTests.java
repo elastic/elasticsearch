@@ -49,6 +49,8 @@ import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
@@ -652,6 +654,68 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(generatedEnableUserAuditEventString, checkedFields.immutableMap());
         // clear log
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        setEnabledRequest = new SetEnabledRequest();
+        setEnabledRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        // disable user
+        setEnabledRequest.enabled(false);
+        setEnabledRequest.username(username);
+        auditTrail.accessGranted(requestId, authentication, SetEnabledAction.NAME, setEnabledRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedDisableUserAuditEventString = output.get(1);
+        StringBuilder disableUserStringBuilder = new StringBuilder();
+        disableUserStringBuilder.append("\"disable\":{\"user\":{\"name\":\"").append(username).append("\",\"realm\":");
+        if (realmName == null) {
+            disableUserStringBuilder.append("null");
+        } else {
+            disableUserStringBuilder.append("\"").append(realmName).append("\"");
+        }
+        disableUserStringBuilder.append("}}");
+        String expectedDisableUserAuditEventString = disableUserStringBuilder.toString();
+        assertThat(generatedDisableUserAuditEventString, containsString(expectedDisableUserAuditEventString));
+        generatedDisableUserAuditEventString = generatedDisableUserAuditEventString.replace(", " + expectedDisableUserAuditEventString, "");
+        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "disable_user")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedDisableUserAuditEventString, checkedFields.immutableMap());
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        ChangePasswordRequest changePasswordRequest = new ChangePasswordRequest();
+        changePasswordRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        changePasswordRequest.username(username);
+        changePasswordRequest.passwordHash(randomFrom(randomAlphaOfLengthBetween(0, 8).toCharArray(), null));
+        auditTrail.accessGranted(requestId, authentication, ChangePasswordAction.NAME, changePasswordRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedChangePasswordAuditEventString = output.get(1);
+        generatedChangePasswordAuditEventString.length();
+        StringBuilder changePasswordStringBuilder = new StringBuilder();
+        changePasswordStringBuilder.append("\"change\":{\"password\":{\"user\":{\"name\":\"").append(username).append("\",\"realm\":");
+        if (realmName == null) {
+            changePasswordStringBuilder.append("null");
+        } else {
+            changePasswordStringBuilder.append("\"").append(realmName).append("\"");
+        }
+        changePasswordStringBuilder.append("}}}");
+        String expectedChangePasswordAuditEventString = changePasswordStringBuilder.toString();
+        assertThat(generatedChangePasswordAuditEventString, containsString(expectedChangePasswordAuditEventString));
+        generatedChangePasswordAuditEventString =
+                generatedChangePasswordAuditEventString.replace(", " + expectedChangePasswordAuditEventString,
+                "");
+        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "change_password")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedChangePasswordAuditEventString, checkedFields.immutableMap());
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {

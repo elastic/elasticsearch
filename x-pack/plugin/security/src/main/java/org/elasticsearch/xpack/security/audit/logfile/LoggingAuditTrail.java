@@ -249,7 +249,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
         this.threadContext = threadContext;
         this.inferRealmNameFromUsername = (username) -> {
-            if (AnonymousUser.isAnonymousEnabled(settings) && AnonymousUser.isAnonymousUsername(username, settings)) {
+            if (username == null) {
+                return null;
+            } else if (AnonymousUser.isAnonymousEnabled(settings) && AnonymousUser.isAnonymousUsername(username, settings)) {
                 return null;
             } else if (ClientReservedRealm.isReserved(username, settings)) {
                 return ReservedRealm.NAME;

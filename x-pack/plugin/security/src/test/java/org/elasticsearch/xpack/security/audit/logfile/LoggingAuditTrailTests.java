@@ -51,12 +51,13 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
+import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -618,6 +619,37 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_user")
                 .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedPutUserAuditEventString, checkedFields.immutableMap());
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        SetEnabledRequest setEnabledRequest = new SetEnabledRequest();
+        setEnabledRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        // enable user
+        setEnabledRequest.enabled(true);
+        setEnabledRequest.username(username);
+        auditTrail.accessGranted(requestId, authentication, SetEnabledAction.NAME, setEnabledRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedEnableUserAuditEventString = output.get(1);
+        StringBuilder enableUserStringBuilder = new StringBuilder();
+        enableUserStringBuilder.append("\"enable\":{\"user\":{\"name\":\"").append(username).append("\",\"realm\":");
+        if (realmName == null) {
+            enableUserStringBuilder.append("null");
+        } else {
+            enableUserStringBuilder.append("\"").append(realmName).append("\"");
+        }
+        enableUserStringBuilder.append("}}");
+        String expectedEnableUserAuditEventString = enableUserStringBuilder.toString();
+        assertThat(generatedEnableUserAuditEventString, containsString(expectedEnableUserAuditEventString));
+        generatedEnableUserAuditEventString = generatedEnableUserAuditEventString.replace(", " + expectedEnableUserAuditEventString, "");
+        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "enable_user")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedEnableUserAuditEventString, checkedFields.immutableMap());
         // clear log
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
     }

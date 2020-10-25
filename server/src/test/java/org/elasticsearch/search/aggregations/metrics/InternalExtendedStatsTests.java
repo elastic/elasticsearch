@@ -46,14 +46,15 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         double min = randomDoubleBetween(-1000000, 1000000, true);
         double max = randomDoubleBetween(-1000000, 1000000, true);
         double sum = randomDoubleBetween(-1000000, 1000000, true);
+        double m2 = randomDoubleBetween(-1000000, 1000000, true);
         DocValueFormat format = randomNumericDocValueFormat();
-        return createInstance(name, count, sum, min, max, randomDoubleBetween(0, 1000000, true), sigma, format, metadata);
+        return createInstance(name, count, sum, min, max, randomDoubleBetween(0, 1000000, true),
+            sigma, m2, format, metadata);
     }
 
     protected InternalExtendedStats createInstance(String name, long count, double sum, double min, double max, double sumOfSqrs,
-            double sigma, DocValueFormat formatter, Map<String, Object> metadata) {
-        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, metadata);
-
+            double sigma, double m2, DocValueFormat formatter, Map<String, Object> metadata) {
+        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, m2, formatter, metadata);
     }
 
     @Override
@@ -142,6 +143,7 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         double max = instance.getMax();
         double sumOfSqrs = instance.getSumOfSquares();
         double sigma = instance.getSigma();
+        double m2 = instance.getM2();
         DocValueFormat formatter = instance.format;
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 7)) {
@@ -191,6 +193,14 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
             }
             break;
         case 7:
+            if (Double.isFinite(m2)) {
+                m2 += between(1, 10);
+            } else {
+                m2 = between(1, 10);
+            }
+                break;
+
+        case 8:
             if (metadata == null) {
                 metadata = new HashMap<>(1);
             } else {
@@ -201,7 +211,7 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, metadata);
+        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, m2, formatter, metadata);
     }
 
     public void testSummationAccuracy() {
@@ -237,9 +247,9 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         List<InternalAggregation> aggregations = new ArrayList<>(values.length);
         double sigma = randomDouble();
         for (double sumOfSqrs : values) {
-            aggregations.add(new InternalExtendedStats("dummy1", 1, 0.0, 0.0, 0.0, sumOfSqrs, sigma, null, null));
+            aggregations.add(new InternalExtendedStats("dummy1", 1, 0.0, 0.0, 0.0, sumOfSqrs, sigma, 0.0, null, null));
         }
-        InternalExtendedStats stats = new InternalExtendedStats("dummy", 1, 0.0, 0.0, 0.0, 0.0, sigma, null, null);
+        InternalExtendedStats stats = new InternalExtendedStats("dummy", 1, 0.0, 0.0, 0.0, 0.0, sigma, 0.0, null, null);
         InternalExtendedStats reduced = stats.reduce(aggregations, null);
         assertEquals(expectedSumOfSqrs, reduced.getSumOfSquares(), delta);
     }

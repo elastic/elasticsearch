@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,12 +44,14 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     private final double sumOfSqrs;
     private final double sigma;
+    private final double m2;
 
     public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
-                                 DocValueFormat formatter, Map<String, Object> metadata) {
+                                 double m2, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, count, sum, min, max, formatter, metadata);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;
+        this.m2 = m2;
     }
 
     /**
@@ -58,12 +61,21 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         super(in);
         sumOfSqrs = in.readDouble();
         sigma = in.readDouble();
+        //TODO:  While merging should make sure that Version check is appropriate
+        if(in.getVersion().onOrAfter(Version.V_8_0_0)){
+            m2 = in.readDouble();
+        } else {
+            m2 = Double.NaN;
+        }
     }
 
     @Override
     protected void writeOtherStatsTo(StreamOutput out) throws IOException {
         out.writeDouble(sumOfSqrs);
         out.writeDouble(sigma);
+        if(out.getVersion().onOrAfter(Version.V_8_0_0)){
+            out.writeDouble(m2);
+        }
     }
 
     @Override
@@ -119,6 +131,10 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         return this.sigma;
     }
 
+    public double getM2(){
+        return this.m2;
+    }
+
     @Override
     public double getSumOfSquares() {
         return sumOfSqrs;
@@ -131,14 +147,29 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public double getVariancePopulation() {
-        double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
-        return variance < 0  ? 0 : variance;
+        if(count < 1){
+            return Double.NaN;
+        }
+        if(Double.isNaN(m2)){
+            double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
+            return variance < 0  ? 0 : variance + 2;
+        }
+        else{
+            return m2 / count;
+        }
     }
 
     @Override
     public double getVarianceSampling() {
-        double variance =  (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
-        return variance < 0  ? 0 : variance;
+        if(count < 2){
+            return Double.NaN;
+        }
+        if(Double.isNaN(m2)){
+            double variance =  (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
+            return variance < 0  ? 0 : variance;
+        } else {
+            return m2 / (count - 1);
+        }
     }
 
     @Override
@@ -232,6 +263,9 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     @Override
     public InternalExtendedStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double sumOfSqrs = 0;
+        double m2 = 0;
+        double mean = 0;
+        long count = 0;
         double compensationOfSqrs = 0;
         for (InternalAggregation aggregation : aggregations) {
             InternalExtendedStats stats = (InternalExtendedStats) aggregation;
@@ -247,10 +281,23 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
                 compensationOfSqrs = (newSumOfSqrs - sumOfSqrs) - correctedOfSqrs;
                 sumOfSqrs = newSumOfSqrs;
             }
+
+            if (Double.isNaN(m2) || stats.count == 0) {
+                continue;
+            } else if(Double.isNaN(stats.m2)) {
+                m2 = Double.NaN;
+            } else {
+                long newCount = count + stats.count;
+                double mean2 = stats.sum/stats.count;
+                double delta = mean2 - mean;
+                m2 = m2 + stats.m2 + ((delta * delta) * count * stats.count /newCount);
+                mean = (mean * count + mean2 * stats.count) / newCount;
+                count = newCount;
+            }
         }
         final InternalStats stats = super.reduce(aggregations, reduceContext);
         return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma,
-            format, getMetadata());
+            m2, format, getMetadata());
     }
 
     static class Fields {
@@ -352,6 +399,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
         InternalExtendedStats other = (InternalExtendedStats) obj;
         return Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 &&
-            Double.compare(sigma, other.sigma) == 0;
+            Double.compare(sigma, other.sigma) == 0 &&
+            Double.compare(m2, other.m2) == 0;
     }
 }

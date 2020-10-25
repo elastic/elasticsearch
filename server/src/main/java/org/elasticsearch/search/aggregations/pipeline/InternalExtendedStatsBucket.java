@@ -30,8 +30,8 @@ import java.util.Map;
 
 public class InternalExtendedStatsBucket extends InternalExtendedStats implements ExtendedStatsBucket {
     InternalExtendedStatsBucket(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
-                                            DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, count, sum, min, max, sumOfSqrs, sigma, formatter, metadata);
+                                            double m2, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, count, sum, min, max, sumOfSqrs, sigma, m2, formatter, metadata);
     }
 
     /**

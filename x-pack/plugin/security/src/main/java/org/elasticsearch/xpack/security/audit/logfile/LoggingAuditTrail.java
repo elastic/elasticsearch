@@ -14,6 +14,7 @@ import org.apache.logging.log4j.core.Filter.Result;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
 import org.apache.logging.log4j.message.StringMapMessage;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -589,8 +590,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             "] for the \"security change\" action [" + action + "]");
                 }
             } catch (IOException e) {
-                // TODO ensure and test that IOExceptions are gracefully handled up the call stack
-                // TODO Especially check that all valid metadata can be serialized in the audit record
+                throw new ElasticsearchSecurityException("Unexpected error while serializing event data", e);
             }
         }
     }

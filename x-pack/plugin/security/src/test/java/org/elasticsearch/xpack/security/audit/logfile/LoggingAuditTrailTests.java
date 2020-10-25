@@ -48,6 +48,8 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
@@ -545,6 +547,72 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(generatedPutRoleAuditEventString, checkedFields.immutableMap());
     }
 
+    public void testSecurityConfigChangeEventFormattingForApiKeyInvalidation() throws IOException {
+        final String requestId = randomRequestId();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final Authentication authentication = createAuthentication();
+
+        final InvalidateApiKeyRequest invalidateApiKeyRequest;
+        if (randomBoolean()) {
+            invalidateApiKeyRequest = new InvalidateApiKeyRequest(randomFrom(randomAlphaOfLength(8), null),
+                    randomFrom(randomAlphaOfLength(8), null), null, randomFrom(randomAlphaOfLength(8), null), randomBoolean(),
+                    randomFrom(randomArray(3, String[]::new, () -> randomAlphaOfLength(8)), null));
+        } else {
+            invalidateApiKeyRequest = new InvalidateApiKeyRequest(randomFrom(randomAlphaOfLength(8), null),
+                    randomFrom(randomAlphaOfLength(8), null), randomAlphaOfLength(8), randomFrom(randomAlphaOfLength(8), null),
+                    randomBoolean());
+        }
+        auditTrail.accessGranted(requestId, authentication, InvalidateApiKeyAction.NAME, invalidateApiKeyRequest, authorizationInfo);
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedInvalidateKeyAuditEventString = output.get(1);
+        StringBuilder invalidateKeyEventStringBuilder = new StringBuilder();
+        invalidateKeyEventStringBuilder.append("\"invalidate\":{\"apikeys\":{");
+        if (invalidateApiKeyRequest.getIds() != null && invalidateApiKeyRequest.getIds().length > 0) {
+            invalidateKeyEventStringBuilder.append("\"ids\":[");
+            for (String apiKeyId : invalidateApiKeyRequest.getIds()) {
+                invalidateKeyEventStringBuilder.append("\"").append(apiKeyId).append("\",");
+            }
+            // delete last comma
+            invalidateKeyEventStringBuilder.deleteCharAt(invalidateKeyEventStringBuilder.length() - 1);
+            invalidateKeyEventStringBuilder.append("],");
+        }
+        if (Strings.hasLength(invalidateApiKeyRequest.getName())) {
+            invalidateKeyEventStringBuilder.append("\"name\":\"").append(invalidateApiKeyRequest.getName()).append("\",");
+        }
+        invalidateKeyEventStringBuilder.append("\"owned_by_authenticated_user\":")
+                .append(invalidateApiKeyRequest.ownedByAuthenticatedUser());
+        if (Strings.hasLength(invalidateApiKeyRequest.getUserName()) || Strings.hasLength(invalidateApiKeyRequest.getRealmName())) {
+            invalidateKeyEventStringBuilder.append(",\"user\":{\"name\":");
+            if (Strings.hasLength(invalidateApiKeyRequest.getUserName())) {
+                invalidateKeyEventStringBuilder.append("\"").append(invalidateApiKeyRequest.getUserName()).append("\"");
+            } else {
+                invalidateKeyEventStringBuilder.append("null");
+            }
+            invalidateKeyEventStringBuilder.append(",\"realm\":");
+            if (Strings.hasLength(invalidateApiKeyRequest.getRealmName())) {
+                invalidateKeyEventStringBuilder.append("\"").append(invalidateApiKeyRequest.getRealmName()).append("\"");
+            } else {
+                invalidateKeyEventStringBuilder.append("null");
+            }
+            invalidateKeyEventStringBuilder.append("}");
+        }
+        invalidateKeyEventStringBuilder.append("}}");
+        String expectedInvalidateKeyEventString = invalidateKeyEventStringBuilder.toString();
+        assertThat(generatedInvalidateKeyAuditEventString, containsString(expectedInvalidateKeyEventString));
+        generatedInvalidateKeyAuditEventString = generatedInvalidateKeyAuditEventString
+                .replace(", " + expectedInvalidateKeyEventString, "");
+        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "invalidate_apikeys")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedInvalidateKeyAuditEventString, checkedFields.immutableMap());
+    }
+
     public void testSecurityConfigChangeEventFormattingForRoleMapping() throws IOException {
         final String requestId = randomRequestId();
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
@@ -640,7 +708,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         String expectedPutRoleMappingAuditEventString = putRoleMappingAuditEventStringBuilder.toString();
         assertThat(generatedPutRoleMappingAuditEventString, containsString(expectedPutRoleMappingAuditEventString));
-        generatedPutRoleMappingAuditEventString = generatedPutRoleMappingAuditEventString.replace(", " + expectedPutRoleMappingAuditEventString, "");
+        generatedPutRoleMappingAuditEventString = generatedPutRoleMappingAuditEventString
+                .replace(", " + expectedPutRoleMappingAuditEventString, "");
         MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
         checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);

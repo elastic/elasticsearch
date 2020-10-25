@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.mock.orig.Mockito;
@@ -49,6 +50,8 @@ import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
@@ -61,6 +64,9 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -539,6 +545,112 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(generatedPutRoleAuditEventString, checkedFields.immutableMap());
     }
 
+    public void testSecurityConfigChangeEventFormattingForRoleMapping() throws IOException {
+        final String requestId = randomRequestId();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final Authentication authentication = createAuthentication();
+
+        PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest();
+        putRoleMappingRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        putRoleMappingRequest.setName(randomFrom(randomAlphaOfLength(8), null));
+        putRoleMappingRequest.setEnabled(randomBoolean());
+        putRoleMappingRequest.setRoles(Arrays.asList(randomArray(4, String[]::new, () -> randomAlphaOfLength(4))));
+        putRoleMappingRequest.setRoleTemplates(Arrays.asList(randomArray(4, TemplateRoleName[]::new,
+                () -> new TemplateRoleName(new BytesArray(randomAlphaOfLengthBetween(0, 8)),
+                        randomFrom(TemplateRoleName.Format.values())))));
+        RoleMapperExpression mockRoleMapperExpression = new RoleMapperExpression() {
+            @Override
+            public boolean match(ExpressionModel model) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String getWriteableName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                builder.field("mock", "A mock role mapper expression");
+                builder.endObject();
+                return builder;
+            }
+        };
+        boolean hasRules = randomBoolean();
+        if (hasRules) {
+            putRoleMappingRequest.setRules(mockRoleMapperExpression);
+        }
+        boolean hasMetadata = randomBoolean();
+        if (hasMetadata) {
+            Map<String, Object> metadata = new TreeMap<>();
+            metadata.put("list", List.of("42", 13));
+            metadata.put("smth", 42);
+            putRoleMappingRequest.setMetadata(metadata);
+        }
+        auditTrail.accessGranted(requestId, authentication, PutRoleMappingAction.NAME, putRoleMappingRequest, authorizationInfo);
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedPutRoleMappingAuditEventString = output.get(1);
+        StringBuilder putRoleMappingAuditEventStringBuilder = new StringBuilder();
+        putRoleMappingAuditEventStringBuilder.append("\"put\":{\"role_mapping\":{\"name\":");
+        if (putRoleMappingRequest.getName() != null) {
+            putRoleMappingAuditEventStringBuilder.append("\"").append(putRoleMappingRequest.getName()).append("\"");
+        } else {
+            putRoleMappingAuditEventStringBuilder.append("null");
+        }
+        if (putRoleMappingRequest.getRoles() != null && false == putRoleMappingRequest.getRoles().isEmpty()) {
+            putRoleMappingAuditEventStringBuilder.append(",\"role_names\":[");
+            for (String roleName : putRoleMappingRequest.getRoles()) {
+                putRoleMappingAuditEventStringBuilder.append("\"").append(roleName).append("\",");
+            }
+            // delete last comma
+            putRoleMappingAuditEventStringBuilder.deleteCharAt(putRoleMappingAuditEventStringBuilder.length() - 1);
+            putRoleMappingAuditEventStringBuilder.append("]");
+        }
+        if (putRoleMappingRequest.getRoleTemplates() != null && false == putRoleMappingRequest.getRoleTemplates().isEmpty()) {
+            putRoleMappingAuditEventStringBuilder.append(",\"role_templates\":[");
+            for (TemplateRoleName templateRoleName : putRoleMappingRequest.getRoleTemplates()) {
+                putRoleMappingAuditEventStringBuilder.append("{\"template\":\"")
+                        .append(templateRoleName.getTemplate().utf8ToString())
+                        .append("\",\"format\":\"")
+                        .append(templateRoleName.getFormat().toString().toLowerCase())
+                        .append("\"},");
+            }
+            // delete last comma
+            putRoleMappingAuditEventStringBuilder.deleteCharAt(putRoleMappingAuditEventStringBuilder.length() - 1);
+            putRoleMappingAuditEventStringBuilder.append("]");
+        }
+        if (hasRules) {
+            putRoleMappingAuditEventStringBuilder.append(",\"rule\":{\"mock\":\"A mock role mapper expression\"}");
+        } else {
+            putRoleMappingAuditEventStringBuilder.append(",\"rule\":null");
+        }
+        putRoleMappingAuditEventStringBuilder.append(",\"enabled\":").append(putRoleMappingRequest.isEnabled());
+        if (hasMetadata) {
+            putRoleMappingAuditEventStringBuilder.append(",\"metadata\":{\"list\":[\"42\",13],\"smth\":42}}}");
+        } else {
+            putRoleMappingAuditEventStringBuilder.append("}}");
+        }
+        String expectedPutRoleMappingAuditEventString = putRoleMappingAuditEventStringBuilder.toString();
+        assertThat(generatedPutRoleMappingAuditEventString, containsString(expectedPutRoleMappingAuditEventString));
+        generatedPutRoleMappingAuditEventString = generatedPutRoleMappingAuditEventString.replace(", " + expectedPutRoleMappingAuditEventString, "");
+        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_role_mapping")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedPutRoleMappingAuditEventString, checkedFields.immutableMap());
+    }
+
     public void testSecurityConfigChangeEventFormattingForUsers() throws IOException {
         final String requestId = randomRequestId();
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
@@ -567,10 +679,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
         putUserRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         putUserRequest.enabled(randomBoolean());
         putUserRequest.passwordHash(randomFrom(randomAlphaOfLengthBetween(0, 8).toCharArray(), null));
-        Map<String, Object> metadata = new TreeMap<>();
-        metadata.put("smth", 42);
-        metadata.put("list", List.of("42", 13));
-        putUserRequest.metadata(metadata);
+        boolean hasMetadata = randomBoolean();
+        if (hasMetadata) {
+            Map<String, Object> metadata = new TreeMap<>();
+            metadata.put("smth", 42);
+            metadata.put("list", List.of("42", 13));
+            putUserRequest.metadata(metadata);
+        }
 
         auditTrail.accessGranted(requestId, authentication, PutUserAction.NAME, putUserRequest, authorizationInfo);
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
@@ -609,7 +724,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
             putUserAuditEventStringBuilder.append(",\"email\":\"").append(putUserRequest.email()).append("\"");
         }
         putUserAuditEventStringBuilder.append(",\"has_password\":").append(putUserRequest.passwordHash() != null);
-        putUserAuditEventStringBuilder.append(",\"metadata\":{\"list\":[\"42\",13],\"smth\":42}}}");
+        if (hasMetadata) {
+            putUserAuditEventStringBuilder.append(",\"metadata\":{\"list\":[\"42\",13],\"smth\":42}}}");
+        } else {
+            putUserAuditEventStringBuilder.append("}}");
+        }
         String expectedPutUserAuditEventString = putUserAuditEventStringBuilder.toString();
         assertThat(generatedPutUserAuditEventString, containsString(expectedPutUserAuditEventString));
         generatedPutUserAuditEventString = generatedPutUserAuditEventString.replace(", " + expectedPutUserAuditEventString, "");

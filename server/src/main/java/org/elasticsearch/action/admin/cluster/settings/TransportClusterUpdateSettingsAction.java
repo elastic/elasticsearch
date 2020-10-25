@@ -65,15 +65,28 @@ public class TransportClusterUpdateSettingsAction extends
     @Override
     protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
         // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
-        if (request.transientSettings().size() + request.persistentSettings().size() == 1) {
+        boolean transientSet = false;
+        boolean persistentSet = false;
+        if (request.transientSettings().size() == 1) {
+            // only one setting
+            if (Metadata.SETTING_READ_ONLY_SETTING.exists(request.transientSettings())
+                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.transientSettings())) {
+                // one of the settings above as the only setting in the request means - resetting the block!
+                transientSet = true;
+            }
+        }
+        if (request.persistentSettings().size() == 1) {
             // only one setting
             if (Metadata.SETTING_READ_ONLY_SETTING.exists(request.persistentSettings())
-                || Metadata.SETTING_READ_ONLY_SETTING.exists(request.transientSettings())
-                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.transientSettings())
                 || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.persistentSettings())) {
                 // one of the settings above as the only setting in the request means - resetting the block!
-                return null;
+                persistentSet = true;
             }
+        }
+        if (persistentSet && request.transientSettings().size() == 0
+            || transientSet && request.persistentSettings().size() == 0
+            || transientSet && persistentSet ) {
+            return null;
         }
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }

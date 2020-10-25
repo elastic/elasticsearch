@@ -320,7 +320,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         } finally {
             // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
             Settings s = Settings.builder().putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(s).get());
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(s).setPersistentSettings(s).get());
         }
 
         // It should work now

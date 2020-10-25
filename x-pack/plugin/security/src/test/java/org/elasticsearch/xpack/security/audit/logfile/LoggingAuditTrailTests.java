@@ -42,30 +42,38 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
+import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -172,6 +180,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private static PatternLayout patternLayout;
+    private static String customAnonymousUsername;
+    private static boolean reservedRealmEnabled;
     private Settings settings;
     private DiscoveryNode localNode;
     private ClusterService clusterService;
@@ -200,6 +210,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String patternLayoutFormat = properties.getProperty("appender.audit_rolling.layout.pattern");
         assertThat(patternLayoutFormat, is(notNullValue()));
         patternLayout = PatternLayout.newBuilder().withPattern(patternLayoutFormat).withCharset(StandardCharsets.UTF_8).build();
+        customAnonymousUsername = randomAlphaOfLength(8);
+        reservedRealmEnabled = randomBoolean();
     }
 
     @AfterClass
@@ -216,6 +228,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), includeRequestBody)
+                .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), reservedRealmEnabled)
+                .put(AnonymousUser.USERNAME_SETTING.getKey(), customAnonymousUsername)
+                .putList(AnonymousUser.ROLES_SETTING.getKey(), randomFrom(List.of(), List.of("smth")))
                 .build();
         localNode = mock(DiscoveryNode.class);
         when(localNode.getId()).thenReturn(randomAlphaOfLength(16));
@@ -519,6 +534,92 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_role")
                 .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedPutRoleAuditEventString, checkedFields.immutableMap());
+    }
+
+    public void testSecurityConfigChangeEventFormattingForUsers() throws IOException {
+        final String requestId = randomRequestId();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final Authentication authentication = createAuthentication();
+
+        PutUserRequest putUserRequest = new PutUserRequest();
+        String username = randomFrom(randomAlphaOfLength(3), customAnonymousUsername, AnonymousUser.DEFAULT_ANONYMOUS_USERNAME,
+                UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME);
+        final String realmName;
+        if (AnonymousUser.DEFAULT_ANONYMOUS_USERNAME.equals(username) || customAnonymousUsername.equals(username)) {
+            if (false == AnonymousUser.ROLES_SETTING.get(settings).isEmpty()) {
+                realmName = null;
+            } else {
+                realmName = ReservedRealm.NAME;
+            }
+        } else if (reservedRealmEnabled && (UsernamesField.ELASTIC_NAME.equals(username) || UsernamesField.KIBANA_NAME.equals(username))) {
+            realmName = ReservedRealm.NAME;
+        } else {
+            realmName = NativeRealmSettings.NAME;
+        }
+        putUserRequest.username(username);
+        putUserRequest.roles(randomFrom(randomArray(4, String[]::new, () -> randomAlphaOfLength(8)), null));
+        putUserRequest.fullName(randomFrom(randomAlphaOfLength(8), null));
+        putUserRequest.email(randomFrom(randomAlphaOfLength(8), null));
+        putUserRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        putUserRequest.enabled(randomBoolean());
+        putUserRequest.passwordHash(randomFrom(randomAlphaOfLengthBetween(0, 8).toCharArray(), null));
+        Map<String, Object> metadata = new TreeMap<>();
+        metadata.put("smth", 42);
+        metadata.put("list", List.of("42", 13));
+        putUserRequest.metadata(metadata);
+
+        auditTrail.accessGranted(requestId, authentication, PutUserAction.NAME, putUserRequest, authorizationInfo);
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedPutUserAuditEventString = output.get(1);
+
+        StringBuilder putUserAuditEventStringBuilder = new StringBuilder();
+        putUserAuditEventStringBuilder.append("\"put\":{\"user\":{\"name\":");
+        putUserAuditEventStringBuilder.append("\"" + putUserRequest.username() + "\"");
+        putUserAuditEventStringBuilder.append(",\"realm\":");
+        if (realmName == null) {
+            putUserAuditEventStringBuilder.append("null");
+        } else {
+            putUserAuditEventStringBuilder.append("\"").append(realmName).append("\"");
+        }
+        putUserAuditEventStringBuilder.append(",\"enabled\":");
+        putUserAuditEventStringBuilder.append(putUserRequest.enabled());
+        putUserAuditEventStringBuilder.append(",\"role_names\":");
+        if (putUserRequest.roles() == null) {
+            putUserAuditEventStringBuilder.append("null");
+        } else if (putUserRequest.roles().length == 0) {
+            putUserAuditEventStringBuilder.append("[]");
+        } else {
+            putUserAuditEventStringBuilder.append("[");
+            for (String roleName : putUserRequest.roles()) {
+                putUserAuditEventStringBuilder.append("\"").append(roleName).append("\",");
+            }
+            // delete last comma
+            putUserAuditEventStringBuilder.deleteCharAt(putUserAuditEventStringBuilder.length() - 1);
+            putUserAuditEventStringBuilder.append("]");
+        }
+        if (putUserRequest.fullName() != null) {
+            putUserAuditEventStringBuilder.append(",\"full_name\":\"").append(putUserRequest.fullName()).append("\"");
+        }
+        if (putUserRequest.email() != null) {
+            putUserAuditEventStringBuilder.append(",\"email\":\"").append(putUserRequest.email()).append("\"");
+        }
+        putUserAuditEventStringBuilder.append(",\"has_password\":").append(putUserRequest.passwordHash() != null);
+        putUserAuditEventStringBuilder.append(",\"metadata\":{\"list\":[\"42\",13],\"smth\":42}}}");
+        String expectedPutUserAuditEventString = putUserAuditEventStringBuilder.toString();
+        assertThat(generatedPutUserAuditEventString, containsString(expectedPutUserAuditEventString));
+        generatedPutUserAuditEventString = generatedPutUserAuditEventString.replace(", " + expectedPutUserAuditEventString, "");
+        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_user")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedPutUserAuditEventString, checkedFields.immutableMap());
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {

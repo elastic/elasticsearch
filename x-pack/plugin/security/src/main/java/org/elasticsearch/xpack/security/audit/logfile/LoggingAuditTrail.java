@@ -249,10 +249,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
         this.threadContext = threadContext;
         this.inferRealmNameFromUsername = (username) -> {
-            if (ClientReservedRealm.isReserved(username, settings)) {
-                return ReservedRealm.NAME;
-            } else if (AnonymousUser.isAnonymousUsername(username, settings)) {
+            if (AnonymousUser.isAnonymousEnabled(settings) && AnonymousUser.isAnonymousUsername(username, settings)) {
                 return null;
+            } else if (ClientReservedRealm.isReserved(username, settings)) {
+                return ReservedRealm.NAME;
             } else {
                 return NativeRealmSettings.NAME;
             }
@@ -862,10 +862,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .field("realm", inferRealmNameFromUsername.apply(putUserRequest.username()))
                     .field("enabled", putUserRequest.enabled())
                     .array("role_names", putUserRequest.roles());
-                    if (Strings.hasLength(putUserRequest.fullName())) {
+                    if (putUserRequest.fullName() != null) {
                         builder.field("full_name", putUserRequest.fullName());
                     }
-                    if (Strings.hasLength(putUserRequest.email())) {
+                    if (putUserRequest.email() != null) {
                         builder.field("email", putUserRequest.email());
                     }
                     // password and password hashes are not exposed in the audit log

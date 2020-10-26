@@ -481,6 +481,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         final ShardId shardId = new ShardId(indexSettings.getIndex(), randomIntBetween(0, 10));
         final List<Releasable> releasables = new ArrayList<>();
 
+        final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
         try (Directory directory = newDirectory()) {
             final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
             try (IndexWriter writer = new IndexWriter(directory, indexWriterConfig)) {
@@ -506,9 +507,6 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 writer.setLiveCommitData(userData.entrySet());
                 writer.commit();
             }
-
-            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
-            releasables.add(() -> terminate(threadPool));
 
             final Store store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
             store.incRef();
@@ -629,6 +627,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             } finally {
                 Releasables.close(releasables);
             }
+        } finally {
+            terminate(threadPool);
         }
     }
 
@@ -741,7 +741,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     assertListOfFiles(cacheDir, allOf(greaterThan(0), lessThanOrEqualTo(nbRandomFiles)), greaterThan(0L));
                     if (randomBoolean()) {
                         directory.clearCache();
-                        assertListOfFiles(cacheDir, equalTo(0), equalTo(0L));
+                        assertBusy(() -> assertListOfFiles(cacheDir, equalTo(0), equalTo(0L)));
                     }
                 }
             } finally {

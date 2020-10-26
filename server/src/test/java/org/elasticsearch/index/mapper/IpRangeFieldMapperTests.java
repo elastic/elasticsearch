@@ -20,49 +20,26 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
-
-    private MapperService mapperService;
-
-    @Before
-    public void setup() {
-        mapperService = createIndex("test").mapperService();
-    }
+public class IpRangeFieldMapperTests extends MapperServiceTestCase {
 
     public void testStoreCidr() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", "ip_range")
-            .field("store", true);
-        mapping = mapping.endObject().endObject().endObject().endObject();
-        DocumentMapper mapper = mapperService.parse("type", new CompressedXContent(Strings.toString(mapping)));
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
+
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "ip_range").field("store", true)));
+
         final Map<String, String> cases = new HashMap<>();
         cases.put("192.168.0.0/15", "192.169.255.255");
         cases.put("192.168.0.0/16", "192.168.255.255");
         cases.put("192.168.0.0/17", "192.168.127.255");
         for (final Map.Entry<String, String> entry : cases.entrySet()) {
             ParsedDocument doc =
-                mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", entry.getKey())
-                        .endObject()),
-                    XContentType.JSON
-                ));
+                mapper.parse(source(b -> b.field("field", entry.getKey())));
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertEquals(3, fields.length);
             IndexableField dvField = fields[0];

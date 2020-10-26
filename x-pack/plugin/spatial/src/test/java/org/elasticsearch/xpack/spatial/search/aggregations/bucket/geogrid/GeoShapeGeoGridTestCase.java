@@ -38,9 +38,10 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
+import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeCoordinateEncoder;
-import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeReader;
+import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -57,7 +58,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.randomBBox;
-import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.triangleTreeReader;
+import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.GeometryDocValueReader;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>> extends AggregatorTestCase {
@@ -187,19 +188,15 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
             double y = GeoTestUtils.encodeDecodeLat(p.getY());
             Rectangle pointTile = getTile(x, y, precision);
 
-
-            TriangleTreeReader reader = triangleTreeReader(p, GeoShapeCoordinateEncoder.INSTANCE);
-            GeoRelation tileRelation = reader.relateTile(GeoShapeCoordinateEncoder.INSTANCE.encodeX(pointTile.getMinX()),
-                GeoShapeCoordinateEncoder.INSTANCE.encodeY(pointTile.getMinY()),
-                GeoShapeCoordinateEncoder.INSTANCE.encodeX(pointTile.getMaxX()),
-                GeoShapeCoordinateEncoder.INSTANCE.encodeY(pointTile.getMaxY()));
+            GeometryDocValueReader reader = GeometryDocValueReader(p, CoordinateEncoder.GEO);
+            MultiGeoShapeValues.GeoShapeValue value = new MultiGeoShapeValues.GeoShapeValue(reader);
+            GeoRelation tileRelation =  value.relate(pointTile);
             boolean intersectsBounds = boundsTop >= pointTile.getMinY() && boundsBottom <= pointTile.getMaxY()
                 && (boundsEastLeft <= pointTile.getMaxX() && boundsEastRight >= pointTile.getMinX()
                 || (crossesDateline && boundsWestLeft <= pointTile.getMaxX() && boundsWestRight >= pointTile.getMinX()));
             if (tileRelation != GeoRelation.QUERY_DISJOINT && intersectsBounds) {
                 numDocsWithin += 1;
             }
-
 
             points.add(p);
             docs.add(new BinaryGeoShapeDocValuesField(FIELD_NAME,

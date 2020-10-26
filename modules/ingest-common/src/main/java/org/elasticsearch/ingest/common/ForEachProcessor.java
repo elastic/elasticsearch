@@ -75,10 +75,9 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 handler.accept(null, new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements."));
             }
         } else if (o instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, ?> map = (Map<String, ?>) o;
-            List<String> keys = new ArrayList<>(map.keySet());
-            innerExecuteMap(0, new HashMap<String, Object>(map), keys, new HashMap<>(map.size()), ingestDocument, handler);
+            Map<?, ?> map = (Map<?, ?>) o;
+            List<?> keys = new ArrayList<>(map.keySet());
+            innerExecuteMap(0, new HashMap<Object, Object>(map), keys, new HashMap<>(map.size()), ingestDocument, handler);
         } else if (o instanceof List) {
             List<?> list = (List<?>) o;
             innerExecuteList(0, new ArrayList<>(list), new ArrayList<>(list.size()), ingestDocument, handler);
@@ -88,11 +87,11 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
         }
     }
 
-    void innerExecuteMap(int keyIndex, Map<String, ?> map, List<String> keys, Map<String, Object> newValues, IngestDocument document,
+    void innerExecuteMap(int keyIndex, Map<?, ?> map, List<?> keys, Map<Object, Object> newValues, IngestDocument document,
                          BiConsumer<IngestDocument, Exception> handler) {
         for (; keyIndex < keys.size(); keyIndex++) {
             AtomicBoolean shouldContinueHere = new AtomicBoolean();
-            String key = keys.get(keyIndex);
+            String key = (String) keys.get(keyIndex);
             document.getIngestMetadata().put("_key", key);
             Object value = map.get(key);
             Object previousValue = document.getIngestMetadata().put("_value", value);

@@ -84,8 +84,13 @@ outputs the probability that each document is an outlier.
   contains the results of the analysis.
 
 `metrics`::
-  (Optional, object) Specifies the metrics that are used for the evaluation. 
-  Available metrics:
+  (Optional, object) Specifies the metrics that are used for the evaluation. If 
+  no metrics are specified, the following are returned by default: 
+  
+  * `auc_roc` (`include_curve`: false), 
+  * `precision` (`at`: [0.25, 0.5, 0.75]), 
+  * `recall` (`at`: [0.25, 0.5, 0.75]), 
+  * `confusion_matrix` (`at`: [0.25, 0.5, 0.75]).
   
   `auc_roc`:::
     (Optional, object) The AUC ROC (area under the curve of the receiver 
@@ -125,7 +130,11 @@ which outputs a prediction of values.
   (Optional, object) Specifies the metrics that are used for the evaluation. For 
   more information on `mse`, `msle`, and `huber`, consult 
   https://github.com/elastic/examples/tree/master/Machine%20Learning/Regression%20Loss%20Functions[the Jupyter notebook on regression loss functions].
-  Available metrics:
+  If no metrics are specified, the following are returned by default: 
+  
+  * `mse`, 
+  * `r_squared`,
+  * `huber` (`delta`: 1.0). 
 
   `mse`:::
     (Optional, object) Average squared difference between the predicted values 
@@ -179,8 +188,13 @@ belongs.
   This field must be defined as `nested` in the mappings.
 
 `metrics`::
-  (Optional, object) Specifies the metrics that are used for the evaluation.
-  Available metrics:
+  (Optional, object) Specifies the metrics that are used for the evaluation. If 
+  no metrics are specificed, the following are returned by default: 
+  
+  * `accuracy`, 
+  * `multiclass_confusion_matrix`, 
+  * `precision`, 
+  * `recall`.
 
   `accuracy`:::
     (Optional, object) Accuracy of predictions (per-class and overall).

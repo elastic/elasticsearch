@@ -11,7 +11,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -66,16 +65,22 @@ abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
         return mockContext(allowExpensiveQueries, null);
     }
 
+    protected boolean supportsTermQueries() {
+        return true;
+    }
+
+    protected boolean supportsRangeQueries() {
+        return true;
+    }
+
     protected static QueryShardContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType(anyString())).thenReturn(mappedFieldType);
         QueryShardContext context = mock(QueryShardContext.class);
         if (mappedFieldType != null) {
             when(context.getFieldType(anyString())).thenReturn(mappedFieldType);
         }
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
-            mapperService,
+            context::getFieldType,
             (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
         );
         when(context.lookup()).thenReturn(lookup);
@@ -102,42 +107,52 @@ abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
     }
 
     public void testRangeQueryIsExpensive() {
+        assumeTrue("Impl does not support range queries", supportsRangeQueries());
         checkExpensiveQuery(this::randomRangeQuery);
     }
 
     public void testRangeQueryInLoop() {
+        assumeTrue("Impl does not support range queries", supportsRangeQueries());
         checkLoop(this::randomRangeQuery);
     }
 
     public void testTermQueryIsExpensive() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         checkExpensiveQuery(this::randomTermQuery);
     }
 
     public void testTermQueryInLoop() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         checkLoop(this::randomTermQuery);
     }
 
     public void testTermsQueryIsExpensive() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         checkExpensiveQuery(this::randomTermsQuery);
     }
 
     public void testTermsQueryInLoop() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         checkLoop(this::randomTermsQuery);
     }
 
     public void testPhraseQueryIsError() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().phraseQuery(null, 1, false));
     }
 
     public void testPhrasePrefixQueryIsError() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         assertQueryOnlyOnText("phrase prefix", () -> simpleMappedFieldType().phrasePrefixQuery(null, 1, 1));
     }
 
     public void testMultiPhraseQueryIsError() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().multiPhraseQuery(null, 1, false));
     }
 
     public void testSpanPrefixQueryIsError() {
+        assumeTrue("Impl does not support term queries", supportsTermQueries());
         assertQueryOnlyOnText("span prefix", () -> simpleMappedFieldType().spanPrefixQuery(null, null, null));
     }
 

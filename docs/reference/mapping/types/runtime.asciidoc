@@ -1,13 +1,18 @@
 [[runtime]]
 === Runtime
 Typically, you must index fields to {es} before they can be retrieved,
-aggregated, or searched. With runtime fields, you can explicitly define a field
-in the mapping and access it at search time without indexing your data during
-ingest time.
+aggregated, or searched. With _runtime fields_ beta[], you can explicitly
+define a field in the mapping and access it at search time without indexing
+your data during ingest time.
 
-Runtime fields beta[] are accessible from the search API like any other field.
-The <<search-field-caps,field capabilities API>> returns runtime fields
-as searchable and aggregatable.
+Because runtime fields aren't indexed, you can more quickly ingest raw data
+into the Elastic Stack and access it immediately. Runtime fields are accessible
+from the search API like any other field. The <<search-field-caps,field capabilities API>> returns runtime fields as both searchable and aggregatable.
+
+By dynamically evaluating runtime fields at search time, you can optimize disk
+space by choosing which fields to index. If you later decide that a runtime
+field is increasingly used for filtering or aggregation, you can add the field
+to `_source` to gain faster search speed.
 
 Runtime fields help to alleviate several common issues when using {es}:
 
@@ -16,19 +21,12 @@ experimenting on large datasets difficult
 * Indexing data before searching makes running one-off searches costly and
 resource intensive
 * Indexing all of your data instead of just the fields you want to search
-requires more disk space to gain search time performance
+requires more disk space to gain performance at search time
 * Reindexing data for time-based indices to ensure that existing indices
 include any new fields in the index template is slow
 * Determining how a field is evaluated in {kib} at index or search time is
 difficult for scripted fields because they have different needs based on where
 they are implemented
-
-Because runtime fields aren't indexed, you can more quickly ingest raw data
-into the Elastic Stack and immediately access it. By dynamically evaluating
-runtime fields at search time, you can optimize disk space by choosing which
-fields to index. If you later decide that a runtime field is increasingly used
-for filtering or aggregation, you can add the field to `_source` to gain faster
-search speed.
 
 Runtime fields incur performance costs at search time, depending
 on the <<runtime-params-runtime-type,`runtime_type`>>. For example, let's say
@@ -53,6 +51,10 @@ You map runtime fields by
 script runs and generates values for each scripted field. Runtime
 scripts have access to the entire context of a document, the original
 `_source`, and the mapped field plus its values (`doc_values`).
+
+Runtime fields are similar to the <<script-fields,`script-fields`>> parameter
+of the `_search` request. You can retrieve the results of running a script, but
+also make the script results available for queries and aggregations. 
 
 [[runtime-updating-scripts]]
 .Updating runtime scripts

@@ -291,7 +291,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                     null,
                     null,
                     null,
-                    new ComposableIndexTemplate.DataStreamTemplate())))
+                    new ComposableIndexTemplate.DataStreamTemplate(),
+                    null)))
             .actionGet();
         client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
     }

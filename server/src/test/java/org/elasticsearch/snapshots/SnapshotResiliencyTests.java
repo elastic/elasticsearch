@@ -83,7 +83,6 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -1571,7 +1570,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         shardStateAction,
                         actionFilters),
                     RetentionLeaseSyncer.EMPTY);
-            Map<ActionType, TransportAction> actions = new HashMap<>();
+                Map<ActionType, TransportAction> actions = new HashMap<>();
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(settings, clusterService,
                     indicesService,
@@ -1585,9 +1584,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     ));
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings, clusterService);
                 mappingUpdatedAction.setClient(client);
-            final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
-                clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                actionFilters, new IndexingPressure(settings), new SystemIndices(emptyMap()));
+                final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
+                    clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
+                    actionFilters, new IndexingPressure(settings), new SystemIndices(emptyMap()));
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,
                         new IngestService(
@@ -1595,7 +1594,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                             Collections.emptyList(), client),
                         transportShardBulkAction, client, actionFilters, indexNameExpressionResolver,
-                        new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, new SystemIndices(emptyMap())),
                         new IndexingPressure(settings),
                         new SystemIndices(emptyMap())
                     ));

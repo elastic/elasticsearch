@@ -17,20 +17,26 @@ public final class WatcherIndexTemplateRegistryField {
     // version 10: add support for foreach path in actions
     // version 11: watch history indices are hidden
     // version 12: templates changed to composable templates
+    // version 13: add `allow_auto_create` setting
     // Note: if you change this, also inform the kibana team around the watcher-ui
-    public static final int INDEX_TEMPLATE_VERSION = 12;
+    public static final int INDEX_TEMPLATE_VERSION = 13;
+    public static final int INDEX_TEMPLATE_VERSION_12 = 12;
     public static final int INDEX_TEMPLATE_VERSION_10 = 10;
     public static final int INDEX_TEMPLATE_VERSION_11 = 11;
     public static final String HISTORY_TEMPLATE_NAME = ".watch-history-" + INDEX_TEMPLATE_VERSION;
     public static final String HISTORY_TEMPLATE_NAME_10 = ".watch-history-" + INDEX_TEMPLATE_VERSION_10;
     public static final String HISTORY_TEMPLATE_NAME_11 = ".watch-history-" + INDEX_TEMPLATE_VERSION_11;
+    public static final String HISTORY_TEMPLATE_NAME_12 = ".watch-history-" + INDEX_TEMPLATE_VERSION_12;
     public static final String HISTORY_TEMPLATE_NAME_NO_ILM = ".watch-history-no-ilm-" + INDEX_TEMPLATE_VERSION;
     public static final String HISTORY_TEMPLATE_NAME_NO_ILM_10 = ".watch-history-no-ilm-10";
     public static final String HISTORY_TEMPLATE_NAME_NO_ILM_11 = ".watch-history-no-ilm-" + INDEX_TEMPLATE_VERSION_11;
+    public static final String HISTORY_TEMPLATE_NAME_NO_ILM_12 = ".watch-history-no-ilm-" + INDEX_TEMPLATE_VERSION_12;
     public static final String TRIGGERED_TEMPLATE_NAME = ".triggered_watches";
     public static final String TRIGGERED_TEMPLATE_NAME_11 = ".triggered_watches-11";
+    public static final String TRIGGERED_TEMPLATE_NAME_12 = ".triggered_watches-12";
     public static final String WATCHES_TEMPLATE_NAME = ".watches";
     public static final String WATCHES_TEMPLATE_NAME_11 = ".watches-11";
+    public static final String WATCHES_TEMPLATE_NAME_12 = ".watches-12";
     public static final String[] TEMPLATE_NAMES = new String[] {
         HISTORY_TEMPLATE_NAME, TRIGGERED_TEMPLATE_NAME, WATCHES_TEMPLATE_NAME
     };

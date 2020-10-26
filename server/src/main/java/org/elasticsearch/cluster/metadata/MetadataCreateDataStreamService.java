@@ -137,7 +137,7 @@ public class MetadataCreateDataStreamService {
                 + DataStream.BACKING_INDEX_PREFIX + "'");
         }
 
-        ComposableIndexTemplate composableTemplate = lookupTemplateForDataStream(request.name, currentState.metadata());
+        ComposableIndexTemplate template = lookupTemplateForDataStream(request.name, currentState.metadata());
 
         String firstBackingIndexName = DataStream.getDefaultBackingIndexName(request.name, 1);
         CreateIndexClusterStateUpdateRequest createIndexRequest =
@@ -157,10 +157,12 @@ public class MetadataCreateDataStreamService {
         assert firstBackingIndex != null;
         assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";
 
-        String fieldName = composableTemplate.getDataStreamTemplate().getTimestampField();
+        String fieldName = template.getDataStreamTemplate().getTimestampField();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
-        boolean hidden = composableTemplate.getDataStreamTemplate().isHidden();
-        DataStream newDataStream = new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()), hidden);
+        boolean hidden = template.getDataStreamTemplate().isHidden();
+        DataStream newDataStream =
+            new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()), 1L,
+                template.metadata() != null ? Map.copyOf(template.metadata()) : null, hidden);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();

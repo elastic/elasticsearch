@@ -10,7 +10,7 @@
 
 Evaluates the {dfanalytics} for an annotated index.
 
-experimental[]
+beta::[]
 
 
 [[ml-evaluate-dfanalytics-request]]

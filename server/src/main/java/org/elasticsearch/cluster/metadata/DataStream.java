@@ -81,6 +81,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public Index getWriteIndex() {
         return indices.get(indices.size() - 1);
+    }
 
     @Nullable
     public Map<String, Object> getMetadata() {

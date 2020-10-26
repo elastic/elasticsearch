@@ -31,6 +31,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -42,11 +43,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -58,6 +61,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
@@ -144,6 +148,35 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    
+    public void testMissingField() throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text");
+        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
+
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            indexDocuments(w);
+
+            SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "this_field_does_not_exist").filterDuplicateText(true);
+            if(randomBoolean()){
+                sigAgg.sourceFieldNames(Arrays.asList(new String [] {"json_only_field"}));
+            }
+            SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler")
+                    .subAggregation(sigAgg);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () ->  searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType));
+                assertThat(e.getMessage(), equalTo("Field [this_field_does_not_exist] does not exist, SignificantText requires an analyzed field"));
+            }
+        }
+    }
+    
     public void testFieldAlias() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));

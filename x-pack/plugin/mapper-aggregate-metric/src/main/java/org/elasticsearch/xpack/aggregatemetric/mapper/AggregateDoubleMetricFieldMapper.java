@@ -171,9 +171,9 @@ public class AggregateDoubleMetricFieldMapper extends ParametrizedFieldMapper {
                     defaultMetric.setValue(m);
                 }
 
-                if (metrics.getValue().contains(defaultMetric.getValue()) == false) throw new IllegalArgumentException(
-                    "Property [" + Names.DEFAULT_METRIC + "] must be set for field [" + name() + "]."
-                );
+                if (metrics.getValue().contains(defaultMetric.getValue()) == false) {
+                    throw new IllegalArgumentException("Property [" + Names.DEFAULT_METRIC + "] must be set for field [" + name() + "].");
+                }
             }
 
             if (metrics.getValue().contains(defaultMetric.getValue()) == false) {

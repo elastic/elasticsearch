@@ -7,6 +7,8 @@ import org.elasticsearch.gradle.docker.DockerBuildTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
+import java.nio.file.Path
+
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
@@ -76,18 +78,28 @@ RUN curl --retry 8 -S -L \\
 
   return [
     'base_image'          : base.getImage(),
-    'bin_dir'             : variant == DockerBase.IRON_BANK ? 'scripts' : 'bin',
+    'bin_dir'             : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
     'build_args'          : buildArgs,
     'build_date'          : BuildParams.buildDate,
-    'config_dir'          : variant == DockerBase.IRON_BANK ? 'scripts' : 'config',
+    'config_dir'          : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'        : BuildParams.gitRevision,
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
     'package_manager'     : base == DockerBase.IRON_BANK ? 'microdnf' : 'yum',
     'source_elasticsearch': sourceElasticsearch,
     'docker_base'         : base.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch,
-    'version_hash'        : variant == DockerBase.IRON_BANK ? '<insert hash here>' : '',
+    'version_hash'        : base == DockerBase.IRON_BANK ? '<insert hash here>' : '',
   ]
+}
+
+/**
+ * This filter squashes long runs of newlines so that the output
+ * is a little more aesthetically pleasing.
+ */
+class MarkdownFilter extends FilterReader {
+  MarkdownFilter(Reader input) {
+    super(new StringReader(input.text.replaceAll("\n{2,}", "\n\n")))
+  }
 }
 
 private static String buildPath(Architecture architecture, boolean oss, DockerBase base) {
@@ -134,7 +146,7 @@ project.ext {
           // build-context sub-modules.
           duplicatesStrategy = DuplicatesStrategy.INCLUDE
           from projectDir.resolve("src/docker/config")
-          if (variant == Variant.OSS) {
+          if (oss) {
             from projectDir.resolve("src/docker/config/oss")
           }
         }
@@ -142,6 +154,7 @@ project.ext {
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
         expand(varExpansions)
+        filter MarkdownFilter
       }
     }
   }

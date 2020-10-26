@@ -7,6 +7,7 @@ tasks.register("buildDockerBuildContext", Tar) {
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
   archiveBaseName = "elasticsearch"
+  // Non-local builds don't need to specify an architecture.
   with dockerBuildContext(null, false, DockerBase.CENTOS, false)
 }
 

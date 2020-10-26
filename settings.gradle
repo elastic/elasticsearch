@@ -38,6 +38,7 @@ List projects = [
   'distribution:docker:docker-aarch64-export',
   'distribution:docker:docker-build-context',
   'distribution:docker:docker-export',
+  'distribution:docker:ironbank-docker-build-context',
   'distribution:docker:oss-docker-aarch64-build-context',
   'distribution:docker:oss-docker-aarch64-export',
   'distribution:docker:oss-docker-build-context',

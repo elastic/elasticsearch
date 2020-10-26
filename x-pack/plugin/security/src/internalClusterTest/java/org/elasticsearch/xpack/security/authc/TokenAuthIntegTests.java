@@ -293,7 +293,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getErrors(), empty());
 
         invalidateResponse = restClient.security()
-            .invalidateToken(InvalidateTokenRequest.accessToken(generateInvalidShortAccessToken(Version.CURRENT)), SECURITY_REQUEST_OPTIONS);
+            .invalidateToken(InvalidateTokenRequest.accessToken(generateInvalidShortAccessToken(Version.CURRENT)),
+                SECURITY_REQUEST_OPTIONS);
         assertThat(invalidateResponse.getInvalidatedTokens(), equalTo(0));
         assertThat(invalidateResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
         assertThat(invalidateResponse.getErrors(), empty());

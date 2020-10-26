@@ -653,6 +653,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64136")
     public void testClearCache() throws Exception {
         try (CacheService cacheService = TestUtils.createDefaultCacheService()) {
             cacheService.start();

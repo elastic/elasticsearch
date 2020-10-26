@@ -458,7 +458,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                    aggregator.postCollection();
                     result = reduce(aggregator);
                     assertEquals(2, result.getBuckets().size());
                     assertEquals("val000", result.getBuckets().get(0).getKeyAsString());
@@ -476,7 +475,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                    aggregator.postCollection();
                     result = reduce(aggregator);
                     assertEquals(2, result.getBuckets().size());
                     assertEquals("val001", result.getBuckets().get(0).getKeyAsString());

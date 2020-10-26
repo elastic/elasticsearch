@@ -17,19 +17,15 @@ import java.util.Map;
 
 public class DataStreamsRestIT extends ESRestTestCase {
 
+
     public void testHiddenDataStream() throws IOException {
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/hidden");
         putComposableIndexTemplateRequest.setJsonEntity(
-            "{"
-                + "  \"index_patterns\": [\"hidden\"],\n"
-                + "  \"data_stream\": {},\n"
-                + "  \"template\": {\n"
-                + "    \"settings\": {\n"
-                + "      \"index.hidden\": \"true\"\n"
-                + "    }\n"
-                + "  }\n"
-                + "}"
+            "{\n" +
+                "  \"index_patterns\": [ \"hidden\" ],\n" +
+                "  \"data_stream\": { \"hidden\": true }\n" +
+                "}"
         );
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
@@ -38,7 +34,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         assertOK(client().performRequest(createDocRequest));
 
-        Request getDataStreamsRequest = new Request("GET", "/_data_stream");
+        Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=all");
         Response response = client().performRequest(getDataStreamsRequest);
         Map<String, Object> dataStreams = entityAsMap(response);
         assertEquals(Collections.singletonList("hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));
@@ -61,15 +57,10 @@ public class DataStreamsRestIT extends ESRestTestCase {
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/hidden");
         putComposableIndexTemplateRequest.setJsonEntity(
-            "{"
-                + "  \"index_patterns\": [\".hidden\"],\n"
-                + "  \"data_stream\": {},\n"
-                + "  \"template\": {\n"
-                + "    \"settings\": {\n"
-                + "      \"index.hidden\": \"true\"\n"
-                + "    }\n"
-                + "  }\n"
-                + "}"
+            "{\n" +
+                "  \"index_patterns\": [ \".hidden\" ],\n" +
+                "  \"data_stream\": { \"hidden\": true }\n" +
+                "}"
         );
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
@@ -78,7 +69,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         assertOK(client().performRequest(createDocRequest));
 
-        Request getDataStreamsRequest = new Request("GET", "/_data_stream");
+        Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=all");
         Response response = client().performRequest(getDataStreamsRequest);
         Map<String, Object> dataStreams = entityAsMap(response);
         assertEquals(Collections.singletonList(".hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));

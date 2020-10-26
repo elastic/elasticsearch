@@ -29,7 +29,6 @@ import java.util.Objects;
 
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
 
-    public static final Version EXPAND_WILDCARDS_VERSION = Version.V_8_0_0;
     public static final GetDataStreamAction INSTANCE = new GetDataStreamAction();
     public static final String NAME = "indices:admin/data_stream/get";
 
@@ -58,7 +57,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
-            if(in.getVersion().onOrAfter(EXPAND_WILDCARDS_VERSION)){
+            if (in.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
                 this.indicesOptions = IndicesOptions.readIndicesOptions(in);
             }
         }
@@ -67,7 +66,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalStringArray(names);
-            if(out.getVersion().onOrAfter(EXPAND_WILDCARDS_VERSION)){
+            if (out.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
                 indicesOptions.writeIndicesOptions(out);
             }
         }

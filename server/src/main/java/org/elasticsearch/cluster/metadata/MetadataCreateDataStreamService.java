@@ -159,8 +159,7 @@ public class MetadataCreateDataStreamService {
 
         String fieldName = composableTemplate.getDataStreamTemplate().getTimestampField();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
-        Template template = composableTemplate.template();
-        boolean hidden = template != null && template.settings() != null && IndexMetadata.INDEX_HIDDEN_SETTING.get(template.settings());
+        boolean hidden = composableTemplate.getDataStreamTemplate().isHidden();
         DataStream newDataStream = new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()), hidden);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", request.name);

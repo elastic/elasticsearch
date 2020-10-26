@@ -12,6 +12,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -25,7 +26,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
-    public static final Version EXPAND_WILDCARDS_VERSION = Version.V_8_0_0;
     public static final DeleteDataStreamAction INSTANCE = new DeleteDataStreamAction();
     public static final String NAME = "indices:admin/data_stream/delete";
 
@@ -68,7 +68,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             super(in);
             this.names = in.readStringArray();
             this.wildcardExpressionsOriginallySpecified = in.getVersion().onOrAfter(Version.V_7_10_0) && in.readBoolean();
-            if (in.getVersion().onOrAfter(EXPAND_WILDCARDS_VERSION)) {
+            if (in.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
                 this.indicesOptions = IndicesOptions.readIndicesOptions(in);
             }
         }
@@ -80,7 +80,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
                 out.writeBoolean(wildcardExpressionsOriginallySpecified);
             }
-            if(out.getVersion().onOrAfter(EXPAND_WILDCARDS_VERSION)){
+            if (out.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
                 indicesOptions.writeIndicesOptions(out);
             }
         }

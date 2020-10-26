@@ -185,11 +185,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
-        args -> {
-            Boolean hidden = (Boolean) args[4];
-            hidden = hidden != null && hidden;
-            return new DataStream((String) args[0], (TimestampField) args[1], (List<Index>) args[2], (Long) args[3], hidden);
-        });
+        args -> new DataStream((String) args[0], (TimestampField) args[1], (List<Index>) args[2], (Long) args[3],
+            args[4] != null && (boolean) args[4]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);

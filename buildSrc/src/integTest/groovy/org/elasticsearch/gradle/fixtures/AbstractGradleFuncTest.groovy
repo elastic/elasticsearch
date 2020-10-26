@@ -42,6 +42,14 @@ abstract class AbstractGradleFuncTest extends Specification {
         buildFile = testProjectDir.newFile('build.gradle')
     }
 
+    def addSubProject(String subProject, String buildFileContents = ""){
+        def subProjectBuild = file(subProject.replace(":", "/") + "/build.gradle")
+        subProjectBuild << buildFileContents
+        settingsFile << "include \"${subProject}\"\n"
+        subProjectBuild
+    }
+
+
     GradleRunner gradleRunner(String... arguments) {
         return gradleRunner(testProjectDir.root, arguments)
     }
@@ -68,9 +76,10 @@ abstract class AbstractGradleFuncTest extends Specification {
                 .join("\n")
     }
 
-    File file(String path) {
+    File file(String path, String fileContents = "") {
         File newFile = new File(testProjectDir.root, path)
         newFile.getParentFile().mkdirs()
+        newFile << fileContents
         newFile
     }
 

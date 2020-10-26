@@ -58,7 +58,7 @@ public class ParsedMediaType {
      */
     public static ParsedMediaType parseMediaType(String headerValue) {
         if (headerValue != null) {
-            final String[] elements = headerValue.split("[\\s\\t]*;");
+            final String[] elements = headerValue.toLowerCase(Locale.ROOT).split("[\\s\\t]*;");
 
             final String[] splitMediaType = elements[0].split("/");
             if ((splitMediaType.length == 2 && TCHAR_PATTERN.matcher(splitMediaType[0].trim()).matches()
@@ -106,8 +106,7 @@ public class ParsedMediaType {
             }
             return type;
         }
-return null;
-//        throw new IllegalArgumentException("Unknown media type "+mimeTypeWithoutParams());
+        throw new IllegalArgumentException("Unknown media type "+mimeTypeWithoutParams());
     }
 
     private boolean isValidParameter(String paramName, String value, Map<String, Pattern> registeredParams) {

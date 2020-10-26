@@ -48,7 +48,7 @@ public class SqlMediaTypeParser {
         } else if (request.hasParam(URL_PARAM_FORMAT)) {
             return validateColumnarRequest(sqlRequest.columnar(), mediaTypeRegistry.formatToMediaType(request.param(URL_PARAM_FORMAT)));
         }
-        //*/* no longer supported?
+
         return request.getParsedAccept()
             .toMediaType(mediaTypeRegistry);
     }

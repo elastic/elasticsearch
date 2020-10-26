@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -137,7 +138,7 @@ public class RestControllerTests extends ESTestCase {
                         assertEquals("true", threadContext.getHeader("header.1"));
                         assertEquals("true", threadContext.getHeader("header.2"));
                         assertNull(threadContext.getHeader("header.3"));
-                    }, RestRequest.Method.GET);
+                    }, Version.CURRENT, RestRequest.Method.GET);
                 }
             });
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);

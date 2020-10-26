@@ -164,6 +164,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param method GET, POST, etc.
      */
     protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
+
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
@@ -171,8 +172,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
-        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
-            (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
+        //        assert Version.minimumRestCompatibilityVersion() == handler.compatibleWithVersion() ||
+//            Version.CURRENT == handler.compatibleWithVersion()
+//            : "REST API compatibility is only supported for version " + Version.minimumRestCompatibilityVersion().major;
+        final Version version = maybeWrappedHandler.compatibleWithVersion();
+
+        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, version,  method),
+            (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, version, method));
     }
 
     /**
@@ -328,6 +334,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         ParsedMediaType parsedAccept = request.getParsedAccept();
         ParsedMediaType parsedContentType = request.getParsedContentType();
+        //imagine this is injected from Node. This PR is just a draft..
         TriFunction<ParsedMediaType,ParsedMediaType,Boolean, Version> compatibleFunction = (a,b,c)->Version.CURRENT;
         Version compatibleVersion = compatibleFunction.apply(parsedAccept,parsedContentType,request.hasContent());
 
@@ -342,7 +349,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (handlers == null) {
                     handler = null;
                 } else {
-                    handler = handlers.getHandler(requestMethod/*compatibleVersion*/);
+                    handler = handlers.getHandler(requestMethod, compatibleVersion);
                 }
                 if (handler == null) {
                   if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {

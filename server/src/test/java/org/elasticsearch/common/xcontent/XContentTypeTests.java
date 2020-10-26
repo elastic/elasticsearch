@@ -90,10 +90,10 @@ public class XContentTypeTests extends ESTestCase {
     }
 
     public void testFromRubbish() throws Exception {
-        assertThat(XContentType.fromMediaType(null), nullValue());
-        assertThat(XContentType.fromMediaType(""), nullValue());
-        assertThat(XContentType.fromMediaType("text/plain"), nullValue());
-        assertThat(XContentType.fromMediaType("gobbly;goop"), nullValue());
+        expectThrows(IllegalArgumentException.class, ()-> XContentType.fromMediaType(null));
+        expectThrows(IllegalArgumentException.class, ()-> XContentType.fromMediaType(""));
+        expectThrows(IllegalArgumentException.class, ()-> XContentType.fromMediaType("text/plain"));
+        expectThrows(IllegalArgumentException.class, ()-> XContentType.fromMediaType("gobbly;goop"));
     }
 
     public void testVersionedMediaType() {
@@ -137,23 +137,21 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.parseVersion("APPLICATION/JSON"),
             nullValue());
 
-        assertThat(XContentType.parseVersion("application/json;compatible-with=" + version + ".0"),
+        //validation is done when parsing a MediaType
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + ".0"),
             is(nullValue()));
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + "_sth"), nullValue());
+
     }
 
     public void testUnrecognizedParameter() {
         assertThat(XContentType.parseVersion("application/json; sth=123"),
             is(nullValue()));    }
 
-    public void testMediaTypeWithoutESSubtype() {
-        String version = String.valueOf(randomNonNegativeByte());
-        assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version), nullValue());
-    }
+// this use case probably won't be needed. application/json does not enforce compatible-with param validation. Most likely application/json will be removed.
+//    public void testMediaTypeWithoutESSubtype() {
+//        String version = String.valueOf(randomNonNegativeByte());
+//        assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version), nullValue());
+//    }
 
-    public void testAnchoring() {
-        String version = String.valueOf(randomNonNegativeByte());
-        assertThat(XContentType.fromMediaType("sth_application/json;compatible-with=" + version + ".0"), nullValue());
-        assertThat(XContentType.fromMediaType("sth_application/json;compatible-with=" + version + "_sth"), nullValue());
-        assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version + "_sth"), nullValue());
-    }
 }

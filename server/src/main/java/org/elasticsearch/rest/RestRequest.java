@@ -89,11 +89,16 @@ public class RestRequest implements ToXContent.Params {
 
     private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
                         Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
-        this.parsedAccept = parsedMediaType(httpRequest.getHeaders(), "Accept");
-        this.parsedContentType = parsedMediaType(httpRequest.getHeaders(), "Content-Type");
-        if (parsedContentType != null) {
-            this.xContentType.set(parsedContentType.toMediaType(XContentType.mediaTypeRegistry));
+        try{
+            this.parsedAccept = parsedMediaType(httpRequest.getHeaders(), "Accept");
+            this.parsedContentType = parsedMediaType(httpRequest.getHeaders(), "Content-Type");
+            if (parsedContentType != null) {
+                this.xContentType.set(parsedContentType.toMediaType(XContentType.mediaTypeRegistry));
+            }
+        }catch (IllegalArgumentException e){
+            throw new ContentTypeHeaderException(e);
         }
+
         this.xContentRegistry = xContentRegistry;
         this.httpRequest = httpRequest;
         this.httpChannel = httpChannel;

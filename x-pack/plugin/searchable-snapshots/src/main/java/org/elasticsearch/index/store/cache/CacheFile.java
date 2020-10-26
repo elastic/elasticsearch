@@ -284,33 +284,27 @@ public class CacheFile {
                 rangeListener(rangeToRead, reader, future, reference, decrementRef)
             );
 
-            if (gaps.isEmpty() == false) {
+            for (SparseFileTracker.Gap gap : gaps) {
                 executor.execute(new AbstractRunnable() {
 
                     @Override
-                    protected void doRun() {
-                        for (SparseFileTracker.Gap gap : gaps) {
-                            try {
-                                if (reference.tryIncRef() == false) {
-                                    assert false : "expected a non-closed channel reference";
-                                    throw new AlreadyClosedException("Cache file channel has been released and closed");
-                                }
-                                try {
-                                    ensureOpen();
-                                    writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
-                                } finally {
-                                    reference.decRef();
-                                }
-                                gap.onCompletion();
-                            } catch (Exception e) {
-                                gap.onFailure(e);
-                            }
+                    protected void doRun() throws Exception {
+                        if (reference.tryIncRef() == false) {
+                            assert false : "expected a non-closed channel reference";
+                            throw new AlreadyClosedException("Cache file channel has been released and closed");
                         }
+                        try {
+                            ensureOpen();
+                            writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
+                        } finally {
+                            reference.decRef();
+                        }
+                        gap.onCompletion();
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        gaps.forEach(gap -> gap.onFailure(e));
+                        gap.onFailure(e);
                     }
                 });
             }

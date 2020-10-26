@@ -30,7 +30,7 @@ public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin,
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(AggregateDoubleMetricFieldMapper.CONTENT_TYPE, new AggregateDoubleMetricFieldMapper.TypeParser());
+        return singletonMap(AggregateDoubleMetricFieldMapper.CONTENT_TYPE, AggregateDoubleMetricFieldMapper.PARSER);
     }
 
     @Override

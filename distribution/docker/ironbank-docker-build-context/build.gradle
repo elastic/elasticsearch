@@ -1,0 +1,13 @@
+import org.elasticsearch.gradle.DockerBase
+
+apply plugin: 'base'
+
+tasks.register("buildIronBankAarch64DockerBuildContext", Tar) {
+  archiveExtension = 'tar.gz'
+  compression = Compression.GZIP
+  archiveClassifier = "docker-build-context"
+  archiveBaseName = "elasticsearch-ironbank"
+  with dockerBuildContext(null, false, DockerBase.IRON_BANK, false)
+}
+
+tasks.named("assemble").configure {dependsOn "buildIronBankAarch64DockerBuildContext"}

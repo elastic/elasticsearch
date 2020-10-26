@@ -47,7 +47,7 @@ ext.expansions = { Architecture architecture, boolean oss, DockerBase base, bool
 
   final String elasticsearch = "elasticsearch-" +
     (oss ? 'oss-' : '') +
-    "VersionProperties.elasticsearch}-${classifier}.tar" +
+    "${VersionProperties.elasticsearch}-${classifier}.tar" +
     '.gz'
 
   String buildArgs = '#'

@@ -181,11 +181,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     "property [java.version] is missing for plugin [" + name + "]");
         }
         JarHell.checkVersionFormat(javaVersionString);
-        final String classname = propsMap.remove("classname");
-        if (classname == null) {
-            throw new IllegalArgumentException(
-                    "property [classname] is missing for plugin [" + name + "]");
-        }
 
         final String extendedString = propsMap.remove("extended.plugins");
         final List<String> extendedPlugins;
@@ -198,6 +193,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         final boolean hasNativeController = parseBooleanValue(name, "has.native.controller", propsMap.remove("has.native.controller"));
 
         final PluginType type = getPluginType(name, propsMap.remove("type"));
+
+        final String classname = getClassname(name, type, propsMap.remove("classname"));
 
         final String javaOpts = propsMap.remove("java.opts");
 
@@ -227,6 +224,23 @@ public class PluginInfo implements Writeable, ToXContentObject {
                 "[type] must be unspecified or one of [isolated, bootstrap] but found [" + rawType + "] for plugin [" + name + "]"
             );
         }
+    }
+
+    private static String getClassname(String name, PluginType type, String classname) {
+        if (type == PluginType.BOOTSTRAP) {
+            if (!Strings.isNullOrEmpty(classname)) {
+                throw new IllegalArgumentException(
+                    "property [classname] can only have a value when [type] is set to [bootstrap] for plugin [" + name + "]"
+                );
+            }
+            return "";
+        }
+
+        if (classname == null) {
+            throw new IllegalArgumentException("property [classname] is missing for plugin [" + name + "]");
+        }
+
+        return classname;
     }
 
     private static boolean parseBooleanValue(String pluginName, String name, String rawValue) {

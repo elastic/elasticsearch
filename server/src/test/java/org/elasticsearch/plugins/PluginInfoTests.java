@@ -262,7 +262,6 @@ public class PluginInfoTests extends ESTestCase {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(pluginDir,
             "description", "fake desc",
-            "classname", "Foo",
             "name", "my_plugin",
             "version", "1.0",
             "elasticsearch.version", Version.CURRENT.toString(),
@@ -289,5 +288,20 @@ public class PluginInfoTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[java.opts] can only have a value when [type] is set to [bootstrap]"));
+    }
+
+    public void testClassnameIsRejectedWithBootstrapPlugin() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(pluginDir,
+            "description", "fake desc",
+            "classname", "Foo",
+            "name", "my_plugin",
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "type", "bootstrap");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        assertThat(e.getMessage(), containsString("[classname] can only have a value when [type] is set to [bootstrap]"));
     }
 }

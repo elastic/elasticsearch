@@ -21,6 +21,14 @@ package org.elasticsearch.plugins;
 
 import java.util.Locale;
 
+/**
+ * Indicates the type of an Elasticsearch plugin.
+ * <p>
+ * Elasticsearch plugins come in two flavours: "isolated", which are kept
+ * separate from the rest of the Elasticsearch code; and "bootstrap", which
+ * take effect when Elasticsearch executes and can modify e.g. JVM
+ * behaviour, but do not otherwise hook into the Elasticsearch lifecycle.
+ */
 public enum PluginType {
     ISOLATED,
     BOOTSTRAP;

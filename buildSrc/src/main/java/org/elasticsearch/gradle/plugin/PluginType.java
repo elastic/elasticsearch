@@ -19,10 +19,13 @@
 
 package org.elasticsearch.gradle.plugin;
 
-/* Mirrors org.elasticsearch.plugins.PluginType */
-
 import java.util.Locale;
 
+/**
+ * This mirrors org.elasticsearch.plugins.PluginType, which is not
+ * available to the Gradle plugin that actually builds plugins. See that
+ * class for further information.
+ */
 public enum PluginType {
     ISOLATED,
     BOOTSTRAP;

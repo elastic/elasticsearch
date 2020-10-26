@@ -13,7 +13,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 
-import java.io.IOException;
 import java.util.List;
 
 public class RestGetDataStreamsAction extends BaseRestHandler {

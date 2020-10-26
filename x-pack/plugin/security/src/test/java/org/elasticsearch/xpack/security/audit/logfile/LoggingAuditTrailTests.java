@@ -50,12 +50,22 @@ import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
+import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
+import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
+import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
@@ -71,6 +81,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -120,6 +131,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
@@ -546,6 +558,36 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_role")
                 .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedPutRoleAuditEventString, checkedFields.immutableMap());
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest();
+        deleteRoleRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        deleteRoleRequest.name(putRoleRequest.name());
+        auditTrail.accessGranted(requestId, authentication, DeleteRoleAction.NAME, deleteRoleRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedDeleteRoleAuditEventString = output.get(1);
+        StringBuilder deleteRoleStringBuilder = new StringBuilder();
+        deleteRoleStringBuilder.append("\"delete\":{\"role\":{\"name\":");
+        if (deleteRoleRequest.name() == null) {
+            deleteRoleStringBuilder.append("null");
+        } else {
+            deleteRoleStringBuilder.append("\"").append(deleteRoleRequest.name()).append("\"");
+        }
+        deleteRoleStringBuilder.append("}}");
+        String expectedDeleteRoleAuditEventString = deleteRoleStringBuilder.toString();
+        assertThat(generatedDeleteRoleAuditEventString, containsString(expectedDeleteRoleAuditEventString));
+        generatedDeleteRoleAuditEventString =
+                generatedDeleteRoleAuditEventString.replace(", " + expectedDeleteRoleAuditEventString,"");
+        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_role")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedDeleteRoleAuditEventString, checkedFields.immutableMap());
     }
 
     public void testSecurityConfigChangeEventFormattingForApiKeyInvalidation() throws IOException {
@@ -612,6 +654,117 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "invalidate_apikeys")
                 .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedInvalidateKeyAuditEventString, checkedFields.immutableMap());
+    }
+
+    public void testSecurityConfigChangeEventFormattingForApplicationPrivileges() throws IOException {
+        final String requestId = randomRequestId();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final Authentication authentication = createAuthentication();
+        final Map<String, Object> metadata = new TreeMap<>();
+        final String serializedMetadata;
+        if (randomBoolean()) {
+            metadata.put("test", true);
+            metadata.put("ans", 42);
+            serializedMetadata = ",\"metadata\":{\"ans\":42,\"test\":true}";
+        } else {
+            metadata.put("ans", List.of(42, true));
+            metadata.put("other", Map.of("42", true));
+            serializedMetadata = ",\"metadata\":{\"ans\":[42,true],\"other\":{\"42\":true}}";
+        }
+
+        PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest();
+        putPrivilegesRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        putPrivilegesRequest.setPrivileges(Arrays.asList(randomArray(4, ApplicationPrivilegeDescriptor[]::new, () -> {
+            Set<String> actions = Arrays.stream(generateRandomStringArray(4, 4, false)).collect(Collectors.toSet());
+            return new ApplicationPrivilegeDescriptor(randomAlphaOfLength(4), randomAlphaOfLength(4), actions, metadata);
+        })));
+        auditTrail.accessGranted(requestId, authentication, PutPrivilegesAction.NAME, putPrivilegesRequest, authorizationInfo);
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedPutPrivilegesAuditEventString = output.get(1);
+        StringBuilder putPrivilegesAuditEventStringBuilder = new StringBuilder();
+        putPrivilegesAuditEventStringBuilder.append("\"put\":{\"privileges\":[");
+        if (false == putPrivilegesRequest.getPrivileges().isEmpty()) {
+            for (ApplicationPrivilegeDescriptor appPriv : putPrivilegesRequest.getPrivileges()) {
+                putPrivilegesAuditEventStringBuilder.append("{\"application\":\"").append(appPriv.getApplication()).append("\"")
+                        .append(",\"name\":\"").append(appPriv.getName()).append("\"")
+                        .append(",\"actions\":[");
+                if (appPriv.getActions().isEmpty()) {
+                    putPrivilegesAuditEventStringBuilder.append("]");
+                } else {
+                    for (String action : appPriv.getActions()) {
+                        putPrivilegesAuditEventStringBuilder.append("\"").append(action).append("\",");
+                    }
+                    // delete last comma
+                    putPrivilegesAuditEventStringBuilder.deleteCharAt(putPrivilegesAuditEventStringBuilder.length() - 1);
+                    putPrivilegesAuditEventStringBuilder.append("]");
+                }
+                putPrivilegesAuditEventStringBuilder.append(serializedMetadata).append("},");
+            }
+            // delete last comma
+            putPrivilegesAuditEventStringBuilder.deleteCharAt(putPrivilegesAuditEventStringBuilder.length() - 1);
+        }
+        putPrivilegesAuditEventStringBuilder.append("]}");
+        String expectedPutPrivilegesEventString = putPrivilegesAuditEventStringBuilder.toString();
+        assertThat(generatedPutPrivilegesAuditEventString, containsString(expectedPutPrivilegesEventString));
+        generatedPutPrivilegesAuditEventString = generatedPutPrivilegesAuditEventString
+                .replace(", " + expectedPutPrivilegesEventString, "");
+        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_privileges")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedPutPrivilegesAuditEventString, checkedFields.immutableMap());
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        DeletePrivilegesRequest deletePrivilegesRequest = new DeletePrivilegesRequest(randomFrom(randomAlphaOfLength(8), null),
+                generateRandomStringArray(4, 4, true));
+        deletePrivilegesRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        auditTrail.accessGranted(requestId, authentication, DeletePrivilegesAction.NAME, deletePrivilegesRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedDeletePrivilegesAuditEventString = output.get(1);
+        StringBuilder deletePrivilegesAuditEventStringBuilder = new StringBuilder();
+        deletePrivilegesAuditEventStringBuilder.append("\"delete\":{\"privileges\":{\"application\":");
+        if (deletePrivilegesRequest.application() != null) {
+            deletePrivilegesAuditEventStringBuilder.append("\"").append(deletePrivilegesRequest.application()).append("\"");
+        } else {
+            deletePrivilegesAuditEventStringBuilder.append("null");
+        }
+        deletePrivilegesAuditEventStringBuilder.append(",\"privileges\":");
+        if (deletePrivilegesRequest.privileges() == null) {
+            deletePrivilegesAuditEventStringBuilder.append("null");
+        } else if (deletePrivilegesRequest.privileges().length == 0) {
+            deletePrivilegesAuditEventStringBuilder.append("[]");
+        } else {
+            deletePrivilegesAuditEventStringBuilder.append("[");
+            for (String privilege : deletePrivilegesRequest.privileges()) {
+                if (privilege == null) {
+                    deletePrivilegesAuditEventStringBuilder.append("null,");
+                } else {
+                    deletePrivilegesAuditEventStringBuilder.append("\"").append(privilege).append("\",");
+                }
+            }
+            // delete last comma
+            deletePrivilegesAuditEventStringBuilder.deleteCharAt(deletePrivilegesAuditEventStringBuilder.length() - 1);
+            deletePrivilegesAuditEventStringBuilder.append("]");
+        }
+        deletePrivilegesAuditEventStringBuilder.append("}}");
+        String expectedDeletePrivilegesEventString = deletePrivilegesAuditEventStringBuilder.toString();
+        assertThat(generatedDeletePrivilegesAuditEventString, containsString(expectedDeletePrivilegesEventString));
+        generatedDeletePrivilegesAuditEventString = generatedDeletePrivilegesAuditEventString
+                .replace(", " + expectedDeletePrivilegesEventString, "");
+        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_privileges")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedDeletePrivilegesAuditEventString, checkedFields.immutableMap());
     }
 
     public void testSecurityConfigChangeEventFormattingForRoleMapping() throws IOException {
@@ -719,6 +872,36 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_role_mapping")
                 .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedPutRoleMappingAuditEventString, checkedFields.immutableMap());
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        DeleteRoleMappingRequest deleteRoleMappingRequest = new DeleteRoleMappingRequest();
+        deleteRoleMappingRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        deleteRoleMappingRequest.setName(putRoleMappingRequest.getName());
+        auditTrail.accessGranted(requestId, authentication, DeleteRoleMappingAction.NAME, deleteRoleMappingRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedDeleteRoleMappingAuditEventString = output.get(1);
+        StringBuilder deleteRoleMappingStringBuilder = new StringBuilder();
+        deleteRoleMappingStringBuilder.append("\"delete\":{\"role_mapping\":{\"name\":");
+        if (deleteRoleMappingRequest.getName() == null) {
+            deleteRoleMappingStringBuilder.append("null");
+        } else {
+            deleteRoleMappingStringBuilder.append("\"").append(deleteRoleMappingRequest.getName()).append("\"");
+        }
+        deleteRoleMappingStringBuilder.append("}}");
+        String expectedDeleteRoleMappingAuditEventString = deleteRoleMappingStringBuilder.toString();
+        assertThat(generatedDeleteRoleMappingAuditEventString, containsString(expectedDeleteRoleMappingAuditEventString));
+        generatedDeleteRoleMappingAuditEventString =
+                generatedDeleteRoleMappingAuditEventString.replace(", " + expectedDeleteRoleMappingAuditEventString,"");
+        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_role_mapping")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedDeleteRoleMappingAuditEventString, checkedFields.immutableMap());
     }
 
     public void testSecurityConfigChangeEventFormattingForUsers() throws IOException {
@@ -883,7 +1066,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedChangePasswordAuditEventString = output.get(1);
-        generatedChangePasswordAuditEventString.length();
         StringBuilder changePasswordStringBuilder = new StringBuilder();
         changePasswordStringBuilder.append("\"change\":{\"password\":{\"user\":{\"name\":\"").append(username).append("\",\"realm\":");
         if (realmName == null) {
@@ -905,6 +1087,36 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "change_password")
                 .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedChangePasswordAuditEventString, checkedFields.immutableMap());
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        DeleteUserRequest deleteUserRequest = new DeleteUserRequest();
+        deleteUserRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        deleteUserRequest.username(username);
+        auditTrail.accessGranted(requestId, authentication, DeleteUserAction.NAME, deleteUserRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedDeleteUserAuditEventString = output.get(1);
+        StringBuilder deleteUserStringBuilder = new StringBuilder();
+        deleteUserStringBuilder.append("\"delete\":{\"user\":{\"name\":\"").append(username).append("\",\"realm\":");
+        if (realmName == null) {
+            deleteUserStringBuilder.append("null");
+        } else {
+            deleteUserStringBuilder.append("\"").append(realmName).append("\"");
+        }
+        deleteUserStringBuilder.append("}}");
+        String expectedDeleteUserAuditEventString = deleteUserStringBuilder.toString();
+        assertThat(generatedDeleteUserAuditEventString, containsString(expectedDeleteUserAuditEventString));
+        generatedDeleteUserAuditEventString =
+                generatedDeleteUserAuditEventString.replace(", " + expectedDeleteUserAuditEventString,"");
+        checkedFields = new MapBuilder<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit")
+                .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_user")
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedDeleteUserAuditEventString, checkedFields.immutableMap());
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {

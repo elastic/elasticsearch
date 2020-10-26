@@ -73,7 +73,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                        ThreadPool threadPool, RepositoriesService repositoriesService, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetSnapshotsRequest::new, indexNameExpressionResolver, GetSnapshotsResponse::new, ThreadPool.Names.SAME);
+            GetSnapshotsRequest::new, indexNameExpressionResolver, GetSnapshotsResponse::new, ThreadPool.Names.GENERIC);
         this.repositoriesService = repositoriesService;
     }
 

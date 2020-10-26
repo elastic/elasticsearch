@@ -74,6 +74,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
+import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
 /*
  This class extends from TransportMasterNodeAction for cluster state observing purposes.
@@ -357,6 +358,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private final Client client;
         private final IndexNameExpressionResolver expressionResolver;
         private final JobResultsProvider jobResultsProvider;
+        private final boolean useAutoMemoryPercentage;
 
         private volatile int maxConcurrentJobAllocations;
         private volatile int maxMachineMemoryPercent;
@@ -377,6 +379,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
             this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
+            this.useAutoMemoryPercentage = USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
             clusterService.getClusterSettings()
@@ -424,7 +427,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             JobNodeSelector jobNodeSelector = new JobNodeSelector(clusterState, jobId, MlTasks.JOB_TASK_NAME, memoryTracker,
                 job.allowLazyOpen() ? Integer.MAX_VALUE : maxLazyMLNodes, node -> nodeFilter(node, job));
             return jobNodeSelector.selectNode(
-                maxOpenJobs, maxConcurrentJobAllocations, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
+                maxOpenJobs,
+                maxConcurrentJobAllocations,
+                maxMachineMemoryPercent,
+                isMemoryTrackerRecentlyRefreshed,
+                useAutoMemoryPercentage);
         }
 
         @Override
@@ -523,6 +530,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         void setMaxOpenJobs(int maxOpenJobs) {
             this.maxOpenJobs = maxOpenJobs;
         }
+
     }
 
     public static class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {

@@ -102,6 +102,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void onMaster() {
         isMaster = true;
         logger.trace("ML memory tracker on master");
+        asyncRefresh();
     }
 
     @Override

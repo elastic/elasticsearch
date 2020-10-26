@@ -19,6 +19,7 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
@@ -441,7 +442,12 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
      * test that getting more than the allowed number of docvalue_fields throws an exception
      */
     public void testMaxDocvalueFieldsSearch() throws IOException {
-        createIndex("index");
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey(), 1)
+            .build();
+        createIndex("index", settings, null, "field1", "keyword", "field2", "keyword");
+        client().prepareIndex("index").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+
         final SearchService service = getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
@@ -450,22 +456,27 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchRequest.source(searchSourceBuilder);
-        // adding the maximum allowed number of docvalue_fields to retrieve
-        for (int i = 0; i < indexService.getIndexSettings().getMaxDocvalueFields(); i++) {
-            searchSourceBuilder.docValueField("field" + i);
-        }
+        searchSourceBuilder.docValueField("field1");
+
         final ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null);
         try (ReaderContext reader = createReaderContext(indexService, indexShard);
              SearchContext context = service.createContext(reader, request, null, randomBoolean())) {
             assertNotNull(context);
         }
-        searchSourceBuilder.docValueField("one_field_too_much");
+
+        searchSourceBuilder.docValueField("unmapped_field");
+        try (ReaderContext reader = createReaderContext(indexService, indexShard);
+            SearchContext context = service.createContext(reader, request, null, randomBoolean())) {
+           assertNotNull(context);
+       }
+
+        searchSourceBuilder.docValueField("field2");
         try (ReaderContext reader = createReaderContext(indexService, indexShard)) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> service.createContext(reader, request, null, randomBoolean()));
             assertEquals(
-                "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [100] but was [101]. "
+                "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [1] but was [2]. "
                     + "This limit can be set by changing the [index.max_docvalue_fields_search] index level setting.",
                 ex.getMessage());
         }

@@ -23,13 +23,13 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 
-public class FlatObjectFieldParserTests extends ESTestCase {
-    private FlatObjectFieldParser parser;
+public class FlattenedFieldParserTests extends ESTestCase {
+    private FlattenedFieldParser parser;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        parser = new FlatObjectFieldParser("field", "field._keyed",
+        parser = new FlattenedFieldParser("field", "field._keyed",
             new FakeFieldType("field"),
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
@@ -209,7 +209,7 @@ public class FlatObjectFieldParserTests extends ESTestCase {
         String input = "{ \"parent1\": { \"key\" : \"value\" }," +
             "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
         XContentParser xContentParser = createXContentParser(input);
-        FlatObjectFieldParser configuredParser = new FlatObjectFieldParser("field", "field._keyed",
+        FlattenedFieldParser configuredParser = new FlattenedFieldParser("field", "field._keyed",
             new FakeFieldType("field"), 2, Integer.MAX_VALUE, null);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -221,7 +221,7 @@ public class FlatObjectFieldParserTests extends ESTestCase {
         String input = "{ \"parent1\": { \"key\" : \"value\" }," +
             "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
         XContentParser xContentParser = createXContentParser(input);
-        FlatObjectFieldParser configuredParser = new FlatObjectFieldParser("field", "field._keyed",
+        FlattenedFieldParser configuredParser = new FlattenedFieldParser("field", "field._keyed",
             new FakeFieldType("field"), 3, Integer.MAX_VALUE, null);
 
         List<IndexableField> fields = configuredParser.parse(xContentParser);
@@ -231,7 +231,7 @@ public class FlatObjectFieldParserTests extends ESTestCase {
     public void testIgnoreAbove() throws Exception {
         String input = "{ \"key\": \"a longer field than usual\" }";
         XContentParser xContentParser = createXContentParser(input);
-        FlatObjectFieldParser configuredParser = new FlatObjectFieldParser("field", "field._keyed",
+        FlattenedFieldParser configuredParser = new FlattenedFieldParser("field", "field._keyed",
             new FakeFieldType("field"), Integer.MAX_VALUE, 10, null);
 
         List<IndexableField> fields = configuredParser.parse(xContentParser);
@@ -248,7 +248,7 @@ public class FlatObjectFieldParserTests extends ESTestCase {
         xContentParser = createXContentParser(input);
 
         MappedFieldType fieldType = new FakeFieldType("field");
-        FlatObjectFieldParser configuredParser = new FlatObjectFieldParser("field", "field._keyed",
+        FlattenedFieldParser configuredParser = new FlattenedFieldParser("field", "field._keyed",
             fieldType, Integer.MAX_VALUE, Integer.MAX_VALUE, "placeholder");
 
         fields = configuredParser.parse(xContentParser);

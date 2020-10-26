@@ -81,9 +81,11 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                                                 Map<String, Object> metadata) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
 
-        // Note that if the field is unmapped (its field type is null), we don't fail,
-        // and just use the given field name as a placeholder.
         this.fieldType = context.getFieldType(fieldName);
+        if (fieldType == null ) {
+            throw new IllegalArgumentException("Field [" + fieldName + "] does not exist, SignificantText " +
+                "requires an analyzed field");
+        }        
         if (fieldType != null && fieldType.indexAnalyzer() == null) {
             throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no analyzer, but SignificantText " +
                 "requires an analyzed field");

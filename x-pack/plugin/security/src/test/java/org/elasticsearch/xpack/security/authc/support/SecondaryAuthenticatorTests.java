@@ -59,6 +59,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -274,9 +276,9 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             tokenSource.set(request.source());
         });
 
-        final PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        final PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(auth, auth, Collections.emptyMap(), false, tokenFuture);
-        final String token = tokenFuture.actionGet().v1();
+        final String token = tokenFuture.actionGet().getAccessToken();
 
         threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Bearer " + token);
 

@@ -23,8 +23,8 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.flattened.FlattenedMapperPlugin;
-import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
-import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
+import org.elasticsearch.xpack.flattened.mapper.FlattenedFieldMapper.KeyedFlattenedFieldType;
+import org.elasticsearch.xpack.flattened.mapper.FlattenedFieldMapper.RootFlattenedFieldType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,7 +36,7 @@ import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStre
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FlatObjectFieldMapperTests extends MapperTestCase {
+public class FlattenedFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
@@ -59,11 +59,11 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true),
             m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
         checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
-            m -> assertEquals(256, ((FlatObjectFieldMapper)m).ignoreAbove()));
+            m -> assertEquals(256, ((FlattenedFieldMapper)m).ignoreAbove()));
         checker.registerUpdateCheck(b -> b.field("split_queries_on_whitespace", true),
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
         checker.registerUpdateCheck(b -> b.field("depth_limit", 10),
-            m -> assertEquals(10, ((FlatObjectFieldMapper)m).depthLimit()));
+            m -> assertEquals(10, ((FlattenedFieldMapper)m).depthLimit()));
     }
 
     @Override
@@ -330,12 +330,12 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             b.field("split_queries_on_whitespace", true);
         }));
 
-        RootFlatObjectFieldType rootFieldType = (RootFlatObjectFieldType) mapperService.fieldType("field");
+        RootFlattenedFieldType rootFieldType = (RootFlattenedFieldType) mapperService.fieldType("field");
         assertThat(rootFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
         assertTokenStreamContents(rootFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
 
-        KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) mapperService.fieldType("field.key");
+        KeyedFlattenedFieldType keyedFieldType = (KeyedFlattenedFieldType) mapperService.fieldType("field.key");
         assertThat(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
         assertTokenStreamContents(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});

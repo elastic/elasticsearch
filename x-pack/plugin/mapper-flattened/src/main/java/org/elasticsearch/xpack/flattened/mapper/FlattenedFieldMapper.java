@@ -65,10 +65,10 @@ import java.util.function.Supplier;
  * representations, and indexes each one as a keyword. It creates both a 'keyed' version of the token
  * to allow searches on particular key-value pairs, as well as a 'root' token without the key
  *
- * As an example, given a flat object field called 'flat_object' and the following input
+ * As an example, given a flattened field called 'field' and the following input
  *
  * {
- *   "flat_object": {
+ *   "field": {
  *     "key1": "some value",
  *     "key2": {
  *       "key3": true
@@ -76,12 +76,12 @@ import java.util.function.Supplier;
  *   }
  * }
  *
- * the mapper will produce untokenized string fields with the name "flat_object" and values
- * "some value" and "true", as well as string fields called "flat_object._keyed" with values
+ * the mapper will produce untokenized string fields with the name "field" and values
+ * "some value" and "true", as well as string fields called "field._keyed" with values
  * "key\0some value" and "key2.key3\0true". Note that \0 is used as a reserved separator
- *  character (see {@link FlatObjectFieldParser#SEPARATOR}).
+ *  character (see {@link FlattenedFieldParser#SEPARATOR}).
  */
-public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
+public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
     public static final String CONTENT_TYPE = "flattened";
     private static final String KEYED_FIELD_SUFFIX = "._keyed";
@@ -91,7 +91,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     private static Builder builder(Mapper in) {
-        return ((FlatObjectFieldMapper)in).builder;
+        return ((FlattenedFieldMapper)in).builder;
     }
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
@@ -135,7 +135,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public FlatObjectFieldMapper build(BuilderContext context) {
+        public FlattenedFieldMapper build(BuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             if (multiFields.iterator().hasNext()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [fields]");
@@ -144,12 +144,12 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
             }
-            MappedFieldType ft = new RootFlatObjectFieldType(
+            MappedFieldType ft = new RootFlattenedFieldType(
                 buildFullName(context), indexed.get(), hasDocValues.get(), meta.get(), splitQueriesOnWhitespace.get());
             if (eagerGlobalOrdinals.get()) {
                 ft.setEagerGlobalOrdinals(true);
             }
-            return new FlatObjectFieldMapper(name, ft, this);
+            return new FlattenedFieldMapper(name, ft, this);
         }
     }
 
@@ -157,13 +157,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     /**
      * A field type that represents the values under a particular JSON key, used
-     * when searching under a specific key as in 'my_flat_object.key: some_value'.
+     * when searching under a specific key as in 'my_flattened.key: some_value'.
      */
-    public static final class KeyedFlatObjectFieldType extends StringFieldType {
+    public static final class KeyedFlattenedFieldType extends StringFieldType {
         private final String key;
 
-        public KeyedFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, String key,
-                                        boolean splitQueriesOnWhitespace, Map<String, String> meta) {
+        public KeyedFlattenedFieldType(String name, boolean indexed, boolean hasDocValues, String key,
+                                       boolean splitQueriesOnWhitespace, Map<String, String> meta) {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
                 meta);
@@ -171,7 +171,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             this.key = key;
         }
 
-        private KeyedFlatObjectFieldType(String name, String key, RootFlatObjectFieldType ref) {
+        private KeyedFlattenedFieldType(String name, String key, RootFlattenedFieldType ref) {
             this(name, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
         }
 
@@ -186,7 +186,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            Term term = new Term(name(), FlatObjectFieldParser.createKeyedValue(key, ""));
+            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
             return new PrefixQuery(term);
         }
 
@@ -246,14 +246,14 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             String stringValue = value instanceof BytesRef
                 ? ((BytesRef) value).utf8ToString()
                 : value.toString();
-            String keyedValue = FlatObjectFieldParser.createKeyedValue(key, stringValue);
+            String keyedValue = FlattenedFieldParser.createKeyedValue(key, stringValue);
             return new BytesRef(keyedValue);
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new KeyedFlatObjectFieldData.Builder(name(), key, CoreValuesSourceType.BYTES);
+            return new KeyedFlattenedFieldData.Builder(name(), key, CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -266,19 +266,19 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
      * A field data implementation that gives access to the values associated with
      * a particular JSON key.
      *
-     * This class wraps the field data that is built directly on the keyed flat object field,
+     * This class wraps the field data that is built directly on the keyed flattened field,
      * and filters out values whose prefix doesn't match the requested key. Loading and caching
-     * is fully delegated to the wrapped field data, so that different {@link KeyedFlatObjectFieldData}
-     * for the same flat object field share the same global ordinals.
+     * is fully delegated to the wrapped field data, so that different {@link KeyedFlattenedFieldData}
+     * for the same flattened field share the same global ordinals.
      *
      * Because of the code-level complexity it would introduce, it is currently not possible
      * to retrieve the underlying global ordinals map through {@link #getOrdinalMap()}.
      */
-    public static class KeyedFlatObjectFieldData implements IndexOrdinalsFieldData {
+    public static class KeyedFlattenedFieldData implements IndexOrdinalsFieldData {
         private final String key;
         private final IndexOrdinalsFieldData delegate;
 
-        private KeyedFlatObjectFieldData(String key, IndexOrdinalsFieldData delegate) {
+        private KeyedFlattenedFieldData(String key, IndexOrdinalsFieldData delegate) {
             this.delegate = delegate;
             this.key = key;
         }
@@ -315,30 +315,30 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public LeafOrdinalsFieldData load(LeafReaderContext context) {
             LeafOrdinalsFieldData fieldData = delegate.load(context);
-            return new KeyedFlatObjectLeafFieldData(key, fieldData);
+            return new KeyedFlattenedLeafFieldData(key, fieldData);
         }
 
         @Override
         public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
             LeafOrdinalsFieldData fieldData = delegate.loadDirect(context);
-            return new KeyedFlatObjectLeafFieldData(key, fieldData);
+            return new KeyedFlattenedLeafFieldData(key, fieldData);
         }
 
         @Override
         public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobal(indexReader);
-            return new KeyedFlatObjectFieldData(key, fieldData);
+            return new KeyedFlattenedFieldData(key, fieldData);
         }
 
         @Override
         public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobalDirect(indexReader);
-            return new KeyedFlatObjectFieldData(key, fieldData);
+            return new KeyedFlattenedFieldData(key, fieldData);
         }
 
         @Override
         public OrdinalMap getOrdinalMap() {
-            throw new UnsupportedOperationException("The field data for the flat object field ["
+            throw new UnsupportedOperationException("The field data for the flattened field ["
                 + delegate.getFieldName() + "] does not allow access to the underlying ordinal map.");
         }
 
@@ -362,20 +362,20 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
                 IndexOrdinalsFieldData delegate = new SortedSetOrdinalsIndexFieldData(
                     cache, fieldName, valuesSourceType, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
-                return new KeyedFlatObjectFieldData(key, delegate);
+                return new KeyedFlattenedFieldData(key, delegate);
             }
         }
     }
 
     /**
      * A field type that represents all 'root' values. This field type is used in
-     * searches on the flat object field itself, e.g. 'my_flat_object: some_value'.
+     * searches on the flattened field itself, e.g. 'my_flattened: some_value'.
      */
-    public static final class RootFlatObjectFieldType extends StringFieldType {
+    public static final class RootFlattenedFieldType extends StringFieldType {
         private final boolean splitQueriesOnWhitespace;
 
-        public RootFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta,
-                                       boolean splitQueriesOnWhitespace) {
+        public RootFlattenedFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta,
+                                      boolean splitQueriesOnWhitespace) {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
@@ -408,15 +408,15 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
     }
 
-    private final FlatObjectFieldParser fieldParser;
+    private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 
-    private FlatObjectFieldMapper(String simpleName,
-                                  MappedFieldType mappedFieldType,
-                                  Builder builder) {
+    private FlattenedFieldMapper(String simpleName,
+                                 MappedFieldType mappedFieldType,
+                                 Builder builder) {
         super(simpleName, mappedFieldType, CopyTo.empty());
         this.builder = builder;
-        this.fieldParser = new FlatObjectFieldParser(mappedFieldType.name(), keyedFieldName(),
+        this.fieldParser = new FlattenedFieldParser(mappedFieldType.name(), keyedFieldName(),
             mappedFieldType, builder.depthLimit.get(), builder.ignoreAbove.get(), builder.nullValue.get());
     }
 
@@ -426,8 +426,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     @Override
-    protected FlatObjectFieldMapper clone() {
-        return (FlatObjectFieldMapper) super.clone();
+    protected FlattenedFieldMapper clone() {
+        return (FlattenedFieldMapper) super.clone();
     }
 
     int depthLimit() {
@@ -439,13 +439,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     @Override
-    public RootFlatObjectFieldType fieldType() {
-        return (RootFlatObjectFieldType) super.fieldType();
+    public RootFlattenedFieldType fieldType() {
+        return (RootFlattenedFieldType) super.fieldType();
     }
 
     @Override
-    public KeyedFlatObjectFieldType keyedFieldType(String key) {
-        return new KeyedFlatObjectFieldType(keyedFieldName(), key, fieldType());
+    public KeyedFlattenedFieldType keyedFieldType(String key) {
+        return new KeyedFlattenedFieldType(keyedFieldName(), key, fieldType());
     }
 
     public String keyedFieldName() {

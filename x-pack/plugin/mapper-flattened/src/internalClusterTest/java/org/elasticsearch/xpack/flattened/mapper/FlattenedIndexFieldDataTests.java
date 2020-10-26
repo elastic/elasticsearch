@@ -29,14 +29,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.flattened.FlattenedMapperPlugin;
-import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldData;
-import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
+import org.elasticsearch.xpack.flattened.mapper.FlattenedFieldMapper.KeyedFlattenedFieldData;
+import org.elasticsearch.xpack.flattened.mapper.FlattenedFieldMapper.KeyedFlattenedFieldType;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class FlatObjectIndexFieldDataTests extends ESSingleNodeTestCase  {
+public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -53,7 +53,7 @@ public class FlatObjectIndexFieldDataTests extends ESSingleNodeTestCase  {
             indexService.mapperService());
 
         Mapper.BuilderContext ctx = new Mapper.BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        FlatObjectFieldMapper fieldMapper = new FlatObjectFieldMapper.Builder("json").build(ctx);
+        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("json").build(ctx);
 
         AtomicInteger onCacheCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
@@ -79,25 +79,25 @@ public class FlatObjectIndexFieldDataTests extends ESSingleNodeTestCase  {
             new ShardId("test", "_na_", 1));
 
         // Load global field data for subfield 'key'.
-        KeyedFlatObjectFieldType fieldType1 = fieldMapper.keyedFieldType("key");
+        KeyedFlattenedFieldType fieldType1 = fieldMapper.keyedFieldType("key");
         IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");
         });
-        assertTrue(ifd1 instanceof KeyedFlatObjectFieldData);
+        assertTrue(ifd1 instanceof KeyedFlattenedFieldData);
 
-        KeyedFlatObjectFieldData fieldData1 = (KeyedFlatObjectFieldData) ifd1;
+        KeyedFlattenedFieldData fieldData1 = (KeyedFlattenedFieldData) ifd1;
         assertEquals("key", fieldData1.getKey());
         fieldData1.loadGlobal(reader);
         assertEquals(1, onCacheCalled.get());
 
         // Load global field data for the subfield 'other_key'.
-        KeyedFlatObjectFieldType fieldType2 = fieldMapper.keyedFieldType("other_key");
+        KeyedFlattenedFieldType fieldType2 = fieldMapper.keyedFieldType("other_key");
         IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");
         });
-        assertTrue(ifd2 instanceof KeyedFlatObjectFieldData);
+        assertTrue(ifd2 instanceof KeyedFlattenedFieldData);
 
-        KeyedFlatObjectFieldData fieldData2 = (KeyedFlatObjectFieldData) ifd2;
+        KeyedFlattenedFieldData fieldData2 = (KeyedFlattenedFieldData) ifd2;
         assertEquals("other_key", fieldData2.getKey());
         fieldData2.loadGlobal(reader);
         assertEquals(1, onCacheCalled.get());

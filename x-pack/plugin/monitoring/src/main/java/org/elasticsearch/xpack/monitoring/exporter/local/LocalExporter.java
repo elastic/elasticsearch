@@ -171,8 +171,56 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     @Override
-    public void ensureResources(Consumer<ExporterResourceStatus> listener) {
-        performSetup(clusterService.state(), false, true, listener);
+    public void refreshAlerts(Consumer<ExporterResourceStatus> listener) {
+        if (state.get() == State.TERMINATED) {
+            throw new IllegalStateException("Cannot refresh alerts on terminated exporter");
+        }
+
+        ClusterState clusterState = clusterService.state();
+        if (clusterState.nodes().isLocalNodeElectedMaster()) {
+            // we are on the elected master
+            // Check that there is nothing that could block metadata updates
+            if (clusterState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.METADATA_WRITE)) {
+                listener.accept(ExporterResourceStatus.unknown(name(), TYPE, "waiting until metadata writes are unblocked"));
+                return;
+            }
+
+            if (installingSomething.get()) {
+                listener.accept(ExporterResourceStatus.inProgress(name(), TYPE));
+                return;
+            }
+
+            final List<Runnable> asyncActions = new ArrayList<>();
+            final AtomicInteger pendingResponses = new AtomicInteger(0);
+            final List<Exception> errors = Collections.synchronizedList(new ArrayList<>());
+
+            setupClusterAlertsTasks(clusterState, false, true, listener, asyncActions, pendingResponses, errors);
+            if (asyncActions.size() > 0) {
+                if (installingSomething.compareAndSet(false, true)) {
+                    pendingResponses.set(asyncActions.size());
+                    try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(MONITORING_ORIGIN)) {
+                        asyncActions.forEach(Runnable::run);
+                    }
+                } else {
+                    // let the cluster catch up since requested installations may be ongoing
+                    listener.accept(ExporterResourceStatus.inProgress(name(), TYPE));
+                }
+            } else {
+                // Nothing to setup. Check status flags to see if anything was missed, or if anything is in flight.
+                if (errors.size() > 0) {
+                    // in case we run into scenarios where resource tasks were not created for some reason (like watcher is disabled).
+                    listener.accept(ExporterResourceStatus.determineReadiness(name(), TYPE, errors));
+                } else if (installingSomething.get()) {
+                    // for sanity.
+                    listener.accept(ExporterResourceStatus.inProgress(name(), TYPE));
+                } else {
+                    // no errors reported, no tasks to run, nothing currently installing.
+                    listener.accept(ExporterResourceStatus.ready(name(), TYPE));
+                }
+            }
+        } else {
+            throw new ElasticsearchException("Cannot refresh alerts from nodes other than currently elected master.");
+        }
     }
 
     @Override
@@ -267,7 +315,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             if (hasTemplate(clusterState, MonitoringTemplateUtils.templateName(template)) == false) {
                 logger.debug("monitoring index template [{}] does not exist, so service cannot start (waiting on master)",
                              template);
-                setupListener.accept(ExporterResourceStatus.notReady(
+                setupListener.accept(ExporterResourceStatus.notReady(name(), TYPE,
                     "monitoring index template [{}] does not exist, so service cannot start (waiting on master)", template));
                 return false;
             }
@@ -279,7 +327,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 if (hasIngestPipeline(clusterState, pipelineId) == false) {
                     logger.debug("monitoring ingest pipeline [{}] does not exist, so service cannot start (waiting on master)",
                                  pipelineName(pipelineId));
-                    setupListener.accept(ExporterResourceStatus.notReady(
+                    setupListener.accept(ExporterResourceStatus.notReady(name(), TYPE,
                         "monitoring ingest pipeline [{}] does not exist, so service cannot start (waiting on master)",
                         pipelineName(pipelineId)));
                     return false;
@@ -290,7 +338,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         logger.trace("monitoring index templates and pipelines are installed, service can start");
 
         // everything is setup
-        setupListener.accept(ExporterResourceStatus.ready());
+        setupListener.accept(ExporterResourceStatus.ready(name(), TYPE));
         return true;
     }
 
@@ -313,13 +361,13 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         // Check that there is nothing that could block metadata updates
         if (clusterState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.METADATA_WRITE)) {
             logger.debug("waiting until metadata writes are unblocked");
-            setupListener.accept(ExporterResourceStatus.unknown("waiting until metadata writes are unblocked"));
+            setupListener.accept(ExporterResourceStatus.unknown(name(), TYPE, "waiting until metadata writes are unblocked"));
             return false;
         }
 
         if (installingSomething.get()) {
             logger.trace("already installing something, waiting for install to complete");
-            setupListener.accept(ExporterResourceStatus.inProgress());
+            setupListener.accept(ExporterResourceStatus.inProgress(name(), TYPE));
             return false;
         }
 
@@ -366,6 +414,40 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         // avoid constantly trying to setup Watcher, which requires a lot of overhead and avoid attempting to setup during a cluster state
         // change. Provide a way to force it to initialize though.
+        setupClusterAlertsTasks(clusterState, clusterStateChange, forceAlertingSetup, setupListener, asyncActions, pendingResponses, errors);
+
+        if (asyncActions.size() > 0) {
+            if (installingSomething.compareAndSet(false, true)) {
+                pendingResponses.set(asyncActions.size());
+                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(MONITORING_ORIGIN)) {
+                    asyncActions.forEach(Runnable::run);
+                }
+            } else {
+                // let the cluster catch up since requested installations may be ongoing
+                setupListener.accept(ExporterResourceStatus.inProgress(name(), TYPE));
+                return false;
+            }
+        } else {
+            logger.debug("monitoring index templates and pipelines are installed on master node, service can start");
+            // Nothing to setup. Check status flags to see if anything was missed, or if anything is in flight.
+            if (errors.size() > 0) {
+                // in case we run into scenarios where resource tasks were not created for some reason (like watcher is disabled).
+                setupListener.accept(ExporterResourceStatus.determineReadiness(name(), TYPE, errors));
+            } else if (installingSomething.get()) {
+                setupListener.accept(ExporterResourceStatus.inProgress(name(), TYPE));
+            } else {
+                // no errors reported, no tasks to run, nothing currently installing, this exporter is ready.
+                setupListener.accept(ExporterResourceStatus.ready(name(), TYPE));
+            }
+        }
+
+        // everything is setup (or running)
+        return true;
+    }
+
+    private void setupClusterAlertsTasks(ClusterState clusterState, boolean clusterStateChange, boolean forceAlertingSetup,
+                                         Consumer<ExporterResourceStatus> setupListener, List<Runnable> asyncActions,
+                                         AtomicInteger pendingResponses, List<Exception> errors) {
         boolean shouldSetUpWatcher = state.get() == State.RUNNING && clusterStateChange == false;
         if (canUseWatcher()) {
             if (forceAlertingSetup || shouldSetUpWatcher) {
@@ -383,34 +465,6 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         } else {
             errors.add(new ElasticsearchException("cannot manage cluster alerts because alerting is disabled"));
         }
-
-        if (asyncActions.size() > 0) {
-            if (installingSomething.compareAndSet(false, true)) {
-                pendingResponses.set(asyncActions.size());
-                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(MONITORING_ORIGIN)) {
-                    asyncActions.forEach(Runnable::run);
-                }
-            } else {
-                // let the cluster catch up since requested installations may be ongoing
-                setupListener.accept(ExporterResourceStatus.inProgress());
-                return false;
-            }
-        } else {
-            logger.debug("monitoring index templates and pipelines are installed on master node, service can start");
-            // Nothing to setup. Check status flags to see if anything was missed, or if anything is in flight.
-            if (errors.size() > 0) {
-                // in case we run into scenarios where resource tasks were not created for some reason (like watcher is disabled).
-                setupListener.accept(ExporterResourceStatus.determineReadiness(errors));
-            } else if (installingSomething.get()) {
-                setupListener.accept(ExporterResourceStatus.inProgress());
-            } else {
-                // no errors reported, no tasks to run, nothing currently installing, this exporter is ready.
-                setupListener.accept(ExporterResourceStatus.ready());
-            }
-        }
-
-        // everything is setup (or running)
-        return true;
     }
 
     private void responseReceived(final AtomicInteger pendingResponses, final boolean success,
@@ -425,7 +479,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             if (installingSomething.compareAndSet(true, false) == false) {
                 throw new IllegalStateException("could not reset installing flag to false");
             }
-            ExporterResourceStatus status = ExporterResourceStatus.determineReadiness(errors);
+            ExporterResourceStatus status = ExporterResourceStatus.determineReadiness(name(), TYPE, errors);
             setupListener.accept(status);
         }
     }

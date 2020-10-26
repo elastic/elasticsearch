@@ -15,6 +15,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
@@ -361,6 +362,11 @@ public class HttpExporter extends Exporter {
     private final HttpResource resource;
 
     /**
+     * {@link HttpResource} for setting up or tearing down cluster alerts specifically.
+     */
+    private final HttpResource alertingResource;
+
+    /**
      * Track whether cluster alerts are allowed or not between requests. This allows us to avoid wiring a listener and to lazily change it.
      */
     private final AtomicBoolean clusterAlertsAllowed = new AtomicBoolean(false);
@@ -369,6 +375,20 @@ public class HttpExporter extends Exporter {
     private final ThreadContext threadContext;
     private final DateFormatter dateTimeFormatter;
     private final ClusterStateListener onLocalMasterListener;
+
+    /**
+     * Helper class to separate all resources from just watcher resources
+     */
+    static class Resources {
+        MultiHttpResource allResources;
+        HttpResource alertingResource;
+
+        public Resources(MultiHttpResource allResources, HttpResource alertingResource) {
+            this.allResources = allResources;
+            this.alertingResource = alertingResource;
+        }
+    }
+
     /**
      * Create an {@link HttpExporter}.
      *
@@ -388,9 +408,22 @@ public class HttpExporter extends Exporter {
      * @param listener The node failure listener used to notify an optional sniffer and resources
      * @throws SettingsException if any setting is malformed
      */
+    private HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext, final NodeFailureListener listener,
+                         final Resources resource) {
+        this(config, sslService, threadContext, listener, resource.allResources, resource.alertingResource);
+    }
+
+    /**
+     * Create an {@link HttpExporter}.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
+     * @param listener The node failure listener used to notify an optional sniffer and resources
+     * @throws SettingsException if any setting is malformed
+     */
     HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext, final NodeFailureListener listener,
-                 final HttpResource resource) {
-        this(config, createRestClient(config, sslService, listener), threadContext, listener, resource);
+                 final HttpResource resource, final HttpResource alertingResource) {
+        this(config, createRestClient(config, sslService, listener), threadContext, listener, resource, alertingResource);
     }
 
     /**
@@ -402,8 +435,8 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting is malformed
      */
     HttpExporter(final Config config, final RestClient client, final ThreadContext threadContext, final NodeFailureListener listener,
-                 final HttpResource resource) {
-        this(config, client, createSniffer(config, client, listener), threadContext, listener, resource);
+                 final HttpResource resource, final HttpResource alertingResource) {
+        this(config, client, createSniffer(config, client, listener), threadContext, listener, resource, alertingResource);
     }
 
     /**
@@ -417,12 +450,13 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting is malformed
      */
     HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final ThreadContext threadContext,
-                 final NodeFailureListener listener, final HttpResource resource) {
+                 final NodeFailureListener listener, final HttpResource resource, final HttpResource alertingResource) {
         super(config);
 
         this.client = Objects.requireNonNull(client);
         this.sniffer = sniffer;
         this.resource = resource;
+        this.alertingResource = alertingResource;
         this.defaultParams = createDefaultParams(config);
         this.threadContext = threadContext;
         this.dateTimeFormatter = dateTimeFormatter(config);
@@ -547,7 +581,7 @@ public class HttpExporter extends Exporter {
      * @param config The HTTP Exporter's configuration
      * @return Never {@code null}.
      */
-    static MultiHttpResource createResources(final Config config) {
+    static Resources createResources(final Config config) {
         final String resourceOwnerName = "xpack.monitoring.exporters." + config.name();
         // order controls the order that each is checked; more direct checks should always happen first (e.g., version checks)
         final List<HttpResource> resources = new ArrayList<>();
@@ -560,9 +594,12 @@ public class HttpExporter extends Exporter {
         configurePipelineResources(config, resourceOwnerName, resources);
 
         // load the watches for cluster alerts if Watcher is available
-        configureClusterAlertsResources(config, resourceOwnerName, resources);
+        final HttpResource alertingResource = configureClusterAlertsResources(config, resourceOwnerName);
+        if (alertingResource != null) {
+            resources.add(alertingResource);
+        }
 
-        return new MultiHttpResource(resourceOwnerName, resources);
+        return new Resources(new MultiHttpResource(resourceOwnerName, resources), alertingResource);
     }
 
     /**
@@ -827,10 +864,8 @@ public class HttpExporter extends Exporter {
      *
      * @param config The HTTP Exporter's configuration
      * @param resourceOwnerName The resource owner name to display for any logging messages.
-     * @param resources The resources to add too.
      */
-    private static void configureClusterAlertsResources(final Config config, final String resourceOwnerName,
-                                                        final List<HttpResource> resources) {
+    private static HttpResource configureClusterAlertsResources(final Config config, final String resourceOwnerName) {
         // don't create watches if we're not using them
         if (CLUSTER_ALERTS_MANAGEMENT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())) {
             final ClusterService clusterService = config.clusterService();
@@ -848,16 +883,37 @@ public class HttpExporter extends Exporter {
             }
 
             // wrap the watches in a conditional resource check to ensure the remote cluster has watcher available / enabled
-            resources.add(new WatcherExistsHttpResource(resourceOwnerName, clusterService,
-                                                        new MultiHttpResource(resourceOwnerName, watchResources)));
+            return new WatcherExistsHttpResource(resourceOwnerName, clusterService,
+                                                        new MultiHttpResource(resourceOwnerName, watchResources));
         }
+        return null;
     }
 
     @Override
-    public void ensureResources(Consumer<ExporterResourceStatus> listener) {
-        resource.checkAndPublish(client, ActionListener.wrap(
-            (success) -> listener.accept(ExporterResourceStatus.ready()),
-            (exception) -> listener.accept(ExporterResourceStatus.unknown(exception)) // TODO Track errors?
+    public void refreshAlerts(Consumer<ExporterResourceStatus> listener) {
+        alertingResource.checkAndPublish(client, ActionListener.wrap(
+            (result) -> {
+                ExporterResourceStatus status;
+                if (result.isSuccess()) {
+                    status = ExporterResourceStatus.ready(name(), TYPE);
+                } else {
+                    switch (result.getResourceState()) {
+                        case CLEAN:
+                            status = ExporterResourceStatus.ready(name(), TYPE);
+                            break;
+                        case CHECKING:
+                            status = ExporterResourceStatus.inProgress(name(), TYPE);
+                            break;
+                        case DIRTY:
+                            status = ExporterResourceStatus.notReady(name(), TYPE, result.getReason());
+                            break;
+                        default:
+                            throw new ElasticsearchException("Illegal exporter resource status state [{}]", result.getResourceState());
+                    }
+                }
+                listener.accept(status);
+            },
+            (exception) -> listener.accept(ExporterResourceStatus.notReady(name(), TYPE, exception))
         ));
     }
 

@@ -415,7 +415,7 @@ public class HttpExporterTests extends ESTestCase {
 
         final Config config = createConfig(builder.build());
 
-        final MultiHttpResource multiResource = HttpExporter.createResources(config);
+        final MultiHttpResource multiResource = HttpExporter.createResources(config).allResources;
 
         final List<HttpResource> resources = multiResource.getResources();
         final int version = (int)resources.stream().filter((resource) -> resource instanceof VersionHttpResource).count();
@@ -505,8 +505,9 @@ public class HttpExporterTests extends ESTestCase {
         final NodeFailureListener listener = mock(NodeFailureListener.class);
         // this is configured to throw an error when the resource is checked
         final HttpResource resource = new MockHttpResource(exporterName(), true, null, false);
+        final HttpResource alertsResource = new MockHttpResource(exporterName(), false, null, false);
 
-        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource)) {
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource, alertsResource)) {
             verify(listener).setResource(resource);
 
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
@@ -529,8 +530,9 @@ public class HttpExporterTests extends ESTestCase {
         final NodeFailureListener listener = mock(NodeFailureListener.class);
         // always has to check, and never succeeds checks but it does not throw an exception (e.g., version check fails)
         final HttpResource resource = new MockHttpResource(exporterName(), true, false, false);
+        final HttpResource alertsResource = new MockHttpResource(exporterName(), false, null, false);
 
-        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource)) {
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource, alertsResource)) {
             verify(listener).setResource(resource);
 
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
@@ -557,8 +559,9 @@ public class HttpExporterTests extends ESTestCase {
         final NodeFailureListener listener = mock(NodeFailureListener.class);
         // sometimes dirty to start with and sometimes not; but always succeeds on checkAndPublish
         final HttpResource resource = new MockHttpResource(exporterName(), randomBoolean());
+        final HttpResource alertsResource = new MockHttpResource(exporterName(), false, null, false);
 
-        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource)) {
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource, alertsResource)) {
             verify(listener).setResource(resource);
 
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
@@ -584,6 +587,7 @@ public class HttpExporterTests extends ESTestCase {
         final Sniffer sniffer = randomFrom(mock(Sniffer.class), null);
         final NodeFailureListener listener = mock(NodeFailureListener.class);
         final MultiHttpResource resource = mock(MultiHttpResource.class);
+        final HttpResource alertsResource = mock(MultiHttpResource.class);
 
         if (sniffer != null && rarely()) {
             doThrow(new RuntimeException("expected")).when(sniffer).close();
@@ -593,7 +597,7 @@ public class HttpExporterTests extends ESTestCase {
             doThrow(randomFrom(new IOException("expected"), new RuntimeException("expected"))).when(client).close();
         }
 
-        new HttpExporter(config, client, sniffer, threadContext, listener, resource).close();
+        new HttpExporter(config, client, sniffer, threadContext, listener, resource, alertsResource).close();
 
         // order matters; sniffer must close first
         if (sniffer != null) {

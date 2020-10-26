@@ -107,9 +107,12 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void awaitCheckAndPublish(HttpResource resource, final Boolean expected) {
-        resource.checkAndPublish(client, publishListener);
+        awaitCheckAndPublish(resource, expected != null ? new ResourcePublishResult(expected) : null);
+    }
 
-        verifyPublishListener(expected != null ? new ResourcePublishResult(expected) : null);
+    public void awaitCheckAndPublish(HttpResource resource, final ResourcePublishResult expected) {
+        resource.checkAndPublish(client, publishListener);
+        verifyPublishListener(expected);
     }
 
     public void testInvalidVersionBlocks() {
@@ -119,7 +122,8 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), is("/")), versionResponse);
 
         assertTrue(resources.isDirty());
-        awaitCheckAndPublish(false);
+        awaitCheckAndPublish(resources, new ResourcePublishResult(false,
+            "version [3.0.0] < [7.0.0] and NOT supported for [xpack.monitoring.exporters._http]", HttpResource.State.DIRTY));
         // ensure it didn't magically become clean
         assertTrue(resources.isDirty());
 

@@ -140,10 +140,10 @@ public abstract class Exporter implements AutoCloseable {
     }
 
     /**
-     * Forces an exporter to deploy (or clean up) any resources it may depend on immediately instead of waiting to do it
-     * lazily as part of accepting a bulk operation or a cluster update.
+     * Forces an exporter to deploy (or clean up) cluster alerts immediately instead of waiting to do it
+     * lazily as part of accepting a bulk operation.
      */
-    public abstract void ensureResources(Consumer<ExporterResourceStatus> listener);
+    public abstract void refreshAlerts(Consumer<ExporterResourceStatus> listener);
 
     /**
      * Opens up a new export bulk.
@@ -235,40 +235,52 @@ public abstract class Exporter implements AutoCloseable {
     }
 
     public static class ExporterResourceStatus {
+        private final String exporterName;
+        private final String exporterType;
         private final DeployState deployState;
         private final List<Exception> exceptions;
 
-        private ExporterResourceStatus(DeployState deployState, List<Exception> exceptions) {
+        public ExporterResourceStatus(String exporterName, String exporterType, DeployState deployState, List<Exception> exceptions) {
+            this.exporterName = exporterName;
+            this.exporterType = exporterType;
             this.deployState = deployState;
             this.exceptions = exceptions;
         }
 
-        public static ExporterResourceStatus inProgress() {
-            return new ExporterResourceStatus(DeployState.IN_PROGRESS, null);
+        public static ExporterResourceStatus inProgress(String exporterName, String exporterType) {
+            return new ExporterResourceStatus(exporterName, exporterType, DeployState.IN_PROGRESS, null);
         }
 
-        public static ExporterResourceStatus ready() {
-            return new ExporterResourceStatus(DeployState.READY, null);
+        public static ExporterResourceStatus ready(String exporterName, String exporterType) {
+            return new ExporterResourceStatus(exporterName, exporterType, DeployState.READY, null);
         }
 
-        public static ExporterResourceStatus notReady(String reason, Object... args) {
-            return notReady(new ElasticsearchException(reason, args));
+        public static ExporterResourceStatus notReady(String exporterName, String exporterType, String reason, Object... args) {
+            return notReady(exporterName, exporterType, new ElasticsearchException(reason, args));
         }
 
-        public static ExporterResourceStatus notReady(Exception reason) {
-            return new ExporterResourceStatus(DeployState.NOT_READY, Collections.singletonList(reason));
+        public static ExporterResourceStatus notReady(String exporterName, String exporterType, Exception reason) {
+            return new ExporterResourceStatus(exporterName, exporterType, DeployState.NOT_READY, Collections.singletonList(reason));
         }
 
-        public static ExporterResourceStatus unknown(String reason, Object... args) {
-            return unknown(new ElasticsearchException(reason, args));
+        public static ExporterResourceStatus unknown(String exporterName, String exporterType, String reason, Object... args) {
+            return unknown(exporterName, exporterType, new ElasticsearchException(reason, args));
         }
 
-        public static ExporterResourceStatus unknown(Exception reason) {
-            return new ExporterResourceStatus(DeployState.UNKNOWN, Collections.singletonList(reason));
+        public static ExporterResourceStatus unknown(String exporterName, String exporterType, Exception reason) {
+            return new ExporterResourceStatus(exporterName, exporterType, DeployState.UNKNOWN, Collections.singletonList(reason));
         }
 
-        public static ExporterResourceStatus determineReadiness(List<Exception> exceptions) {
-            return new ExporterResourceStatus(exceptions.size() > 0 ? DeployState.NOT_READY : DeployState.READY, exceptions);
+        public static ExporterResourceStatus determineReadiness(String exporterName, String exporterType, List<Exception> exceptions) {
+            return new ExporterResourceStatus(exporterName, exporterType, exceptions.size() > 0 ? DeployState.NOT_READY : DeployState.READY, exceptions);
+        }
+
+        public String getExporterName() {
+            return exporterName;
+        }
+
+        public String getExporterType() {
+            return exporterType;
         }
 
         public boolean isReady() {

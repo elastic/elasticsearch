@@ -49,6 +49,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -146,7 +147,7 @@ public class ExportersTests extends ESTestCase {
 
     public void testInitExportersDefault() throws Exception {
         factories.put("_type", TestExporter::new);
-        Map<String, Exporter> internalExporters = exporters.initExporters(Settings.builder().build());
+        Map<String, Exporter> internalExporters = exporters.initExporters(Settings.builder().build()).enabledExporters;
 
         assertThat(internalExporters, notNullValue());
         assertThat(internalExporters.size(), is(1));
@@ -158,7 +159,7 @@ public class ExportersTests extends ESTestCase {
         factories.put("local", TestExporter::new);
         Map<String, Exporter> internalExporters = exporters.initExporters(Settings.builder()
                 .put("xpack.monitoring.exporters._name.type", "local")
-                .build());
+                .build()).enabledExporters;
 
         assertThat(internalExporters, notNullValue());
         assertThat(internalExporters.size(), is(1));
@@ -172,7 +173,7 @@ public class ExportersTests extends ESTestCase {
         Map<String, Exporter> internalExporters = exporters.initExporters(Settings.builder()
                 .put("xpack.monitoring.exporters._name.type", "local")
                 .put("xpack.monitoring.exporters._name.enabled", false)
-                .build());
+                .build()).enabledExporters;
 
         assertThat(internalExporters, notNullValue());
 
@@ -198,7 +199,7 @@ public class ExportersTests extends ESTestCase {
         Map<String, Exporter> internalExporters = exporters.initExporters(Settings.builder()
                 .put("xpack.monitoring.exporters._name0.type", "_type")
                 .put("xpack.monitoring.exporters._name1.type", "_type")
-                .build());
+                .build()).enabledExporters;
 
         assertThat(internalExporters, notNullValue());
         assertThat(internalExporters.size(), is(2));
@@ -236,7 +237,7 @@ public class ExportersTests extends ESTestCase {
 
         exporters = new Exporters(nodeSettings, factories, clusterService, licenseState, threadContext, sslService) {
             @Override
-            Map<String, Exporter> initExporters(Settings settings) {
+            InitializedExporters initExporters(Settings settings) {
                 settingsHolder.set(settings);
                 return super.initExporters(settings);
             }
@@ -448,6 +449,10 @@ public class ExportersTests extends ESTestCase {
         }
 
         @Override
+        public void refreshAlerts(Consumer<ExporterResourceStatus> listener) {
+        }
+
+        @Override
         public void openBulk(final ActionListener<ExportBulk> listener) {
             listener.onResponse(mock(ExportBulk.class));
         }
@@ -477,6 +482,10 @@ public class ExportersTests extends ESTestCase {
         CountingExporter(Config config, ThreadContext threadContext) {
             super(config);
             this.threadContext = threadContext;
+        }
+
+        @Override
+        public void refreshAlerts(Consumer<ExporterResourceStatus> listener) {
         }
 
         @Override

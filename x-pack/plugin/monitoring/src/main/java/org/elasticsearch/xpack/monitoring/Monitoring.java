@@ -36,8 +36,10 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringBulkAction;
+import org.elasticsearch.xpack.monitoring.action.TransportMonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.collector.ccr.StatsCollector;
@@ -133,6 +135,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         var infoAction = new ActionHandler<>(XPackInfoFeatureAction.MONITORING, MonitoringInfoTransportAction.class);
         return Arrays.asList(
             new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
+            new ActionHandler<>(MonitoringMigrateAlertsAction.INSTANCE, TransportMonitoringMigrateAlertsAction.class),
             usageAction,
             infoAction);
     }
@@ -163,6 +166,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         settings.add(NodeStatsCollector.NODE_STATS_TIMEOUT);
         settings.add(EnrichStatsCollector.STATS_TIMEOUT);
         settings.addAll(Exporters.getSettings());
+        settings.add(Monitoring.MIGRATION_DECOMMISSION_ALERTS);
         return Collections.unmodifiableList(settings);
     }
 

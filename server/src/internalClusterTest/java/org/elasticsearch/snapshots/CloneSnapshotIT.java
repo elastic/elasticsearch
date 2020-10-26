@@ -358,8 +358,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(repoName, sourceSnapshot);
 
         blockMasterOnReadIndexMeta(repoName);
+        final String cloneName = "target-snapshot";
         final ActionFuture<AcknowledgedResponse> cloneFuture =
-                startCloneFromDataNode(repoName, sourceSnapshot, "target-snapshot", testIndex);
+                startCloneFromDataNode(repoName, sourceSnapshot, cloneName, testIndex);
         awaitNumberOfSnapshotsInProgress(1);
         final String masterNode = internalCluster().getMasterName();
         waitForBlock(masterNode, repoName);
@@ -375,6 +376,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         awaitNoMoreRunningOperations();
 
+        // Check if the clone operation worked out by chance as a result of the clone request being retried because of the master failover
+        cloneSucceeded = cloneSucceeded ||
+            getRepositoryData(repoName).getSnapshotIds().stream().anyMatch(snapshotId -> snapshotId.getName().equals(cloneName));
         assertAllSnapshotsSuccessful(getRepositoryData(repoName), cloneSucceeded ? 2 : 1);
     }
 

@@ -48,7 +48,7 @@ public abstract class Types {
     private static DataType getType(DataTypeRegistry typeRegistry, Map<String, Object> content) {
         if (content.containsKey("type")) {
             String typeName = content.get("type").toString();
-            if ("wildcard".equals(typeName)) {
+            if ("constant_keyword".equals(typeName) || "wildcard".equals(typeName)) {
                 return KEYWORD;
             }
             try {

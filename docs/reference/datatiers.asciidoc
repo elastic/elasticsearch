@@ -16,7 +16,7 @@ and rarely needs to be updated.
 When you index documents directly to a specific index, they remain on content tier nodes indefinitely. 
 
 When you index documents to a data stream, they initially reside on hot tier nodes. 
-You can configure <<index-lifecycle-management, {ilm} ({ilm-init})>> policies
+You can configure <<index-lifecycle-management, {ilm}>> ({ilm-init}) policies
 to automatically transition your time series  data through the hot, warm, and cold tiers 
 according to your performance, resiliency and data retention requirements. 
 
@@ -101,8 +101,8 @@ You can override the automatic tier-based allocation by specifying
 settings in the create index request or index template that matches the new index.
 
 You can also explicitly set `index.routing.allocation.include._tier_preference`  
-tier-based allocation to opt out of the default tier-based allocation.  
-If you set the tier preference to `null`, {es} ignores the node data roles during allocation.
+to opt out of the default tier-based allocation.  
+If you set the tier preference to `null`, {es} ignores the data tier roles during allocation.
 
 [discrete]
 [[data-tier-migration]]

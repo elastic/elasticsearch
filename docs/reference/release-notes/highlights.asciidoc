@@ -32,7 +32,9 @@ Other versions:
 needed to add entries to the <<index-modules-translog,transaction log>>. This
 reduction allows for more concurrency and increases the transaction log buffer
 size from `8KB` to `1MB`. However, performance gains are lower for
-full-text search and other analysis-intensive use cases.
+full-text search and other analysis-intensive use cases. The heavier the
+indexing chain, the lower the gains, so indexing chains that involve many
+fields, ingest pipelines or full-text indexing will see lower gains.
 
 [discrete]
 [[more-space-efficient-indices]]

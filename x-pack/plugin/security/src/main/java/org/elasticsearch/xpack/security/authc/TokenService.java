@@ -306,8 +306,9 @@ public final class TokenService {
      * @param authentication The authentication object representing the user for which the tokens are created
      * @param originatingClientAuth The authentication object representing the client that called the related API
      * @param metadata A map with metadata to be stored in the token document
-     * @param listener The listener to call upon completion with a {@link Tuple} containing the
-     *                 serialized access token and serialized refresh token as these will be returned to the client
+     * @param listener The listener to call upon completion with a {@link CreateTokenResult} containing the
+     *                 serialized access token, serialized refresh token and authentication for which the token is created
+     *                 as these will be returned to the client
      */
     private void createOAuth2Tokens(String accessToken, String refreshToken, Version tokenVersion, SecurityIndexManager tokensIndex,
                                     Authentication authentication, Authentication originatingClientAuth, Map<String, Object> metadata,
@@ -351,12 +352,13 @@ public final class TokenService {
                                         final String versionedRefreshToken = refreshToken != null
                                             ? prependVersionAndEncodeRefreshToken(tokenVersion, refreshToken)
                                             : null;
-                                        listener.onResponse(new CreateTokenResult(versionedAccessToken, versionedRefreshToken, tokenAuth));
+                                        listener.onResponse(new CreateTokenResult(versionedAccessToken, versionedRefreshToken,
+                                            authentication));
                                     } else {
                                         // prior versions of the refresh token are not version-prepended, as nodes on those
                                         // versions don't expect it.
                                         // Such nodes might exist in a mixed cluster during a rolling upgrade.
-                                        listener.onResponse(new CreateTokenResult(versionedAccessToken, refreshToken,tokenAuth));
+                                        listener.onResponse(new CreateTokenResult(versionedAccessToken, refreshToken,authentication));
                                     }
                                 } else {
                                     listener.onFailure(traceLog("create token",
@@ -859,8 +861,9 @@ public final class TokenService {
      * Called by the transport action in order to start the process of refreshing a token.
      *
      * @param refreshToken The refresh token as provided by the client
-     * @param listener The listener to call upon completion with a {@link Tuple} containing the
-     *                 serialized access token and serialized refresh token as these will be returned to the client
+     * @param listener The listener to call upon completion with a {@link CreateTokenResult} containing the
+     *                 serialized access token, serialized refresh token and authentication for which the token is created
+     *                 as these will be returned to the client
      */
     public void refreshToken(String refreshToken, ActionListener<CreateTokenResult> listener) {
         ensureEnabled();
@@ -1129,9 +1132,9 @@ public final class TokenService {
      *                           index
      * @param tokensIndex        the manager for the index where the tokens are stored
      * @param authentication     The authentication object representing the user for which the tokens are created
-     * @param listener           The listener to call upon completion with a {@link Tuple} containing the Tuple of
-     *                           serialized access token and serialized refresh token and Authentication object as these will be returned
-     *                           to the client
+     * @param listener The listener to call upon completion with a {@link CreateTokenResult} containing the
+     *                 serialized access token, serialized refresh token and authentication for which the token is created
+     *                 as these will be returned to the client
      */
     void decryptAndReturnSupersedingTokens(String refreshToken, RefreshTokenStatus refreshTokenStatus, SecurityIndexManager tokensIndex,
                                            Authentication authentication, ActionListener<CreateTokenResult> listener) {
@@ -1169,14 +1172,11 @@ public final class TokenService {
                     public void onResponse(GetResponse response) {
                         if (response.isExists()) {
                             try {
-                                final Authentication tokenAuth = new Authentication(authentication.getUser(),
-                                    authentication.getAuthenticatedBy(), authentication.getLookedUpBy(), getTokenVersionCompatibility(),
-                                    AuthenticationType.TOKEN, authentication.getMetadata());
                                 listener.onResponse(
                                     new CreateTokenResult(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(),
                                         decryptedTokens[0]),
                                         prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), decryptedTokens[1]),
-                                        tokenAuth));
+                                        authentication));
                             } catch (GeneralSecurityException | IOException e) {
                                 logger.warn("Could not format stored superseding token values", e);
                                 onFailure.accept(invalidGrantException("could not refresh the requested token"));
@@ -1919,7 +1919,7 @@ public final class TokenService {
         return expiredTokenRemover.isExpirationInProgress();
     }
 
-    public final class CreateTokenResult {
+    public static final class CreateTokenResult {
         private final String accessToken;
         private final String refreshToken;
         private final Authentication authentication;

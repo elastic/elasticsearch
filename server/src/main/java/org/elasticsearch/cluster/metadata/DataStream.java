@@ -153,7 +153,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public DataStream(StreamInput in) throws IOException {
         this(in.readString(), new TimestampField(in), in.readList(Index::new), in.readVLong(),
-            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readMap(): null);
+            in.getVersion().onOrAfter(Version.V_7_11_0) ? in.readMap(): null);
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
@@ -166,7 +166,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         timeStampField.writeTo(out);
         out.writeList(indices);
         out.writeVLong(generation);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
             out.writeMap(metadata);
         }
     }

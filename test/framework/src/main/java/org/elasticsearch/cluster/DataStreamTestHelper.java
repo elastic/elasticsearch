@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -107,7 +108,8 @@ public final class DataStreamTestHelper {
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(LuceneTestCase.random())));
         Map<String, Object> metadata = null;
         if (randomBoolean()) {
-            metadata = Map.of("key", "value");
+            metadata = new HashMap<>();
+            metadata.put("key", "value");
         }
         return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, metadata);
     }

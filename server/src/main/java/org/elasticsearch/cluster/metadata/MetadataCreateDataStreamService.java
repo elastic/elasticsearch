@@ -45,6 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -165,7 +166,7 @@ public class MetadataCreateDataStreamService {
         DataStream newDataStream =
             new DataStream(request.name, timestampField,
                 Collections.singletonList(firstBackingIndex.getIndex()), 1L,
-                template.metadata() != null ? Map.copyOf(template.metadata()) : null);
+                template.metadata() != null ? Collections.unmodifiableMap(new HashMap<>(template.metadata())) : null);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();

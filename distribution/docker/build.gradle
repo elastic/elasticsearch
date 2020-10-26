@@ -266,6 +266,12 @@ void addBuildDockerImage(Architecture architecture, boolean oss, DockerBase base
     dependsOn(copyContextTask)
     dockerContext.fileProvider(copyContextTask.map { it.destinationDir })
 
+    if (base == DockerBase.UBI) {
+      baseImages = [ base.getImage() ]
+    } else {
+      baseImages = [ base.getImage(), 'alpine:latest' ]
+    }
+
     String version = VersionProperties.elasticsearch
     if (oss) {
       tags = [

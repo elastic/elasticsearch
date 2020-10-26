@@ -195,7 +195,7 @@ teardown:
 
   - do:
       security.clear_api_key_cache:
-        ids: ""
+        ids: "*"
 
   - match: { _nodes.failed: 0 }
 

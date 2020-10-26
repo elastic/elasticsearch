@@ -168,7 +168,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
             "          \"type\": \"double\"\n" +
             "        }," +
             "        \""+ DISCRETE_NUMERICAL_FIELD + "\": {\n" +
-            "          \"type\": \"integer\"\n" +
+            "          \"type\": \"unsigned_long\"\n" +
             "        }," +
             "        \""+ TEXT_FIELD + "\": {\n" +
             "          \"type\": \"text\"\n" +

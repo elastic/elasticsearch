@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 

@@ -126,18 +126,15 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     public String rewrite() {
         return this.rewrite;
     }
-    
+
     public WildcardQueryBuilder caseInsensitive(boolean caseInsensitive) {
-        if (caseInsensitive == false) {
-            throw new IllegalArgumentException("The case insensitive setting cannot be set to false.");
-        }
         this.caseInsensitive = caseInsensitive;
         return this;
-    }    
+    }
 
     public boolean caseInsensitive() {
         return this.caseInsensitive;
-    }        
+    }
 
     @Override
     public String getWriteableName() {
@@ -189,10 +186,6 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                             rewrite = parser.textOrNull();
                         } else if (CASE_INSENSITIVE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             caseInsensitive = parser.booleanValue();
-                            if (caseInsensitive == false) {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "[prefix] query does not support [" + currentFieldName + "] = false");
-                            }
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
@@ -208,16 +201,13 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
             }
         }
 
-        WildcardQueryBuilder result = new WildcardQueryBuilder(fieldName, value)
+        return new WildcardQueryBuilder(fieldName, value)
                 .rewrite(rewrite)
                 .boost(boost)
-                .queryName(queryName);
-        if (caseInsensitive) {
-            result.caseInsensitive(caseInsensitive);            
-        }
-        return result;
-    }    
-    
+                .queryName(queryName)
+                .caseInsensitive(caseInsensitive);
+    }
+
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryShardContext context = queryRewriteContext.convertToShardContext();

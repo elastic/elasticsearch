@@ -6,8 +6,11 @@
 package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.store.cache.CacheFile.EvictionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -17,7 +20,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Future;
 
+import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -124,9 +130,56 @@ public class CacheFileTests extends ESTestCase {
         assertFalse(Files.exists(file));
     }
 
-    class TestEvictionListener implements EvictionListener {
+    public void testConcurrentAccess() throws Exception {
+        final Path file = createTempDir().resolve("file.cache");
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
 
-        private SetOnce<CacheFile> evicted = new SetOnce<>();
+        final TestEvictionListener evictionListener = new TestEvictionListener();
+        assertTrue(cacheFile.acquire(evictionListener));
+        final long length = cacheFile.getLength();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
+            builder().put(NODE_NAME_SETTING.getKey(), getTestName()).build(),
+            random()
+        );
+        final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+        final Future<Integer> populateAndReadFuture;
+        final Future<Integer> readIfAvailableFuture;
+        if (randomBoolean()) {
+            populateAndReadFuture = cacheFile.populateAndRead(
+                Tuple.tuple(0L, length),
+                Tuple.tuple(0L, length),
+                channel -> Math.toIntExact(length),
+                (channel, from, to, progressUpdater) -> progressUpdater.accept(length),
+                threadPool.generic()
+            );
+        } else {
+            populateAndReadFuture = null;
+        }
+        if (randomBoolean()) {
+            readIfAvailableFuture = cacheFile.readIfAvailableOrPending(Tuple.tuple(0L, length), channel -> Math.toIntExact(length));
+        } else {
+            readIfAvailableFuture = null;
+        }
+        final boolean evicted = randomBoolean();
+        if (evicted) {
+            deterministicTaskQueue.scheduleNow(cacheFile::startEviction);
+        }
+        deterministicTaskQueue.scheduleNow(() -> cacheFile.release(evictionListener));
+        deterministicTaskQueue.runAllRunnableTasks();
+        if (populateAndReadFuture != null) {
+            assertTrue(populateAndReadFuture.isDone());
+        }
+        if (readIfAvailableFuture != null) {
+            assertTrue(readIfAvailableFuture.isDone());
+        }
+        if (evicted) {
+            assertFalse(Files.exists(file));
+        }
+    }
+
+    static class TestEvictionListener implements EvictionListener {
+
+        private final SetOnce<CacheFile> evicted = new SetOnce<>();
 
         CacheFile getEvictedCacheFile() {
             return evicted.get();

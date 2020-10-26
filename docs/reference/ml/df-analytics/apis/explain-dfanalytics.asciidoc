@@ -10,7 +10,7 @@
 
 Explains a {dataframe-analytics-config}.
 
-experimental[]
+beta::[]
 
 
 [[ml-explain-dfanalytics-request]]

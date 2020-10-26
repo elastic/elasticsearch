@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
@@ -31,7 +30,6 @@ import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -40,11 +38,7 @@ import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
@@ -54,9 +48,12 @@ import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -85,156 +82,187 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     public static final String CONTENT_TYPE = "geo_shape";
 
+    public static final Set<String> DEPRECATED_PARAMETERS
+        = Set.of("strategy", "tree", "tree_levels", "precision", "distance_error_pct", "points only");
+
+    public static boolean containsDeprecatedParameter(Set<String> paramKeys) {
+        return DEPRECATED_PARAMETERS.stream().anyMatch(paramKeys::contains);
+    }
+
+    public static class Defaults {
+        public static final SpatialStrategy STRATEGY = SpatialStrategy.RECURSIVE;
+        public static final String TREE = "quadtree";
+        public static final String PRECISION = "50m";
+        public static final int QUADTREE_LEVELS = GeoUtils.quadTreeLevelsForPrecision(PRECISION);
+        public static final int GEOHASH_TREE_LEVELS = GeoUtils.geoHashLevelsForPrecision(PRECISION);
+        public static final boolean POINTS_ONLY = false;
+        public static final double DISTANCE_ERROR_PCT = 0.025d;
+
+        public static int defaultTreeLevel(String tree) {
+            switch (tree) {
+                case PrefixTrees.GEOHASH:
+                    return GEOHASH_TREE_LEVELS;
+                case PrefixTrees.LEGACY_QUADTREE:
+                case PrefixTrees.QUADTREE:
+                    return QUADTREE_LEVELS;
+                default:
+                    throw new IllegalArgumentException("Unknown prefix type [" + tree + "]");
+            }
+        }
+    }
+
+    public static class PrefixTrees {
+        public static final String LEGACY_QUADTREE = "legacyquadtree";
+        public static final String QUADTREE = "quadtree";
+        public static final String GEOHASH = "geohash";
+    }
+
     @Deprecated
     public static class DeprecatedParameters {
-        public static class Names {
-            public static final ParseField STRATEGY = new ParseField("strategy");
-            public static final ParseField TREE = new ParseField("tree");
-            public static final ParseField TREE_LEVELS = new ParseField("tree_levels");
-            public static final ParseField PRECISION = new ParseField("precision");
-            public static final ParseField DISTANCE_ERROR_PCT = new ParseField("distance_error_pct");
-            public static final ParseField POINTS_ONLY = new ParseField("points_only");
-        }
-
-        public static class PrefixTrees {
-            public static final String LEGACY_QUADTREE = "legacyquadtree";
-            public static final String QUADTREE = "quadtree";
-            public static final String GEOHASH = "geohash";
-        }
-
-        public static class Defaults {
-            public static final SpatialStrategy STRATEGY = SpatialStrategy.RECURSIVE;
-            public static final String TREE = "quadtree";
-            public static final String PRECISION = "50m";
-            public static final int QUADTREE_LEVELS = GeoUtils.quadTreeLevelsForPrecision(PRECISION);
-            public static final int GEOHASH_TREE_LEVELS = GeoUtils.geoHashLevelsForPrecision(PRECISION);
-            public static final boolean POINTS_ONLY = false;
-            public static final double DISTANCE_ERROR_PCT = 0.025d;
-        }
-
-        public SpatialStrategy strategy = null;
-        public String tree = null;
-        public Integer treeLevels = null;
-        public String precision = null;
-        public Boolean pointsOnly = null;
-        public Double distanceErrorPct = null;
-
-        public void setSpatialStrategy(SpatialStrategy strategy) {
-            this.strategy = strategy;
-        }
-
-        public void setTree(String prefixTree) {
-            this.tree = prefixTree;
-        }
-
-        public void setTreeLevels(int treeLevels) {
-            this.treeLevels = treeLevels;
-        }
-
-        public void setPrecision(String precision) {
-            this.precision = precision;
-        }
-
-        public void setPointsOnly(boolean pointsOnly) {
-            if (this.strategy == SpatialStrategy.TERM && pointsOnly == false) {
-                throw new ElasticsearchParseException("points_only cannot be set to false for term strategy");
-            }
-            this.pointsOnly = pointsOnly;
-        }
-
-        public void setDistanceErrorPct(double distanceErrorPct) {
-            this.distanceErrorPct = distanceErrorPct;
-        }
-
-        public static boolean parse(String name, String fieldName, Object fieldNode, DeprecatedParameters deprecatedParameters) {
-            if (Names.STRATEGY.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                checkPrefixTreeSupport(fieldName);
-                deprecatedParameters.setSpatialStrategy(SpatialStrategy.fromString(fieldNode.toString()));
-            } else if (Names.TREE.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                checkPrefixTreeSupport(fieldName);
-                deprecatedParameters.setTree(fieldNode.toString());
-            } else if (Names.TREE_LEVELS.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                checkPrefixTreeSupport(fieldName);
-                deprecatedParameters.setTreeLevels(Integer.parseInt(fieldNode.toString()));
-            } else if (Names.PRECISION.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                checkPrefixTreeSupport(fieldName);
-                deprecatedParameters.setPrecision(fieldNode.toString());
-            } else if (Names.DISTANCE_ERROR_PCT.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                checkPrefixTreeSupport(fieldName);
-                deprecatedParameters.setDistanceErrorPct(Double.parseDouble(fieldNode.toString()));
-            } else if (Names.POINTS_ONLY.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                checkPrefixTreeSupport(fieldName);
-                deprecatedParameters.setPointsOnly(
-                    XContentMapValues.nodeBooleanValue(fieldNode, name + "." + DeprecatedParameters.Names.POINTS_ONLY));
-            } else {
-                return false;
-            }
-            return true;
-        }
 
         private static void checkPrefixTreeSupport(String fieldName) {
             if (ShapesAvailability.JTS_AVAILABLE == false || ShapesAvailability.SPATIAL4J_AVAILABLE == false) {
                 throw new ElasticsearchParseException("Field parameter [{}] is not supported for [{}] field type",
                     fieldName, CONTENT_TYPE);
             }
-            DEPRECATION_LOGGER.deprecate("geo_mapper_field_parameter",
-                "Field parameter [{}] is deprecated and will be removed in a future version.", fieldName);
+
         }
     }
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(LegacyGeoShapeFieldMapper.class);
+    private static Builder builder(FieldMapper in) {
+        return ((LegacyGeoShapeFieldMapper)in).builder;
+    }
 
-    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder {
+    public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        DeprecatedParameters deprecatedParameters;
+        Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
 
-        public Builder(String name) {
-            this(name, new DeprecatedParameters());
+        final Parameter<Explicit<Boolean>> ignoreMalformed;
+        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
+        final Parameter<Explicit<Boolean>> coerce;
+        Parameter<Explicit<Orientation>> orientation = orientationParam(m -> builder(m).orientation.get());
+
+        Parameter<SpatialStrategy> strategy = new Parameter<>("strategy", false, () -> SpatialStrategy.RECURSIVE,
+            (n, c, o) -> SpatialStrategy.fromString(o.toString()), m -> builder(m).strategy.get())
+            .deprecated();
+        Parameter<String> tree = Parameter.stringParam("tree", false, m -> builder(m).tree.get(), Defaults.TREE)
+            .deprecated();
+        Parameter<Integer> treeLevels = new Parameter<>("tree_levels", false, () -> null,
+            (n, c, o) -> o == null ? null : XContentMapValues.nodeIntegerValue(o),
+            m -> builder(m).treeLevels.get())
+            .deprecated();
+        Parameter<DistanceUnit.Distance> precision = new Parameter<>("precision", false, () -> null,
+            (n, c, o) -> o == null ? null : DistanceUnit.Distance.parseDistance(o.toString()),
+            m -> builder(m).precision.get())
+            .deprecated();
+        Parameter<Double> distanceErrorPct = new Parameter<>("distance_error_pct", true, () -> null,
+            (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o),
+            m -> builder(m).distanceErrorPct.get())
+            .deprecated()
+            .acceptsNull();
+        Parameter<Boolean> pointsOnly = new Parameter<>("points_only", false,
+            () -> null,
+            (n, c, o) -> XContentMapValues.nodeBooleanValue(o), m -> builder(m).pointsOnly.get())
+            .deprecated().acceptsNull();
+
+        Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        private final Version indexCreatedVersion;
+
+        public Builder(String name, Version version, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
+            super(name);
+
+            if (ShapesAvailability.JTS_AVAILABLE == false || ShapesAvailability.SPATIAL4J_AVAILABLE == false) {
+                throw new ElasticsearchParseException("Non-BKD field parameters are not supported for [{}] field type", CONTENT_TYPE);
+            }
+
+            this.indexCreatedVersion = version;
+            this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
+            this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
+
+            this.pointsOnly.setValidator(v -> {
+                if (v == null) {
+                    return;
+                }
+                if (v == false && SpatialStrategy.TERM == strategy.get()) {
+                    throw new IllegalArgumentException("points_only cannot be set to false for term strategy");
+                }
+            });
+
+            // Set up serialization
+            if (version.onOrAfter(Version.V_7_0_0)) {
+                this.strategy.alwaysSerialize();
+            }
+            this.strategy.setSerializer((b, f, v) -> b.field(f, v.getStrategyName()), SpatialStrategy::getStrategyName);
+            // serialize treeLevels if treeLevels is configured, OR if defaults are requested and precision is not configured
+            treeLevels.setSerializerCheck((id, ic, v) -> ic || (id && precision.get() == null));
+            treeLevels.setSerializer((b, f, v) -> {
+                if (v != null && v != 0) {
+                    b.field(f, v);
+                } else {
+                    b.field(f, Defaults.defaultTreeLevel(tree.get()));
+                }
+            }, Objects::toString);
+            // serialize precision if precision is configured, OR if defaults are requested and treeLevels is not configured
+            precision.setSerializerCheck((id, ic, v) -> ic || (id && treeLevels.get() == null));
+            precision.setSerializer((b, f, v) -> {
+                if (v == null) {
+                    b.field(f, "50.0m");
+                } else {
+                    b.field(f, v.toString());
+                }
+            }, Objects::toString);
+            pointsOnly.setSerializer((b, f, v) -> {
+                if (v == null) {
+                    b.field(f, strategy.get() == SpatialStrategy.TERM);
+                } else {
+                    b.field(f, v);
+                }
+            }, Objects::toString);
         }
 
-        public Builder(String name, DeprecatedParameters deprecatedParameters) {
-            super(name, Defaults.FIELD_TYPE);
-            this.deprecatedParameters = deprecatedParameters;
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(indexed, ignoreMalformed, ignoreZValue, coerce, orientation,
+                strategy, tree, treeLevels, precision, distanceErrorPct, pointsOnly, meta);
+        }
+
+        public Builder coerce(boolean coerce) {
+            this.coerce.setValue(new Explicit<>(coerce, true));
+            return this;
         }
 
         private void setupFieldTypeDeprecatedParameters(GeoShapeFieldType ft) {
-            if (deprecatedParameters.strategy != null) {
-                ft.setStrategy(deprecatedParameters.strategy);
+            ft.setStrategy(strategy.get());
+            ft.setTree(tree.get());
+            if (treeLevels.get() != null) {
+                ft.setTreeLevels(treeLevels.get());
             }
-            if (deprecatedParameters.tree != null) {
-                ft.setTree(deprecatedParameters.tree);
+            if (precision.get() != null) {
+                ft.setPrecisionInMeters(precision.get().value);
             }
-            if (deprecatedParameters.treeLevels != null) {
-                ft.setTreeLevels(deprecatedParameters.treeLevels);
+            if (pointsOnly.get() != null) {
+                ft.setPointsOnly(pointsOnly.get());
             }
-            if (deprecatedParameters.precision != null) {
-                // precision is only set iff: a. treeLevel is not explicitly set, b. its explicitly set
-                ft.setPrecisionInMeters(DistanceUnit.parse(deprecatedParameters.precision,
-                    DistanceUnit.DEFAULT, DistanceUnit.DEFAULT));
+            if (distanceErrorPct.get() != null) {
+                ft.setDistanceErrorPct(distanceErrorPct.get());
             }
-            if (deprecatedParameters.distanceErrorPct != null) {
-                ft.setDistanceErrorPct(deprecatedParameters.distanceErrorPct);
-            }
-            if (deprecatedParameters.pointsOnly != null) {
-                ft.setPointsOnly(deprecatedParameters.pointsOnly);
-            }
-
             if (ft.treeLevels() == 0 && ft.precisionInMeters() < 0) {
-                ft.setDefaultDistanceErrorPct(DeprecatedParameters.Defaults.DISTANCE_ERROR_PCT);
+                ft.setDefaultDistanceErrorPct(Defaults.DISTANCE_ERROR_PCT);
             }
         }
 
         private void setupPrefixTrees(GeoShapeFieldType ft) {
             SpatialPrefixTree prefixTree;
-            if (ft.tree().equals(DeprecatedParameters.PrefixTrees.GEOHASH)) {
+            if (ft.tree().equals(PrefixTrees.GEOHASH)) {
                 prefixTree = new GeohashPrefixTree(ShapeBuilder.SPATIAL_CONTEXT,
-                    getLevels(ft.treeLevels(), ft.precisionInMeters(), DeprecatedParameters.Defaults.GEOHASH_TREE_LEVELS, true));
-            } else if (ft.tree().equals(DeprecatedParameters.PrefixTrees.LEGACY_QUADTREE)) {
+                    getLevels(ft.treeLevels(), ft.precisionInMeters(), Defaults.GEOHASH_TREE_LEVELS, true));
+            } else if (ft.tree().equals(PrefixTrees.LEGACY_QUADTREE)) {
                 prefixTree = new QuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT,
-                    getLevels(ft.treeLevels(), ft.precisionInMeters(), DeprecatedParameters.Defaults.QUADTREE_LEVELS, false));
-            } else if (ft.tree().equals(DeprecatedParameters.PrefixTrees.QUADTREE)) {
+                    getLevels(ft.treeLevels(), ft.precisionInMeters(), Defaults.QUADTREE_LEVELS, false));
+            } else if (ft.tree().equals(PrefixTrees.QUADTREE)) {
                 prefixTree = new PackedQuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT,
-                    getLevels(ft.treeLevels(), ft.precisionInMeters(), DeprecatedParameters.Defaults.QUADTREE_LEVELS, false));
+                    getLevels(ft.treeLevels(), ft.precisionInMeters(), Defaults.QUADTREE_LEVELS, false));
             } else {
                 throw new IllegalArgumentException("Unknown prefix tree type [" + ft.tree() + "]");
             }
@@ -258,10 +286,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         private GeoShapeFieldType buildFieldType(LegacyGeoShapeParser parser, BuilderContext context) {
             GeoShapeFieldType ft =
-                new GeoShapeFieldType(buildFullName(context), indexed, fieldType.stored(), false, parser, meta);
+                new GeoShapeFieldType(buildFullName(context), indexed.get(), orientation.get().value(), parser, meta.get());
             setupFieldTypeDeprecatedParameters(ft);
             setupPrefixTrees(ft);
-            ft.setOrientation(orientation == null ? Defaults.ORIENTATION.value() : orientation);
             return ft;
         }
 
@@ -281,10 +308,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
             LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
             GeoShapeFieldType ft = buildFieldType(parser, context);
-            return new LegacyGeoShapeFieldMapper(name, fieldType, ft, ignoreMalformed(context),
-                coerce(context), orientation(), ignoreZValue(), context.indexSettings(),
-                multiFieldsBuilder.build(this, context), copyTo,
-                new LegacyGeoShapeIndexer(ft), parser);
+            return new LegacyGeoShapeFieldMapper(name, ft,
+                multiFieldsBuilder.build(this, context), copyTo.build(),
+                new LegacyGeoShapeIndexer(ft), parser, this);
         }
     }
 
@@ -312,9 +338,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType implements GeoShapeQueryable {
 
-        private String tree = DeprecatedParameters.Defaults.TREE;
-        private SpatialStrategy strategy = DeprecatedParameters.Defaults.STRATEGY;
-        private boolean pointsOnly = DeprecatedParameters.Defaults.POINTS_ONLY;
+        private String tree = Defaults.TREE;
+        private SpatialStrategy strategy = Defaults.STRATEGY;
+        private boolean pointsOnly = Defaults.POINTS_ONLY;
         private int treeLevels = 0;
         private double precisionInMeters = -1;
         private Double distanceErrorPct;
@@ -327,14 +353,14 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         private final LegacyGeoShapeQueryProcessor queryProcessor;
 
-        private GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+        private GeoShapeFieldType(String name, boolean indexed, Orientation orientation,
                                   LegacyGeoShapeParser parser, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, false, parser, meta);
+            super(name, indexed, false, false, false, parser, orientation, meta);
             this.queryProcessor = new LegacyGeoShapeQueryProcessor(this);
         }
 
         public GeoShapeFieldType(String name) {
-            this(name, true, false, true, null, Collections.emptyMap());
+            this(name, true, Orientation.RIGHT, null, Collections.emptyMap());
         }
 
         @Override
@@ -427,20 +453,26 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     private final Version indexCreatedVersion;
+    private final Builder builder;
 
-    public LegacyGeoShapeFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                     Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Explicit<Orientation> orientation,
-                                     Explicit<Boolean> ignoreZValue, Settings indexSettings,
+    public LegacyGeoShapeFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                      MultiFields multiFields, CopyTo copyTo,
-                                     LegacyGeoShapeIndexer indexer, LegacyGeoShapeParser parser) {
-        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation,
+                                     LegacyGeoShapeIndexer indexer, LegacyGeoShapeParser parser,
+                                     Builder builder) {
+        super(simpleName, mappedFieldType,
+            builder.ignoreMalformed.get(), builder.coerce.get(), builder.ignoreZValue.get(), builder.orientation.get(),
             multiFields, copyTo, indexer, parser);
-        this.indexCreatedVersion = Version.indexCreated(indexSettings);
+        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.builder = builder;
     }
 
     @Override
     public GeoShapeFieldType fieldType() {
         return (GeoShapeFieldType) super.fieldType();
+    }
+
+    String strategy() {
+        return fieldType().strategy().getStrategyName();
     }
 
     @Override
@@ -459,101 +491,22 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Override
-    protected boolean docValuesByDefault() {
-        return false;
-    }
-
-    @Override
-    public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-
-        if (includeDefaults
-            || (fieldType().tree().equals(DeprecatedParameters.Defaults.TREE)) == false) {
-            builder.field(DeprecatedParameters.Names.TREE.getPreferredName(), fieldType().tree());
-        }
-
-        if (fieldType().treeLevels() != 0) {
-            builder.field(DeprecatedParameters.Names.TREE_LEVELS.getPreferredName(), fieldType().treeLevels());
-        } else if(includeDefaults && fieldType().precisionInMeters() == -1) { // defaults only make sense if precision is not specified
-            if (DeprecatedParameters.PrefixTrees.GEOHASH.equals(fieldType().tree())) {
-                builder.field(DeprecatedParameters.Names.TREE_LEVELS.getPreferredName(),
-                    DeprecatedParameters.Defaults.GEOHASH_TREE_LEVELS);
-            } else if (DeprecatedParameters.PrefixTrees.LEGACY_QUADTREE.equals(fieldType().tree())) {
-                builder.field(DeprecatedParameters.Names.TREE_LEVELS.getPreferredName(),
-                    DeprecatedParameters.Defaults.QUADTREE_LEVELS);
-            } else if (DeprecatedParameters.PrefixTrees.QUADTREE.equals(fieldType().tree())) {
-                builder.field(DeprecatedParameters.Names.TREE_LEVELS.getPreferredName(),
-                    DeprecatedParameters.Defaults.QUADTREE_LEVELS);
-            } else {
-                throw new IllegalArgumentException("Unknown prefix tree type [" + fieldType().tree() + "]");
-            }
-        }
-        if (fieldType().precisionInMeters() != -1) {
-            builder.field(DeprecatedParameters.Names.PRECISION.getPreferredName(),
-                DistanceUnit.METERS.toString(fieldType().precisionInMeters()));
-        } else if (includeDefaults && fieldType().treeLevels() == 0) { // defaults only make sense if tree levels are not specified
-            builder.field(DeprecatedParameters.Names.PRECISION.getPreferredName(),
-                DistanceUnit.METERS.toString(50));
-        }
-
-        if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
-            builder.field(DeprecatedParameters.Names.STRATEGY.getPreferredName(), fieldType().strategy().getStrategyName());
-        }
-
-        if (includeDefaults || fieldType().distanceErrorPct() != fieldType().defaultDistanceErrorPct) {
-            builder.field(DeprecatedParameters.Names.DISTANCE_ERROR_PCT.getPreferredName(), fieldType().distanceErrorPct());
-        }
-        if (fieldType().strategy() == SpatialStrategy.TERM) {
-            // For TERMs strategy the defaults for points only change to true
-            if (includeDefaults || fieldType().pointsOnly() != true) {
-                builder.field(DeprecatedParameters.Names.POINTS_ONLY.getPreferredName(), fieldType().pointsOnly());
-            }
-        } else {
-            if (includeDefaults || fieldType().pointsOnly() != DeprecatedParameters.Defaults.POINTS_ONLY) {
-                builder.field(DeprecatedParameters.Names.POINTS_ONLY.getPreferredName(), fieldType().pointsOnly());
-            }
-        }
-    }
-
-    @Override
-    protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts) {
-
-        if (mergeWith instanceof GeoShapeFieldMapper) {
-            GeoShapeFieldMapper fieldMapper = (GeoShapeFieldMapper) mergeWith;
-            throw new IllegalArgumentException("[" + fieldType().name() + "] with field mapper [" + fieldType().typeName() + "] " +
-                "using [" + fieldType().strategy() + "] strategy cannot be merged with " + "[" + fieldMapper.typeName() +
-                "] with [BKD] strategy");
-        }
-
-        GeoShapeFieldType g = (GeoShapeFieldType)mergeWith.fieldType();
-        // prevent user from changing strategies
-        if (fieldType().strategy() != g.strategy()) {
-            conflicts.add("mapper [" + name() + "] has different [strategy]");
-        }
-
-        // prevent user from changing trees (changes encoding)
-        if (fieldType().tree().equals(g.tree()) == false) {
-            conflicts.add("mapper [" + name() + "] has different [tree]");
-        }
-
-        if (fieldType().pointsOnly() != g.pointsOnly()) {
-            conflicts.add("mapper [" + name() + "] has different points_only");
-        }
-
-        // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
-        // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
-        if (fieldType().treeLevels() != g.treeLevels()) {
-            conflicts.add("mapper [" + name() + "] has different [tree_levels]");
-        }
-        if (fieldType().precisionInMeters() != g.precisionInMeters()) {
-            conflicts.add("mapper [" + name() + "] has different [precision]");
-        }
-
-        this.orientation = mergeWith.orientation;
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), indexCreatedVersion,
+            builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value()).init(this);
+    }
+
+    @Override
+    protected void checkIncomingMergeType(FieldMapper mergeWith) {
+        if (mergeWith instanceof GeoShapeFieldMapper) {
+            throw new IllegalArgumentException("mapper [" + name()
+                + "] of type [geo_shape] cannot change strategy from [" + strategy() + "] to [BKD]");
+        }
+        super.checkIncomingMergeType(mergeWith);
     }
 }

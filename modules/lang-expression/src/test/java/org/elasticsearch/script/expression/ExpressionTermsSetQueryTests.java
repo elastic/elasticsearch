@@ -60,7 +60,7 @@ public class ExpressionTermsSetQueryTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null,
+        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null,
             (ignored, lookup) -> fieldData);
     }
 
@@ -86,14 +86,6 @@ public class ExpressionTermsSetQueryTests extends ESTestCase {
 
     public void testFieldAccess() throws IOException {
         TermsSetQueryScript script = compile("doc['field'].value").newInstance(null);
-        script.setDocument(1);
-
-        double result = script.execute().doubleValue();
-        assertEquals(2.718, result, 0.0);
-    }
-
-    public void testFieldAccessWithFieldAlias() throws IOException {
-        TermsSetQueryScript script = compile("doc['alias'].value").newInstance(null);
         script.setDocument(1);
 
         double result = script.execute().doubleValue();

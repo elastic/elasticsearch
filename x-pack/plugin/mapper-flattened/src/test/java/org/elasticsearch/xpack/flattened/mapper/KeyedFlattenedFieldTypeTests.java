@@ -18,20 +18,20 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
+import org.elasticsearch.xpack.flattened.mapper.FlattenedFieldMapper.KeyedFlattenedFieldType;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
+public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
-    private static KeyedFlatObjectFieldType createFieldType() {
-        return new KeyedFlatObjectFieldType("field", true, true, "key", false, Collections.emptyMap());
+    private static KeyedFlattenedFieldType createFieldType() {
+        return new KeyedFlattenedFieldType("field", true, true, "key", false, Collections.emptyMap());
     }
 
     public void testIndexedValueForSearch() {
-        KeyedFlatObjectFieldType ft = createFieldType();
+        KeyedFlattenedFieldType ft = createFieldType();
 
         BytesRef keywordValue = ft.indexedValueForSearch("value");
         assertEquals(new BytesRef("key\0value"), keywordValue);
@@ -44,17 +44,15 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        KeyedFlatObjectFieldType ft = createFieldType();
+        KeyedFlattenedFieldType ft = createFieldType();
 
         Query expected = new TermQuery(new Term("field", "key\0value"));
         assertEquals(expected, ft.termQuery("value", null));
 
         expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "key\0value"));
         assertEquals(expected, ft.termQueryCaseInsensitive("value", null));
- 
-        
-        
-        KeyedFlatObjectFieldType unsearchable = new KeyedFlatObjectFieldType("field", false, true, "key",
+
+        KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType("field", false, true, "key",
             false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> unsearchable.termQuery("field", null));
@@ -62,7 +60,7 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermsQuery() {
-        KeyedFlatObjectFieldType ft = createFieldType();
+        KeyedFlattenedFieldType ft = createFieldType();
 
         Query expected = new TermInSetQuery("field",
             new BytesRef("key\0value1"),
@@ -77,22 +75,21 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testExistsQuery() {
-        KeyedFlatObjectFieldType ft = createFieldType();
+        KeyedFlattenedFieldType ft = createFieldType();
 
         Query expected = new PrefixQuery(new Term("field", "key\0"));
         assertEquals(expected, ft.existsQuery(null));
     }
 
     public void testPrefixQuery() {
-        KeyedFlatObjectFieldType ft = createFieldType();
+        KeyedFlattenedFieldType ft = createFieldType();
 
         Query expected = new PrefixQuery(new Term("field", "key\0val"));
         assertEquals(expected, ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_QSC));
 
         expected = AutomatonQueries.caseInsensitivePrefixQuery(new Term("field", "key\0vAl"));
         assertEquals(expected, ft.prefixQuery("vAl", MultiTermQuery.CONSTANT_SCORE_REWRITE, true, MOCK_QSC));
-        
-        
+
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
@@ -100,7 +97,7 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFuzzyQuery() {
-        KeyedFlatObjectFieldType ft = createFieldType();
+        KeyedFlattenedFieldType ft = createFieldType();
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, randomMockShardContext()));
@@ -108,7 +105,7 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        KeyedFlatObjectFieldType ft = createFieldType();
+        KeyedFlattenedFieldType ft = createFieldType();
 
         TermRangeQuery expected = new TermRangeQuery("field",
             new BytesRef("key\0lower"),
@@ -137,7 +134,7 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        KeyedFlatObjectFieldType ft = createFieldType();
+        KeyedFlattenedFieldType ft = createFieldType();
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.regexpQuery("valu*", 0, 0, 10, null, randomMockShardContext()));
@@ -145,7 +142,7 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardQuery() {
-        KeyedFlatObjectFieldType ft = createFieldType();
+        KeyedFlattenedFieldType ft = createFieldType();
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.wildcardQuery("valu*", null, false, randomMockShardContext()));

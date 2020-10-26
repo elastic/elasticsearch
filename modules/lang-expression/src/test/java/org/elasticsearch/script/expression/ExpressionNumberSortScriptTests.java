@@ -60,8 +60,7 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null,
-            (ignored, lookup) -> fieldData);
+        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, lookup) -> fieldData);
     }
 
     private NumberSortScript.LeafFactory compile(String expression) {
@@ -86,14 +85,6 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
 
     public void testFieldAccess() throws IOException {
         NumberSortScript script = compile("doc['field'].value").newInstance(null);
-        script.setDocument(1);
-
-        double result = script.execute();
-        assertEquals(2.718, result, 0.0);
-    }
-
-    public void testFieldAccessWithFieldAlias() throws IOException {
-        NumberSortScript script = compile("doc['alias'].value").newInstance(null);
         script.setDocument(1);
 
         double result = script.execute();

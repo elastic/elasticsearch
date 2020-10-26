@@ -501,7 +501,8 @@ public class MetadataIndexTemplateService {
             final Template finalTemplate = new Template(finalSettings,
                 stringMappings == null ? null : new CompressedXContent(stringMappings), innerTemplate.aliases());
             finalIndexTemplate = new ComposableIndexTemplate(template.indexPatterns(), finalTemplate, template.composedOf(),
-                template.priority(), template.version(), template.metadata(), template.getDataStreamTemplate());
+                template.priority(), template.version(), template.metadata(), template.getDataStreamTemplate(),
+                template.getAllowAutoCreate());
         }
 
         if (finalIndexTemplate.equals(existing)) {

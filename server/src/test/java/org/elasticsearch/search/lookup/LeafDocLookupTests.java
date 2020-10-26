@@ -22,7 +22,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -44,14 +43,11 @@ public class LeafDocLookupTests extends ESTestCase {
         when(fieldType.name()).thenReturn("field");
         when(fieldType.valueForDisplay(anyObject())).then(returnsFirstArg());
 
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType("field")).thenReturn(fieldType);
-        when(mapperService.fieldType("alias")).thenReturn(fieldType);
-
         docValues = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData = createFieldData(docValues);
 
-        docLookup = new LeafDocLookup(mapperService::fieldType, ignored -> fieldData, null);
+        docLookup = new LeafDocLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null,
+            ignored -> fieldData, null);
     }
 
     public void testBasicLookup() {

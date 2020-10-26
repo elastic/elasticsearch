@@ -24,10 +24,6 @@ setup:
 ---
 "Create a snapshot and then restore it":
 
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/64152"
-
   - do:
       snapshot.create:
         repository: test_repo_restore_1

@@ -187,15 +187,18 @@ public class AuthorizationService {
             if (auditId == null) {
                 // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
                 // true because the request-id is generated during authentication
-                if (isInternalUser(authentication.getUser()) != false) {
-                    auditId = AuditUtil.getOrGenerateRequestId(threadContext);
-                } else {
-                    auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);
-                    final String message = "Attempt to authorize action [" + action + "] for [" + authentication.getUser().principal()
-                            + "] without an existing request-id";
-                    assert false : message;
-                    listener.onFailure(new ElasticsearchSecurityException(message));
-                }
+                listener.onFailure(new ElasticsearchSecurityException("OOOPS"));
+                return;
+//                if (isInternalUser(authentication.getUser())) {
+//                    auditId = AuditUtil.getOrGenerateRequestId(threadContext);
+//                } else {
+//                    auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);
+//                    final String message = "Attempt to authorize action [" + action + "] for [" + authentication.getUser().principal()
+//                            + "] without an existing request-id";
+//                    assert false : message;
+//                    listener.onFailure(new ElasticsearchSecurityException(message));
+//                    return;
+//                }
             }
 
             // sometimes a request might be wrapped within another, which is the case for proxied

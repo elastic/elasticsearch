@@ -1448,6 +1448,50 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertEmptyLog(logger);
     }
 
+    public void testSecurityConfigChangedEventSelection() {
+        final String requestId = randomRequestId();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final Authentication authentication = createAuthentication();
+        Tuple<String, TransportRequest> actionAndRequest = randomFrom(new Tuple<>(PutUserAction.NAME, new PutUserRequest()),
+                new Tuple<>(PutRoleAction.NAME, new PutRoleRequest()),
+                new Tuple<>(PutRoleMappingAction.NAME, new PutRoleMappingRequest()),
+                new Tuple<>(SetEnabledAction.NAME, new SetEnabledRequest()),
+                new Tuple<>(ChangePasswordAction.NAME, new ChangePasswordRequest()),
+                new Tuple<>(CreateApiKeyAction.NAME, new CreateApiKeyRequest()),
+                new Tuple<>(GrantApiKeyAction.NAME, new GrantApiKeyRequest()),
+                new Tuple<>(PutPrivilegesAction.NAME, new PutPrivilegesRequest()),
+                new Tuple<>(DeleteUserAction.NAME, new DeleteUserRequest()),
+                new Tuple<>(DeleteRoleAction.NAME, new DeleteRoleRequest()),
+                new Tuple<>(DeleteRoleMappingAction.NAME, new DeleteRoleMappingRequest()),
+                new Tuple<>(InvalidateApiKeyAction.NAME, new InvalidateApiKeyRequest()),
+                new Tuple<>(DeletePrivilegesAction.NAME, new DeletePrivilegesRequest())
+        );
+        auditTrail.accessGranted(requestId, authentication, actionAndRequest.v1(), actionAndRequest.v2(), authorizationInfo);
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        assertThat(output.get(1), containsString("security_config_change"));
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        updateLoggerSettings(Settings.builder()
+                .put(settings)
+                .put("xpack.security.audit.logfile.events.exclude", "security_config_change")
+                .build());
+        auditTrail.accessGranted(requestId, authentication, actionAndRequest.v1(), actionAndRequest.v2(), authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(1));
+        assertThat(output.get(0), not(containsString("security_config_change")));
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        updateLoggerSettings(Settings.builder()
+                .put(settings)
+                .put("xpack.security.audit.logfile.events.include", "security_config_change")
+                .put("xpack.security.audit.logfile.events.exclude", "access_granted")
+                .build());
+        auditTrail.accessGranted(requestId, authentication, actionAndRequest.v1(), actionAndRequest.v2(), authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(1));
+        assertThat(output.get(0), containsString("security_config_change"));
+    }
+
     public void testSystemAccessGranted() throws Exception {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));

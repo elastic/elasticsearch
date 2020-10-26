@@ -90,30 +90,30 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
                 " the cluster state that are too slow for a transport thread");
         final ClusterState state = clusterService.state();
         final Metadata metadata = state.metadata();
-        MappingStats mappingStats = null;
-        AnalysisStats analysisStats = null;
+        MappingStats currentMappingStats = null;
+        AnalysisStats currentAnalysisStats = null;
         // check if we already served a stats request for the current metadata version and have the stats cached
         synchronized (statsMutex) {
             if (metadata.version() == metaVersion) {
                 logger.trace("Found cached mapping and analysis stats for metadata version [{}]", metadata.version());
-                mappingStats = this.mappingStats;
-                analysisStats = this.analysisStats;
+                currentMappingStats = this.mappingStats;
+                currentAnalysisStats = this.analysisStats;
             }
         }
-        if (mappingStats == null) {
+        if (currentMappingStats == null) {
             // we didn't find any cached stats so we recompute them outside the mutex since the computation might be expensive for larger
             // cluster states
             logger.trace("Computing mapping and analysis stats for metadata version [{}]", metadata.version());
-            mappingStats = MappingStats.of(metadata);
-            analysisStats = AnalysisStats.of(metadata);
+            currentMappingStats = MappingStats.of(metadata);
+            currentAnalysisStats = AnalysisStats.of(metadata);
             synchronized (statsMutex) {
                 // cache the computed stats unless they became outdated because of a concurrent cluster state update and a concurrent
                 // stats request has already cached a newer version
                 if (metadata.version() > metaVersion) {
                     logger.trace("Caching mapping and analysis stats for metadata version [{}]", metadata.version());
                     metaVersion = metadata.version();
-                    this.mappingStats = mappingStats;
-                    this.analysisStats = analysisStats;
+                    this.mappingStats = currentMappingStats;
+                    this.analysisStats = currentAnalysisStats;
                 }
             }
         }
@@ -123,8 +123,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
             clusterService.getClusterName(),
             responses,
             failures,
-            mappingStats,
-            analysisStats);
+            currentMappingStats,
+            currentAnalysisStats);
     }
 
     @Override

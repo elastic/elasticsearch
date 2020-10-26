@@ -161,16 +161,16 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder> extends
     protected abstract T newBuilder();
 
     public void testMergeConflicts() {
-        Mapper.BuilderContext context = new Mapper.BuilderContext(SETTINGS, new ContentPath(1));
+        ContentPath contentPath = new ContentPath(1);
         T builder1 = newBuilder();
         T builder2 = newBuilder();
         {
-            FieldMapper mapper = (FieldMapper) builder1.build(context);
-            FieldMapper toMerge = (FieldMapper) builder2.build(context);
+            FieldMapper mapper = (FieldMapper) builder1.build(contentPath);
+            FieldMapper toMerge = (FieldMapper) builder2.build(contentPath);
             mapper.merge(toMerge);  // identical mappers should merge with no issue
         }
         {
-            FieldMapper mapper = (FieldMapper) newBuilder().build(context);
+            FieldMapper mapper = (FieldMapper) newBuilder().build(contentPath);
             FieldMapper toMerge = new MockFieldMapper("bogus") {
                 @Override
                 protected String contentType() {
@@ -188,8 +188,8 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder> extends
             builder1 = newBuilder();
             builder2 = newBuilder();
             modifier.apply(builder1, builder2);
-            FieldMapper mapper = (FieldMapper) builder1.build(context);
-            FieldMapper toMerge = (FieldMapper) builder2.build(context);
+            FieldMapper mapper = (FieldMapper) builder1.build(contentPath);
+            FieldMapper toMerge = (FieldMapper) builder2.build(contentPath);
             if (modifier.updateable) {
                 mapper.merge(toMerge);
             } else {
@@ -223,10 +223,10 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder> extends
         IndexService index = createIndex("serialize-" + indexname, getIndexMapperSettings());
         MapperService mapperService = index.mapperService();
 
-        Mapper.BuilderContext context = new Mapper.BuilderContext(SETTINGS, new ContentPath(1));
+        ContentPath contentPath = new ContentPath(1);
 
-        String mappings = mappingsToString(builder.build(context), false);
-        String mappingsWithDefault = mappingsToString(builder.build(context), true);
+        String mappings = mappingsToString(builder.build(contentPath), false);
+        String mappingsWithDefault = mappingsToString(builder.build(contentPath), true);
 
         mapperService.merge("_doc", new CompressedXContent(mappings), MapperService.MergeReason.MAPPING_UPDATE);
 

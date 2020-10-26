@@ -128,7 +128,7 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public abstract MetadataFieldMapper build(BuilderContext context);
+        public abstract MetadataFieldMapper build(ContentPath contentPath);
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {

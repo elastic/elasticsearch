@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -91,7 +90,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         Conflicts conflicts = new Conflicts(name());
         builder.merge((FieldMapper) mergeWith, conflicts);
         conflicts.check();
-        return builder.build(new BuilderContext(Settings.EMPTY, parentPath(name())));
+        return builder.build(parentPath(name()));
     }
 
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
@@ -566,13 +565,13 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         protected abstract List<Parameter<?>> getParameters();
 
         @Override
-        public abstract ParametrizedFieldMapper build(BuilderContext context);
+        public abstract ParametrizedFieldMapper build(ContentPath contentPath);
 
         /**
          * Builds the full name of the field, taking into account parent objects
          */
-        protected String buildFullName(BuilderContext context) {
-            return context.path().pathAsText(name);
+        protected String buildFullName(ContentPath contentPath) {
+            return contentPath.pathAsText(name);
         }
 
         /**

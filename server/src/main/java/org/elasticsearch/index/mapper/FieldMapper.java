@@ -27,7 +27,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
@@ -166,10 +165,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        protected String buildFullName(BuilderContext context) {
-            return context.path().pathAsText(name);
-        }
-
         /** Set metadata on this field. */
         public Builder meta(Map<String, String> meta) {
             this.meta = meta;
@@ -177,7 +172,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         @Override
-        public abstract FieldMapper build(BuilderContext context);
+        public abstract FieldMapper build(ContentPath contentPath);
     }
 
     protected FieldType fieldType;
@@ -524,7 +519,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             public Builder add(Mapper mapper) {
                 mapperBuilders.put(mapper.simpleName(), new Mapper.Builder(mapper.simpleName()) {
                     @Override
-                    public Mapper build(BuilderContext context) {
+                    public Mapper build(ContentPath contentPath) {
                         return mapper;
                     }
                 });
@@ -536,27 +531,27 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     add(toMerge);
                 } else {
                     Mapper.Builder builder = mapperBuilders.get(toMerge.simpleName());
-                    Mapper existing = builder.build(new BuilderContext(Settings.EMPTY, contentPath));
+                    Mapper existing = builder.build(contentPath);
                     add(existing.merge(toMerge));
                 }
                 return this;
             }
 
             @SuppressWarnings("unchecked")
-            public MultiFields build(Mapper.Builder mainFieldBuilder, BuilderContext context) {
+            public MultiFields build(Mapper.Builder mainFieldBuilder, ContentPath contentPath) {
                 if (mapperBuilders.isEmpty()) {
                     return empty();
                 } else {
-                    context.path().add(mainFieldBuilder.name());
+                    contentPath.add(mainFieldBuilder.name());
                     ImmutableOpenMap.Builder mapperBuilders = this.mapperBuilders;
                     for (ObjectObjectCursor<String, Mapper.Builder> cursor : this.mapperBuilders) {
                         String key = cursor.key;
                         Mapper.Builder value = cursor.value;
-                        Mapper mapper = value.build(context);
+                        Mapper mapper = value.build(contentPath);
                         assert mapper instanceof FieldMapper;
                         mapperBuilders.put(key, mapper);
                     }
-                    context.path().remove();
+                    contentPath.remove();
                     ImmutableOpenMap.Builder<String, FieldMapper> mappers = mapperBuilders.cast();
                     return new MultiFields(mappers.build());
                 }

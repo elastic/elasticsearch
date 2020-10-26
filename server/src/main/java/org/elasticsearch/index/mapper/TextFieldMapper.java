@@ -315,7 +315,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 meta);
         }
 
-        private TextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
+        private TextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
@@ -329,7 +329,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 searchQuoteAnalyzer = new NamedAnalyzer(searchQuoteAnalyzer, positionIncrementGap.get());
             }
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
-            TextFieldType ft = new TextFieldType(buildFullName(context), index.getValue(), store.getValue(), tsi, meta.getValue());
+            TextFieldType ft = new TextFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), tsi, meta.getValue());
             ft.setIndexAnalyzer(indexAnalyzer);
             ft.setEagerGlobalOrdinals(eagerGlobalOrdinals.getValue());
             if (fieldData.getValue()) {
@@ -338,7 +338,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return ft;
         }
 
-        private PrefixFieldMapper buildPrefixMapper(BuilderContext context, FieldType fieldType, TextFieldType tft) {
+        private PrefixFieldMapper buildPrefixMapper(ContentPath contentPath, FieldType fieldType, TextFieldType tft) {
             if (indexPrefixes.get() == null) {
                 return null;
             }
@@ -352,7 +352,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
              * or a multi-field). This way search will continue to work on old indices and new indices
              * will use the expected full name.
              */
-            String fullName = indexCreatedVersion.before(Version.V_7_2_1) ? name() : buildFullName(context);
+            String fullName = indexCreatedVersion.before(Version.V_7_2_1) ? name() : buildFullName(contentPath);
             // Copy the index options of the main field to allow phrase queries on
             // the prefix field.
             FieldType pft = new FieldType(fieldType);
@@ -388,12 +388,12 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public TextFieldMapper build(BuilderContext context) {
+        public TextFieldMapper build(ContentPath contentPath) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
-            TextFieldType tft = buildFieldType(fieldType, context);
+            TextFieldType tft = buildFieldType(fieldType, contentPath);
             return new TextFieldMapper(name, fieldType, tft,
-                buildPrefixMapper(context, fieldType, tft), buildPhraseMapper(fieldType, tft),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+                buildPrefixMapper(contentPath, fieldType, tft), buildPhraseMapper(fieldType, tft),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 

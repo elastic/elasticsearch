@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.action.filter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -86,23 +87,24 @@ public class SecurityActionFilter implements ActionFilter {
         if (licenseState.isSecurityEnabled()) {
             final ActionListener<Response> contextPreservingListener =
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
-            final ActionListener<Response> postActionExecutionListener = ActionListener.delegateFailure(contextPreservingListener,
-                    (ignore, response) -> {
-                        String requestId = AuditUtil.extractRequestId(threadContext);
-//                        if (requestId == null) {
-//                            contextPreservingListener.onFailure(new ElasticsearchSecurityException("requestId is missing unexpectedly"));
-//                            return;
-//                        }
-//                        Authentication authentication = securityContext.getAuthentication();
-//                        if (authentication == null) {
-//                            contextPreservingListener.onFailure(new ElasticsearchSecurityException("authn is missing unexpectedly"));
-//                            return;
-//                        }
-//                        auditTrailService.get().actionResponse(requestId, authentication, action, request, response);
-                        contextPreservingListener.onResponse(response);
+            final ActionListener<Void> authenticatedListener = ActionListener.delegateFailure(contextPreservingListener,
+                    (ignore, aVoid) -> {
+                        final String requestId = AuditUtil.extractRequestId(threadContext);
+                        if (requestId == null) {
+                            contextPreservingListener.onFailure(new ElasticsearchSecurityException("requestId is unexpectedly missing"));
+                            return;
+                        }
+                        final Authentication authentication = securityContext.getAuthentication();
+                        if (authentication == null) {
+                            contextPreservingListener.onFailure(new ElasticsearchSecurityException("authn is unexpectedly missing"));
+                            return;
+                        }
+                        chain.proceed(task, action, request, ActionListener.delegateFailure(contextPreservingListener,
+                                (ignore2, response) -> {
+                                    auditTrailService.get().actionResponse(requestId, authentication, action, request, response);
+                                    contextPreservingListener.onResponse(response);
+                                }));
                     });
-            ActionListener<Void> authenticatedListener = ActionListener.wrap(
-                    (aVoid) -> chain.proceed(task, action, request, postActionExecutionListener), postActionExecutionListener::onFailure);
             final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
             try {
                 if (useSystemUser) {

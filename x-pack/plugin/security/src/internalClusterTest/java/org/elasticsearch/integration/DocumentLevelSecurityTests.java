@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -83,7 +84,7 @@ import static org.hamcrest.Matchers.notNullValue;
 @LuceneTestCase.SuppressCodecs("*") // suppress test codecs otherwise test using completion suggester fails
 public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
-    protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
+    protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

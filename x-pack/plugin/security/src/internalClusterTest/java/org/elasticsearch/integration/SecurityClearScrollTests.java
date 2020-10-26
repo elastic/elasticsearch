@@ -12,9 +12,9 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.junit.After;
 import org.junit.Before;
@@ -37,7 +37,8 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(new SecureString("change_me".toCharArray())));
+        final String usersPasswdHashed =
+            new String(getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         return super.configUsers() +
             "allowed_user:" + usersPasswdHashed + "\n" +
             "denied_user:" + usersPasswdHashed + "\n";
@@ -89,7 +90,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
 
     public void testThatClearingAllScrollIdsWorks() throws Exception {
         String user = "allowed_user:change_me";
-        String basicAuth = basicAuthHeaderValue("allowed_user", new SecureString("change_me".toCharArray()));
+        String basicAuth = basicAuthHeaderValue("allowed_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         Map<String, String> headers = new HashMap<>();
         headers.put(SecurityField.USER_SETTING.getKey(), user);
         headers.put(BASIC_AUTH_HEADER, basicAuth);
@@ -103,7 +104,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
 
     public void testThatClearingAllScrollIdsRequirePermissions() throws Exception {
         String user = "denied_user:change_me";
-        String basicAuth = basicAuthHeaderValue("denied_user", new SecureString("change_me".toCharArray()));
+        String basicAuth = basicAuthHeaderValue("denied_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         Map<String, String> headers = new HashMap<>();
         headers.put(SecurityField.USER_SETTING.getKey(), user);
         headers.put(BASIC_AUTH_HEADER, basicAuth);

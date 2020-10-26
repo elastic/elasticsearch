@@ -21,10 +21,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A helper class for {@link FlatObjectFieldMapper} parses a JSON object
+ * A helper class for {@link FlattenedFieldMapper} parses a JSON object
  * and produces a pair of indexable fields for each leaf value.
  */
-class FlatObjectFieldParser {
+class FlattenedFieldParser {
     static final String SEPARATOR = "\0";
     private static final byte SEPARATOR_BYTE = '\0';
 
@@ -36,12 +36,12 @@ class FlatObjectFieldParser {
     private final int ignoreAbove;
     private final String nullValue;
 
-    FlatObjectFieldParser(String rootFieldName,
-                          String keyedFieldName,
-                          MappedFieldType fieldType,
-                          int depthLimit,
-                          int ignoreAbove,
-                          String nullValue) {
+    FlattenedFieldParser(String rootFieldName,
+                         String keyedFieldName,
+                         MappedFieldType fieldType,
+                         int depthLimit,
+                         int ignoreAbove,
+                         String nullValue) {
         this.rootFieldName = rootFieldName;
         this.keyedFieldName = keyedFieldName;
         this.fieldType = fieldType;

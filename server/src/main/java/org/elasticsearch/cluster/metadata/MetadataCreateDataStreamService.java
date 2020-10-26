@@ -162,8 +162,10 @@ public class MetadataCreateDataStreamService {
 
         String fieldName = template.getDataStreamTemplate().getTimestampField();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
-        DataStream newDataStream = new DataStream(request.name, timestampField,
-                Collections.singletonList(firstBackingIndex.getIndex()));
+        DataStream newDataStream =
+            new DataStream(request.name, timestampField,
+                Collections.singletonList(firstBackingIndex.getIndex()), 1L,
+                template.metadata() != null ? Map.copyOf(template.metadata()) : null);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();

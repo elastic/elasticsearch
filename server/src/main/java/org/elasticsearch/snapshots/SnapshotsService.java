@@ -405,7 +405,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public TimeValue timeout() {
-                initializingClones.remove(snapshot);
                 return request.masterNodeTimeout();
             }
         }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);

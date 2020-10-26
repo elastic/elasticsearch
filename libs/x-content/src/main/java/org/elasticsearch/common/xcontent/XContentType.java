@@ -154,8 +154,12 @@ public enum XContentType implements MediaType {
      * This method will return {@code null} if no match is found
      */
     public static XContentType fromMediaType(String mediaTypeHeaderValue) {
-        return ParsedMediaType.parseMediaType(mediaTypeHeaderValue)
-            .toMediaType(mediaTypeRegistry);
+        ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaTypeHeaderValue);
+        if(parsedMediaType!=null){
+            return parsedMediaType
+                .toMediaType(mediaTypeRegistry);
+        }
+        return null;
     }
 
     private int index;

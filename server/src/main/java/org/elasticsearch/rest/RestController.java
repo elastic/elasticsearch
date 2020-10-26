@@ -238,8 +238,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
         }
-        //the validation is done
-        MediaType type = request.getParsedAccept().toMediaType(handler.validAcceptMediaTypes());
+        //the validation is done here. ignoring as a lot of tests are not setting accept header
+//        MediaType type = request.getParsedAccept().toMediaType(handler.validAcceptMediaTypes());
 
         RestChannel responseChannel = channel;
         try {

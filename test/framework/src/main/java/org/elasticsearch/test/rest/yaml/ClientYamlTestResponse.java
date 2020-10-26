@@ -53,6 +53,7 @@ public class ClientYamlTestResponse {
         this.response = response;
         if (response.getEntity() != null) {
             String contentType = response.getHeader("Content-Type");
+            //todo pg this does not know about sql media types. relies on null
             this.bodyContentType = XContentType.fromMediaType(contentType);
             try {
                 byte[] bytes = EntityUtils.toByteArray(response.getEntity());

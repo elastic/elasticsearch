@@ -172,13 +172,15 @@ public class AggregateDoubleMetricFieldMapper extends ParametrizedFieldMapper {
                 }
 
                 if (metrics.getValue().contains(defaultMetric.getValue()) == false) {
-                    throw new IllegalArgumentException("Property [" + Names.DEFAULT_METRIC + "] must be set for field [" + name() + "].");
+                    throw new IllegalArgumentException("Property [" + Names.DEFAULT_METRIC + "] is required for field [" + name() + "].");
                 }
             }
 
             if (metrics.getValue().contains(defaultMetric.getValue()) == false) {
                 // The default_metric is not defined in the "metrics" field
-                throw new IllegalArgumentException("Metric [" + defaultMetric.getValue() + "] is not defined in the metrics field.");
+                throw new IllegalArgumentException(
+                    "Default metric [" + defaultMetric.getValue() + "] is not defined in the metrics of field [" + name() + "]."
+                );
             }
 
             EnumMap<Metric, NumberFieldMapper> metricMappers = new EnumMap<>(Metric.class);

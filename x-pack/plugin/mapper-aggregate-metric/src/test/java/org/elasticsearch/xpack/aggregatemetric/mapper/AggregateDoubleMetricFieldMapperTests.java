@@ -392,7 +392,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                 fieldMapping(b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "value_count", "sum" }))
             )
         );
-        assertThat(e.getMessage(), containsString("Property [default_metric] must be set for field [field]."));
+        assertThat(e.getMessage(), containsString("Property [default_metric] is required for field [field]."));
     }
 
     /**
@@ -427,7 +427,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                 )
             )
         );
-        assertThat(e.getMessage(), containsString("Metric [min] is not defined in the metrics field."));
+        assertThat(e.getMessage(), containsString("Default metric [min] is not defined in the metrics of field [field]."));
     }
 
     /**

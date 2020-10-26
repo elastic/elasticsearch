@@ -60,6 +60,10 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         }
     }
 
+    /**
+     * Temporary parse method that takes into account the date format. We'll
+     * remove this when we have "native" source parsing fields.
+     */
     public static class Parse {
         private final DateFieldScript script;
 

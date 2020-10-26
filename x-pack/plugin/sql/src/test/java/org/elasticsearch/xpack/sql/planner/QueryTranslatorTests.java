@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -77,6 +78,7 @@ import org.junit.BeforeClass;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -980,6 +982,39 @@ public class QueryTranslatorTests extends ESTestCase {
         TermsQuery tq = (TermsQuery) query;
         assertEquals("{\"terms\":{\"keyword\":[\"foo\",\"lala\"],\"boost\":1.0}}",
             tq.asBuilder().toString().replaceAll("\\s", ""));
+    }
+
+    public void testTranslateInExpression_WhereClause_Datetime() {
+        ZoneId zoneId = randomZone();
+        String[] dates = {"2002-02-02T02:02:02.222Z", "2003-03-03T03:03:03.333Z"};
+        LogicalPlan p = plan("SELECT * FROM test WHERE date IN ('" + dates[0] + "'::datetime, '" + dates[1] + "'::datetime)", zoneId);
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = translate(condition);
+
+        Query query = translation.query;
+        assertTrue(query instanceof BoolQuery);
+        BoolQuery bq = (BoolQuery) query;
+        assertFalse(bq.isAnd());
+        assertTrue(bq.left() instanceof RangeQuery);
+        assertTrue(bq.right() instanceof RangeQuery);
+        List<Tuple<String, RangeQuery>> tuples = Arrays.asList(new Tuple<>(dates[0], (RangeQuery)bq.left()),
+            new Tuple<>(dates[1], (RangeQuery) bq.right()));
+
+        for (Tuple<String, RangeQuery> t: tuples) {
+            String date = t.v1();
+            RangeQuery rq = t.v2();
+
+            assertEquals("date", rq.field());
+            assertEquals(date, rq.upper().toString());
+            assertEquals(date, rq.lower().toString());
+            assertEquals(zoneId, rq.zoneId());
+            assertTrue(rq.includeLower());
+            assertTrue(rq.includeUpper());
+            assertEquals(DATE_FORMAT, rq.format());
+        }
     }
 
     public void testTranslateInExpression_WhereClause_Painless() {

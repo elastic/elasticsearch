@@ -102,9 +102,9 @@ public final class InFlightShardSnapshotStates {
     }
 
     private static boolean assertGenerationConsistency(Map<String, Map<Integer, String>> generations, String indexName,
-                                                       int shardId, String activeGeneration) {
+                                                       int shardId, @Nullable String activeGeneration) {
         final String bestGeneration = generations.getOrDefault(indexName, Collections.emptyMap()).get(shardId);
-        assert bestGeneration == null || activeGeneration.equals(bestGeneration);
+        assert bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration);
         return true;
     }
 

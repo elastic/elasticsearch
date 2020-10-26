@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class FlatObjectSearchTests extends ESSingleNodeTestCase {
+public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(FlattenedMapperPlugin.class, LocalStateCompositeXPackPlugin.class);
@@ -61,7 +61,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("_doc")
                 .startObject("properties")
-                    .startObject("flat_object")
+                    .startObject("flattened")
                         .field("type", "flattened")
                         .field("split_queries_on_whitespace", true)
                     .endObject()
@@ -145,7 +145,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("flat_object")
+                    .startObject("flattened")
                         .field("field1", "value")
                         .field("field2", "2.718")
                     .endObject()
@@ -153,19 +153,19 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
             .get();
 
         SearchResponse response = client().prepareSearch("test")
-            .setQuery(queryStringQuery("flat_object.field1:value"))
+            .setQuery(queryStringQuery("flattened.field1:value"))
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
 
         response = client().prepareSearch("test")
-            .setQuery(queryStringQuery("flat_object.field1:value AND flat_object:2.718"))
+            .setQuery(queryStringQuery("flattened.field1:value AND flattened:2.718"))
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
 
         response = client().prepareSearch("test")
-            .setQuery(queryStringQuery("2.718").field("flat_object.field2"))
+            .setQuery(queryStringQuery("2.718").field("flattened.field2"))
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
@@ -176,7 +176,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("flat_object")
+                    .startObject("flattened")
                         .field("field1", "value")
                         .field("field2", "2.718")
                     .endObject()
@@ -184,19 +184,19 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
             .get();
 
         SearchResponse response = client().prepareSearch("test")
-            .setQuery(simpleQueryStringQuery("value").field("flat_object.field1"))
+            .setQuery(simpleQueryStringQuery("value").field("flattened.field1"))
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
 
         response = client().prepareSearch("test")
-            .setQuery(simpleQueryStringQuery("+value +2.718").field("flat_object"))
+            .setQuery(simpleQueryStringQuery("+value +2.718").field("flattened"))
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
 
         response = client().prepareSearch("test")
-            .setQuery(simpleQueryStringQuery("+value +3.141").field("flat_object"))
+            .setQuery(simpleQueryStringQuery("+value +3.141").field("flattened"))
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 0);
@@ -236,12 +236,12 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         BulkRequestBuilder bulkRequest = client().prepareBulk("test")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
 
-        // Add a random number of documents containing a flat object field, plus
+        // Add a random number of documents containing a flattened field, plus
         // a small number of dummy documents.
         for (int i = 0; i < numDocs; ++i) {
             bulkRequest.add(client().prepareIndex()
                 .setSource(XContentFactory.jsonBuilder().startObject()
-                    .startObject("flat_object")
+                    .startObject("flattened")
                         .field("first", i)
                         .field("second", i / 2)
                     .endObject()
@@ -256,22 +256,22 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         BulkResponse bulkResponse = bulkRequest.get();
         assertNoFailures(bulkResponse);
 
-        // Test the root flat object field.
+        // Test the root flattened field.
         SearchResponse response = client().prepareSearch("test")
             .addAggregation(cardinality("cardinality")
                 .precisionThreshold(precisionThreshold)
-                .field("flat_object"))
+                .field("flattened"))
             .get();
 
         assertSearchResponse(response);
         Cardinality count = response.getAggregations().get("cardinality");
         assertCardinality(count, numDocs, precisionThreshold);
 
-        // Test two keyed flat object fields.
+        // Test two keyed flattened fields.
         SearchResponse firstResponse = client().prepareSearch("test")
             .addAggregation(cardinality("cardinality")
                 .precisionThreshold(precisionThreshold)
-                .field("flat_object.first"))
+                .field("flattened.first"))
             .get();
         assertSearchResponse(firstResponse);
 
@@ -281,7 +281,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         SearchResponse secondResponse = client().prepareSearch("test")
             .addAggregation(cardinality("cardinality")
                 .precisionThreshold(precisionThreshold)
-                .field("flat_object.second"))
+                .field("flattened.second"))
             .get();
         assertSearchResponse(secondResponse);
 
@@ -400,7 +400,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("flat_object")
+                .startObject("flattened")
                 .field("key", "value")
                 .field("other_key", "other_value")
                 .endObject()
@@ -408,20 +408,20 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
             .get();
 
         SearchResponse response = client().prepareSearch("test")
-            .addDocValueField("flat_object")
-            .addDocValueField("flat_object.key")
+            .addDocValueField("flattened")
+            .addDocValueField("flattened.key")
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
 
         Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
 
-        DocumentField field = fields.get("flat_object");
-        assertEquals("flat_object", field.getName());
+        DocumentField field = fields.get("flattened");
+        assertEquals("flattened", field.getName());
         assertEquals(Arrays.asList("other_value", "value"), field.getValues());
 
-        DocumentField keyedField = fields.get("flat_object.key");
-        assertEquals("flat_object.key", keyedField.getName());
+        DocumentField keyedField = fields.get("flattened.key");
+        assertEquals("flattened.key", keyedField.getName());
         assertEquals("value", keyedField.getValue());
     }
 
@@ -430,7 +430,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("flat_object")
+                .startObject("flattened")
                 .field("key", "A")
                 .field("other_key", "D")
                 .endObject()
@@ -441,7 +441,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("flat_object")
+                .startObject("flattened")
                 .field("key", "B")
                 .field("other_key", "C")
                 .endObject()
@@ -452,28 +452,28 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("flat_object")
+                .startObject("flattened")
                 .field("other_key", "E")
                 .endObject()
                 .endObject())
             .get();
 
         SearchResponse response = client().prepareSearch("test")
-            .addSort("flat_object", SortOrder.DESC)
+            .addSort("flattened", SortOrder.DESC)
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 3);
         assertOrderedSearchHits(response, "3", "1", "2");
 
         response = client().prepareSearch("test")
-            .addSort("flat_object.key", SortOrder.DESC)
+            .addSort("flattened.key", SortOrder.DESC)
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 3);
         assertOrderedSearchHits(response, "2", "1", "3");
 
         response = client().prepareSearch("test")
-            .addSort(new FieldSortBuilder("flat_object.key").order(SortOrder.DESC).missing("Z"))
+            .addSort(new FieldSortBuilder("flattened.key").order(SortOrder.DESC).missing("Z"))
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 3);

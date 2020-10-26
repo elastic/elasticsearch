@@ -471,7 +471,7 @@ PUT /_index_template/new-data-stream-template
 create the new data stream. The name of the data stream must match the index
 pattern defined in the new template's `index_patterns` property.
 +
-We do not recommend <<index-documents-to-create-a-data-stream,indexing new data
+We do not recommend <<create-a-data-stream,indexing new data
 to create this data stream>>. Later, you will reindex older data from an
 existing data stream into this new stream. This could result in one or more
 backing indices that contains a mix of new and old data.

@@ -134,8 +134,7 @@ Universally unique identifier (UUID) for the index.
 `generation`::
 (integer)
 Current <<data-streams-generation,generation>> for the data stream. This number
-acts as a cumulative count of the stream's backing indices, including
-deleted indices.
+acts as a cumulative count of the stream's rollovers, starting at `1`.
 
 `status`::
 (string)

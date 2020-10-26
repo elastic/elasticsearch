@@ -101,44 +101,6 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         testExpiredDeletion(null, 10010);
     }
 
-    /**
-     * Verifies empty state indices deletion. Here is the summary of indices used by the test:
-     *
-     * +------------------+--------+----------+-------------------------+
-     * | index name       | empty? | current? | expected to be removed? |
-     * +------------------+--------+----------+-------------------------+
-     * | .ml-state        | yes    | no       | yes                     |
-     * | .ml-state-000001 | no     | no       | no                      |
-     * | .ml-state-000003 | yes    | no       | yes                     |
-     * | .ml-state-000005 | no     | no       | no                      |
-     * | .ml-state-000007 | yes    | yes      | no                      |
-     * +------------------+--------+----------+-------------------------+
-     */
-    public void testDeleteExpiredDataActionDeletesEmptyStateIndices() throws Exception {
-        client().admin().indices().prepareCreate(".ml-state").get();
-        client().admin().indices().prepareCreate(".ml-state-000001").get();
-        client().prepareIndex(".ml-state-000001").setSource("field_1", "value_1").get();
-        client().admin().indices().prepareCreate(".ml-state-000003").get();
-        client().admin().indices().prepareCreate(".ml-state-000005").get();
-        client().prepareIndex(".ml-state-000005").setSource("field_5", "value_5").get();
-        client().admin().indices().prepareCreate(".ml-state-000007").addAlias(new Alias(".ml-state-write").isHidden(true)).get();
-        refresh();
-
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(".ml-state*").get();
-        assertThat(Strings.toString(getIndexResponse),
-            getIndexResponse.getIndices(),
-            is(arrayContaining(".ml-state", ".ml-state-000001", ".ml-state-000003", ".ml-state-000005", ".ml-state-000007")));
-
-        client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
-        refresh();
-
-        getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(".ml-state*").get();
-        assertThat(Strings.toString(getIndexResponse),
-            getIndexResponse.getIndices(),
-            // Only non-empty or current indices should survive deletion process
-            is(arrayContaining(".ml-state-000001", ".ml-state-000005", ".ml-state-000007")));
-    }
-
     @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/62699")
     public void testDeleteExpiredDataWithStandardThrottle() throws Exception {
         testExpiredDeletion(-1.0f, 100);

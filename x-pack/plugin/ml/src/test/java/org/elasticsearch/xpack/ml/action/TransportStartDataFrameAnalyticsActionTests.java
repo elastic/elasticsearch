@@ -220,6 +220,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                 Sets.newHashSet(
                     MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
                     MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                    MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
                     MachineLearning.MAX_LAZY_ML_NODES,
                     MachineLearning.MAX_OPEN_JOBS_PER_NODE));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);

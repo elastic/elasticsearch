@@ -277,7 +277,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            a -> new DataStreamTemplate());
+            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0]));
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);

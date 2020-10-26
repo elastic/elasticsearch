@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,6 +36,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -106,8 +108,12 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
         ClusterState currentState,
         DeleteDataStreamAction.Request request
     ) {
+        IndicesOptions options = request.indicesOptions();
+        EnumSet<IndicesOptions.WildcardStates> expandWildcards = options.getExpandWildcards();
+        expandWildcards.add(IndicesOptions.WildcardStates.OPEN);
+        options = new IndicesOptions(options.getOptions(), expandWildcards);
         Set<String> dataStreams = new HashSet<>(
-            indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.getNames())
+            indexNameExpressionResolver.dataStreamNames(currentState, options, request.getNames())
         );
         Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(currentState, dataStreams);
 

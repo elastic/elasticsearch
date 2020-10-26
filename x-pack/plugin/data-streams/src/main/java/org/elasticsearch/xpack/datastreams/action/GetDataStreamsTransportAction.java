@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -98,7 +100,11 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         IndexNameExpressionResolver iner,
         GetDataStreamAction.Request request
     ) {
-        List<String> results = iner.dataStreamNames(clusterState, request.indicesOptions(), request.getNames());
+        IndicesOptions options = request.indicesOptions();
+        EnumSet<IndicesOptions.WildcardStates> expandWildcards = options.getExpandWildcards();
+        expandWildcards.add(IndicesOptions.WildcardStates.OPEN);
+        options = new IndicesOptions(options.getOptions(), expandWildcards);
+        List<String> results = iner.dataStreamNames(clusterState, options, request.getNames());
         Map<String, DataStream> dataStreams = clusterState.metadata().dataStreams();
 
         return results.stream().map(dataStreams::get).sorted(Comparator.comparing(DataStream::getName)).collect(Collectors.toList());

@@ -28,13 +28,11 @@ Other versions:
 [[indexing-speed-improvement]]
 ===  Indexing speed improvement
 
-{es} 7.10 improves the indexing speed by 5-20%, depending on your workload.
-We've reduced the amount of coordination needed to add entries to the
-<<index-modules-translog,transaction log>>, enabling more concurrency, and
-incresed the transaction log buffer size from `8KB` to `1MB`.
-
-The performance gains are lower in intensive analysis scenarios (ie. full-text
-search analysis).
+{es} 7.10 improves indexing speed by 5-20%. We've reduced the coordination
+needed to add entries to the <<index-modules-translog,transaction log>>. This
+reduction allows for more concurrency and increases the transaction log buffer
+size from `8KB` to `1MB`. However, performance gains are lower for
+full-text search and other analysis-intensive use cases.
 
 [discrete]
 [[more-space-efficient-indices]]

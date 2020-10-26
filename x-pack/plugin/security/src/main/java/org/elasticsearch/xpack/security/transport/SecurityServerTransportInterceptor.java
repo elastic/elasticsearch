@@ -238,6 +238,17 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 @Override
                 protected void doRun() throws Exception {
+                    // extract the requestId and the authentication from the threadContext before executing the action
+                    final String requestId = AuditUtil.extractRequestId(threadContext);
+                    if (requestId == null) {
+                        channel.sendResponse(new ElasticsearchSecurityException("requestId is unexpectedly missing"));
+                        return;
+                    }
+                    final Authentication authentication = securityContext.getAuthentication();
+                    if (authentication == null) {
+                        channel.sendResponse(new ElasticsearchSecurityException("authn is unexpectedly missing"));
+                        return;
+                    }
                     handler.messageReceived(request, new TransportChannel() {
 
                         @Override
@@ -257,16 +268,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                         @Override
                         public void sendResponse(TransportResponse response) throws IOException {
-                            String requestId = AuditUtil.extractRequestId(threadContext);
-                            if (requestId == null) {
-                                channel.sendResponse(new ElasticsearchSecurityException("requestId is missing unexpectedly"));
-                                return;
-                            }
-                            Authentication authentication = securityContext.getAuthentication();
-                            if (authentication == null) {
-                                channel.sendResponse(new ElasticsearchSecurityException("authn is missing unexpectedly"));
-                                return;
-                            }
                             auditTrailService.get().actionResponse(requestId, authentication, action, request, response);
                             channel.sendResponse(response);
                         }

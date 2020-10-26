@@ -89,6 +89,7 @@ public class SecurityActionFilter implements ActionFilter {
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
             final ActionListener<Void> authenticatedListener = ActionListener.delegateFailure(contextPreservingListener,
                     (ignore, aVoid) -> {
+                        // extract the requestId and the authentication from the threadContext before executing the action
                         final String requestId = AuditUtil.extractRequestId(threadContext);
                         if (requestId == null) {
                             contextPreservingListener.onFailure(new ElasticsearchSecurityException("requestId is unexpectedly missing"));

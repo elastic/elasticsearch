@@ -386,10 +386,17 @@ public class RestoreService implements ClusterStateApplier {
                                             aliases.add(alias.value);
                                         }
                                     }
-                                    indexMdBuilder.settings(Settings.builder()
-                                        .put(snapshotIndexMetadata.getSettings())
-                                        .put(IndexMetadata.SETTING_INDEX_UUID, currentIndexMetadata.getIndexUUID())
-                                        .put(IndexMetadata.SETTING_HISTORY_UUID, UUIDs.randomBase64UUID()));
+                                    final Settings.Builder indexSettingsBuilder = Settings.builder()
+                                            .put(snapshotIndexMetadata.getSettings())
+                                            .put(IndexMetadata.SETTING_INDEX_UUID, currentIndexMetadata.getIndexUUID());
+                                    // Only add a restore uuid if either all nodes in the cluster support it (version >= 7.9) or if the
+                                    // index itself was created after 7.9 and thus won't be restored to a node that doesn't support the
+                                    // setting anyway
+                                    if (snapshotIndexMetadata.getCreationVersion().onOrAfter(Version.V_7_9_0) ||
+                                            currentState.nodes().getMinNodeVersion().onOrAfter(Version.V_7_9_0)) {
+                                        indexSettingsBuilder.put(SETTING_HISTORY_UUID, UUIDs.randomBase64UUID());
+                                    }
+                                    indexMdBuilder.settings(indexSettingsBuilder);
                                     IndexMetadata updatedIndexMetadata = indexMdBuilder.index(renamedIndexName).build();
                                     rtBuilder.addAsRestore(updatedIndexMetadata, recoverySource);
                                     blocks.updateBlocks(updatedIndexMetadata);

@@ -72,10 +72,6 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         this(name, timeStampField, indices, indices.size(), null);
     }
 
-    public DataStream(String name, TimestampField timeStampField, List<Index> indices, boolean hidden) {
-        this(name, timeStampField, indices, indices.size(), hidden);
-    }
-
     public String getName() {
         return name;
     }

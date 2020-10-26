@@ -40,7 +40,7 @@ public class MergedPointRangeQuery extends Query {
         Integer upperCmp = compareAllDims(lhs.getUpperPoint(), rhs.getUpperPoint(), lhs.getNumDims(), lhs.getBytesPerDim());
         if (upperCmp == null) {
             // Not all dimensions compared the same way.
-            return null;
+            return null;   // NOCOMMIT it shouldn't matter - we can just merge them anyway
         }
         if (lowerCmp == 1 && upperCmp == 1) {
             // The points are the same.
@@ -71,7 +71,7 @@ public class MergedPointRangeQuery extends Query {
     private final BooleanQuery delegateForMultiValuedSegments;
     private final PointRangeQuery mostCompactQuery;
 
-    public MergedPointRangeQuery(PointRangeQuery lhs, PointRangeQuery rhs, PointRangeQuery mostCompactQuery) {
+    private MergedPointRangeQuery(PointRangeQuery lhs, PointRangeQuery rhs, PointRangeQuery mostCompactQuery) {
         field = lhs.getField();
         delegateForMultiValuedSegments = new BooleanQuery.Builder().add(lhs, Occur.MUST).add(rhs, Occur.MUST).build();
         this.mostCompactQuery = mostCompactQuery;
@@ -173,6 +173,7 @@ public class MergedPointRangeQuery extends Query {
                 // This dimension has the same value.
                 continue;
             }
+            // TODO can't we merge these here instead of give up?
             if ((runningCmp ^ cmp) < 0) {
                 // Signs differ so this dimension doesn't compare the same way as the previous ones so we can't merge.
                 return null;

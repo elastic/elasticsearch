@@ -112,9 +112,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
         EnumSet<IndicesOptions.WildcardStates> expandWildcards = options.getExpandWildcards();
         expandWildcards.add(IndicesOptions.WildcardStates.OPEN);
         options = new IndicesOptions(options.getOptions(), expandWildcards);
-        Set<String> dataStreams = new HashSet<>(
-            indexNameExpressionResolver.dataStreamNames(currentState, options, request.getNames())
-        );
+        Set<String> dataStreams = new HashSet<>(indexNameExpressionResolver.dataStreamNames(currentState, options, request.getNames()));
         Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(currentState, dataStreams);
 
         if (dataStreams.isEmpty()) {

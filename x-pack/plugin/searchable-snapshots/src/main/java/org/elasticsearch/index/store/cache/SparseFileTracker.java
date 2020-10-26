@@ -14,7 +14,6 @@ import org.elasticsearch.common.collect.Tuple;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -59,7 +58,7 @@ public class SparseFileTracker {
                     continue;
                 }
                 if (completedRanges == null) {
-                    completedRanges = new LinkedList<>();
+                    completedRanges = new ArrayList<>();
                 }
                 completedRanges.add(Tuple.tuple(range.start, range.end));
             }

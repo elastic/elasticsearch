@@ -54,6 +54,8 @@ if (BuildParams.inFipsJvm) {
           systemProperty 'javax.net.ssl.keyStorePassword', 'password'
           systemProperty 'javax.net.ssl.keyStoreType', 'BCFKS'
           systemProperty 'org.bouncycastle.fips.approved_only', 'true'
+          setting 'xpack.security.fips_mode.enabled', 'true'
+          setting 'xpack.security.authc.password_hashing.algorithm', 'PBKDF2'
         }
       }
       project.tasks.withType(Test).configureEach { Test task ->

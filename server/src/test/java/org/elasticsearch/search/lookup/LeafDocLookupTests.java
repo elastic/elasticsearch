@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -53,7 +53,7 @@ public class LeafDocLookupTests extends ESTestCase {
         docValues = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData = createFieldData(docValues);
 
-        docLookup = new LeafDocLookup(mapperService,
+        docLookup = new LeafDocLookup(mapperService::fieldType,
             ignored -> fieldData,
             new String[] { "type" },
             null);

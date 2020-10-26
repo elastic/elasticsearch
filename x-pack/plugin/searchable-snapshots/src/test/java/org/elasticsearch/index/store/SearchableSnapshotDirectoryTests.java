@@ -93,6 +93,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.hamcrest.Matcher;
@@ -120,6 +121,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -628,7 +630,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 Releasables.close(releasables);
             }
         } finally {
-            terminate(threadPool);
+            terminateSafely(threadPool);
         }
     }
 
@@ -745,7 +747,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     }
                 }
             } finally {
-                terminate(threadPool);
+                terminateSafely(threadPool);
             }
         }
     }
@@ -941,6 +943,17 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         return recoveryState;
     }
 
+    // Wait for all operations on the threadpool to complete to make sure we don't leak any reference count releasing and then shut it down
+    private static void terminateSafely(ThreadPool threadPool) throws Exception {
+        assertBusy(() -> {
+            for (ThreadPoolStats.Stats stat : threadPool.stats()) {
+                assertEquals(stat.getActive(), 0);
+                assertEquals(stat.getQueue(), 0);
+            }
+        });
+        assertTrue(ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+    }
+
     private static class FaultyReadsFileSystem extends FilterFileSystemProvider {
         FaultyReadsFileSystem(FileSystem inner) {
             super("faulty_fs://", inner);
@@ -957,5 +970,4 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             };
         }
     }
-
 }

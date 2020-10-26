@@ -11,10 +11,10 @@ https://attack.mitre.org/techniques/T1218/010/[regsvr32 misuse] in Windows event
 logs.
 
 `regsvr32.exe` is a built-in command-line utility used to register `.dll`
-libraries in Windows. As a native tool, `regsvr32.exe` has a trusted status in
-Windows, letting it bypass most allowlist software and script blockers.
+libraries in Windows. As a native tool, `regsvr32.exe` has a trusted status,
+letting it bypass most allowlist software and script blockers.
 Attackers with access to a user's command line can use `regsvr32.exe` to run
-malicious scripts using `.dll` libraries, even on machines that otherwise
+malicious scripts via `.dll` libraries, even on machines that otherwise
 disallow such scripts.
 
 One common variant of regsvr32 misuse is a
@@ -31,19 +31,16 @@ register and run a remote script. These commands often look like this:
 [[eql-ex-threat-detection-setup]]
 === Setup
 
-This tutorial uses a test dataset for regsvr32 misuse from
-https://github.com/redcanaryco/atomic-red-team[Atomic Red Team]. The dataset has
-been normalized and mapped to use fields from the {ecs-ref}[Elastic Common
-Schema (ECS)], including the `@timestamp` and `event.category` fields. The
-dataset includes events that imitate behaviors of a Squiblydoo attack, as
-documented in the https://attack.mitre.org[MITRE ATT&CK®] knowledge base.
+This tutorial uses a test dataset from
+https://github.com/redcanaryco/atomic-red-team[Atomic Red Team] that includes
+events imitating a Squiblydoo attack. The data has been mapped to
+{ecs-ref}[Elastic Common Schema (ECS)] fields.
 
-To get started, download and index the dataset:
+To get started:
 
-. Download the https://raw.githubusercontent.com/elastic/elasticsearch/{branch}/docs/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json[`normalized-T1117-AtomicRed-regsvr32.json`] dataset.
+. Download https://raw.githubusercontent.com/elastic/elasticsearch/{branch}/docs/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json[`normalized-T1117-AtomicRed-regsvr32.json`].
 
-. Index the data into `my-index-000001` with the following <<docs-bulk,bulk
-API>> request:
+. Use the <<docs-bulk,bulk API>> to index the data:
 +
 [source,sh]
 ----
@@ -51,8 +48,7 @@ curl -H "Content-Type: application/json" -XPOST "localhost:9200/my-index-000001/
 ----
 // NOTCONSOLE
 
-. Use the <<cat-indices,cat indices API>> to verify the data was successfully
-indexed.
+. Use the <<cat-indices,cat indices API>> to verify the data was indexed:
 +
 [source,console]
 ----
@@ -60,8 +56,7 @@ GET /_cat/indices/my-index-000001?v&h=health,status,index,docs.count
 ----
 // TEST[setup:atomic_red_regsvr32]
 +
-The API response should show a `docs.count` value of `150`, indicating 150
-documents were indexed.
+The response should show a `docs.count` of `150`.
 +
 [source,txt]
 ----
@@ -74,14 +69,7 @@ yellow open   my-index-000001         150
 [[eql-ex-get-a-count-of-regsvr32-events]]
 === Get a count of regsvr32 events
 
-Since you're looking for regsvr32 misuse, start by getting a count of any
-events associated with a `regsvr32.exe` process.
-
-The following <<eql-search-api,EQL search API>> request uses an EQL query to
-retrieve a count of events with a `process.name` of `regsvr32.exe`. The query
-starts with the <<eql-syntax-match-any-event-category,`any where` keywords>>,
-meaning the query can match events of any <<eql-required-fields,event
-category>>.
+First, get a count of events associated with a `regsvr32.exe` process:
 
 [source,console]
 ----
@@ -95,15 +83,13 @@ GET /my-index-000001/_eql/search?filter_path=-hits.events   <1>
 ----
 // TEST[setup:atomic_red_regsvr32]
 
-<1> Uses the `?filter_path=-hits.events` query parameter to exclude the
-`hits.events` property from the response. The `hits.events` property contains
-the document source for any matching events. This request is intended to
-retrieve a count of events only.
-<2> Uses an EQL query to match events with a `process.name` of `regsvr32.exe`.
-<3> Returns up to 200 events or sequences matching the EQL query.
+<1> `?filter_path=-hits.events` excludes the `hits.events` property from the
+response. This search is only intended to get an event count, not a list of
+matching events.
+<2> Matches any event with a `process.name` of `regsvr32.exe`.
+<3> Returns up to 200 hits for matching events.
 
-The request returns the following response, indicating that 143 events match the
-query.
+The response returns 143 related events.
 
 [source,console-result]
 ----
@@ -126,21 +112,9 @@ query.
 [[eql-ex-check-for-command-line-artifacts]]
 === Check for command line artifacts
 
-Based on your previous query, you know regsvr32 processes were associated with
-143 events. But how was `regsvr32.exe` first called? And who called it?
-
-`regsvr32.exe` is a command-line utility so it may help to narrow your results
-to processes where the command line was used.
-
-Update the previous EQL query as follows:
-
-* Change the `any` keyword to `process`. This limits matches to events with an
-`event.category` of `process`.
-* Add the `and process.command_line.keyword != null` condition to match only
-events with a command line value.
-
-You'll also need to remove the `filter_path=-hits.events` query parameter. This
-lets you retrieve the document source for any matching events.
+`regsvr32.exe` processes were associated with 143 events. But how was
+`regsvr32.exe` first called? And who called it? `regsvr32.exe` is a command-line
+utility. Narrow your results to processes where the command line was used:
 
 [source,console]
 ----
@@ -153,16 +127,10 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:atomic_red_regsvr32]
 
-The query matches one process event. The event has an `event.type` of
-`creation`, indicating the start of a `regsvr32.exe` process.
-
-Based on the `process.command_line` value in the response, `regsvr32.exe` used
-`scrobj.dll` to register a script, `RegSvr32.sct`. This fits the behavior of a
-Squiblydoo attack.
-
-The response also includes other valuable information about how the
-`regsvr32.exe` process started, such as the `@timestamp`, the associated
-`user.id`, and the `process.parent.name`.
+The query matches one event with an `event.type` of `creation`, indicating the
+start of a `regsvr32.exe` process. Based on the event's `process.command_line`
+value, `regsvr32.exe` used `scrobj.dll` to register a script, `RegSvr32.sct`.
+This fits the behavior of a Squiblydoo attack.
 
 [source,console-result]
 ----
@@ -218,15 +186,7 @@ The response also includes other valuable information about how the
 [[eql-ex-check-for-malicious-script-loads]]
 === Check for malicious script loads
 
-You now know that a `regsvr32.exe` process was used to register a potentially
-malicious script, `RegSvr32.sct`. Next, see if `regsvr32.exe` later loads the
-`scrobj.dll` library.
-
-Modify the previous EQL query as follows:
-
-* Change the `process` keyword to `library`.
-* Replace the `process.command_line.keyword != null` condition with
-`dll.name == "scrobj.dll`.
+Check if `regsvr32.exe` later loads the `scrobj.dll` library:
 
 [source,console]
 ----
@@ -239,8 +199,7 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:atomic_red_regsvr32]
 
-The query matches an event, confirming `scrobj.dll` was later loaded by
-`regsvr32.exe`.
+The query matches an event, confirming `scrobj.dll` was loaded.
 
 [source,console-result]
 ----
@@ -283,28 +242,21 @@ The query matches an event, confirming `scrobj.dll` was later loaded by
 // TESTRESPONSE[s/"_id": "ol5MJXMBMk1dGnErnBW8"/"_id": $body.hits.events.0._id/]
 
 [discrete]
-[[eql-ex-detemine-likelihood-of-sucess]]
+[[eql-ex-detemine-likelihood-of-success]]
 === Determine the likelihood of success
 
-In many cases, malicious scripts are used to connect to remote servers or
-download other files. If this occurred, the attack might have succeeded.
+In many cases, attackers use malicious scripts to connect to remote servers or
+download other files. Use an <<eql-sequences,EQL sequence query>> to check
+for the following series of events:
 
-Use an <<eql-sequences,EQL sequence query>> to check for the following series of
-events, in order:
-
-. A `regsvr32.exe` process, which could have been used to register malicious
-scripts as `scrobj.dll`
+. A `regsvr32.exe` process
 . A load of the `scrobj.dll` library by the same process
-. Any network event by the same process, which could indicate the download of a
-remote file
+. Any network event by the same process
 
-To match, each event in the sequence must share the same process ID, recorded in
-the `process.pid` field.
-
-Based on the command line value seen in the previous result, you can expect to
-find a match. However, the sequence query isn't designed for that specific
-command. Instead, it looks for a pattern of suspicious behavior while still
-being generic enough to detect similar threats in the future.
+Based on the command line value seen in the previous response, you can expect to
+find a match. However, this query isn't designed for that specific command.
+Instead, it looks for a pattern of suspicious behavior that's generic enough to
+detect similar threats.
 
 [source,console]
 ----

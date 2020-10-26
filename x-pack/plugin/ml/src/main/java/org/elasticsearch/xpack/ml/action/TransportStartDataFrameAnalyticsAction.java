@@ -95,6 +95,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
+import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
 /**
  * Starts the persistent task for running data frame analytics.
@@ -599,6 +600,7 @@ public class TransportStartDataFrameAnalyticsAction
         private final MlMemoryTracker memoryTracker;
         private final IndexNameExpressionResolver resolver;
         private final IndexTemplateConfig inferenceIndexTemplate;
+        private final boolean useAutoMemoryPercentage;
 
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
@@ -619,6 +621,7 @@ public class TransportStartDataFrameAnalyticsAction
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
             this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
+            this.useAutoMemoryPercentage = USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
@@ -683,7 +686,13 @@ public class TransportStartDataFrameAnalyticsAction
                     node -> nodeFilter(node, params));
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do
             // not have an "opening" state so would never be rejected for causing too many jobs in the "opening" state
-            return jobNodeSelector.selectNode(maxOpenJobs, Integer.MAX_VALUE, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
+            return jobNodeSelector.selectNode(
+                maxOpenJobs,
+                Integer.MAX_VALUE,
+                maxMachineMemoryPercent,
+                isMemoryTrackerRecentlyRefreshed,
+                useAutoMemoryPercentage
+            );
         }
 
         @Override
@@ -757,5 +766,6 @@ public class TransportStartDataFrameAnalyticsAction
         void setMaxOpenJobs(int maxOpenJobs) {
             this.maxOpenJobs = maxOpenJobs;
         }
+
     }
 }

@@ -59,7 +59,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -702,10 +701,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("").field("type", "percolator").endObject().endObject()
             .endObject().endObject());
-        DocumentMapperParser parser = mapperService.documentMapperParser();
-
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parser.parse("type1", new CompressedXContent(mapping))
+            () -> mapperService.parse("type1", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }

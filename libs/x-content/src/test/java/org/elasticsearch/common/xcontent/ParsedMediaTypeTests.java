@@ -25,8 +25,6 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class ParsedMediaTypeTests extends ESTestCase {
 

@@ -523,7 +523,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
         clusterState = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(new Metadata.Builder()
-                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), Collections.singletonList(index), 1L))
+                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), Collections.singletonList(index)))
                 .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
                 .putCustom(MlMetadata.TYPE, mlMetadata)
                 .put(indexMetadata, false))

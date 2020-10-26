@@ -6,6 +6,7 @@
 [[glossary-analysis]] analysis ::
 +
 --
+// tag::analysis-def[]
 Analysis is the process of converting <<glossary-text,full text>> to
 <<glossary-term,terms>>. Depending on which analyzer is used, these phrases:
 `FOO BAR`, `Foo-Bar`, `foo,bar` will probably all result in the

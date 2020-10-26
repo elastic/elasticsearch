@@ -108,8 +108,8 @@ If you set the tier preference to `null`, {es} ignores the data tier roles durin
 [[data-tier-migration]]
 === Automatic data tier migration
 
-<<index-lifecycle-management, {ilm-init}>> automatically transitions managed
-indices through the available data tiers using the `migrate` action. 
+{ilm-init} automatically transitions managed
+indices through the available data tiers using the <<ilm-migrate-action, migrate>> action. 
 By default, this action is automatically injected in every phase. 
 You can explicitly specify the migrate action to override the default behavior, 
 or use the <<ilm-allocate-action, allocate action>> to manually specify allocation rules.

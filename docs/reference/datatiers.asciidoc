@@ -13,14 +13,15 @@ and hold your most recent, most-frequently-accessed data.
 and rarely needs to be updated.
 * <<cold-tier, Cold tier>> nodes hold time series data that is accessed occasionally and never updated.
 
-When you index documents directly to a specific index, it remains on the content tier indefinitely. 
+When you index documents directly to a specific index, they remain on content tier nodes indefinitely. 
 
-When you index documents to a data stream, <<index-lifecycle-management, {ilm-init}>> 
-can automatically transition your time series  data through the hot, warm, and cold tiers 
+When you index documents to a data stream, they initially reside on hot tier nodes. 
+You can configure <<index-lifecycle-management, {ilm} ({ilm-init})>> policies
+to automatically transition your time series  data through the hot, warm, and cold tiers 
 according to your performance, resiliency and data retention requirements. 
 
 You assign a node to one or more data tiers by setting its <<data-node, data role>> in `elasticsearch.yml`. 
-For example, you assign your highest-performance nodes to both the hot and content tiers:
+For example, you might assign your highest-performance nodes to both the hot and content tiers:
 
 [source,yaml]
 --------------------------------------------------
@@ -107,7 +108,7 @@ If you set the tier preference to `null`, {es} ignores the node data roles durin
 [[data-tier-migration]]
 === Automatic data tier migration
 
-<<index-lifecycle-management, Index Lifecycle Management>> automatically transitions managed
+<<index-lifecycle-management, {ilm-init}>> automatically transitions managed
 indices through the available data tiers using the `migrate` action. 
 By default, this action is automatically injected in every phase. 
 You can explicitly specify the migrate action to override the default behavior, 

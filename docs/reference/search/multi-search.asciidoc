@@ -233,7 +233,7 @@ shards. This is usually slower but more accurate.
 Contains parameters for a search request:
 
 `aggregations`:::
-(Optional, <<_structuring_aggregations,aggregation object>>)
+(Optional, <<search-aggregations,aggregation object>>)
 Aggregations you wish to run during the search. See <<search-aggregations>>.
 
 `query`:::

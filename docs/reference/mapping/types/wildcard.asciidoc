@@ -58,6 +58,11 @@ The following parameters are accepted by `wildcard` fields:
 
 [horizontal]
 
+<<null-value,`null_value`>>::
+
+    Accepts a string value which is substituted for any explicit `null`
+    values.  Defaults to `null`, which means the field is treated as missing.
+
 <<ignore-above,`ignore_above`>>::
 
     Do not index any string longer than this value.  Defaults to `2147483647`

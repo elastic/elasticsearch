@@ -36,6 +36,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -81,6 +82,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -209,6 +212,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final MultiBucketConsumerService multiBucketConsumerService;
 
     private final AtomicInteger openScrollContexts = new AtomicInteger();
+    private final String sessionId = UUIDs.randomBase64UUID();
 
     public SearchService(ClusterService clusterService, IndicesService indicesService,
                          ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
@@ -600,14 +604,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private ReaderContext getReaderContext(ShardSearchContextId id) {
-        final ReaderContext reader = activeReaders.get(id.getId());
-        if (reader == null) {
-            return null;
+        if (id.getSessionId().isEmpty()) {
+            throw new IllegalArgumentException("Session id must be specified");
         }
-        if (reader.id().getReaderId().equals(id.getReaderId()) || id.getReaderId().isEmpty()) {
-            return reader;
+        if (sessionId.equals(id.getSessionId()) == false) {
+            throw new SearchContextMissingException(id);
         }
-        return null;
+        return activeReaders.get(id.getId());
     }
 
     private ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request) throws SearchContextMissingException {
@@ -627,8 +630,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request, boolean keepStatesInContext) {
         if (request.readerId() != null) {
             assert keepStatesInContext == false;
-            final ReaderContext readerContext = findReaderContext(request.readerId(), request);
-            return readerContext;
+            return findReaderContext(request.readerId(), request);
         }
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard shard = indexService.getShard(request.shardId().id());
@@ -653,15 +655,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
             }
             final long keepAlive = getKeepAlive(request);
+            final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
             if (keepStatesInContext || request.scroll() != null) {
-                readerContext = new LegacyReaderContext(idGenerator.incrementAndGet(), indexService, shard, reader, request, keepAlive);
+                readerContext = new LegacyReaderContext(id, indexService, shard, reader, request, keepAlive);
                 if (request.scroll() != null) {
                     readerContext.addOnClose(decreaseScrollContexts);
                     decreaseScrollContexts = null;
                 }
             } else {
-                readerContext = new ReaderContext(idGenerator.incrementAndGet(), indexService, shard, reader, keepAlive,
-                    request.keepAlive() == null);
+                readerContext = new ReaderContext(id, indexService, shard, reader, keepAlive, request.keepAlive() == null);
             }
             reader = null;
             final ReaderContext finalReaderContext = readerContext;
@@ -701,8 +703,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             ReaderContext readerContext = null;
             try {
                 searcherSupplier = shard.acquireSearcherSupplier();
-                readerContext = new ReaderContext(
-                    idGenerator.incrementAndGet(), indexService, shard, searcherSupplier, keepAlive.millis(), false);
+                final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
+                readerContext = new ReaderContext(id, indexService, shard, searcherSupplier, keepAlive.millis(), false);
                 final ReaderContext finalReaderContext = readerContext;
                 searcherSupplier = null; // transfer ownership to reader context
                 searchOperationListener.onNewReaderContext(readerContext);
@@ -751,7 +753,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard indexShard = indexService.getShard(request.shardId().getId());
         final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
-        try (ReaderContext readerContext = new ReaderContext(idGenerator.incrementAndGet(), indexService, indexShard, reader, -1L, true)) {
+        final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
+        try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
             DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
             return searchContext;
@@ -932,8 +935,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null && includeAggregations) {
+            AggregationContext aggContext = new ProductionAggregationContext(
+                queryShardContext,
+                context.parsedQuery() == null ? null : context.parsedQuery().query()
+            );
             try {
-                AggregatorFactories factories = source.aggregations().build(queryShardContext, null);
+                AggregatorFactories factories = source.aggregations().build(aggContext, null);
                 context.aggregations(new SearchContextAggregations(factories, multiBucketConsumerService.create()));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
@@ -962,7 +969,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchSourceContext(source.fetchSource());
         }
         if (source.docValueFields() != null) {
-            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(context.mapperService(), source.docValueFields());
+            FetchDocValuesContext docValuesContext = new FetchDocValuesContext(context.getQueryShardContext(), source.docValueFields());
             context.docValuesContext(docValuesContext);
         }
         if (source.fetchFields() != null) {

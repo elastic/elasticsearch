@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -37,7 +36,7 @@ import static org.mockito.Mockito.when;
 public class JobNodeLoadDetectorTests extends ESTestCase {
 
     // To simplify the logic in this class all jobs have the same memory requirement
-    private static final ByteSizeValue JOB_MEMORY_REQUIREMENT = new ByteSizeValue(10, ByteSizeUnit.MB);
+    private static final ByteSizeValue JOB_MEMORY_REQUIREMENT = ByteSizeValue.ofMb(10);
 
     private NodeLoadDetector nodeLoadDetector;
 
@@ -80,28 +79,28 @@ public class JobNodeLoadDetectorTests extends ESTestCase {
         metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks);
         cs.metadata(metadata);
 
-        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id1"), 10, -1, true);
+        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id1"), 10, 30, true, false);
         assertThat(load.getAssignedJobMemory(), equalTo(52428800L));
         assertThat(load.getNumAllocatingJobs(), equalTo(2L));
         assertThat(load.getNumAssignedJobs(), equalTo(2L));
         assertThat(load.getMaxJobs(), equalTo(10));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
-        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id2"), 5, -1, true);
+        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id2"), 5, 30, true, false);
         assertThat(load.getAssignedJobMemory(), equalTo(41943040L));
         assertThat(load.getNumAllocatingJobs(), equalTo(1L));
         assertThat(load.getNumAssignedJobs(), equalTo(1L));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
-        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id3"), 5, -1, true);
+        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id3"), 5, 30, true, false);
         assertThat(load.getAssignedJobMemory(), equalTo(0L));
         assertThat(load.getNumAllocatingJobs(), equalTo(0L));
         assertThat(load.getNumAssignedJobs(), equalTo(0L));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
-        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id4"), 5, -1, true);
+        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id4"), 5, 30, true, false);
         assertThat(load.getAssignedJobMemory(), equalTo(41943040L));
         assertThat(load.getNumAllocatingJobs(), equalTo(0L));
         assertThat(load.getNumAssignedJobs(), equalTo(1L));
@@ -123,7 +122,7 @@ public class JobNodeLoadDetectorTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder();
         cs.metadata(metadata);
 
-        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), false, nodes.get("_node_id1"), 10, -1, true);
+        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), false, nodes.get("_node_id1"), 10, 30, true, false);
         assertThat(load.getError(), containsString("ml.max_open_jobs attribute [foo] is not an integer"));
     }
 
@@ -141,7 +140,7 @@ public class JobNodeLoadDetectorTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder();
         cs.metadata(metadata);
 
-        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), false, nodes.get("_node_id1"), 10, -1, true);
+        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), false, nodes.get("_node_id1"), 10, -1, true, false);
         assertThat(load.getError(), containsString("ml.machine_memory attribute [bar] is not a long"));
     }
 

@@ -144,7 +144,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         if (forecastsToDelete.isEmpty()) {
             if (Strings.isAllOrWildcard(request.getForecastId()) &&
                 request.isAllowNoForecasts()) {
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
                 listener.onFailure(
                     new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), jobId)));
@@ -179,7 +179,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
                     return;
                 }
                 logger.info("Deleted forecast(s) [{}] from job [{}]", forecastIds, jobId);
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             },
             listener::onFailure));
     }

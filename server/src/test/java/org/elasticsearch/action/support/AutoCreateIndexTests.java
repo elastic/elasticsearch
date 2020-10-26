@@ -22,13 +22,17 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -38,6 +42,8 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class AutoCreateIndexTests extends ESTestCase {
+
+    private static final String TEST_SYSTEM_INDEX_NAME = ".test-system-index";
 
     public void testParseFailed() {
         try {
@@ -89,6 +95,12 @@ public class AutoCreateIndexTests extends ESTestCase {
         assertEquals("no such index [" + randomIndex + "] and [action.auto_create_index] is [false]", e.getMessage());
     }
 
+    public void testSystemIndexWithAutoCreationDisabled() {
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        assertThat(autoCreateIndex.shouldAutoCreate(TEST_SYSTEM_INDEX_NAME, buildClusterState()), equalTo(true));
+    }
+
     public void testAutoCreationEnabled() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true).build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
@@ -125,6 +137,13 @@ public class AutoCreateIndexTests extends ESTestCase {
         /* When patterns are specified, even if the are all negative, the default is can't create. So a pure negative pattern is the same
          * as false, really. */
         expectNotMatch(clusterState, autoCreateIndex, "does_not_match" + randomAlphaOfLengthBetween(1, 5));
+    }
+
+    public void testAutoCreationSystemIndexPatternDisabled() {
+        Settings settings =
+            Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "-" + TEST_SYSTEM_INDEX_NAME + "*").build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        assertThat(autoCreateIndex.shouldAutoCreate(TEST_SYSTEM_INDEX_NAME, buildClusterState()), equalTo(true));
     }
 
     public void testAutoCreationMultiplePatternsWithWildcards() {
@@ -177,7 +196,9 @@ public class AutoCreateIndexTests extends ESTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(settings,
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        AutoCreateIndex  autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, new IndexNameExpressionResolver());
+        AutoCreateIndex autoCreateIndex = new AutoCreateIndex(settings, clusterSettings,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            new SystemIndices(Map.of()));
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value));
 
         Settings newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), !value).build();
@@ -191,6 +212,113 @@ public class AutoCreateIndexTests extends ESTestCase {
         assertThat(autoCreateIndex.getAutoCreate().getExpressions().get(0).v1(), equalTo("logs-*"));
     }
 
+    /**
+     * Check that if a template matches the index to be created, but that template does not have a value
+     * for the allow_auto_create setting at all, and the auto_create_index setting matches the index
+     * to be created, then the null in the template does not override the auto_create_index logic and the
+     * index can be created.
+     */
+    public void testNullAllowAutoCreateInTemplateDoesNotOverrideMatchingAutoCreateIndexSetting() {
+        String randomIndex = randomAlphaOfLengthBetween(2, 10);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of(randomIndex.charAt(0) + "*"),
+            null,
+            List.of(),
+            null,
+            null,
+            Map.of(),
+            null,
+            null
+        );
+
+        final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
+        final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
+
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomIndex.charAt(0) + "*").build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        assertTrue(autoCreateIndex.shouldAutoCreate(randomIndex, clusterState));
+    }
+
+    /**
+     * Check that if a template matches the index to be created, but that template does not have a value
+     * for the allow_auto_create setting at all, then it does not cause the auto-create logic to trip over
+     * on a null value.
+     */
+    public void testCanHandleNullAutoCreateSettingInTemplate() {
+        String randomIndex = randomAlphaOfLengthBetween(2, 10);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of(randomIndex.charAt(0) + "*"),
+            null,
+            List.of(),
+            null,
+            null,
+            Map.of(),
+            null,
+            null
+        );
+
+        final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
+        final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
+
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
+            autoCreateIndex.shouldAutoCreate(randomIndex, clusterState));
+        assertEquals("no such index [" + randomIndex + "] and [action.auto_create_index] is [false]", e.getMessage());
+    }
+
+    /**
+     * Check that if a template matches the index to be created, but that template has the allow_auto_create
+     * setting turned off, then it overrides the global setting.
+     */
+    public void testDisabledAutoCreateTemplateSettingDoesNotOverride() {
+        String randomIndex = randomAlphaOfLengthBetween(2, 10);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of(randomIndex.charAt(0) + "*"),
+            null,
+            List.of(),
+            null,
+            null,
+            Map.of(),
+            null,
+            false
+        );
+
+        final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
+        final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
+
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
+            autoCreateIndex.shouldAutoCreate(randomIndex, clusterState));
+        assertEquals("no such index [composable template [" + randomIndex.charAt(0) + "*] forbids index auto creation]", e.getMessage());
+    }
+
+    /**
+     * Check that if a template matches the index to be created, and that template has the allow_auto_create
+     * setting enabled, then it overrides the global setting.
+     */
+    public void testEnabledAutoCreateTemplateSettingDoesOverride() {
+        String randomIndex = randomAlphaOfLengthBetween(2, 10);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of(randomIndex.charAt(0) + "*"),
+            null,
+            List.of(),
+            null,
+            null,
+            Map.of(),
+            null,
+            true
+        );
+
+        final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
+        final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
+
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        assertThat(autoCreateIndex.shouldAutoCreate(randomIndex, clusterState), equalTo(true));
+    }
+
     private static ClusterState buildClusterState(String... indices) {
         Metadata.Builder metadata = Metadata.builder();
         for (String index : indices) {
@@ -201,8 +329,9 @@ public class AutoCreateIndexTests extends ESTestCase {
     }
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
+        SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, ""))));
         return new AutoCreateIndex(settings, new ClusterSettings(settings,
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver());
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), systemIndices);
     }
 
     private void expectNotMatch(ClusterState clusterState, AutoCreateIndex autoCreateIndex, String index) {

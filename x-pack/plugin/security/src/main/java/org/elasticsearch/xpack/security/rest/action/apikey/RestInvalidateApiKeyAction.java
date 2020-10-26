@@ -33,8 +33,9 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
     static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key",
             a -> {
-                return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3], (a[4] == null) ? false :
-                    (Boolean) a[4]);
+                return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3],
+                    (a[4] == null) ? false : (Boolean) a[4],
+                    (a[5] == null) ? null : ((List<String>) a[5]).toArray(new String[0]));
             });
 
     static {
@@ -43,6 +44,7 @@ public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("name"));
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField("owner"));
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("ids"));
     }
 
     public RestInvalidateApiKeyAction(Settings settings, XPackLicenseState licenseState) {

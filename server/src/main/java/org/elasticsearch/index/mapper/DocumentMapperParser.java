@@ -21,71 +21,61 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class DocumentMapperParser {
-
-    final MapperService mapperService;
-    private final NamedXContentRegistry xContentRegistry;
-    private final SimilarityService similarityService;
-    private final Supplier<QueryShardContext> queryShardContextSupplier;
-
+    private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
+    private final Function<String, String> documentTypeResolver;
+    private final DocumentParser documentParser;
+    private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
+    private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
-
-    private final Version indexVersionCreated;
-
-    private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
-    private final ScriptService scriptService;
 
-    public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
-            SimilarityService similarityService, MapperRegistry mapperRegistry,
-            Supplier<QueryShardContext> queryShardContextSupplier, ScriptService scriptService) {
-        this.mapperService = mapperService;
-        this.xContentRegistry = xContentRegistry;
-        this.similarityService = similarityService;
-        this.queryShardContextSupplier = queryShardContextSupplier;
-        this.scriptService = scriptService;
-        this.typeParsers = mapperRegistry.getMapperParsers();
-        this.indexVersionCreated = indexSettings.getIndexVersionCreated();
-        this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers(indexVersionCreated);
+    DocumentMapperParser(IndexSettings indexSettings,
+                         IndexAnalyzers indexAnalyzers,
+                         Function<String, String> documentTypeResolver,
+                         DocumentParser documentParser,
+                         Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
+                         Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier,
+                         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers) {
+        this.indexSettings = indexSettings;
+        this.indexAnalyzers = indexAnalyzers;
+        this.documentTypeResolver = documentTypeResolver;
+        this.documentParser = documentParser;
+        this.metadataMappersSupplier = metadataMappersSupplier;
+        this.parserContextSupplier = parserContextSupplier;
+        this.rootTypeParsers = metadataMapperParsers;
     }
 
-    public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-                typeParsers::get, indexVersionCreated, queryShardContextSupplier, null, scriptService);
-    }
-
-    public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
-        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-            typeParsers::get, indexVersionCreated, queryShardContextSupplier, dateFormatter, scriptService);
-    }
-
-    public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
+    @SuppressWarnings("unchecked")
+    DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
-            Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
-            Tuple<String, Map<String, Object>> t = extractMapping(type, root);
-            type = t.v1();
-            mapping = t.v2();
+            mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
+            if (mapping.isEmpty()) {
+                if (type == null) {
+                    throw new MapperParsingException("malformed mapping, no type name found");
+                }
+            } else {
+                String rootName = mapping.keySet().iterator().next();
+                if (type == null || type.equals(rootName) || documentTypeResolver.apply(type).equals(rootName)) {
+                    type = rootName;
+                    mapping = (Map<String, Object>) mapping.get(rootName);
+                }
+            }
         }
         if (mapping == null) {
             mapping = new HashMap<>();
@@ -99,10 +89,11 @@ public class DocumentMapperParser {
             throw new MapperParsingException("Failed to derive type");
         }
 
-        Mapper.TypeParser.ParserContext parserContext = parserContext();
+        Mapper.TypeParser.ParserContext parserContext = parserContextSupplier.get();
         // parse RootObjectMapper
-        DocumentMapper.Builder docBuilder = new DocumentMapper.Builder(
-                (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
+        RootObjectMapper.Builder root = (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext);
+        DocumentMapper.Builder docBuilder = new DocumentMapper.Builder(root, indexSettings, indexAnalyzers, documentParser,
+            metadataMappersSupplier.get());
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {
@@ -144,7 +135,7 @@ public class DocumentMapperParser {
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
-        return docBuilder.build(mapperService);
+        return docBuilder.build();
     }
 
     public static void checkNoRemainingFields(String fieldName, Map<?, ?> fieldNodeMap, Version indexVersionCreated) {
@@ -164,53 +155,5 @@ public class DocumentMapperParser {
             remainingFields.append(" [").append(key).append(" : ").append(map.get(key)).append("]");
         }
         return remainingFields.toString();
-    }
-
-    private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
-        Map<String, Object> root;
-        try (XContentParser parser = XContentType.JSON.xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)) {
-            root = parser.mapOrdered();
-        } catch (Exception e) {
-            throw new MapperParsingException("failed to parse mapping definition", e);
-        }
-        return extractMapping(type, root);
-    }
-
-    /**
-     * Given an optional type name and mapping definition, returns the type and a normalized form of the mappings.
-     *
-     * The provided mapping definition may or may not contain the type name as the root key in the map. This method
-     * attempts to unwrap the mappings, so that they no longer contain a type name at the root. If no type name can
-     * be found, through either the 'type' parameter or by examining the provided mappings, then an exception will be
-     * thrown.
-     *
-     * @param type An optional type name.
-     * @param root The mapping definition.
-     *
-     * @return A tuple of the form (type, normalized mappings).
-     */
-    @SuppressWarnings({"unchecked"})
-    private Tuple<String, Map<String, Object>> extractMapping(String type, Map<String, Object> root) throws MapperParsingException {
-        if (root.size() == 0) {
-            if (type != null) {
-                return new Tuple<>(type, root);
-            } else {
-                throw new MapperParsingException("malformed mapping, no type name found");
-            }
-        }
-
-        String rootName = root.keySet().iterator().next();
-        Tuple<String, Map<String, Object>> mapping;
-        if (type == null || type.equals(rootName) || mapperService.resolveDocumentType(type).equals(rootName)) {
-            mapping = new Tuple<>(rootName, (Map<String, Object>) root.get(rootName));
-        } else {
-            mapping = new Tuple<>(type, root);
-        }
-        return mapping;
-    }
-
-    NamedXContentRegistry getXContentRegistry() {
-        return xContentRegistry;
     }
 }

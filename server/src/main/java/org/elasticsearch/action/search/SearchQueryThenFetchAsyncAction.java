@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -37,7 +36,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 
@@ -56,22 +54,26 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                                     final Map<String, AliasFilter> aliasFilter,
                                     final Map<String, Float> concreteIndexBoosts, final Map<String, Set<String>> indexRoutings,
                                     final SearchPhaseController searchPhaseController, final Executor executor,
-                                    final SearchRequest request, final ActionListener<SearchResponse> listener,
+                                    final QueryPhaseResultConsumer resultConsumer, final SearchRequest request,
+                                    final ActionListener<SearchResponse> listener,
                                     final GroupShardsIterator<SearchShardIterator> shardsIts,
                                     final TransportSearchAction.SearchTimeProvider timeProvider,
-                                    ClusterState clusterState, SearchTask task, SearchResponse.Clusters clusters,
-                                    Consumer<Exception> onPartialMergeFailure) {
+                                    ClusterState clusterState, SearchTask task, SearchResponse.Clusters clusters) {
         super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener, shardsIts, timeProvider, clusterState, task,
-                searchPhaseController.newSearchPhaseResults(executor, task.getProgressListener(),
-                    request, shardsIts.size(), onPartialMergeFailure), request.getMaxConcurrentShardRequests(), clusters);
+                resultConsumer, request.getMaxConcurrentShardRequests(), clusters);
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;
         this.progressListener = task.getProgressListener();
-        final SearchSourceBuilder sourceBuilder = request.source();
+
+        // register the release of the query consumer to free up the circuit breaker memory
+        // at the end of the search
+        addReleasable(resultConsumer);
+
+        boolean hasFetchPhase = request.source() == null ? true : request.source().size() > 0;
         progressListener.notifyListShards(SearchProgressListener.buildSearchShards(this.shardsIts),
-            SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, sourceBuilder == null || sourceBuilder.size() != 0);
+            SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, hasFetchPhase);
     }
 
     protected void executePhaseOnShard(final SearchShardIterator shardIt,
@@ -108,8 +110,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     }
 
     @Override
-    protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
-        return new FetchSearchPhase(results, searchPhaseController, null, context);
+    protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+        return new FetchSearchPhase(results, searchPhaseController, null, this);
     }
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {

@@ -20,10 +20,9 @@ package org.elasticsearch.search.collapse;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 
 import java.util.List;
 
@@ -61,13 +60,12 @@ public class CollapseContext {
     }
 
     public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN) {
-        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+        if (fieldType.collapseType() == CollapseType.KEYWORD) {
             return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN);
-        } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+        } else if (fieldType.collapseType() == CollapseType.NUMERIC) {
             return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN);
         } else {
-            throw new IllegalStateException("unknown type for collapse field " + fieldName +
-                ", only keywords and numbers are accepted");
+            throw new IllegalStateException("collapse is not supported on this field type");
         }
     }
 }

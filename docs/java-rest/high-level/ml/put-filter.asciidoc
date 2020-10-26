@@ -5,14 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put filter API
+=== Put filters API
 
-The put filter API can be used to create a new {ml} filter
-in the cluster. The API accepts a +{request}+ object
+Creates a new {ml} filter in the cluster. The API accepts a +{request}+ object
 as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put filter request
+==== Put filters request
 
 A +{request}+ requires the following argument:
 

@@ -23,11 +23,8 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -118,7 +115,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IpFieldMapper build(BuilderContext context) {
             return new IpFieldMapper(name,
-                new IpFieldType(buildFullName(context), indexed.getValue(), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
+                new IpFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+                    hasDocValues.getValue(), parseNullValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
@@ -131,12 +129,16 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
     public static final class IpFieldType extends SimpleMappedFieldType {
 
-        public IpFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
+        private final InetAddress nullValue;
+
+        public IpFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                           InetAddress nullValue, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.nullValue = nullValue;
         }
 
         public IpFieldType(String name) {
-            this(name, true, false, true, Collections.emptyMap());
+            this(name, true, false, true, null, Collections.emptyMap());
         }
 
         @Override
@@ -156,12 +158,22 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
+            return new SourceValueFetcher(name(), mapperService, nullValue) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    InetAddress address;
+                    if (value instanceof InetAddress) {
+                        address = (InetAddress) value;
+                    } else {
+                        address = InetAddresses.forString(value.toString());
+                    }
+                    return InetAddresses.toAddrString(address);
+                }
+            };
         }
 
         @Override
@@ -361,6 +373,10 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
+    boolean ignoreMalformed() {
+        return ignoreMalformed;
+    }
+
     @Override
     public IpFieldType fieldType() {
         return (IpFieldType) super.fieldType();
@@ -421,25 +437,6 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         if (stored) {
             context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                InetAddress address;
-                if (value instanceof InetAddress) {
-                    address = (InetAddress) value;
-                } else {
-                    address = InetAddresses.forString(value.toString());
-                }
-                return InetAddresses.toAddrString(address);
-            }
-        };
     }
 
     @Override

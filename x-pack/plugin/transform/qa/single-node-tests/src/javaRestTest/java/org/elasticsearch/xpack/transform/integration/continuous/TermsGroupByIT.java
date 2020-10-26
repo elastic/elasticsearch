@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -34,7 +33,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60781")
 public class TermsGroupByIT extends ContinuousTestCase {
 
     private static final String NAME = "continuous-terms-pivot-test";
@@ -62,7 +60,7 @@ public class TermsGroupByIT extends ContinuousTestCase {
 
         AggregatorFactories.Builder aggregations = new AggregatorFactories.Builder();
         addCommonAggregations(aggregations);
-        aggregations.addAggregator(AggregationBuilders.max("metric.avg").field("metric"));
+        aggregations.addAggregator(AggregationBuilders.avg("metric.avg").field("metric"));
 
         pivotConfigBuilder.setAggregations(aggregations);
         transformConfigBuilder.setPivotConfig(pivotConfigBuilder.build());
@@ -85,7 +83,7 @@ public class TermsGroupByIT extends ContinuousTestCase {
             // missing_bucket produces `null`, we can't use `null` in aggs, so we have to use a magic value, see gh#60043
             terms.missing(MISSING_BUCKET_KEY);
         }
-        terms.subAggregation(AggregationBuilders.max("metric.avg").field("metric"));
+        terms.subAggregation(AggregationBuilders.avg("metric.avg").field("metric"));
         sourceBuilderSource.aggregation(terms);
         searchRequestSource.source(sourceBuilderSource);
         SearchResponse responseSource = search(searchRequestSource);
@@ -131,8 +129,8 @@ public class TermsGroupByIT extends ContinuousTestCase {
             );
             assertThat(
                 "Doc count did not match, source: " + source + ", expected: " + bucket.getDocCount() + ", iteration: " + iteration,
-                XContentMapValues.extractValue("count", source),
-                equalTo(Double.valueOf(bucket.getDocCount()))
+                ((Integer) XContentMapValues.extractValue("count", source)).longValue(),
+                equalTo(bucket.getDocCount())
             );
 
             SingleValue avgAgg = (SingleValue) bucket.getAggregations().get("metric.avg");
@@ -143,15 +141,20 @@ public class TermsGroupByIT extends ContinuousTestCase {
             );
 
             // test optimization, transform should only rewrite documents that require it
+            // run.ingest is set by the pipeline, run.max is set by the transform
+            // run.ingest > run.max means, the data point has been re-created/re-fed although it wasn't necessary,
+            // this is probably a bug in transform's change collection optimization
+            // run.ingest < run.max means the ingest pipeline wasn't updated, this might be a bug in put pipeline
             assertThat(
                 "Ingest run: "
                     + XContentMapValues.extractValue(INGEST_RUN_FIELD, source)
                     + " did not match max run: "
                     + XContentMapValues.extractValue(MAX_RUN_FIELD, source)
                     + ", iteration: "
-                    + iteration,
-                // TODO: aggs return double for MAX_RUN_FIELD, although it is an integer
-                Double.valueOf((Integer) XContentMapValues.extractValue(INGEST_RUN_FIELD, source)),
+                    + iteration
+                    + " full source: "
+                    + source,
+                XContentMapValues.extractValue(INGEST_RUN_FIELD, source),
                 equalTo(XContentMapValues.extractValue(MAX_RUN_FIELD, source))
             );
         }

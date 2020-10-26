@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -222,7 +223,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 null,
                 null);
             pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPIT).actionGet().getSearchContextId();
-            source.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder(pitId, TimeValue.timeValueMinutes(1)));
+            final PointInTimeBuilder pit = new PointInTimeBuilder(pitId);
+            if (randomBoolean()) {
+                pit.setKeepAlive(TimeValue.timeValueMillis(randomIntBetween(1, 3600)));
+            }
+            source.pointInTimeBuilder(pit);
             request = new SubmitAsyncSearchRequest(source);
         } else {
             pitId = null;

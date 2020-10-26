@@ -23,6 +23,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.search.SearchService.CanMatchResponse;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -77,6 +78,11 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     }
 
     @Override
+    public void addReleasable(Releasable releasable) {
+        throw new RuntimeException("cannot add releasable in " + getName() + " phase");
+    }
+
+    @Override
     protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
                                        SearchActionListener<CanMatchResponse> listener) {
         getSearchTransport().sendCanMatch(getConnection(shard.getClusterAlias(), shard.getNodeId()),
@@ -84,8 +90,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     }
 
     @Override
-    protected SearchPhase getNextPhase(SearchPhaseResults<CanMatchResponse> results,
-                                       SearchPhaseContext context) {
+    protected SearchPhase getNextPhase(SearchPhaseResults<CanMatchResponse> results, SearchPhaseContext context) {
 
         return phaseFactory.apply(getIterator((CanMatchSearchPhaseResults) results, shardsIts));
     }

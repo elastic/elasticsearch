@@ -33,6 +33,8 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
@@ -77,7 +79,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      **/
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
-    final SearchPhaseResults<Result> results;
+    protected final SearchPhaseResults<Result> results;
     private final ClusterState clusterState;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
@@ -97,6 +99,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
+    private final AtomicBoolean requestCancelled = new AtomicBoolean();
+
+    private final List<Releasable> releasables = new ArrayList<>();
 
     AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
                               BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -133,7 +138,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.executor = executor;
         this.request = request;
         this.task = task;
-        this.listener = listener;
+        this.listener = ActionListener.runAfter(listener, this::releaseContext);
         this.nodeIdToConnection = nodeIdToConnection;
         this.clusterState = clusterState;
         this.concreteIndexBoosts = concreteIndexBoosts;
@@ -141,6 +146,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
+    }
+
+    @Override
+    public void addReleasable(Releasable releasable) {
+        releasables.add(releasable);
+    }
+
+    public void releaseContext() {
+        Releasables.close(releasables);
     }
 
     /**
@@ -380,6 +394,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         logger.debug(() -> new ParameterizedMessage("{}: Failed to execute [{}] lastShard [{}]",
             shard != null ? shard : shardIt.shardId(), request, lastShard), e);
         if (lastShard) {
+            if (request.allowPartialSearchResults() == false) {
+                if (requestCancelled.compareAndSet(false, true)) {
+                    try {
+                        searchTransportService.cancelSearchTask(task, "partial results are not allowed and at least one shard has failed");
+                    } catch (Exception cancelFailure) {
+                        logger.debug("Failed to cancel search request", cancelFailure);
+                    }
+                }
+            }
             onShardGroupFailure(shardIndex, shard, e);
         }
         final int totalOps = this.totalOps.incrementAndGet();
@@ -529,11 +552,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-        if (request.pointInTimeBuilder() == null && allowPartialResults == false && failures.length > 0) {
+        if (allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
             final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
-            final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, minNodeVersion) : null;
+            final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
             final String searchContextId =
                 includeSearchContextInResponse() ? SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion) : null;
             listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
@@ -567,6 +590,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             });
         }
+        Releasables.close(releasables);
         listener.onFailure(exception);
     }
 

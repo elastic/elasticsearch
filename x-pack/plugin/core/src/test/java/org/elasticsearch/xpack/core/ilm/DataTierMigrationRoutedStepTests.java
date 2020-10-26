@@ -112,7 +112,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
         DataTierMigrationRoutedStep step = createRandomInstance();
         Result expectedResult = new Result(false, new AllocationInfo(0, 1, true,
             "[" + index.getName() + "] lifecycle action [" + step.getKey().getAction() + "] waiting for " +
-                "[1] shards to be moved to the [data_warm] tier")
+                "[1] shards to be moved to the [data_warm] tier (tier migration preference configuration is [data_warm])")
         );
 
         Result actualResult = step.isConditionMet(index, clusterState);
@@ -137,9 +137,8 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
                 .build();
         DataTierMigrationRoutedStep step = createRandomInstance();
         Result expectedResult = new Result(false, new AllocationInfo(0, 1, true,
-            "[" + index.getName() + "] lifecycle action [" + step.getKey().getAction() + "] waiting for " +
-                "[1] shards to be moved to the [data_warm] tier but there are currently no [data_warm] nodes in the cluster")
-        );
+            "index [" + index.getName() + "] has a preference for tiers [data_warm], but no nodes for any of those tiers are available " +
+                "in the cluster"));
 
         Result actualResult = step.isConditionMet(index, clusterState);
         assertThat(actualResult.isComplete(), is(false));

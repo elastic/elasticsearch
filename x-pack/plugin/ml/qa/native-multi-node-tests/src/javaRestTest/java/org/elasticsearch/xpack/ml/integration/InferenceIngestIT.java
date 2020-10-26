@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,8 +37,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinitionTests.getClassificationDefinition;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.containsString;
 
 /**
@@ -71,8 +70,25 @@ public class InferenceIngestIT extends ESRestTestCase {
     @After
     public void cleanUpData() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
-        client().performRequest(new Request("DELETE", InferenceIndexConstants.INDEX_PATTERN));
-        client().performRequest(new Request("DELETE", MlStatsIndex.indexPattern()));
+        RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> {
+                if (warnings.isEmpty()) {
+                    // There may not be an index to delete, in which case there's no warning
+                    return false;
+                } else if (warnings.size() > 1) {
+                    return true;
+                }
+                // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
+                final String warning = warnings.get(0);
+                final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
+                    && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
+                return isSystemIndexWarning == false;
+            }).build();
+        final Request deleteInferenceRequest = new Request("DELETE", InferenceIndexConstants.INDEX_PATTERN);
+        deleteInferenceRequest.setOptions(allowSystemIndexAccessWarningOptions);
+        client().performRequest(deleteInferenceRequest);
+        final Request deleteStatsRequest = new Request("DELETE", MlStatsIndex.indexPattern());
+        client().performRequest(deleteStatsRequest);
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
@@ -118,11 +134,11 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 Response statsResponse = client().performRequest(new Request("GET",
-                    "_ml/inference/" + classificationModelId + "/_stats"));
+                    "_ml/trained_models/" + classificationModelId + "/_stats"));
                 String response = EntityUtils.toString(statsResponse.getEntity());
                 assertThat(response, containsString("\"inference_count\":10"));
                 assertThat(response, containsString("\"cache_miss_count\":30"));
-                statsResponse = client().performRequest(new Request("GET", "_ml/inference/" + regressionModelId + "/_stats"));
+                statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/" + regressionModelId + "/_stats"));
                 response = EntityUtils.toString(statsResponse.getEntity());
                 assertThat(response, containsString("\"inference_count\":10"));
                 assertThat(response, containsString("\"cache_miss_count\":30"));
@@ -174,16 +190,16 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 Response statsResponse = client().performRequest(new Request("GET",
-                    "_ml/inference/" + classificationModelId + "/_stats"));
+                    "_ml/trained_models/" + classificationModelId + "/_stats"));
                 String response = EntityUtils.toString(statsResponse.getEntity());
                 assertThat(response, containsString("\"inference_count\":10"));
                 assertThat(response, containsString("\"cache_miss_count\":3"));
-                statsResponse = client().performRequest(new Request("GET", "_ml/inference/" + regressionModelId + "/_stats"));
+                statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/" + regressionModelId + "/_stats"));
                 response = EntityUtils.toString(statsResponse.getEntity());
                 assertThat(response, containsString("\"inference_count\":15"));
                 assertThat(response, containsString("\"cache_miss_count\":3"));
                 // can get both
-                statsResponse = client().performRequest(new Request("GET", "_ml/inference/_stats"));
+                statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/_stats"));
                 String entityString = EntityUtils.toString(statsResponse.getEntity());
                 assertThat(entityString, containsString("\"inference_count\":15"));
                 assertThat(entityString, containsString("\"inference_count\":10"));
@@ -604,7 +620,7 @@ public class InferenceIngestIT extends ESRestTestCase {
     }
 
     private void putModel(String modelId, String modelConfiguration) throws IOException {
-        Request request = new Request("PUT", "_ml/inference/" + modelId);
+        Request request = new Request("PUT", "_ml/trained_models/" + modelId);
         request.setJsonEntity(modelConfiguration);
         client().performRequest(request);
     }

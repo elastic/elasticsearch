@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -74,6 +75,23 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     public abstract Setting<Boolean> legacySetting();
 
+    /**
+     * Indicates whether a node with the given role can contain data. Defaults to false and can be overridden
+     */
+    public boolean canContainData() {
+        return false;
+    }
+
+    /**
+     * When serializing a {@link DiscoveryNodeRole}, the role may not be available to nodes of
+     * previous versions, where the role had not yet been added. This method allows overriding
+     * the role that should be serialized when communicating to versions prior to the introduction
+     * of the discovery node role.
+     */
+    public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+        return this;
+    }
+
     @Override
     public final boolean equals(Object o) {
         if (this == o) return true;
@@ -114,6 +132,10 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             return Setting.boolSetting("node.data", true, Property.Deprecated, Property.NodeScope);
         }
 
+        @Override
+        public boolean canContainData() {
+            return true;
+        }
     };
 
     /**

@@ -66,7 +66,6 @@ public final class TransformAggregations {
         "ip_range",
         "matrix_stats",
         "median_absolute_deviation",
-        "missing",
         "nested",
         "percentile_ranks",
         "range",
@@ -79,7 +78,8 @@ public final class TransformAggregations {
         "top_hits",
         "top_metrics", // https://github.com/elastic/elasticsearch/issues/52236
         "t_test", // https://github.com/elastic/elasticsearch/issues/54503,
-        "variable_width_histogram" // https://github.com/elastic/elasticsearch/issues/58140
+        "variable_width_histogram", // https://github.com/elastic/elasticsearch/issues/58140
+        "rate" // https://github.com/elastic/elasticsearch/issues/61351
     );
 
     private TransformAggregations() {}
@@ -109,7 +109,8 @@ public final class TransformAggregations {
         PERCENTILES("percentiles", DOUBLE),
         FILTER("filter", LONG),
         TERMS("terms", FLATTENED),
-        RARE_TERMS("rare_terms", FLATTENED);
+        RARE_TERMS("rare_terms", FLATTENED),
+        MISSING("missing", LONG);
 
         private final String aggregationType;
         private final String targetMapping;

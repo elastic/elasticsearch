@@ -209,7 +209,7 @@ public abstract class BucketedSort implements Releasable {
      * Is this bucket a min heap {@code true} or in gathering mode {@code false}? 
      */
     private boolean inHeapMode(long bucket) {
-        return heapMode.get((int) bucket);
+        return heapMode.get(bucket);
     }
 
     /**
@@ -419,11 +419,7 @@ public abstract class BucketedSort implements Releasable {
             setIndexToDocValue(index);
             loader().loadFromDoc(index, doc);
             if (next == 0) {
-                if (bucket > Integer.MAX_VALUE) {
-                    throw new UnsupportedOperationException("Bucketed sort doesn't support more than [" + Integer.MAX_VALUE + "] buckets");
-                    // BitArray needs int keys and this'd take a ton of memory to use that many buckets. So we just don't.
-                }
-                heapMode.set((int) bucket);
+                heapMode.set(bucket);
                 heapify(rootIndex);
             } else {
                 setNextGatherOffset(rootIndex, next - 1);

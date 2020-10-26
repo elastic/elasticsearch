@@ -47,6 +47,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -54,6 +55,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
 
 public class NumericTermsAggregator extends TermsAggregator {
     private final ResultStrategy<?, ?> resultStrategy;
@@ -189,7 +191,8 @@ public class NumericTermsAggregator extends TermsAggregator {
 
             InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);
+                result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx],
+                    topBucketsPerOrd[ordIdx]);
             }
             return result;
         }
@@ -363,8 +366,16 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         LongTerms buildResult(long owningBucketOrd, long otherDocCount, LongTerms.Bucket[] topBuckets) {
+            final BucketOrder reduceOrder;
+            if (isKeyOrder(order) == false) {
+                reduceOrder = InternalOrder.key(true);
+                Arrays.sort(topBuckets, reduceOrder.comparator());
+            } else {
+                reduceOrder = order;
+            }
             return new LongTerms(
                 name,
+                reduceOrder,
                 order,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
@@ -383,6 +394,7 @@ public class NumericTermsAggregator extends TermsAggregator {
             return new LongTerms(
                 name,
                 order,
+                order,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
                 metadata(),
@@ -397,6 +409,7 @@ public class NumericTermsAggregator extends TermsAggregator {
     }
 
     class DoubleTermsResults extends StandardTermsResultStrategy<DoubleTerms, DoubleTerms.Bucket> {
+
         DoubleTermsResults(boolean showTermDocCountError) {
             super(showTermDocCountError);
         }
@@ -435,8 +448,16 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         DoubleTerms buildResult(long owningBucketOrd, long otherDocCount, DoubleTerms.Bucket[] topBuckets) {
+            final BucketOrder reduceOrder;
+            if (isKeyOrder(order) == false) {
+                reduceOrder = InternalOrder.key(true);
+                Arrays.sort(topBuckets, reduceOrder.comparator());
+            } else {
+                reduceOrder = order;
+            }
             return new DoubleTerms(
                 name,
+                reduceOrder,
                 order,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
@@ -454,6 +475,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         DoubleTerms buildEmptyResult() {
             return new DoubleTerms(
                 name,
+                order,
                 order,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),

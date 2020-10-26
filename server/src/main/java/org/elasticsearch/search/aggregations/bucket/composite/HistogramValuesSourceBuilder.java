@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -47,7 +46,7 @@ import java.util.function.LongConsumer;
  */
 public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<HistogramValuesSourceBuilder> {
     @FunctionalInterface
-    public interface HistogramCompositeSupplier extends ValuesSourceRegistry.CompositeSupplier {
+    public interface HistogramCompositeSupplier {
         CompositeValuesSourceConfig apply(
             ValuesSourceConfig config,
             double interval,
@@ -76,7 +75,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     }
 
     public static void register(ValuesSourceRegistry.Builder builder) {
-        builder.registerComposite(
+        builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             (valuesSourceConfig, interval, name, hasScript, format, missingBucket, order) -> {
@@ -109,7 +108,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
                         );
                     }
                 );
-            });
+            }, false);
     }
 
     private double interval = 0;
@@ -176,9 +175,8 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     }
 
     @Override
-    protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        return queryShardContext.getValuesSourceRegistry()
-            .getComposite(REGISTRY_KEY, config)
+    protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
+        return registry.getAggregator(REGISTRY_KEY, config)
             .apply(config, interval, name, script() != null, format(), missingBucket(), order());
     }
 }

@@ -20,55 +20,26 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
-
-    private IndexService indexService;
-    private DocumentMapperParser parser;
-
-    @Before
-    public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
-    }
+public class IpRangeFieldMapperTests extends MapperServiceTestCase {
 
     public void testStoreCidr() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", "ip_range")
-            .field("store", true);
-        mapping = mapping.endObject().endObject().endObject().endObject();
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
+
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "ip_range").field("store", true)));
+
         final Map<String, String> cases = new HashMap<>();
         cases.put("192.168.0.0/15", "192.169.255.255");
         cases.put("192.168.0.0/16", "192.168.255.255");
         cases.put("192.168.0.0/17", "192.168.127.255");
         for (final Map.Entry<String, String> entry : cases.entrySet()) {
             ParsedDocument doc =
-                mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", entry.getKey())
-                        .endObject()),
-                    XContentType.JSON
-                ));
+                mapper.parse(source(b -> b.field("field", entry.getKey())));
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertEquals(3, fields.length);
             IndexableField dvField = fields[0];
@@ -82,15 +53,5 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
                     InetAddresses.toAddrString(InetAddresses.forString(entry.getValue()));
             assertThat(storedField.stringValue(), containsString(strVal));
         }
-    }
-
-    public void testParseSourceValue() {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP).build(context);
-        Map<String, Object> range = Map.of("gte", "2001:db8:0:0:0:0:2:1");
-        assertEquals(Map.of("gte", "2001:db8::2:1"), mapper.parseSourceValue(range, null));
-        assertEquals("2001:db8::2:1/32", mapper.parseSourceValue("2001:db8:0:0:0:0:2:1/32", null));
     }
 }

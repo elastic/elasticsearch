@@ -80,22 +80,8 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) {
-    }
-
-    @Override
     public void postParse(ParseContext context) throws IOException {
         // we post parse it so we get the size stored, possibly compressed (source will be preParse)
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) {
-        // nothing to do here, we call the parent in postParse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) {
         if (enabled.value() == false) {
             return;
         }

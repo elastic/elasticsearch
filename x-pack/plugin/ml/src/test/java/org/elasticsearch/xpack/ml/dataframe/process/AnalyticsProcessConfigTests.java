@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,7 +47,7 @@ public class AnalyticsProcessConfigTests extends ESTestCase {
         jobId = randomAlphaOfLength(10);
         rows = randomNonNegativeLong();
         cols = randomIntBetween(1, 42000);
-        memoryLimit = new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
+        memoryLimit = ByteSizeValue.ofBytes(randomNonNegativeLong());
         threads = randomIntBetween(1, 8);
         resultsField = randomAlphaOfLength(10);
 
@@ -63,7 +62,9 @@ public class AnalyticsProcessConfigTests extends ESTestCase {
     public void testToXContent_GivenOutlierDetection() throws IOException {
         ExtractedFields extractedFields = new ExtractedFields(Arrays.asList(
             new DocValueField("field_1", Collections.singleton("double")),
-            new DocValueField("field_2", Collections.singleton("float"))), Collections.emptyMap());
+            new DocValueField("field_2", Collections.singleton("float"))),
+            Collections.emptyList(),
+            Collections.emptyMap());
         DataFrameAnalysis analysis = new OutlierDetection.Builder().build();
 
         AnalyticsProcessConfig processConfig = createProcessConfig(analysis, extractedFields);
@@ -82,7 +83,9 @@ public class AnalyticsProcessConfigTests extends ESTestCase {
         ExtractedFields extractedFields = new ExtractedFields(Arrays.asList(
             new DocValueField("field_1", Collections.singleton("double")),
             new DocValueField("field_2", Collections.singleton("float")),
-            new DocValueField("test_dep_var", Collections.singleton("keyword"))), Collections.emptyMap());
+            new DocValueField("test_dep_var", Collections.singleton("keyword"))),
+            Collections.emptyList(),
+            Collections.emptyMap());
         DataFrameAnalysis analysis = new Regression("test_dep_var");
 
         AnalyticsProcessConfig processConfig = createProcessConfig(analysis, extractedFields);
@@ -103,7 +106,9 @@ public class AnalyticsProcessConfigTests extends ESTestCase {
         ExtractedFields extractedFields = new ExtractedFields(Arrays.asList(
             new DocValueField("field_1", Collections.singleton("double")),
             new DocValueField("field_2", Collections.singleton("float")),
-            new DocValueField("test_dep_var", Collections.singleton("keyword"))), Collections.singletonMap("test_dep_var", 5L));
+            new DocValueField("test_dep_var", Collections.singleton("keyword"))),
+            Collections.emptyList(),
+            Collections.singletonMap("test_dep_var", 5L));
         DataFrameAnalysis analysis = new Classification("test_dep_var");
 
         AnalyticsProcessConfig processConfig = createProcessConfig(analysis, extractedFields);
@@ -126,7 +131,9 @@ public class AnalyticsProcessConfigTests extends ESTestCase {
         ExtractedFields extractedFields = new ExtractedFields(Arrays.asList(
             new DocValueField("field_1", Collections.singleton("double")),
             new DocValueField("field_2", Collections.singleton("float")),
-            new DocValueField("test_dep_var", Collections.singleton("integer"))), Collections.singletonMap("test_dep_var", 8L));
+            new DocValueField("test_dep_var", Collections.singleton("integer"))),
+            Collections.emptyList(),
+            Collections.singletonMap("test_dep_var", 8L));
         DataFrameAnalysis analysis = new Classification("test_dep_var");
 
         AnalyticsProcessConfig processConfig = createProcessConfig(analysis, extractedFields);

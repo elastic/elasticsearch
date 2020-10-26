@@ -27,7 +27,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
@@ -77,7 +76,7 @@ public abstract class AggregatorBase extends Aggregator {
         this.breakerService = context.bigArrays().breakerService();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.subAggregators = factories.createSubAggregators(context, this, subAggregatorCardinality);
-        context.addReleasable(this, Lifetime.PHASE);
+        context.addReleasable(this);
         final SearchShardTarget shardTarget = context.shardTarget();
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
@@ -251,9 +250,12 @@ public abstract class AggregatorBase extends Aggregator {
 
     /**
      * Called after collection of all document is done.
+     * <p>
+     * Warning: this is not final only to allow the parent join aggregator
+     * to delay this until building buckets.
      */
     @Override
-    public final void postCollection() throws IOException {
+    public void postCollection() throws IOException {
         // post-collect this agg before subs to make it possible to buffer and then replay in postCollection()
         doPostCollection();
         collectableSubAggregators.postCollection();

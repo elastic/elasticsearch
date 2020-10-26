@@ -31,7 +31,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
@@ -88,11 +87,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext scrollContext(ScrollContext scrollContext) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
         throw new UnsupportedOperationException("Not supported");
     }
@@ -109,11 +103,6 @@ public class SubSearchContext extends FilteredSearchContext {
 
     @Override
     public void suggest(SuggestionSearchContext suggest) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
-    public void addRescore(RescoreContext rescore) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -343,16 +332,6 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public CollapseContext collapse() {
         return null;
-    }
-
-    @Override
-    public void accessed(long accessTime) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
-    public void keepAlive(long keepAlive) {
-        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override

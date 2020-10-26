@@ -295,7 +295,7 @@ a multi-value metrics aggregation, and in case of a single-value metrics aggrega
 
 The path must be defined in the following form:
 
-// https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
+// {wikipedia}/Extended_Backus%E2%80%93Naur_Form
 [source,ebnf]
 --------------------------------------------------
 AGG_SEPARATOR       =  '>' ;
@@ -598,6 +598,8 @@ expire then we may be missing accounts of interest and have set our numbers too 
 
 Ultimately this is a balancing act between managing the Elasticsearch resources required to process a single request and the volume
 of requests that the client application must issue to complete a task.
+
+WARNING: Partitions cannot be used together with an `exclude` parameter.
 
 ==== Multi-field terms aggregation
 

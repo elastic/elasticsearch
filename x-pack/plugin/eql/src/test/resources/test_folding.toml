@@ -210,7 +210,6 @@ description = "Fold string comparisons"
 
 [string_case_sensitive_match_comparison]
 description = "Fold string comparisons"
-case_sensitive = true
 
     [[string_case_sensitive_match_comparison.fold.tests]]
     expression = '"Foo" == "foo"'
@@ -337,15 +336,15 @@ description = "Fold constant check in set"
     expected = false
 
     [[in_set.fold.tests]]
-    expression = "'foo' not in ('foo', 'bar', 'baz')"
+    expression = '"foo" not in ("foo", "bar", "baz")'
     expected = false
 
     [[in_set.fold.tests]]
-    expression = "'foo' in ('foo', 'bar', 'baz')"
+    expression = '"foo" in ("foo", "bar", "baz")'
     expected = true
 
     [[in_set.fold.tests]]
-    expression = "'foo' in ('bar', 'baz')"
+    expression = '"foo" in ("bar", "baz")'
     expected = false
 
 [or]

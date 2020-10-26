@@ -1,7 +1,7 @@
 [[search-aggregations-bucket-adjacency-matrix-aggregation]]
 === Adjacency Matrix Aggregation
 
-A bucket aggregation returning a form of https://en.wikipedia.org/wiki/Adjacency_matrix[adjacency matrix].
+A bucket aggregation returning a form of {wikipedia}/Adjacency_matrix[adjacency matrix].
 The request provides a collection of named filter expressions, similar to the `filters` aggregation
 request. 
 Each bucket in the response represents a non-empty cell in the matrix of intersecting filters.
@@ -104,7 +104,7 @@ Response:
 ==== Usage
 On its own this aggregation can provide all of the data required to create an undirected weighted graph.
 However, when used with child aggregations such as a `date_histogram` the results can provide the
-additional levels of data required to perform https://en.wikipedia.org/wiki/Dynamic_network_analysis[dynamic network analysis]
+additional levels of data required to perform {wikipedia}/Dynamic_network_analysis[dynamic network analysis]
 where examining interactions _over time_ becomes important.
 
 ==== Limitations

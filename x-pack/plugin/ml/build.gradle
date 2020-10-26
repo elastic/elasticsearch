@@ -50,6 +50,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   testImplementation project(path: xpackModule('ilm'), configuration: 'default')
+  testImplementation project(path: xpackModule('data-streams'), configuration: 'default')
   // This should not be here
   testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
 
@@ -95,13 +96,6 @@ project.afterEvaluate {
       extractNativeLicenses.didWork
     }
   }
-}
-
-// xpack modules are installed in real clusters as the meta plugin, so
-// installing them as individual plugins for integ tests doesn't make sense,
-// so we disable integ tests
-tasks.named("integTest").configure {
-  enabled = false
 }
 
 def checkTask = tasks.named("check")

@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -143,7 +144,17 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         }
 
         AtomicInteger counter = new AtomicInteger(closedJobIds.size());
+        AtomicReference<Exception> searchException = new AtomicReference<>();
         AtomicArray<GetJobsStatsAction.Response.JobStats> jobStats = new AtomicArray<>(closedJobIds.size());
+
+        Consumer<Exception> errorHandler = e -> {
+            // take the first error
+            searchException.compareAndSet(null, e);
+            if (counter.decrementAndGet() == 0) {
+                listener.onFailure(e);
+            }
+        };
+
         PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         for (int i = 0; i < closedJobIds.size(); i++) {
             int slot = i;
@@ -159,14 +170,19 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
                     jobStats.set(slot, new JobStats(jobId, dataCounts, modelSizeStats, forecastStats, jobState,
                             null, assignmentExplanation, null, timingStats));
                     if (counter.decrementAndGet() == 0) {
+                        if (searchException.get() != null) {
+                            // there was an error
+                            listener.onFailure(searchException.get());
+                            return;
+                        }
                         List<JobStats> results = response.getResponse().results();
                         results.addAll(jobStats.asList());
                         Collections.sort(results, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
                         listener.onResponse(new GetJobsStatsAction.Response(response.getTaskFailures(), response.getNodeFailures(),
                                 new QueryPage<>(results, results.size(), Job.RESULTS_FIELD)));
                     }
-                }, listener::onFailure);
-            }, listener::onFailure);
+                }, errorHandler);
+            }, errorHandler);
         }
     }
 

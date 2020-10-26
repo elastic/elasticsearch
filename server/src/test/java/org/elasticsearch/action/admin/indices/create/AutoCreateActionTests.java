@@ -32,35 +32,38 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AutoCreateActionTests extends ESTestCase {
 
-    public void testResolveAutoCreateDataStreams() {
+    public void testResolveTemplates() {
         Metadata metadata;
         {
             Metadata.Builder mdBuilder = new Metadata.Builder();
             DataStreamTemplate dataStreamTemplate = new DataStreamTemplate();
-            mdBuilder.put("1", new ComposableIndexTemplate(List.of("legacy-logs-*"), null, null, 10L, null, null, null));
-            mdBuilder.put("2", new ComposableIndexTemplate(List.of("logs-*"), null, null, 20L, null, null, dataStreamTemplate));
-            mdBuilder.put("3", new ComposableIndexTemplate(List.of("logs-foobar"), null, null, 30L, null, null, dataStreamTemplate));
+            mdBuilder.put("1", new ComposableIndexTemplate(List.of("legacy-logs-*"), null, null, 10L, null, null, null, null));
+            mdBuilder.put("2", new ComposableIndexTemplate(List.of("logs-*"), null, null, 20L, null, null, dataStreamTemplate, null));
+            mdBuilder.put("3", new ComposableIndexTemplate(List.of("logs-foobar"), null, null, 30L, null, null, dataStreamTemplate, null));
             metadata = mdBuilder.build();
         }
 
         CreateIndexRequest request = new CreateIndexRequest("logs-foobar");
-        DataStreamTemplate result  = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
+        ComposableIndexTemplate result  = AutoCreateAction.resolveTemplate(request, metadata);
         assertThat(result, notNullValue());
-        assertThat(result.getTimestampField(), equalTo("@timestamp"));
+        assertThat(result.getDataStreamTemplate(), notNullValue());
+        assertThat(result.getDataStreamTemplate().getTimestampField(), equalTo("@timestamp"));
 
         request = new CreateIndexRequest("logs-barbaz");
-        result  = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
+        result  = AutoCreateAction.resolveTemplate(request, metadata);
         assertThat(result, notNullValue());
-        assertThat(result.getTimestampField(), equalTo("@timestamp"));
+        assertThat(result.getDataStreamTemplate(), notNullValue());
+        assertThat(result.getDataStreamTemplate().getTimestampField(), equalTo("@timestamp"));
 
         // An index that matches with a template without a data steam definition
         request = new CreateIndexRequest("legacy-logs-foobaz");
-        result = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
-        assertThat(result, nullValue());
+        result = AutoCreateAction.resolveTemplate(request, metadata);
+        assertThat(result, notNullValue());
+        assertThat(result.getDataStreamTemplate(), nullValue());
 
         // An index that doesn't match with an index template
         request = new CreateIndexRequest("my-index");
-        result = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
+        result = AutoCreateAction.resolveTemplate(request, metadata);
         assertThat(result, nullValue());
     }
 

@@ -19,14 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -44,9 +42,6 @@ public class ClusterStateResponse extends ActionResponse {
         super(in);
         clusterName = new ClusterName(in);
         clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            new ByteSizeValue(in);
-        }
         waitForTimedOut = in.readBoolean();
     }
 
@@ -83,9 +78,6 @@ public class ClusterStateResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
         out.writeOptionalWriteable(clusterState);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            ByteSizeValue.ZERO.writeTo(out);
-        }
         out.writeBoolean(waitForTimedOut);
     }
 

@@ -62,6 +62,21 @@ when there are no matches or only partial matches.
 --
 end::allow-no-match[]
 
+tag::allow-no-match-models[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no models that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches.
+
+The default value is `true`, which returns an empty array when there are no
+matches and the subset of results when there are partial matches. If this
+parameter is `false`, the request returns a `404` status code when there are no
+matches or only partial matches.
+--
+end::allow-no-match-models[]
+
 tag::analysis[]
 Defines the type of {dfanalytics} you want to perform on your source index. For
 example: `outlier_detection`. See <<ml-dfa-analysis-objects>>.
@@ -522,6 +537,14 @@ The fraction of features that is used when selecting a random bag for each
 candidate split.
 end::dfas-feature-bag-fraction[]
 
+tag::dfas-feature-processors[]
+A collection of feature preprocessors that modify one or more included fields.
+The analysis uses the resulting one or more features instead of the
+original document field. Multiple `feature_processors` entries can refer to the
+same document fields.
+Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs.
+end::dfas-feature-processors[]
+
 tag::dfas-iteration[]
 The number of iterations on the analysis.
 end::dfas-iteration[]
@@ -604,7 +627,7 @@ Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have a better generalization error.
 However, the smaller the value the longer the training will take. For more
 information about shrinkage, see
-https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article].
+{wikipedia}/Gradient_boosting#Shrinkage[this wiki article].
 By default, this value is calculated during hyperparameter optimization.
 end::eta[]
 
@@ -655,6 +678,12 @@ The number of individual forecasts currently available for the job. A value of
 `1` or more indicates that forecasts exist.
 end::forecast-total[]
 
+tag::exclude-generated[]
+Indicates if certain fields should be removed from the configuration on
+retrieval. This allows the configuration to be in an acceptable format to be retrieved
+and then added to another cluster. Default is false.
+end::exclude-generated[]
+
 tag::frequency[]
 The interval at which scheduled queries are made while the {dfeed} runs in real
 time. The default value is either the bucket span for short bucket spans, or,
@@ -672,6 +701,10 @@ end::frequent-category-count[]
 tag::from[]
 Skips the specified number of {dfanalytics-jobs}. The default value is `0`.
 end::from[]
+
+tag::from-models[]
+Skips the specified number of models. The default value is `0`.
+end::from-models[]
 
 tag::function[]
 The analysis function that is used. For example, `count`, `rare`, `mean`, `min`,
@@ -757,6 +790,23 @@ The field that is added to incoming documents to contain the inference
 prediction. Defaults to the `results_field` value of the {dfanalytics-job} that was
 used to train the model, which defaults to `<dependent_variable>_prediction`.
 end::inference-config-results-field-processor[]
+
+tag::inference-metadata-feature-importance-feature-name[]
+The feature for which this importance was calculated.
+end::inference-metadata-feature-importance-feature-name[]
+tag::inference-metadata-feature-importance-magnitude[]
+The average magnitude of this feature across all the training data.
+This value is the average of the absolute values of the importance
+for this feature.
+end::inference-metadata-feature-importance-magnitude[]
+tag::inference-metadata-feature-importance-max[]
+The maximum importance value across all the training data for this
+feature.
+end::inference-metadata-feature-importance-max[]
+tag::inference-metadata-feature-importance-min[]
+The minimum importance value across all the training data for this
+feature.
+end::inference-metadata-feature-importance-min[]
 
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by,
@@ -942,7 +992,7 @@ failure.
 end::model-bytes-exceeded[]
 
 tag::model-id[]
-The unique identifier of the trained {infer} model.
+The unique identifier of the trained model.
 end::model-id[]
 
 tag::model-memory-limit[]
@@ -1257,6 +1307,11 @@ Specifies the maximum number of {dfanalytics-jobs} to obtain. The default value
 is `100`.
 end::size[]
 
+tag::size-models[]
+Specifies the maximum number of models to obtain. The default value
+is `100`.
+end::size-models[]
+
 tag::snapshot-id[]
 Identifier for the model snapshot.
 end::snapshot-id[]
@@ -1320,8 +1375,8 @@ function.
 end::summary-count-field-name[]
 
 tag::tags[]
-A comma delimited string of tags. A {infer} model can have many tags, or none.
-When supplied, only {infer} models that contain all the supplied tags are
+A comma delimited string of tags. A trained model can have many tags, or none.
+When supplied, only trained models that contain all the supplied tags are
 returned.
 end::tags[]
 

@@ -66,7 +66,7 @@ is not `0`, a reason for the rejection or failure is included in the response.
 
 `cluster_name`::
 (string)
-Name of the cluster, based on the <<cluster.name>> setting.
+Name of the cluster, based on the <<cluster-name>> setting.
 
 `cluster_uuid`::
 (string)
@@ -74,7 +74,7 @@ Unique identifier for the cluster.
 
 `timestamp`::
 (integer)
-https://en.wikipedia.org/wiki/Unix_time[Unix timestamp], in milliseconds, of
+{wikipedia}/Unix_time[Unix timestamp], in milliseconds, of
 the last time the cluster statistics were refreshed.
 
 `status`::
@@ -447,7 +447,7 @@ assigned to selected nodes.
 
 `max_unsafe_auto_id_timestamp`::
 (integer)
-https://en.wikipedia.org/wiki/Unix_time[Unix timestamp], in milliseconds, of
+{wikipedia}/Unix_time[Unix timestamp], in milliseconds, of
 the most recently retried indexing request.
 
 `file_sizes`::

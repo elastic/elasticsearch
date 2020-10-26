@@ -113,6 +113,11 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
+    public void postCollection() throws IOException {
+        // Delaying until beforeBuildingBuckets
+    }
+
+    @Override
     protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {
         IndexReader indexReader = context().searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
@@ -162,6 +167,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 }
             }
         }
+        super.postCollection(); // Run post collection after collecting the sub-aggs
     }
 
     @Override
@@ -190,7 +196,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         private final BitArray ordsBits;
 
         public DenseCollectionStrategy(long maxOrd, BigArrays bigArrays) {
-            ordsBits = new BitArray((int) maxOrd, context.bigArrays());
+            ordsBits = new BitArray(maxOrd, context.bigArrays());
         }
 
         @Override

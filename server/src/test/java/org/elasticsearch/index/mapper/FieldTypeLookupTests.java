@@ -33,7 +33,7 @@ import static java.util.Collections.singletonList;
 public class FieldTypeLookupTests extends ESTestCase {
 
     public void testEmpty() {
-        FieldTypeLookup lookup = new FieldTypeLookup();
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.emptyList(), Collections.emptyList());
         assertNull(lookup.get("foo"));
         Collection<String> names = lookup.simpleMatchToFullName("foo");
         assertNotNull(names);
@@ -95,23 +95,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(Set.of("field"), lookup.sourcePaths("field.subfield2"));
     }
 
-    public void testSourcePathWithAliases() {
-        Mapper.BuilderContext context = new Mapper.BuilderContext(
-            MockFieldMapper.DEFAULT_SETTINGS, new ContentPath());
-
-        MockFieldMapper field = new MockFieldMapper.Builder("field")
-            .addMultiField(new MockFieldMapper.Builder("field.subfield"))
-            .build(context);
-
-        FieldAliasMapper alias1 = new FieldAliasMapper("alias1", "alias1", "field");
-        FieldAliasMapper alias2 = new FieldAliasMapper("alias2", "alias2", "field.subfield");
-
-        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field), Arrays.asList(alias1, alias2));
-
-        assertEquals(Set.of("field"), lookup.sourcePaths("alias1"));
-        assertEquals(Set.of("field"), lookup.sourcePaths("alias2"));
-    }
-
     public void testSourcePathsWithCopyTo() {
         Mapper.BuilderContext context = new Mapper.BuilderContext(
             MockFieldMapper.DEFAULT_SETTINGS, new ContentPath());
@@ -121,9 +104,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             .build(context);
 
         MockFieldMapper otherField = new MockFieldMapper.Builder("other_field")
-            .copyTo(new FieldMapper.CopyTo.Builder()
-                .add("field")
-                .build())
+            .copyTo("field")
             .build(context);
 
         FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field, otherField), emptyList());

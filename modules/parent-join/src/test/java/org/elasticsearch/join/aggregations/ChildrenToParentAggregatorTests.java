@@ -39,8 +39,6 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -50,6 +48,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.join.mapper.MetaJoinFieldMapper;
+import org.elasticsearch.join.mapper.ParentIdFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -119,9 +118,11 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
                 expectedTotalParents++;
                 expectedMinValue = Math.min(expectedMinValue, expectedValues.v2());
             }
-            assertEquals("Having " + parent.getDocCount() + " docs and aggregation results: " +
-                    parent.getAggregations().asMap(),
-                expectedTotalParents, parent.getDocCount());
+            assertEquals(
+                "Having " + parent.getDocCount() + " docs and aggregation results: " + parent,
+                expectedTotalParents,
+                parent.getDocCount()
+            );
             assertEquals(expectedMinValue, ((InternalMin) parent.getAggregations().get("in_parent")).getValue(), Double.MIN_VALUE);
             assertTrue(JoinAggregationInspectionHelper.hasValue(parent));
         });
@@ -233,21 +234,19 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         Map<String, Tuple<Integer, Integer>> expectedValues = new HashMap<>();
         int numParents = randomIntBetween(1, 10);
         for (int i = 0; i < numParents; i++) {
+            List<List<Field>> documents = new ArrayList<>();
             String parent = "parent" + i;
             int randomValue = randomIntBetween(0, 100);
-            List<Field> parentDocument = createParentDocument(parent, randomValue);
-            /*long parentDocId =*/ iw.addDocument(parentDocument);
-            //System.out.println("Parent: " + parent + ": " + randomValue + ", id: " + parentDocId);
+            documents.add(createParentDocument(parent, randomValue));
             int numChildren = randomIntBetween(1, 10);
             int minValue = Integer.MAX_VALUE;
             for (int c = 0; c < numChildren; c++) {
                 minValue = Math.min(minValue, randomValue);
                 int randomSubValue = randomIntBetween(0, 100);
-                List<Field> childDocument = createChildDocument("child" + c + "_" + parent, parent, randomSubValue);
-                /*long childDocId =*/ iw.addDocument(childDocument);
-                //System.out.println("Child: " + "child" + c + "_" + parent + ": " + randomSubValue + ", id: " + childDocId);
+                documents.add(createChildDocument("child" + c + "_" + parent, parent, randomSubValue));
             }
             expectedValues.put(parent, new Tuple<>(numChildren, minValue));
+            iw.addDocuments(documents);
         }
         return expectedValues;
     }
@@ -281,18 +280,16 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
         when(metaJoinFieldType.getJoinField()).thenReturn("join_field");
         when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
-        MappingLookup fieldMappers = new MappingLookup(Collections.singleton(joinFieldMapper),
-            Collections.emptyList(), Collections.emptyList(), 0, null);
-        DocumentMapper mockMapper = mock(DocumentMapper.class);
-        when(mockMapper.mappers()).thenReturn(fieldMappers);
-        when(mapperService.documentMapper()).thenReturn(mockMapper);
+        when(mapperService.fieldType("join_field")).thenReturn(joinFieldMapper.fieldType());
+        when(mapperService.fieldType("join_field#" + PARENT_TYPE))
+            .thenReturn(new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false));
         return mapperService;
     }
 
     private static ParentJoinFieldMapper createJoinFieldMapper() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         return new ParentJoinFieldMapper.Builder("join_field")
-                .addParent(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
+                .addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
                 .build(new Mapper.BuilderContext(settings, new ContentPath(0)));
     }
 

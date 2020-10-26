@@ -19,19 +19,10 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class BinaryMathNode extends BinaryNode {
 
@@ -40,8 +31,8 @@ public class BinaryMathNode extends BinaryNode {
     private Operation operation;
     private Class<?> binaryType;
     private Class<?> shiftType;
-    private boolean cat; // set to true for a String concatenation
-    private boolean originallyExplicit; // record whether there was originally an explicit cast
+    private int flags;
+    private int regexLimit;
 
     public void setOperation(Operation operation) {
         this.operation = operation;
@@ -75,89 +66,39 @@ public class BinaryMathNode extends BinaryNode {
         return PainlessLookupUtility.typeToCanonicalTypeName(shiftType);
     }
 
-    public void setCat(boolean cat) {
-        this.cat = cat;
+    public void setFlags(int flags) {
+        this.flags = flags;
     }
 
-    public boolean getCat() {
-        return cat;
+    public int getFlags() {
+        return flags;
     }
 
-    public void setOriginallyExplicit(boolean originallyExplicit) {
-        this.originallyExplicit = originallyExplicit;
+    public void setRegexLimit(int regexLimit) {
+        this.regexLimit = regexLimit;
     }
 
-    public boolean getOriginallyExplicit() {
-        return originallyExplicit;
-    }
-
-    @Override
-    public void setLocation(Location location) {
-        super.setLocation(location);
+    public int getRegexLimit() {
+        return regexLimit;
     }
 
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitBinaryMath(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitBinaryMath(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getLeftNode().visit(irTreeVisitor, scope);
+        getRightNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
-        if (getBinaryType() == String.class && operation == Operation.ADD) {
-            if (cat == false) {
-                methodWriter.writeNewStrings();
-            }
-
-            getLeftNode().write(classWriter, methodWriter, writeScope);
-
-            if (getLeftNode() instanceof BinaryMathNode == false || ((BinaryMathNode)getLeftNode()).getCat() == false) {
-                methodWriter.writeAppendStrings(getLeftNode().getExpressionType());
-            }
-
-            getRightNode().write(classWriter, methodWriter, writeScope);
-
-            if (getRightNode() instanceof BinaryMathNode == false || ((BinaryMathNode)getRightNode()).getCat() == false) {
-                methodWriter.writeAppendStrings(getRightNode().getExpressionType());
-            }
-
-            if (cat == false) {
-                methodWriter.writeToStrings();
-            }
-        } else if (operation == Operation.FIND || operation == Operation.MATCH) {
-            getRightNode().write(classWriter, methodWriter, writeScope);
-            getLeftNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);
-
-            if (operation == Operation.FIND) {
-                methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_FIND);
-            } else if (operation == Operation.MATCH) {
-                methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Matcher.class), WriterConstants.MATCHER_MATCHES);
-            } else {
-                throw new IllegalStateException("unexpected binary math operation [" + operation + "] " +
-                        "for type [" + getExpressionCanonicalTypeName() + "]");
-            }
-        } else {
-            getLeftNode().write(classWriter, methodWriter, writeScope);
-            getRightNode().write(classWriter, methodWriter, writeScope);
-
-            if (binaryType == def.class || (shiftType != null && shiftType == def.class)) {
-                // def calls adopt the wanted return value. if there was a narrowing cast,
-                // we need to flag that so that its done at runtime.
-                int flags = 0;
-                if (originallyExplicit) {
-                    flags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
-                }
-                methodWriter.writeDynamicBinaryInstruction(location,
-                        getExpressionType(), getLeftNode().getExpressionType(), getRightNode().getExpressionType(), operation, flags);
-            } else {
-                methodWriter.writeBinaryInstruction(location, getExpressionType(), operation);
-            }
-        }
+    public BinaryMathNode(Location location) {
+        super(location);
     }
+
 }

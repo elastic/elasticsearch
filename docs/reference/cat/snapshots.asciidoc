@@ -60,14 +60,14 @@ version.
 * `SUCCESS`: The snapshot process completed with a full success.
 
 `start_epoch`, `ste`, `startEpoch`::
-(Default) https://en.wikipedia.org/wiki/Unix_time[Unix `epoch` time] at which
+(Default) {wikipedia}/Unix_time[Unix `epoch` time] at which
 the snapshot process started.
 
 `start_time`, `sti`, `startTime`::
 (Default) `HH:MM:SS` time at which the snapshot process started.
 
 `end_epoch`, `ete`, `endEpoch`::
-(Default) https://en.wikipedia.org/wiki/Unix_time[Unix `epoch` time] at which
+(Default) {wikipedia}/Unix_time[Unix `epoch` time] at which
 the snapshot process ended.
 
 `end_time`, `eti`, `endTime`::

@@ -36,6 +36,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -87,6 +88,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     //these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
     private SearchSourceBuilder source;
+    private final ShardSearchContextId readerId;
+    private final TimeValue keepAlive;
 
     public ShardSearchRequest(OriginalIndices originalIndices,
                               SearchRequest searchRequest,
@@ -97,6 +100,21 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                               long nowInMillis,
                               @Nullable String clusterAlias,
                               String[] indexRoutings) {
+        this(originalIndices, searchRequest, shardId, numberOfShards, aliasFilter,
+            indexBoost, nowInMillis, clusterAlias, indexRoutings, null, null);
+    }
+
+    public ShardSearchRequest(OriginalIndices originalIndices,
+                              SearchRequest searchRequest,
+                              ShardId shardId,
+                              int numberOfShards,
+                              AliasFilter aliasFilter,
+                              float indexBoost,
+                              long nowInMillis,
+                              @Nullable String clusterAlias,
+                              String[] indexRoutings,
+                              ShardSearchContextId readerId,
+                              TimeValue keepAlive) {
         this(originalIndices,
             shardId,
             numberOfShards,
@@ -110,7 +128,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             searchRequest.preference(),
             searchRequest.scroll(),
             nowInMillis,
-            clusterAlias);
+            clusterAlias,
+            readerId,
+            keepAlive);
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
@@ -120,7 +140,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                               long nowInMillis,
                               AliasFilter aliasFilter) {
         this(OriginalIndices.NONE, shardId, -1, SearchType.QUERY_THEN_FETCH, null, null,
-            aliasFilter, 1.0f, false, Strings.EMPTY_ARRAY, null, null, nowInMillis, null);
+            aliasFilter, 1.0f, false, Strings.EMPTY_ARRAY, null, null, nowInMillis, null, null, null);
     }
 
     private ShardSearchRequest(OriginalIndices originalIndices,
@@ -136,7 +156,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                                String preference,
                                Scroll scroll,
                                long nowInMillis,
-                               @Nullable String clusterAlias) {
+                               @Nullable String clusterAlias,
+                               ShardSearchContextId readerId,
+                               TimeValue keepAlive) {
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
@@ -151,6 +173,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.nowInMillis = nowInMillis;
         this.clusterAlias = clusterAlias;
         this.originalIndices = originalIndices;
+        this.readerId = readerId;
+        this.keepAlive = keepAlive;
+        assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -179,11 +204,16 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             canReturnNullResponseIfMatchNoDocs = in.readBoolean();
             bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
+            readerId = in.readOptionalWriteable(ShardSearchContextId::new);
+            keepAlive = in.readOptionalTimeValue();
         } else {
             canReturnNullResponseIfMatchNoDocs = false;
             bottomSortValues = null;
+            readerId = null;
+            keepAlive = null;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
+        assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {
@@ -203,6 +233,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.canReturnNullResponseIfMatchNoDocs = clone.canReturnNullResponseIfMatchNoDocs;
         this.bottomSortValues = clone.bottomSortValues;
         this.originalIndices = clone.originalIndices;
+        this.readerId = clone.readerId;
+        this.keepAlive = clone.keepAlive;
     }
 
     @Override
@@ -236,9 +268,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeStringArray(indexRoutings);
             out.writeOptionalString(preference);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_7_0) && asKey == false) {
+        if (asKey == false && out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             out.writeOptionalWriteable(bottomSortValues);
+            out.writeOptionalWriteable(readerId);
+            out.writeOptionalTimeValue(keepAlive);
         }
     }
 
@@ -344,6 +378,21 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private static final ThreadLocal<BytesStreamOutput> scratch = ThreadLocal.withInitial(BytesStreamOutput::new);
 
     /**
+     * Returns a non-null value if this request should execute using a specific point-in-time reader;
+     * otherwise, using the most up to date point-in-time reader.
+     */
+    public ShardSearchContextId readerId() {
+        return readerId;
+    }
+
+    /**
+     * Returns a non-null to specify the time to live of the point-in-time reader that is used to execute this request.
+     */
+    public TimeValue keepAlive() {
+        return keepAlive;
+    }
+
+    /**
      * Returns the cache key for this shard search request, based on its content
      */
     public BytesReference cacheKey() throws IOException {
@@ -427,7 +476,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
      * The list of filtering aliases should be obtained by calling Metadata.filteringAliases.
      * Returns {@code null} if no filtering is required.</p>
      */
-    public static QueryBuilder parseAliasFilter(CheckedFunction<byte[], QueryBuilder, IOException> filterParser,
+    public static QueryBuilder parseAliasFilter(CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser,
                                                 IndexMetadata metadata, String... aliasNames) {
         if (aliasNames == null || aliasNames.length == 0) {
             return null;

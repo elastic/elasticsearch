@@ -186,7 +186,8 @@ public class MetadataCreateDataStreamService {
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
         List<Index> dsBackingIndices = backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList());
         dsBackingIndices.add(writeIndex.getIndex());
-        DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1);
+        DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1L,
+                                                  template.metadata() != null ? Map.copyOf(template.metadata()) : null);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", dataStreamName);
         return ClusterState.builder(currentState).metadata(builder).build();

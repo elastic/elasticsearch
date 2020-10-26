@@ -22,6 +22,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -209,6 +210,113 @@ public class AutoCreateIndexTests extends ESTestCase {
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(true));
         assertThat(autoCreateIndex.getAutoCreate().getExpressions().size(), equalTo(1));
         assertThat(autoCreateIndex.getAutoCreate().getExpressions().get(0).v1(), equalTo("logs-*"));
+    }
+
+    /**
+     * Check that if a template matches the index to be created, but that template does not have a value
+     * for the allow_auto_create setting at all, and the auto_create_index setting matches the index
+     * to be created, then the null in the template does not override the auto_create_index logic and the
+     * index can be created.
+     */
+    public void testNullAllowAutoCreateInTemplateDoesNotOverrideMatchingAutoCreateIndexSetting() {
+        String randomIndex = randomAlphaOfLengthBetween(2, 10);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of(randomIndex.charAt(0) + "*"),
+            null,
+            List.of(),
+            null,
+            null,
+            Map.of(),
+            null,
+            null
+        );
+
+        final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
+        final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
+
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomIndex.charAt(0) + "*").build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        assertTrue(autoCreateIndex.shouldAutoCreate(randomIndex, clusterState));
+    }
+
+    /**
+     * Check that if a template matches the index to be created, but that template does not have a value
+     * for the allow_auto_create setting at all, then it does not cause the auto-create logic to trip over
+     * on a null value.
+     */
+    public void testCanHandleNullAutoCreateSettingInTemplate() {
+        String randomIndex = randomAlphaOfLengthBetween(2, 10);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of(randomIndex.charAt(0) + "*"),
+            null,
+            List.of(),
+            null,
+            null,
+            Map.of(),
+            null,
+            null
+        );
+
+        final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
+        final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
+
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
+            autoCreateIndex.shouldAutoCreate(randomIndex, clusterState));
+        assertEquals("no such index [" + randomIndex + "] and [action.auto_create_index] is [false]", e.getMessage());
+    }
+
+    /**
+     * Check that if a template matches the index to be created, but that template has the allow_auto_create
+     * setting turned off, then it overrides the global setting.
+     */
+    public void testDisabledAutoCreateTemplateSettingDoesNotOverride() {
+        String randomIndex = randomAlphaOfLengthBetween(2, 10);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of(randomIndex.charAt(0) + "*"),
+            null,
+            List.of(),
+            null,
+            null,
+            Map.of(),
+            null,
+            false
+        );
+
+        final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
+        final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
+
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
+            autoCreateIndex.shouldAutoCreate(randomIndex, clusterState));
+        assertEquals("no such index [composable template [" + randomIndex.charAt(0) + "*] forbids index auto creation]", e.getMessage());
+    }
+
+    /**
+     * Check that if a template matches the index to be created, and that template has the allow_auto_create
+     * setting enabled, then it overrides the global setting.
+     */
+    public void testEnabledAutoCreateTemplateSettingDoesOverride() {
+        String randomIndex = randomAlphaOfLengthBetween(2, 10);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of(randomIndex.charAt(0) + "*"),
+            null,
+            List.of(),
+            null,
+            null,
+            Map.of(),
+            null,
+            true
+        );
+
+        final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
+        final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
+
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        assertThat(autoCreateIndex.shouldAutoCreate(randomIndex, clusterState), equalTo(true));
     }
 
     private static ClusterState buildClusterState(String... indices) {

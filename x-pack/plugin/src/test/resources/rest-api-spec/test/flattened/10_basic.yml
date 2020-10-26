@@ -2,52 +2,52 @@
 "Test exists query on flattened object field":
   - skip:
       version: " - 7.2.99"
-      reason: "Flat object fields were implemented in 7.3."
+      reason: "Flattened fields were implemented in 7.3."
 
   - do:
       indices.create:
-        index:  flat_object_test
+        index:  flattened_test
         body:
           mappings:
             properties:
-              flat_object:
+              flattened:
                 type: flattened
   - do:
       index:
-        index:  flat_object_test
+        index:  flattened_test
         id:     1
         body:
-          flat_object:
+          flattened:
             key: some_value
         refresh: true
 
   - do:
       search:
-        index: flat_object_test
+        index: flattened_test
         body:
           query:
             exists:
-              field: flat_object
+              field: flattened
 
   - match: { hits.total.value: 1 }
 
   - do:
       search:
-        index: flat_object_test
+        index: flattened_test
         body:
           query:
             exists:
-              field: flat_object.key
+              field: flattened.key
 
   - match: { hits.total.value: 1 }
 
   - do:
       search:
-        index: flat_object_test
+        index: flattened_test
         body:
           query:
             exists:
-              field: flat_object.nonexistent_key
+              field: flattened.nonexistent_key
 
   - match: { hits.total.value: 0 }
 
@@ -55,7 +55,7 @@
 "Test query string query on flattened object field":
   - skip:
       version: " - 7.2.99"
-      reason: "Flat object fields were implemented in 7.3."
+      reason: "Flattened fields were implemented in 7.3."
 
   - do:
       indices.create:

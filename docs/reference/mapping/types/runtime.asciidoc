@@ -52,9 +52,9 @@ script runs and generates values for each scripted field. Runtime
 scripts have access to the entire context of a document, the original
 `_source`, and the mapped field plus its values (`doc_values`).
 
-Runtime fields are similar to the <<script-fields,`script-fields`>> parameter
+Runtime fields are similar to the <<script-fields,`script_fields`>> parameter
 of the `_search` request. You can retrieve the results of running a script, but
-also make the script results available for queries and aggregations. 
+also make the script results available for queries and aggregations.
 
 [[runtime-updating-scripts]]
 .Updating runtime scripts

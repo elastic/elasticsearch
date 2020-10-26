@@ -184,7 +184,7 @@ public class AppendProcessorTests extends ESTestCase {
         String field = RandomDocumentPicks.addRandomField(random(), ingestDocument, originalValue);
 
         List<Object> valuesToAppend = new ArrayList<>();
-        String newValue = randomAlphaOfLengthBetween(1, 10);
+        String newValue = randomValueOtherThan(originalValue, () -> randomAlphaOfLengthBetween(1, 10));
         valuesToAppend.add(newValue);
         Processor appendProcessor = createAppendProcessor(field, valuesToAppend, false);
         appendProcessor.execute(ingestDocument);

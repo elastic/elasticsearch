@@ -972,7 +972,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .field("realm", inferRealmNameFromUsername.apply(setEnabledRequest.username()))
                     .endObject() // user
                     .endObject();
-            if (setEnabledRequest.enabled()) {
+            if (setEnabledRequest.enabled() != null && setEnabledRequest.enabled()) {
                 logEntry.with(EVENT_ACTION_FIELD_NAME, "enable_user");
                 logEntry.with(ENABLE_CONFIG_FIELD_NAME, Strings.toString(builder));
             } else {

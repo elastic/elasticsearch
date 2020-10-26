@@ -20,20 +20,20 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
+import org.elasticsearch.xpack.flattened.mapper.FlattenedFieldMapper.RootFlattenedFieldType;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
+public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
-    private static RootFlatObjectFieldType createDefaultFieldType() {
-        return new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false);
+    private static RootFlattenedFieldType createDefaultFieldType() {
+        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false);
     }
 
     public void testValueForDisplay() {
-        RootFlatObjectFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType();
 
         String fieldValue = "{ \"key\": \"value\" }";
         BytesRef storedValue = new BytesRef(fieldValue);
@@ -41,7 +41,7 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        RootFlatObjectFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType();
 
         Query expected = new TermQuery(new Term("field", "value"));
         assertEquals(expected, ft.termQuery("value", null));
@@ -50,7 +50,7 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expected, ft.termQueryCaseInsensitive("Value", null));
 
 
-        RootFlatObjectFieldType unsearchable = new RootFlatObjectFieldType("field", false, true,
+        RootFlattenedFieldType unsearchable = new RootFlattenedFieldType("field", false, true,
             Collections.emptyMap(), false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> unsearchable.termQuery("field", null));
@@ -58,17 +58,17 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testExistsQuery() {
-        RootFlatObjectFieldType ft = new RootFlatObjectFieldType("field", true, false, Collections.emptyMap(), false);
+        RootFlattenedFieldType ft = new RootFlattenedFieldType("field", true, false, Collections.emptyMap(), false);
         assertEquals(
             new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))),
             ft.existsQuery(null));
 
-        RootFlatObjectFieldType withDv = new RootFlatObjectFieldType("field", true, true, Collections.emptyMap(), false);
+        RootFlattenedFieldType withDv = new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false);
         assertEquals(new DocValuesFieldExistsQuery("field"), withDv.existsQuery(null));
     }
 
     public void testFuzzyQuery() {
-        RootFlatObjectFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType();
 
         Query expected = new FuzzyQuery(new Term("field", "value"), 2, 1, 50, true);
         Query actual = ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC);
@@ -82,7 +82,7 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        RootFlatObjectFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType();
 
         TermRangeQuery expected = new TermRangeQuery("field",
             new BytesRef("lower"),
@@ -101,7 +101,7 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        RootFlatObjectFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType();
 
         Query expected = new RegexpQuery(new Term("field", "val.*"));
         Query actual = ft.regexpQuery("val.*", 0, 0, 10, null, MOCK_QSC);
@@ -114,7 +114,7 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardQuery() {
-        RootFlatObjectFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType();
 
         Query expected = new WildcardQuery(new Term("field", new BytesRef("valu*")));
         assertEquals(expected, ft.wildcardQuery("valu*", null, MOCK_QSC));
@@ -127,7 +127,7 @@ public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         Map<String, Object> sourceValue = org.elasticsearch.common.collect.Map.of("key", "value");
-        RootFlatObjectFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType();
 
         assertEquals(org.elasticsearch.common.collect.List.of(sourceValue), fetchSourceValue(ft, sourceValue));
         assertEquals(org.elasticsearch.common.collect.List.of(), fetchSourceValue(ft, null));

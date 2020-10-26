@@ -254,7 +254,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             @Override
             protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return new AcknowledgedResponse(acknowledged);
+                return AcknowledgedResponse.of(acknowledged);
             }
 
             @Override
@@ -343,7 +343,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
                     @Override
                     protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                        return new AcknowledgedResponse(acknowledged);
+                        return AcknowledgedResponse.of(acknowledged);
                     }
 
                     @Override

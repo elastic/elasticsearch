@@ -29,7 +29,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/data_stream/delete";
 
     private DeleteDataStreamAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest.Replaceable {

@@ -34,10 +34,10 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -45,7 +45,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -143,18 +142,11 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         TestTransportBulkAction() {
             super(threadPool, transportService, clusterService, ingestService,
-                null, new ActionFilters(Collections.emptySet()), null,
-                new AutoCreateIndex(
-                    SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-                    new SystemIndices(Map.of())
-                ), new IndexingPressure(SETTINGS), new SystemIndices(Map.of())
+                null, new ActionFilters(Collections.emptySet()), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                new IndexingPressure(SETTINGS), new SystemIndices(Map.of())
             );
         }
-        @Override
-        protected boolean needToCheck() {
-            return needToCheck;
-        }
+
         @Override
         void executeBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener<BulkResponse> listener,
                 final AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
@@ -633,7 +625,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         ComposableIndexTemplate t1 = new ComposableIndexTemplate(Collections.singletonList("missing_*"),
             new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null),
-            null, null, null, null, null);
+            null, null, null, null, null, null);
 
         ClusterState state = clusterService.state();
         Metadata metadata = Metadata.builder()

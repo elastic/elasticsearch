@@ -20,19 +20,27 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.GeoTileGridValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -42,9 +50,15 @@ import java.util.Set;
  */
 public class CompositeBucketsChangeCollector implements ChangeCollector {
 
+    // a magic for the case that we do not need a composite aggregation to collect changes
+    private static final Map<String, Object> AFTER_KEY_MAGIC_FOR_NON_COMPOSITE_COLLECTORS = Collections.singletonMap(
+        "_transform",
+        "no_composite_after_key"
+    );
+
+    private static final String COMPOSITE_AGGREGATION_NAME = "_transform_change_collector";
     private final Map<String, FieldCollector> fieldCollectors;
     private final CompositeAggregationBuilder compositeAggregation;
-    private Map<String, Object> afterKey = null;
 
     /**
      * Collector for collecting changes from 1 group_by field.
@@ -66,17 +80,34 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         /**
          * Allows the field collector to add aggregations to the changes query.
          *
-         * @return aggregations specific for this field collector or null.
+         * @return a collection of aggregations
          */
-        AggregationBuilder aggregateChanges();
+        Collection<AggregationBuilder> aggregateChanges();
+
+        /**
+         * Collect the results from the added aggregations in aggregateChanges.
+         *
+         * @return true if this collection is done and there are no more changes to look for
+         */
+        boolean collectChangesFromAggregations(Aggregations aggregations);
+
+        /**
+         * Return a composite value source builder if the collector requires it.
+         *
+         * @return {@link CompositeValuesSourceBuilder} instance or null.
+         */
+        CompositeValuesSourceBuilder<?> getCompositeValueSourceBuilder();
 
         /**
          * Collects the changes from the search response, e.g. stores the terms that have changed.
          *
+         * If the field collector implements this method, requiresCompositeSources must return true,
+         * otherwise requiresCompositeSources should return false.
+         *
          * @param buckets buckets from the search result.
-         * @return true if changes have been found and got collected, false otherwise.
+         * @return true if this collection is done and there are no more changes to look for
          */
-        boolean collectChanges(Collection<? extends Bucket> buckets);
+        boolean collectChangesFromCompositeBuckets(Collection<? extends Bucket> buckets);
 
         /**
          * Apply the collected changes in the query that updates the transform destination.
@@ -98,6 +129,13 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
          * @return true if the collector optimizes change detection
          */
         boolean isOptimized();
+
+        /**
+         * Whether the collector requires an extra query to identify the changes.
+         *
+         * @return true if collector requires an extra query for identifying changes
+         */
+        boolean queryForChanges();
     }
 
     static class TermsFieldCollector implements FieldCollector {
@@ -110,6 +148,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         private boolean foundNullBucket;
 
         TermsFieldCollector(final String sourceFieldName, final String targetFieldName, final boolean missingBucket) {
+            assert sourceFieldName != null;
             this.sourceFieldName = sourceFieldName;
             this.targetFieldName = targetFieldName;
             this.missingBucket = missingBucket;
@@ -125,7 +164,12 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
-        public boolean collectChanges(Collection<? extends Bucket> buckets) {
+        public CompositeValuesSourceBuilder<?> getCompositeValueSourceBuilder() {
+            return new TermsValuesSourceBuilder(targetFieldName).field(sourceFieldName).missingBucket(missingBucket);
+        }
+
+        @Override
+        public boolean collectChangesFromCompositeBuckets(Collection<? extends Bucket> buckets) {
             changedTerms.clear();
             foundNullBucket = false;
 
@@ -140,7 +184,8 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                 }
             }
 
-            return true;
+            // if buckets have been found, we need another run
+            return buckets.isEmpty();
         }
 
         @Override
@@ -195,39 +240,46 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
-        public AggregationBuilder aggregateChanges() {
-            return null;
+        public Collection<AggregationBuilder> aggregateChanges() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public boolean collectChangesFromAggregations(Aggregations aggregations) {
+            return true;
         }
 
         @Override
         public boolean isOptimized() {
             return true;
         }
+
+        @Override
+        public boolean queryForChanges() {
+            return true;
+        }
     }
 
-    static class DateHistogramFieldCollector implements FieldCollector {
+    /**
+     * Date histogram field collector for the case that it shares the same timestamp field as for sync
+     *
+     * Note: does not support missing_bucket
+     */
+    static class DateHistogramFieldCollectorSynchronized implements FieldCollector {
 
         private final String sourceFieldName;
-        private final String targetFieldName;
-        private final boolean missingBucket;
-        private final boolean applyOptimizationForSyncField;
         private final Rounding.Prepared rounding;
 
-        DateHistogramFieldCollector(
+        DateHistogramFieldCollectorSynchronized(
             final String sourceFieldName,
             final String targetFieldName,
             final boolean missingBucket,
-            final Rounding.Prepared rounding,
-            final boolean isSynchronizationField
+            final Rounding.Prepared rounding
         ) {
+            assert sourceFieldName != null;
+            assert missingBucket == false;
             this.sourceFieldName = sourceFieldName;
-            this.targetFieldName = targetFieldName;
-            this.missingBucket = missingBucket;
             this.rounding = rounding;
-
-            // if missing_bucket is set to true, we can't apply the optimization, note: this combination
-            // is illogical, because the sync field should be steady
-            this.applyOptimizationForSyncField = isSynchronizationField && (missingBucket == false);
         }
 
         @Override
@@ -236,36 +288,137 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
-        public boolean collectChanges(Collection<? extends Bucket> buckets) {
-            // todo: implementation for isSynchronizationField == false
-            return false;
+        public CompositeValuesSourceBuilder<?> getCompositeValueSourceBuilder() {
+            return null;
+        }
+
+        @Override
+        public boolean collectChangesFromCompositeBuckets(Collection<? extends Bucket> buckets) {
+            return true;
         }
 
         @Override
         public QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
-
-            if (applyOptimizationForSyncField && lastCheckpointTimestamp > 0) {
-                assert missingBucket == false;
-                return new RangeQueryBuilder(sourceFieldName).gte(rounding.round(lastCheckpointTimestamp)).format("epoch_millis");
-            }
-
-            // todo: implementation for isSynchronizationField == false
-
-            return null;
+            return new RangeQueryBuilder(sourceFieldName).gte(rounding.round(lastCheckpointTimestamp)).format("epoch_millis");
         }
 
         @Override
         public void clear() {}
 
         @Override
-        public AggregationBuilder aggregateChanges() {
-            return null;
+        public Collection<AggregationBuilder> aggregateChanges() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public boolean collectChangesFromAggregations(Aggregations aggregations) {
+            return true;
         }
 
         @Override
         public boolean isOptimized() {
-            // we only have 1 optimization
-            return applyOptimizationForSyncField;
+            return true;
+        }
+
+        @Override
+        public boolean queryForChanges() {
+            // for this collector we do not need an extra run, because we can narrow the query given the checkpoints
+            return false;
+        }
+    }
+
+    /**
+     * Generic date histogram field collector
+     */
+    static class DateHistogramFieldCollector implements FieldCollector {
+
+        private final String sourceFieldName;
+        private final boolean missingBucket;
+        private final Rounding.Prepared rounding;
+        private final Collection<AggregationBuilder> timeFieldAggregations;
+        private final String minAggregationOutputName;
+        private final String maxAggregationOutputName;
+
+        private long lowerBound;
+        private long upperBound;
+
+        DateHistogramFieldCollector(
+            final String sourceFieldName,
+            final String targetFieldName,
+            final boolean missingBucket,
+            final Rounding.Prepared rounding
+        ) {
+            assert sourceFieldName != null;
+            this.sourceFieldName = sourceFieldName;
+            this.missingBucket = missingBucket;
+            this.rounding = rounding;
+            minAggregationOutputName = COMPOSITE_AGGREGATION_NAME + "." + targetFieldName + ".min";
+            maxAggregationOutputName = COMPOSITE_AGGREGATION_NAME + "." + targetFieldName + ".max";
+
+            // the time field for the date histogram is different than for sync
+            timeFieldAggregations = new ArrayList<>();
+            timeFieldAggregations.add(AggregationBuilders.min(minAggregationOutputName).field(sourceFieldName));
+            timeFieldAggregations.add(AggregationBuilders.max(maxAggregationOutputName).field(sourceFieldName));
+        }
+
+        @Override
+        public int getMaxPageSize() {
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
+        public CompositeValuesSourceBuilder<?> getCompositeValueSourceBuilder() {
+            return null;
+        }
+
+        @Override
+        public boolean collectChangesFromCompositeBuckets(Collection<? extends Bucket> buckets) {
+            return true;
+        }
+
+        @Override
+        public QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
+            if (missingBucket) {
+                return null;
+            }
+            // we only need to round the lower bound, because the checkpoint will not contain new data for the upper bound
+            return new RangeQueryBuilder(sourceFieldName).gte(rounding.round(lowerBound)).lte(upperBound).format("epoch_millis");
+        }
+
+        @Override
+        public void clear() {}
+
+        @Override
+        public Collection<AggregationBuilder> aggregateChanges() {
+            // optimization can't be applied for missing bucket
+            return missingBucket ? Collections.emptyList() : timeFieldAggregations;
+        }
+
+        @Override
+        public boolean collectChangesFromAggregations(Aggregations aggregations) {
+            final SingleValue lowerBoundResult = aggregations.get(minAggregationOutputName);
+            final SingleValue upperBoundResult = aggregations.get(maxAggregationOutputName);
+
+            if (lowerBoundResult != null && upperBoundResult != null) {
+                lowerBound = (long) lowerBoundResult.value();
+                upperBound = (long) upperBoundResult.value();
+
+                return false;
+            }
+
+            return true;
+        }
+
+        @Override
+        public boolean isOptimized() {
+            // not optimized if missing bucket is true
+            return missingBucket == false;
+        }
+
+        @Override
+        public boolean queryForChanges() {
+            // not optimized if missing bucket is true
+            return missingBucket == false;
         }
     }
 
@@ -287,8 +440,13 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
-        public boolean collectChanges(Collection<? extends Bucket> buckets) {
-            return false;
+        public CompositeValuesSourceBuilder<?> getCompositeValueSourceBuilder() {
+            return null;
+        }
+
+        @Override
+        public boolean collectChangesFromCompositeBuckets(Collection<? extends Bucket> buckets) {
+            return true;
         }
 
         @Override
@@ -300,12 +458,22 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         public void clear() {}
 
         @Override
-        public AggregationBuilder aggregateChanges() {
-            return null;
+        public Collection<AggregationBuilder> aggregateChanges() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public boolean collectChangesFromAggregations(Aggregations aggregations) {
+            return true;
         }
 
         @Override
         public boolean isOptimized() {
+            return false;
+        }
+
+        @Override
+        public boolean queryForChanges() {
             return false;
         }
     }
@@ -320,6 +488,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         private boolean foundNullBucket;
 
         GeoTileFieldCollector(final String sourceFieldName, final String targetFieldName, final boolean missingBucket) {
+            assert sourceFieldName != null;
             this.sourceFieldName = sourceFieldName;
             this.targetFieldName = targetFieldName;
             this.missingBucket = missingBucket;
@@ -334,7 +503,12 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
-        public boolean collectChanges(Collection<? extends Bucket> buckets) {
+        public CompositeValuesSourceBuilder<?> getCompositeValueSourceBuilder() {
+            return new GeoTileGridValuesSourceBuilder(targetFieldName).field(sourceFieldName).missingBucket(missingBucket);
+        }
+
+        @Override
+        public boolean collectChangesFromCompositeBuckets(Collection<? extends Bucket> buckets) {
             changedBuckets.clear();
             foundNullBucket = false;
 
@@ -349,7 +523,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                 }
             }
 
-            return true;
+            return buckets.isEmpty();
         }
 
         @Override
@@ -419,8 +593,13 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
-        public AggregationBuilder aggregateChanges() {
-            return null;
+        public Collection<AggregationBuilder> aggregateChanges() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public boolean collectChangesFromAggregations(Aggregations aggregations) {
+            return true;
         }
 
         private GeoBoundingBoxQueryBuilder toGeoQuery(Rectangle rectangle) {
@@ -434,6 +613,11 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         @Override
         public boolean isOptimized() {
             return true;
+        }
+
+        @Override
+        public boolean queryForChanges() {
+            return false;
         }
     }
 
@@ -449,10 +633,12 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     public SearchSourceBuilder buildChangesQuery(SearchSourceBuilder sourceBuilder, Map<String, Object> position, int pageSize) {
         sourceBuilder.size(0);
         for (FieldCollector fieldCollector : fieldCollectors.values()) {
-            AggregationBuilder aggregationForField = fieldCollector.aggregateChanges();
 
-            if (aggregationForField != null) {
-                sourceBuilder.aggregation(aggregationForField);
+            // add aggregations, but only for the 1st run
+            if (position == null || position.isEmpty()) {
+                for (AggregationBuilder fieldCollectorAgg : fieldCollector.aggregateChanges()) {
+                    sourceBuilder.aggregation(fieldCollectorAgg);
+                }
             }
             pageSize = Math.min(pageSize, fieldCollector.getMaxPageSize());
         }
@@ -486,26 +672,42 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     }
 
     @Override
-    public boolean processSearchResponse(final SearchResponse searchResponse) {
+    public Map<String, Object> processSearchResponse(final SearchResponse searchResponse) {
         final Aggregations aggregations = searchResponse.getAggregations();
         if (aggregations == null) {
-            return true;
+            return null;
         }
 
-        final CompositeAggregation agg = aggregations.get(compositeAggregation.getName());
+        // every collector reports if the collection of changes is done after processing, if all are done, the indexer
+        // will not run a query for change collection again
+        boolean isDone = true;
 
-        Collection<? extends Bucket> buckets = agg.getBuckets();
-        afterKey = agg.afterKey();
-
-        if (buckets.isEmpty()) {
-            return true;
-        }
-
+        // collect changes from aggregations added by field collectors
         for (FieldCollector fieldCollector : fieldCollectors.values()) {
-            fieldCollector.collectChanges(buckets);
+            isDone &= fieldCollector.collectChangesFromAggregations(aggregations);
         }
 
-        return false;
+        // collect changes from composite buckets
+        final CompositeAggregation compositeAggResults = aggregations.get(COMPOSITE_AGGREGATION_NAME);
+
+        // xor: either both must exist or not exist
+        assert (compositeAggregation == null ^ compositeAggResults == null) == false;
+
+        if (compositeAggResults != null) {
+            Collection<? extends Bucket> buckets = compositeAggResults.getBuckets();
+            for (FieldCollector fieldCollector : fieldCollectors.values()) {
+                isDone &= fieldCollector.collectChangesFromCompositeBuckets(buckets);
+            }
+
+            if (isDone == false) {
+                return compositeAggResults.afterKey();
+            }
+        } else if (isDone == false) {
+            // if we don't have a composite aggregation, we need a magic key, because the indexer handles the state
+            return AFTER_KEY_MAGIC_FOR_NON_COMPOSITE_COLLECTORS;
+        }
+
+        return null;
     }
 
     @Override
@@ -514,22 +716,35 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     }
 
     @Override
-    public Map<String, Object> getBucketPosition() {
-        return afterKey;
-    }
-
-    @Override
     public boolean isOptimized() {
         return fieldCollectors.values().stream().anyMatch(FieldCollector::isOptimized);
     }
 
-    public static ChangeCollector buildChangeCollector(
-        @Nullable CompositeAggregationBuilder compositeAggregationBuilder,
-        Map<String, SingleGroupSource> groups,
-        String synchronizationField
-    ) {
+    @Override
+    public boolean queryForChanges() {
+        return fieldCollectors.values().stream().anyMatch(FieldCollector::queryForChanges);
+    }
+
+    public static ChangeCollector buildChangeCollector(Map<String, SingleGroupSource> groups, String synchronizationField) {
         Map<String, FieldCollector> fieldCollectors = createFieldCollectors(groups, synchronizationField);
-        return new CompositeBucketsChangeCollector(compositeAggregationBuilder, fieldCollectors);
+        return new CompositeBucketsChangeCollector(createCompositeAgg(fieldCollectors), fieldCollectors);
+    }
+
+    private static CompositeAggregationBuilder createCompositeAgg(Map<String, FieldCollector> fieldCollectors) {
+        List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
+
+        for (FieldCollector fc : fieldCollectors.values()) {
+            CompositeValuesSourceBuilder<?> sourceBuilder = fc.getCompositeValueSourceBuilder();
+            if (sourceBuilder != null) {
+                sources.add(sourceBuilder);
+            }
+        }
+
+        if (sources.isEmpty()) {
+            return null;
+        }
+
+        return new CompositeAggregationBuilder(COMPOSITE_AGGREGATION_NAME, sources);
     }
 
     static Map<String, FieldCollector> createFieldCollectors(Map<String, SingleGroupSource> groups, String synchronizationField) {
@@ -565,13 +780,21 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                 case DATE_HISTOGRAM:
                     fieldCollectors.put(
                         entry.getKey(),
-                        new CompositeBucketsChangeCollector.DateHistogramFieldCollector(
-                            entry.getValue().getField(),
-                            entry.getKey(),
-                            entry.getValue().getMissingBucket(),
-                            ((DateHistogramGroupSource) entry.getValue()).getRounding(),
-                            entry.getValue().getField() != null && entry.getValue().getField().equals(synchronizationField)
-                        )
+                        entry.getValue().getMissingBucket() == false
+                            && entry.getValue().getField() != null
+                            && entry.getValue().getField().equals(synchronizationField)
+                                ? new CompositeBucketsChangeCollector.DateHistogramFieldCollectorSynchronized(
+                                    entry.getValue().getField(),
+                                    entry.getKey(),
+                                    entry.getValue().getMissingBucket(),
+                                    ((DateHistogramGroupSource) entry.getValue()).getRounding()
+                                )
+                                : new CompositeBucketsChangeCollector.DateHistogramFieldCollector(
+                                    entry.getValue().getField(),
+                                    entry.getKey(),
+                                    entry.getValue().getMissingBucket(),
+                                    ((DateHistogramGroupSource) entry.getValue()).getRounding()
+                                )
                     );
                     break;
                 case GEOTILE_GRID:

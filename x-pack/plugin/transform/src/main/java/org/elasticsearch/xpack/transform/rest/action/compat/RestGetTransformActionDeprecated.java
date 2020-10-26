@@ -18,9 +18,11 @@ import org.elasticsearch.xpack.core.transform.action.compat.GetTransformActionDe
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
+import static org.elasticsearch.xpack.core.transform.TransformField.EXCLUDE_GENERATED;
 
 public class RestGetTransformActionDeprecated extends BaseRestHandler {
     @Override
@@ -55,5 +57,10 @@ public class RestGetTransformActionDeprecated extends BaseRestHandler {
     @Override
     public String getName() {
         return "data_frame_get_transforms_action";
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Collections.singleton(EXCLUDE_GENERATED);
     }
 }

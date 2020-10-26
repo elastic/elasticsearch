@@ -17,8 +17,9 @@ public final class WatcherIndexTemplateRegistryField {
     // version 10: add support for foreach path in actions
     // version 11: watch history indices are hidden
     // version 12: templates changed to composable templates
+    // version 13: add `allow_auto_create` setting
     // Note: if you change this, also inform the kibana team around the watcher-ui
-    public static final int INDEX_TEMPLATE_VERSION = 12;
+    public static final int INDEX_TEMPLATE_VERSION = 13;
     public static final String HISTORY_TEMPLATE_NAME = ".watch-history-" + INDEX_TEMPLATE_VERSION;
     public static final String HISTORY_TEMPLATE_NAME_NO_ILM = ".watch-history-no-ilm-" + INDEX_TEMPLATE_VERSION;
     public static final String TRIGGERED_TEMPLATE_NAME = ".triggered_watches";

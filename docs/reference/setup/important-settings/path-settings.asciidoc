@@ -1,13 +1,14 @@
 [[path-settings]]
-=== `path.data` and `path.logs`
+[discrete]
+=== Path settings
 
 If you are using the `.zip` or `.tar.gz` archives, the `data` and `logs`
-directories are sub-folders of `$ES_HOME`.  If these important folders are left
+directories are sub-folders of `$ES_HOME`. If these important folders are left
 in their default locations, there is a high risk of them being deleted while
-upgrading Elasticsearch to a new version.
+upgrading {es} to a new version.
 
 In production use, you will almost certainly want to change the locations of the
-data and log folder:
+`path.data` and `path.logs` folders:
 
 [source,yaml]
 --------------------------------------------------
@@ -19,8 +20,8 @@ path:
 The RPM and Debian distributions already use custom paths for `data` and `logs`.
 
 The `path.data` settings can be set to multiple paths, in which case all paths
-will be used to store data (although the files belonging to a single shard will
-all be stored on the same data path):
+will be used to store data. However, the files belonging to a single shard will
+all be stored on the same data path:
 
 [source,yaml]
 --------------------------------------------------

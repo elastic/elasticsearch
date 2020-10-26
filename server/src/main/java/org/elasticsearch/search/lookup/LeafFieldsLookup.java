@@ -21,34 +21,33 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TypeFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.singletonMap;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class LeafFieldsLookup implements Map<Object, Object> {
 
-    private final MapperService mapperService;
-
+    private final Function<String, MappedFieldType> fieldTypeLookup;
     private final LeafReader reader;
 
     private int docId = -1;
 
     private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
-    LeafFieldsLookup(MapperService mapperService, LeafReader reader) {
-        this.mapperService = mapperService;
+    LeafFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup, LeafReader reader) {
+        this.fieldTypeLookup = fieldTypeLookup;
         this.reader = reader;
     }
 
@@ -59,7 +58,6 @@ public class LeafFieldsLookup implements Map<Object, Object> {
         this.docId = docId;
         clearCache();
     }
-
 
     @Override
     public Object get(Object key) {
@@ -129,7 +127,7 @@ public class LeafFieldsLookup implements Map<Object, Object> {
     private FieldLookup loadFieldData(String name) {
         FieldLookup data = cachedFieldData.get(name);
         if (data == null) {
-            MappedFieldType fieldType = mapperService.fieldType(name);
+            MappedFieldType fieldType = fieldTypeLookup.apply(name);
             if (fieldType == null) {
                 throw new IllegalArgumentException("No field found for [" + name + "] in mapping");
             }
@@ -137,23 +135,20 @@ public class LeafFieldsLookup implements Map<Object, Object> {
             cachedFieldData.put(name, data);
         }
         if (data.fields() == null) {
+            MappedFieldType fieldType = data.fieldType();
             List<Object> values;
-            if (TypeFieldType.NAME.equals(data.fieldType().name())) {
-                values = new ArrayList<>(1);
-                final DocumentMapper mapper = mapperService.documentMapper();
-                if (mapper != null) {
-                    values.add(mapper.type());
-                }
+            if (TypeFieldType.NAME.equals(fieldType.name())) {
+                values = Collections.singletonList(((TypeFieldType)fieldType).getType());
             } else {
                 values = new ArrayList<>(2);
-                SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
+                SingleFieldsVisitor visitor = new SingleFieldsVisitor(fieldType, values);
                 try {
                     reader.document(docId, visitor);
                 } catch (IOException e) {
                     throw new ElasticsearchParseException("failed to load field [{}]", e, name);
                 }
             }
-            data.fields(singletonMap(data.fieldType().name(), values));
+            data.fields(singletonMap(fieldType.name(), values));
         }
         return data;
     }

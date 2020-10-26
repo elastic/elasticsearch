@@ -24,6 +24,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
+import static java.util.Collections.emptyMap;
 
 public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBoxplot> {
 
@@ -106,5 +110,17 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
             }
         ));
         return extendedNamedXContents;
+    }
+
+    public void testIterator() {
+        InternalBoxplot aggregation = createTestInstance("test", emptyMap());
+        List<String> names = StreamSupport.stream(aggregation.valueNames().spliterator(), false).collect(Collectors.toList());
+
+        assertEquals(5, names.size());
+        assertTrue(names.contains("min"));
+        assertTrue(names.contains("max"));
+        assertTrue(names.contains("q1"));
+        assertTrue(names.contains("q2"));
+        assertTrue(names.contains("q3"));
     }
 }

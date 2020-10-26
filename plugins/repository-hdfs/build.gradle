@@ -29,6 +29,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.rest-test'
 
 esplugin {
   description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
@@ -92,6 +93,14 @@ normalization {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /hadoop-.*/, to: 'hadoop'
+}
+
+tasks.named("integTest").configure {
+  it.dependsOn(project.tasks.named("bundlePlugin"))
+}
+
+testClusters.integTest {
+  plugin(project.tasks.bundlePlugin.archiveFile)
 }
 
 String realm = "BUILD.ELASTIC.CO"

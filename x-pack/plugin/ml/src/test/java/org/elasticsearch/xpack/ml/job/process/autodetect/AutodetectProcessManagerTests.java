@@ -29,6 +29,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -74,7 +74,6 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -136,7 +135,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("foo").build();
     private ModelSnapshot modelSnapshot = new ModelSnapshot.Builder("foo").build();
     private Quantiles quantiles = new Quantiles("foo", new Date(), "state");
-    private Set<MlFilter> filters = new HashSet<>();
 
     @Before
     public void setup() throws Exception {
@@ -181,6 +179,18 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                                 .build())
                         .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).build())
+                        .build())
+                .fPut(
+                    AnnotationIndex.INDEX_NAME,
+                    IndexMetadata.builder(AnnotationIndex.INDEX_NAME)
+                        .settings(
+                            Settings.builder()
+                                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                                .build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).build())
                         .build())
                 .build())
             .build();
@@ -694,7 +704,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 .setModelSizeStats(modelSizeStats)
                 .setModelSnapshot(modelSnapshot)
                 .setQuantiles(quantiles)
-                .setFilters(filters)
                 .build();
     }
 
@@ -713,7 +722,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         return new AutodetectProcessManager(settings,
             client, threadPool, new NamedXContentRegistry(Collections.emptyList()), auditor, clusterService, jobManager, jobResultsProvider,
             jobResultsPersister, jobDataCountsPersister, annotationPersister, autodetectFactory, normalizerFactory, nativeStorageProvider,
-            new IndexNameExpressionResolver());
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
     }
     private AutodetectProcessManager createSpyManagerAndCallProcessData(String jobId) {
         AutodetectProcessManager manager = createSpyManager();

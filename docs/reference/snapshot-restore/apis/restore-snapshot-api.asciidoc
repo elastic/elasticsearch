@@ -100,6 +100,12 @@ Name of the snapshot to restore.
 [[restore-snapshot-api-request-body]]
 ==== {api-request-body-title}
 
+`ignore_unavailable`::
+(Optional, boolean)
+If `false`, the request returns an error for any data stream or index that is missing or closed. Defaults to `false`.
++
+If `true`, the request ignores data streams and indices in `indices` that are missing or closed.
+
 `ignore_index_settings`::
 (Optional, string)
 A comma-separated list of index settings that should not be restored from a snapshot.

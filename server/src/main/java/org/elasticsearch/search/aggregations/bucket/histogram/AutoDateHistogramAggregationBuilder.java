@@ -28,11 +28,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -48,10 +48,11 @@ import java.util.Objects;
 
 import static java.util.Map.entry;
 
-public class AutoDateHistogramAggregationBuilder
-        extends ValuesSourceAggregationBuilder<AutoDateHistogramAggregationBuilder> {
+public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<AutoDateHistogramAggregationBuilder> {
 
     public static final String NAME = "auto_date_histogram";
+    public static final ValuesSourceRegistry.RegistryKey<AutoDateHistogramAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, AutoDateHistogramAggregatorSupplier.class);
 
     private static final ParseField NUM_BUCKETS_FIELD = new ParseField("buckets");
     private static final ParseField MINIMUM_INTERVAL_FIELD = new ParseField("minimum_interval");
@@ -159,6 +160,11 @@ public class AutoDateHistogramAggregationBuilder
         return NAME;
     }
 
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
+
     public String getMinimumIntervalExpression() {
         return minimumIntervalExpression;
     }
@@ -190,7 +196,7 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                        AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         RoundingInfo[] roundings = buildRoundings(timeZone(), getMinimumIntervalExpression());
         int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)
@@ -198,14 +204,14 @@ public class AutoDateHistogramAggregationBuilder
             .flatMapToInt(Arrays::stream)
             .boxed()
             .reduce(Integer::max).get();
-        Settings settings = queryShardContext.getIndexSettings().getNodeSettings();
+        Settings settings = context.getIndexSettings().getNodeSettings();
         int maxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);
         int bucketCeiling = maxBuckets / maxRoundingInterval;
         if (numBuckets > bucketCeiling) {
             throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName()+
                 " must be less than " + bucketCeiling);
         }
-        return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, queryShardContext, parent,
+        return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent,
             subFactoriesBuilder,
             metadata);
     }

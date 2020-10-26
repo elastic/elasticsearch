@@ -58,16 +58,12 @@ tasks.dependenciesInfo.enabled = false
 tasks.thirdPartyAudit.ignoreMissingClasses()
 
 tasks.register('destructivePackagingTest') {
-  dependsOn 'destructiveDistroTest', 'destructiveBatsTest.upgrade'
-}
-
-processTestResources {
-  from project(":test:framework").file("src/main/resources/log4j2-test.properties")
+  dependsOn 'destructiveDistroTest'
 }
 
 subprojects { Project platformProject ->
   tasks.register('packagingTest') {
-    dependsOn 'distroTest', 'batsTest.upgrade'
+    dependsOn 'distroTest'
   }
 
   vagrant {

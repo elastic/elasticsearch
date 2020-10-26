@@ -10,11 +10,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -28,9 +28,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.COMPRESSION_FIELD;
 
-public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource,
-    BoxplotAggregationBuilder> {
+public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, BoxplotAggregationBuilder> {
     public static final String NAME = "boxplot";
+    public static final ValuesSourceRegistry.RegistryKey<BoxplotAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        BoxplotAggregatorSupplier.class
+    );
 
     public static final ObjectParser<BoxplotAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, BoxplotAggregationBuilder::new);
@@ -100,11 +103,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     }
 
     @Override
-    protected BoxplotAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected BoxplotAggregatorFactory innerBuild(AggregationContext context,
                                                   ValuesSourceConfig config,
                                                   AggregatorFactory parent,
                                                   AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new BoxplotAggregatorFactory(name, config, compression, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new BoxplotAggregatorFactory(name, config, compression, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -130,6 +133,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }
 

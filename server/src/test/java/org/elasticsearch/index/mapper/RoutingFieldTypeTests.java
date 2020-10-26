@@ -44,10 +44,10 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
 
         Query expected = new RegexpQuery(new Term("_routing", new BytesRef("foo?")));
-        assertEquals(expected, ft.regexpQuery("foo?", 0, 10, null, MOCK_QSC));
+        assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, null, MOCK_QSC));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.regexpQuery("foo?", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> ft.regexpQuery("foo?", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }

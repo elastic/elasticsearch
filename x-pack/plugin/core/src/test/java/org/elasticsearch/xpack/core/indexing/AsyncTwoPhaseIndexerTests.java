@@ -12,7 +12,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -72,7 +71,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         @Override
         protected IterationResult<Integer> doProcess(SearchResponse searchResponse) {
             assertFalse("should not be called as stoppedBeforeFinished is false", stoppedBeforeFinished);
-            assertThat(step, equalTo(3));
+            assertThat(step, equalTo(2));
             ++step;
             return new IterationResult<>(Collections.emptyList(), 3, true);
         }
@@ -86,13 +85,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
-            assertThat(step, equalTo(1));
-            ++step;
-            return new SearchRequest();
-        }
-
-        @Override
         protected void onStart(long now, ActionListener<Boolean> listener) {
             assertThat(step, equalTo(0));
             ++step;
@@ -100,8 +92,8 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
-            assertThat(step, equalTo(2));
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
+            assertThat(step, equalTo(1));
             ++step;
             final SearchResponseSections sections = new SearchResponseSections(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), null,
@@ -121,7 +113,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         protected void doSaveState(IndexerState state, Integer position, Runnable next) {
             // for stop before finished we do not know if its stopped before are after the search
             if (stoppedBeforeFinished == false) {
-                assertThat(step, equalTo(5));
+                assertThat(step, equalTo(4));
             }
             ++step;
             next.run();
@@ -134,7 +126,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void onFinish(ActionListener<Void> listener) {
-            assertThat(step, equalTo(4));
+            assertThat(step, equalTo(3));
             ++step;
             listener.onResponse(null);
             assertTrue(isFinished.compareAndSet(false, true));
@@ -164,7 +156,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         // counters
         private volatile boolean started = false;
         private volatile boolean waitingForLatch = false;
-        private volatile int searchRequests = 0;
         private volatile int searchOps = 0;
         private volatile int processOps = 0;
         private volatile int bulkOps = 0;
@@ -209,12 +200,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
-            ++searchRequests;
-            return new SearchRequest();
-        }
-
-        @Override
         protected void onStart(long now, ActionListener<Boolean> listener) {
             started = true;
             listener.onResponse(true);
@@ -238,7 +223,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             ++searchOps;
             final SearchResponseSections sections = new SearchResponseSections(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), null,
@@ -289,7 +274,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         public void assertCounters() {
             assertTrue(started);
-            assertEquals(5L, searchRequests);
             assertEquals(5L, searchOps);
             assertEquals(5L, processOps);
             assertEquals(2L, bulkOps);
@@ -319,13 +303,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
-            assertThat(step, equalTo(1));
-            ++step;
-            return new SearchRequest();
-        }
-
-        @Override
         protected void onStart(long now, ActionListener<Boolean> listener) {
             assertThat(step, equalTo(0));
             ++step;
@@ -333,7 +310,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             throw new RuntimeException("Failed to build search request");
         }
 
@@ -349,7 +326,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void onFailure(Exception exc) {
-            assertThat(step, equalTo(2));
+            assertThat(step, equalTo(1));
             ++step;
             assertTrue(isFinished.compareAndSet(false, true));
         }
@@ -414,7 +391,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             assertThat(indexer.getPosition(), equalTo(3));
 
             assertFalse(isStopped.get());
-            assertThat(indexer.getStep(), equalTo(6));
+            assertThat(indexer.getStep(), equalTo(5));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
@@ -434,7 +411,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertBusy(() -> assertTrue(isFinished.get()), 10000, TimeUnit.SECONDS);
-            assertThat(indexer.getStep(), equalTo(3));
+            assertThat(indexer.getStep(), equalTo(2));
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }

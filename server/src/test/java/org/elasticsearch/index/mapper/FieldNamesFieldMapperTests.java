@@ -72,21 +72,19 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("_field_names").endObject()
             .endObject().endObject());
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().hasDocValues());
 
-        assertEquals(IndexOptions.DOCS, fieldNamesMapper.fieldType.indexOptions());
-        assertFalse(fieldNamesMapper.fieldType.tokenized());
-        assertFalse(fieldNamesMapper.fieldType.stored());
-        assertTrue(fieldNamesMapper.fieldType.omitNorms());
+        assertEquals(IndexOptions.DOCS, FieldNamesFieldMapper.Defaults.FIELD_TYPE.indexOptions());
+        assertFalse(FieldNamesFieldMapper.Defaults.FIELD_TYPE.tokenized());
+        assertFalse(FieldNamesFieldMapper.Defaults.FIELD_TYPE.stored());
+        assertTrue(FieldNamesFieldMapper.Defaults.FIELD_TYPE.omitNorms());
     }
 
     public void testInjectIntoDocDuringParsing() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -108,9 +106,9 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("field").field("type", "keyword").field("doc_values", false).endObject()
             .endObject().endObject().endObject());
         MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping)));
+                () -> createIndex("test").mapperService().parse("type", new CompressedXContent(mapping)));
 
-        assertEquals("The `enabled` setting for the `_field_names` field has been deprecated and removed but is still used in index [{}]. "
+        assertEquals("The `enabled` setting for the `_field_names` field has been deprecated and removed. "
                 + "Please remove it from your mappings and templates.", ex.getMessage());
     }
 
@@ -127,7 +125,6 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
                         .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
                                 VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
                         .build()).mapperService()
-                        .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().isEnabled());
@@ -140,7 +137,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         assertNull(doc.rootDoc().get("_field_names"));
-        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }
 
     /**
@@ -166,7 +163,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapperEnabled
             = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertTrue(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
-        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }
 
     @Override

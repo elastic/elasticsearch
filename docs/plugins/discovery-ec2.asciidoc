@@ -314,7 +314,7 @@ achieve the same benefits using {es} directly.
 
 ===== Choice of AMI
 
-Prefer the https://aws.amazon.com/amazon-linux-ami/[Amazon Linux AMIs] as these
+Prefer the https://aws.amazon.com/amazon-linux-2/[Amazon Linux 2 AMIs] as these
 allow you to benefit from the lightweight nature, support, and EC2-specific
 performance enhancements that these images offer.
 

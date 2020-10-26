@@ -36,15 +36,14 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
         BucketOrder order,
         boolean keyed,
         long minDocCount,
-        double minBound,
-        double maxBound,
+        DoubleBounds extendedBounds,
         DoubleBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
         Aggregator parent,
         CardinalityUpperBound cardinalityUpperBound,
         Map<String, Object> metadata) throws IOException {
-        super(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound, hardBounds,
+        super(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds, hardBounds,
             valuesSourceConfig.format(), context, parent, cardinalityUpperBound, metadata);
 
         // TODO: Stop using null here

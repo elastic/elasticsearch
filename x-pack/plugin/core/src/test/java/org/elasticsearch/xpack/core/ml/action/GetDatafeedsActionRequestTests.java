@@ -15,7 +15,7 @@ public class GetDatafeedsActionRequestTests extends AbstractWireSerializingTestC
     @Override
     protected Request createTestInstance() {
         Request request = new Request(randomBoolean() ? Metadata.ALL : randomAlphaOfLengthBetween(1, 20));
-        request.setAllowNoDatafeeds(randomBoolean());
+        request.setAllowNoMatch(randomBoolean());
         return request;
     }
 

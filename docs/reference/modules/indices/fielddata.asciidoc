@@ -13,13 +13,10 @@ reloading  the field data which does not fit into your cache will be expensive
 and  perform poorly.
 
 `indices.fielddata.cache.size`::
-
-    The max size of the field data cache, eg `30%` of node heap space, or an
-    absolute value, eg `12GB`. Defaults to unbounded.  Also see
-    <<fielddata-circuit-breaker>>.
-
-NOTE: These are static settings which must be configured on every data node in
-the cluster.
+(<<static-cluster-setting,Static>>)
+The max size of the field data cache, eg `30%` of node heap space, or an
+absolute value, eg `12GB`. Defaults to unbounded.  Also see
+<<fielddata-circuit-breaker>>.
 
 [discrete]
 [[fielddata-monitoring]]

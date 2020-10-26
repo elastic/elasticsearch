@@ -179,8 +179,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("query_cache.miss_count",
             "alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:query cache miss counts");
 
-        table.addCell("request_cache.memory_size",
-            "alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
+        table.addCell("request_cache.memory_size", "alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
         table.addCell("request_cache.evictions",
             "alias:rce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions");
         table.addCell("request_cache.hit_count",

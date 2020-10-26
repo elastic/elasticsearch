@@ -352,7 +352,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
     public void testMakeIngestPipelineDefinitionGivenNdJsonWithoutTimestamp() {
 
         assertNull(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null, Collections.emptyMap(), null, null,
-            false));
+            false, false));
     }
 
     @SuppressWarnings("unchecked")
@@ -362,9 +362,10 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         List<String> timestampFormats = randomFrom(Collections.singletonList("ISO8601"),
             Arrays.asList("EEE MMM dd HH:mm:ss yyyy", "EEE MMM  d HH:mm:ss yyyy"));
         boolean needClientTimezone = randomBoolean();
+        boolean needNanosecondPrecision = randomBoolean();
 
         Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null,
-            Collections.emptyMap(), timestampField, timestampFormats, needClientTimezone);
+            Collections.emptyMap(), timestampField, timestampFormats, needClientTimezone, needNanosecondPrecision);
         assertNotNull(pipeline);
 
         assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
@@ -378,6 +379,11 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertEquals(timestampField, dateProcessor.get("field"));
         assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
         assertEquals(timestampFormats, dateProcessor.get("formats"));
+        if (needNanosecondPrecision) {
+            assertEquals(FileStructureUtils.NANOSECOND_DATE_OUTPUT_FORMAT, dateProcessor.get("output_format"));
+        } else {
+            assertNull(dateProcessor.get("output_format"));
+        }
 
         // After removing the two expected fields there should be nothing left in the pipeline
         assertEquals(Collections.emptyMap(), pipeline);
@@ -389,7 +395,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         Map<String, Object> csvProcessorSettings = DelimitedFileStructureFinderTests.randomCsvProcessorSettings();
 
         Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
-            Collections.emptyMap(), null, null, false);
+            Collections.emptyMap(), null, null, false, false);
         assertNotNull(pipeline);
 
         assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
@@ -420,7 +426,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         csvProcessorSettings.put("field", firstTargetField);
 
         Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
-            Collections.emptyMap(), null, null, false);
+            Collections.emptyMap(), null, null, false, false);
         assertNotNull(pipeline);
 
         assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
@@ -450,7 +456,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             Collections.singletonMap(firstTargetField, Collections.singletonMap(MAPPING_TYPE_SETTING, mappingType));
 
         Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
-            mappingsForConversions, null, null, false);
+            mappingsForConversions, null, null, false, false);
         assertNotNull(pipeline);
 
         assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
@@ -490,9 +496,10 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         List<String> timestampFormats = randomFrom(Collections.singletonList("ISO8601"),
             Arrays.asList("EEE MMM dd HH:mm:ss yyyy", "EEE MMM  d HH:mm:ss yyyy"));
         boolean needClientTimezone = randomBoolean();
+        boolean needNanosecondPrecision = randomBoolean();
 
         Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
-            Collections.emptyMap(), timestampField, timestampFormats, needClientTimezone);
+            Collections.emptyMap(), timestampField, timestampFormats, needClientTimezone, needNanosecondPrecision);
         assertNotNull(pipeline);
 
         assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
@@ -512,6 +519,11 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertEquals(timestampField, dateProcessor.get("field"));
         assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
         assertEquals(timestampFormats, dateProcessor.get("formats"));
+        if (needNanosecondPrecision) {
+            assertEquals(FileStructureUtils.NANOSECOND_DATE_OUTPUT_FORMAT, dateProcessor.get("output_format"));
+        } else {
+            assertNull(dateProcessor.get("output_format"));
+        }
 
         Map<String, Object> removeProcessor = (Map<String, Object>) processors.get(2).get("remove");
         assertNotNull(removeProcessor);
@@ -529,9 +541,10 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         List<String> timestampFormats = randomFrom(Collections.singletonList("ISO8601"),
             Arrays.asList("EEE MMM dd HH:mm:ss yyyy", "EEE MMM  d HH:mm:ss yyyy"));
         boolean needClientTimezone = randomBoolean();
+        boolean needNanosecondPrecision = randomBoolean();
 
         Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(grokPattern, Collections.emptyMap(), null,
-            Collections.emptyMap(), timestampField, timestampFormats, needClientTimezone);
+            Collections.emptyMap(), timestampField, timestampFormats, needClientTimezone, needNanosecondPrecision);
         assertNotNull(pipeline);
 
         assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
@@ -550,6 +563,11 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertEquals(timestampField, dateProcessor.get("field"));
         assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
         assertEquals(timestampFormats, dateProcessor.get("formats"));
+        if (needNanosecondPrecision) {
+            assertEquals(FileStructureUtils.NANOSECOND_DATE_OUTPUT_FORMAT, dateProcessor.get("output_format"));
+        } else {
+            assertNull(dateProcessor.get("output_format"));
+        }
 
         Map<String, Object> removeProcessor = (Map<String, Object>) processors.get(2).get("remove");
         assertNotNull(removeProcessor);

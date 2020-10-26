@@ -22,10 +22,10 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -37,6 +37,8 @@ import java.util.Map;
 
 public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggregationBuilder<PercentileRanksAggregationBuilder> {
     public static final String NAME = PercentileRanks.TYPE_NAME;
+    public static final ValuesSourceRegistry.RegistryKey<PercentilesAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, PercentilesAggregatorSupplier.class);
     private static final ParseField VALUES_FIELD = new ParseField("values");
 
     public static final ConstructingObjectParser<PercentileRanksAggregationBuilder, String> PARSER =
@@ -86,16 +88,21 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                                      ValuesSourceConfig config,
                                                                      AggregatorFactory parent,
                                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new PercentileRanksAggregatorFactory(name, config, values, configOrDefault(), keyed, queryShardContext,
+        return new PercentileRanksAggregatorFactory(name, config, values, configOrDefault(), keyed, context,
                     parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }

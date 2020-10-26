@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,7 +52,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         Setting.boolSetting("index.mapping.ignore_malformed", false, Property.IndexScope);
     public static final Setting<Boolean> COERCE_SETTING =
         Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
-    public abstract static class Builder<T extends Builder<T>> extends Mapper.Builder<T> {
+    public abstract static class Builder extends Mapper.Builder {
 
         protected final FieldType fieldType;
         protected boolean omitNormsSet = false;
@@ -63,7 +61,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected boolean indexed = true;
         protected final MultiFields.Builder multiFieldsBuilder;
         protected CopyTo copyTo = CopyTo.empty();
-        protected float boost = 1.0f;
         protected Map<String, String> meta = Collections.emptyMap();
         // TODO move to KeywordFieldMapper.Builder
         protected boolean eagerGlobalOrdinals;
@@ -78,100 +75,95 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             multiFieldsBuilder = new MultiFields.Builder();
         }
 
-        public T index(boolean index) {
+        public Builder index(boolean index) {
             this.indexed = index;
             if (index == false) {
                 this.fieldType.setIndexOptions(IndexOptions.NONE);
             }
-            return builder;
+            return this;
         }
 
-        public T store(boolean store) {
+        public Builder store(boolean store) {
             this.fieldType.setStored(store);
-            return builder;
+            return this;
         }
 
-        public T docValues(boolean docValues) {
+        public FieldMapper.Builder docValues(boolean docValues) {
             this.hasDocValues = docValues;
-            return builder;
+            return this;
         }
 
-        public T storeTermVectors(boolean termVectors) {
+        public Builder storeTermVectors(boolean termVectors) {
             if (termVectors != this.fieldType.storeTermVectors()) {
                 this.fieldType.setStoreTermVectors(termVectors);
             } // don't set it to false, it is default and might be flipped by a more specific option
-            return builder;
+            return this;
         }
 
-        public T storeTermVectorOffsets(boolean termVectorOffsets) {
+        public Builder storeTermVectorOffsets(boolean termVectorOffsets) {
             if (termVectorOffsets) {
                 this.fieldType.setStoreTermVectors(termVectorOffsets);
             }
             this.fieldType.setStoreTermVectorOffsets(termVectorOffsets);
-            return builder;
+            return this;
         }
 
-        public T storeTermVectorPositions(boolean termVectorPositions) {
+        public Builder storeTermVectorPositions(boolean termVectorPositions) {
             if (termVectorPositions) {
                 this.fieldType.setStoreTermVectors(termVectorPositions);
             }
             this.fieldType.setStoreTermVectorPositions(termVectorPositions);
-            return builder;
+            return this;
         }
 
-        public T storeTermVectorPayloads(boolean termVectorPayloads) {
+        public Builder storeTermVectorPayloads(boolean termVectorPayloads) {
             if (termVectorPayloads) {
                 this.fieldType.setStoreTermVectors(termVectorPayloads);
             }
             this.fieldType.setStoreTermVectorPayloads(termVectorPayloads);
-            return builder;
+            return this;
         }
 
-        public T boost(float boost) {
-            this.boost = boost;
-            return builder;
-        }
-
-        public T omitNorms(boolean omitNorms) {
+        public Builder omitNorms(boolean omitNorms) {
             this.fieldType.setOmitNorms(omitNorms);
             this.omitNormsSet = true;
-            return builder;
+            return this;
         }
 
-        public T indexOptions(IndexOptions indexOptions) {
+        public Builder indexOptions(IndexOptions indexOptions) {
             this.fieldType.setIndexOptions(indexOptions);
             this.indexOptionsSet = true;
-            return builder;
+            return this;
         }
 
-        public T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
+        public Builder indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             this.indexAnalyzer = indexAnalyzer;
-            return builder;
+            return this;
         }
 
-        public T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
+        public Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             this.searchAnalyzer = searchAnalyzer;
-            return builder;
+            return this;
         }
 
-        public T searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
+        public Builder searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
             this.searchQuoteAnalyzer = searchQuoteAnalyzer;
-            return builder;
+            return this;
         }
 
-        public T setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+        public Builder setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-            return builder;
+            return this;
         }
 
-        public T addMultiField(Mapper.Builder<?> mapperBuilder) {
+        public Builder addMultiField(Mapper.Builder mapperBuilder) {
             multiFieldsBuilder.add(mapperBuilder);
-            return builder;
+            return this;
         }
 
-        public T copyTo(CopyTo copyTo) {
+        public Builder copyTo(CopyTo copyTo) {
             this.copyTo = copyTo;
-            return builder;
+            return this;
         }
 
         protected String buildFullName(BuilderContext context) {
@@ -179,10 +171,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         /** Set metadata on this field. */
-        public T meta(Map<String, String> meta) {
+        public Builder meta(Map<String, String> meta) {
             this.meta = meta;
-            return (T) this;
+            return this;
         }
+
+        @Override
+        public abstract FieldMapper build(BuilderContext context);
     }
 
     protected FieldType fieldType;
@@ -224,11 +219,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return copyTo;
     }
 
-    /**
-     * A value to use in place of a {@code null} value in the document source.
-     */
-    protected Object nullValue() {
-        return null;
+    public MultiFields multiFields() {
+        return multiFields;
     }
 
     /**
@@ -278,53 +270,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
 
-    /**
-     * Given access to a document's _source, return this field's values.
-     *
-     * In addition to pulling out the values, mappers can parse them into a standard form. This
-     * method delegates parsing to {@link #parseSourceValue} for parsing. Most mappers will choose
-     * to override {@link #parseSourceValue} -- for example numeric field mappers make sure to
-     * parse the source value into a number of the right type. Some mappers may need more
-     * flexibility and can override this entire method instead.
-     *
-     * Note that for array values, the order in which values are returned is undefined and should
-     * not be relied on.
-     *
-     * @param lookup a lookup structure over the document's source.
-     * @param format an optional format string used when formatting values, for example a date format.
-     * @return a list a standardized field values.
-     */
-    public List<?> lookupValues(SourceLookup lookup, @Nullable String format) {
-        Object sourceValue = lookup.extractValue(name(), nullValue());
-        if (sourceValue == null) {
-            return List.of();
-        }
-
-        List<Object> values = new ArrayList<>();
-        if (parsesArrayValue()) {
-            return (List<?>) parseSourceValue(sourceValue, format);
-        } else {
-            List<?> sourceValues = sourceValue instanceof List ? (List<?>) sourceValue : List.of(sourceValue);
-            for (Object value : sourceValues) {
-                Object parsedValue = parseSourceValue(value, format);
-                if (parsedValue != null) {
-                    values.add(parsedValue);
-                }
-            }
-        }
-        return values;
-    }
-
-    /**
-     * Given a value that has been extracted from a document's source, parse it into a standard
-     * format. This parsing logic should closely mirror the value parsing in
-     * {@link #parseCreateField} or {@link #parse}.
-     *
-     * Note that when overriding this method, {@link #lookupValues} should *not* be overridden.
-     */
-    protected abstract Object parseSourceValue(Object value, @Nullable String format);
-
-    protected void createFieldNamesField(ParseContext context) {
+    protected final void createFieldNamesField(ParseContext context) {
+        assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
@@ -347,6 +294,48 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
+    @Override
+    public final void validate(MappingLookup mappers) {
+        if (this.copyTo() != null && this.copyTo().copyToFields().isEmpty() == false) {
+            if (mappers.isMultiField(this.name())) {
+                throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.name() + "]");
+            }
+
+            final String sourceScope = mappers.getNestedScope(this.name());
+            for (String copyTo : this.copyTo().copyToFields()) {
+                if (mappers.isMultiField(copyTo)) {
+                    throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
+                }
+                if (mappers.isObjectField(copyTo)) {
+                    throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
+                }
+
+                final String targetScope = mappers.getNestedScope(copyTo);
+                checkNestedScopeCompatibility(sourceScope, targetScope);
+            }
+        }
+        for (Mapper multiField : multiFields()) {
+            multiField.validate(mappers);
+        }
+        doValidate(mappers);
+    }
+
+    protected void doValidate(MappingLookup mappers) { }
+
+    private static void checkNestedScopeCompatibility(String source, String target) {
+        boolean targetIsParentOfSource;
+        if (source == null || target == null) {
+            targetIsParentOfSource = target == null;
+        } else {
+            targetIsParentOfSource = source.equals(target) || source.startsWith(target + ".");
+        }
+        if (targetIsParentOfSource == false) {
+            throw new IllegalArgumentException(
+                "Illegal combination of [copy_to] and [nested] mappings: [copy_to] may only copy data to the current nested " +
+                    "document or any of its parents, however one [copy_to] directive is trying to copy data from nested object [" +
+                    source + "] to [" + target + "]");
+        }
+    }
 
     @Override
     public FieldMapper merge(Mapper mergeWith) {
@@ -400,7 +389,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
         }
         if (fieldType.storeTermVectors() != other.storeTermVectors()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
+            conflicts.add("mapper [" + name() + "] has different [term_vector] values");
         }
         if (fieldType.storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
             conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
@@ -452,10 +441,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-
-        if (includeDefaults || fieldType().boost() != 1.0f) {
-            builder.field("boost", fieldType().boost());
-        }
 
         if (includeDefaults || mappedFieldType.isSearchable() != indexedByDefault()) {
             builder.field("index", mappedFieldType.isSearchable());
@@ -516,28 +501,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return TypeParsers.INDEX_OPTIONS_DOCS;
             default:
                 throw new IllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
-        }
-    }
-
-    public static String termVectorOptionsToString(FieldType fieldType) {
-        if (!fieldType.storeTermVectors()) {
-            return "no";
-        } else if (!fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
-            return "yes";
-        } else if (fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
-            return "with_offsets";
-        } else {
-            StringBuilder builder = new StringBuilder("with");
-            if (fieldType.storeTermVectorPositions()) {
-                builder.append("_positions");
-            }
-            if (fieldType.storeTermVectorOffsets()) {
-                builder.append("_offsets");
-            }
-            if (fieldType.storeTermVectorPayloads()) {
-                builder.append("_payloads");
-            }
-            return builder.toString();
         }
     }
 

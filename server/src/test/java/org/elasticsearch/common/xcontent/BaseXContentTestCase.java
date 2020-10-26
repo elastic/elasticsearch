@@ -75,6 +75,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -947,11 +948,18 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
-        os = new ByteArrayOutputStream();
+        final AtomicBoolean closed = new AtomicBoolean(false);
+        os = new ByteArrayOutputStream() {
+            @Override
+            public void close() {
+                closed.set(true);
+            }
+        };
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
             generator.writeStartObject();
             generator.writeFieldName("test");
             generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
+            assertFalse("Generator should not have closed the output stream", closed.get());
             generator.writeEndObject();
         }
 

@@ -1,5 +1,9 @@
 [[kv-processor]]
-=== KV Processor
+=== KV processor
+++++
+<titleabbrev>KV</titleabbrev>
+++++
+
 This processor helps automatically parse messages (or specific event fields) which are of the `foo=bar` variety.
 
 For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`, you can parse those fields automatically by configuring:

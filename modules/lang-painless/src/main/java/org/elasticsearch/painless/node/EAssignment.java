@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.phase.UserTreeVisitor;

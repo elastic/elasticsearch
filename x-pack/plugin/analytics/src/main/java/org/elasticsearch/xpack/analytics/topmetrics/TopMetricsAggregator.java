@@ -441,36 +441,33 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         }
 
         void markMissing(long index) {
-            int i = asInt(index);
             if (tracker == null) {
-                tracker = new BitArray(i, bigArrays);
+                tracker = new BitArray(index, bigArrays);
             }
-            tracker.set(i);
+            tracker.set(index);
         }
 
         void markNotMissing(long index) {
             if (tracker == null) {
                 return;
             }
-            tracker.clear(asInt(index));
+            tracker.clear(index);
         }
 
         void swap(long lhs, long rhs) {
             if (tracker == null) {
                 return;
             }
-            int l = asInt(lhs);
-            int r = asInt(rhs);
-            boolean backup = tracker.get(l);
-            if (tracker.get(r)) {
-                tracker.set(l);
+            boolean backup = tracker.get(lhs);
+            if (tracker.get(rhs)) {
+                tracker.set(lhs);
             } else {
-                tracker.clear(l);
+                tracker.clear(lhs);
             }
             if (backup) {
-                tracker.set(r);
+                tracker.set(rhs);
             } else {
-                tracker.clear(r);
+                tracker.clear(rhs);
             }
         }
 
@@ -478,7 +475,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
             if (tracker == null) {
                 return false;
             }
-            return tracker.get(asInt(index));
+            return tracker.get(index);
         }
 
         @Override
@@ -486,13 +483,6 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
             if (tracker != null) {
                 tracker.close();
             }
-        }
-
-        private int asInt(long index) {
-            if (index > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException("top_metrics can't track more than " + Integer.MAX_VALUE + " values.");
-            }
-            return (int) index;
         }
     }
 }

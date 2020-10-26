@@ -199,6 +199,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             int version = v;
             String javaHomeEnvVarName = getJavaHomeEnvVarName(Integer.toString(version));
             if (System.getenv(javaHomeEnvVarName) != null) {
+                String javaHomeString = findJavaHome(Integer.toString(version));
+                Logging.getLogger(getClass()).quiet("javaHomeString: " + javaHomeString);
                 File javaHomeDirectory = new File(findJavaHome(Integer.toString(version)));
                 Provider<JavaInstallation> javaInstallationProvider = javaInstallationRegistry.installationForDirectory(
                     objects.directoryProperty().fileValue(javaHomeDirectory)

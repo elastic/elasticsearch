@@ -47,7 +47,7 @@ final class LatLonShapeDVAtomicShapeFieldData extends AbstractAtomicGeoShapeShap
     public MultiGeoShapeValues getGeoShapeValues() {
         try {
             final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);
-            final TriangleTreeReader reader = new TriangleTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
+            final GeometryDocValueReader reader = new GeometryDocValueReader();
             final MultiGeoShapeValues.GeoShapeValue geoShapeValue = new MultiGeoShapeValues.GeoShapeValue(reader);
             return new MultiGeoShapeValues() {
 

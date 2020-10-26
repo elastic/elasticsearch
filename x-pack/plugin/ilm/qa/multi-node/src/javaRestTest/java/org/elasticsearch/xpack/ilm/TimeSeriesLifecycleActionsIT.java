@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
-import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -48,7 +47,6 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.elasticsearch.xpack.core.ilm.UpdateRolloverLifecycleDateStep;
 import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
@@ -1318,17 +1316,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "}");
         client().performRequest(moveToStepRequest);
 
-        assertTrue("ILM did not start retrying the update-rollover-lifecycle-date step", waitUntil(() -> {
-            try {
-                Map<String, Object> explainIndexResponse = explainIndex(client(), index);
-                String failedStep = (String) explainIndexResponse.get("failed_step");
-                Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
-                return failedStep != null && failedStep.equals(UpdateRolloverLifecycleDateStep.NAME) && retryCount != null
-                    && retryCount >= 1;
-            } catch (IOException e) {
-                return false;
-            }
-        }, 30, TimeUnit.SECONDS));
+        assertBusy(() -> assertThat((Integer) explainIndex(client(), index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)),
+            30, TimeUnit.SECONDS);
 
         index(client(), index, "1", "foo", "bar");
         Request refreshIndex = new Request("POST", "/" + index + "/_refresh");
@@ -1472,18 +1461,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         assertOK(client().performRequest(startReq));
 
-        // Wait until an error has occurred.
-        assertTrue("ILM did not start retrying the init step", waitUntil(() -> {
-            try {
-                Map<String, Object> explainIndexResponse = explainIndex(client(), index);
-                String failedStep = (String) explainIndexResponse.get("failed_step");
-                Integer retryCount = (Integer) explainIndexResponse.get(FAILED_STEP_RETRY_COUNT_FIELD);
-                return failedStep != null && failedStep.equals(InitializePolicyContextStep.KEY.getAction()) && retryCount != null
-                    && retryCount >= 1;
-            } catch (IOException e) {
-                return false;
-            }
-        }, 30, TimeUnit.SECONDS));
+        assertBusy(() -> assertThat((Integer) explainIndex(client(), index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)),
+            30, TimeUnit.SECONDS);
 
         // Turn origination date parsing back off
         updateIndexSettings(index, Settings.builder()

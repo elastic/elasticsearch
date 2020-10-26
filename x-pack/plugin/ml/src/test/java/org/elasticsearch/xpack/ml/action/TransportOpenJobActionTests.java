@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -92,7 +93,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
     }
 
     public void testVerifyIndicesPrimaryShardsAreActive() {
-        final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+        final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metadata, routingTable);
@@ -106,7 +107,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         metadata = new Metadata.Builder(cs.metadata());
         routingTable = new RoutingTable.Builder(cs.routingTable());
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
         String indexToRemove = randomFrom(indexNameExpressionResolver.concreteIndexNames(cs, IndicesOptions.lenientExpandOpen(),
             TransportOpenJobAction.indicesOfInterest(".ml-anomalies-shared")));
         if (randomBoolean()) {
@@ -151,13 +152,13 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
             Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE)
+                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
                 Settings.EMPTY, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
-                new IndexNameExpressionResolver());
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("missing_job_field");
         assertEquals(TransportOpenJobAction.AWAITING_MIGRATION, executor.getAssignment(params, mock(ClusterState.class)));
@@ -169,7 +170,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE)
+                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
@@ -183,7 +184,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
             settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
-            new IndexNameExpressionResolver());
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("unavailable_index_with_lazy_node");
         params.setJob(mock(Job.class));
@@ -197,7 +198,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE)
+                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
@@ -210,7 +211,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
             settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
-            new IndexNameExpressionResolver());
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
 
         Job job = mock(Job.class);
         when(job.allowLazyOpen()).thenReturn(true);

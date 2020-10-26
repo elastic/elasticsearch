@@ -54,6 +54,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Netty4NioSocketChannel;
 import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.transport.NettyByteBufSizer;
 import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
@@ -326,6 +327,7 @@ public class Netty4Transport extends TcpTransport {
     protected class ServerChannelInitializer extends ChannelInitializer<Channel> {
 
         protected final String name;
+        private final NettyByteBufSizer sizer = new NettyByteBufSizer();
 
         protected ServerChannelInitializer(String name) {
             this.name = name;
@@ -338,6 +340,7 @@ public class Netty4Transport extends TcpTransport {
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
+            ch.pipeline().addLast("byte_buf_sizer", sizer);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(pageCacheRecycler, Netty4Transport.this));
             serverAcceptedChannel(nettyTcpChannel);

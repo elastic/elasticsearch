@@ -89,7 +89,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger numWithTopDocs = new AtomicInteger();
         AtomicInteger successfulOps = new AtomicInteger();
         AtomicBoolean canReturnNullResponse = new AtomicBoolean(false);
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, ShardSearchRequest request,
                                          SearchTask task, SearchActionListener<SearchPhaseResult> listener) {

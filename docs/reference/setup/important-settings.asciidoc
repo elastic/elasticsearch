@@ -7,14 +7,15 @@ settings which need to be considered before going into production.
 The following settings *must* be considered before going to production:
 
 * <<path-settings,Path settings>>
-* <<cluster.name,Cluster name>>
-* <<node.name,Node name>>
-* <<network.host,Network host>>
+* <<cluster-name,Cluster name setting>>
+* <<node-name,Node name setting>>
+* <<network.host,Network host settings>>
 * <<discovery-settings,Discovery settings>>
-* <<heap-size,Heap size>>
-* <<heap-dump-path,Heap dump path>>
-* <<gc-logging,GC logging>>
-* <<es-tmpdir,Temp directory>>
+* <<heap-size,Heap size settings>>
+* <<heap-dump-path,JVM heap dump path setting>>
+* <<gc-logging,GC logging settings>>
+* <<es-tmpdir,Temporary directory settings>>
+* <<error-file-path,JVM fatal error log setting>>
 
 include::important-settings/path-settings.asciidoc[]
 

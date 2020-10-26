@@ -52,7 +52,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         client().admin().indices().prepareCreate(sourceIndex)
             .setMapping(
                 "numeric_1", "type=double",
-                "numeric_2", "type=float",
+                "numeric_2", "type=unsigned_long",
                 "categorical", "type=keyword",
                 "filtered_field", "type=keyword")
             .get();
@@ -64,7 +64,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
             IndexRequest indexRequest = new IndexRequest(sourceIndex);
             indexRequest.source(
                 "numeric_1", 1.0,
-                "numeric_2", 2.0,
+                "numeric_2", 2,
                 "categorical", i % 2 == 0 ? "class_1" : "class_2",
                 "filtered_field", i < 2 ? "bingo" : "rest"); // We tag bingo on the first two docs to ensure we have 2 classes
             bulkRequestBuilder.add(indexRequest);

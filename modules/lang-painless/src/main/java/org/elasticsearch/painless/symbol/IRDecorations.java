@@ -78,4 +78,11 @@ public class IRDecorations {
             super(Objects.requireNonNull(flags));
         }
     }
+
+    public static class IRDRegexLimit extends IRDecoration<Integer> {
+
+        public IRDRegexLimit(Integer regexLimit) {
+            super(Objects.requireNonNull(regexLimit));
+        }
+    }
 }

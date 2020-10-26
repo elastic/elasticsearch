@@ -70,7 +70,8 @@ expression syntax>>.
 
 `case_insensitive`::
 (Optional, boolean) allows case insensitive matching of the regular expression
-value with the indexed field values when set to true. Setting to false is disallowed.
+value with the indexed field values when set to true. Default is false which means
+the case sensitivity of matching depends on the underlying field's mapping.
 
 `max_determinized_states`::
 +

@@ -76,12 +76,10 @@ public class MetadataCreateDataStreamService {
                         new String[]{firstBackingIndexName},
                         ActiveShardCount.DEFAULT,
                         request.masterNodeTimeout(),
-                        shardsAcked -> {
-                            finalListener.onResponse(new AcknowledgedResponse(true));
-                        },
+                        shardsAcked -> finalListener.onResponse(AcknowledgedResponse.TRUE),
                         finalListener::onFailure);
                 } else {
-                    finalListener.onResponse(new AcknowledgedResponse(false));
+                    finalListener.onResponse(AcknowledgedResponse.FALSE);
                 }
             },
             finalListener::onFailure
@@ -160,7 +158,9 @@ public class MetadataCreateDataStreamService {
 
         String fieldName = template.getDataStreamTemplate().getTimestampField();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
-        DataStream newDataStream = new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()));
+        DataStream newDataStream =
+            new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()), 1L,
+                template.metadata() != null ? Map.copyOf(template.metadata()) : null);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();

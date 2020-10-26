@@ -94,12 +94,29 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                             + "without a bundled JDK is not supported."
                     );
                 }
+                String projectConfig = getProjectConfig(distribution, unreleasedInfo);
                 return new ProjectBasedDistributionDependency(
-                    (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution))
+                    (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath, projectConfig)
                 );
             }
             return null;
         }));
+    }
+
+    /**
+     * Will be removed once this is backported to all unreleased branches.
+     */
+    private static String getProjectConfig(ElasticsearchDistribution distribution, BwcVersions.UnreleasedVersionInfo info) {
+        String distributionProjectName = distributionProjectName(distribution);
+        if (distribution.getType().shouldExtract()) {
+            return (info.gradleProjectPath.equals(":distribution") || info.version.before("7.10.0"))
+                ? distributionProjectName
+                : "expanded-" + distributionProjectName;
+        } else {
+            return distributionProjectName;
+
+        }
+
     }
 
     private static String distributionProjectPath(ElasticsearchDistribution distribution) {
@@ -168,7 +185,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         return projectName;
     }
 
-    private class ProjectBasedDistributionDependency implements DistributionDependency {
+    private static class ProjectBasedDistributionDependency implements DistributionDependency {
 
         private Function<String, Dependency> function;
 

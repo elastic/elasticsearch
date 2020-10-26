@@ -84,6 +84,34 @@ setup:
   - match: {hits.sequences.1.events.1._id: "3"}
 
 ---
+"Execute EQL sequence by default ignores unavailable index.":
+  - do:
+      eql.search:
+        index: eql_test,non_existing
+        body:
+          query: 'sequence by valid [process where user == "SYSTEM"] [process where true]'
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: true}
+  - match: {hits.sequences.0.events.0._id: "2"}
+  - match: {hits.sequences.0.events.1._id: "3"}
+
+---
+"Execute EQL sequence by default ignores unavailable index pattern.":
+  - do:
+      eql.search:
+        index: eql_test,non_existing*
+        body:
+          query: 'sequence by valid [process where user == "SYSTEM"] [process where true]'
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: true}
+  - match: {hits.sequences.0.events.0._id: "2"}
+  - match: {hits.sequences.0.events.1._id: "3"}
+
+---
 "Execute EQL sequence with boolean key.":
   - do:
       eql.search:
@@ -96,9 +124,8 @@ setup:
   - match: {hits.sequences.0.join_keys.0: true}
   - match: {hits.sequences.0.events.0._id: "2"}
   - match: {hits.sequences.0.events.1._id: "3"}
-
 ---
-"Execute some EQL in async mode":
+"Execute some EQL in async mode.":
   - do:
       eql.search:
         index: eql_test

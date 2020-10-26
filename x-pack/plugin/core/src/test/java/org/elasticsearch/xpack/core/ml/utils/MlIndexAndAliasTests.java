@@ -90,8 +90,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
             .thenReturn(new CreateIndexRequestBuilder(client, CreateIndexAction.INSTANCE, FIRST_CONCRETE_INDEX));
         doAnswer(withResponse(new CreateIndexResponse(true, true, FIRST_CONCRETE_INDEX))).when(indicesAdminClient).create(any(), any());
         when(indicesAdminClient.prepareAliases()).thenReturn(new IndicesAliasesRequestBuilder(client, IndicesAliasesAction.INSTANCE));
-        doAnswer(withResponse(new AcknowledgedResponse(true))).when(indicesAdminClient).aliases(any(), any());
-        doAnswer(withResponse(new AcknowledgedResponse(true))).when(indicesAdminClient).putTemplate(any(), any());
+        doAnswer(withResponse(AcknowledgedResponse.TRUE)).when(indicesAdminClient).aliases(any(), any());
+        doAnswer(withResponse(AcknowledgedResponse.TRUE)).when(indicesAdminClient).putTemplate(any(), any());
 
         clusterAdminClient = mock(ClusterAdminClient.class);
         doAnswer(invocationOnMock -> {
@@ -280,7 +280,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
-            client, clusterState, new IndexNameExpressionResolver(), TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, listener);
+            client, clusterState, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, listener);
     }
 
     @SuppressWarnings("unchecked")

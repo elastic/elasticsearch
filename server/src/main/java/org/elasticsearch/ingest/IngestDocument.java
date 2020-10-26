@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,7 @@ import java.util.function.BiConsumer;
 public final class IngestDocument {
 
     public static final String INGEST_KEY = "_ingest";
+    public static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
     private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
 
@@ -711,6 +713,13 @@ public final class IngestDocument {
                 copy.add(deepCopy(itemValue));
             }
             return copy;
+        } else if (value instanceof Set) {
+            Set<?> setValue = (Set<?>) value;
+            Set<Object> copy = new HashSet<>(setValue.size());
+            for (Object itemValue : setValue) {
+                copy.add(deepCopy(itemValue));
+            }
+            return copy;
         } else if (value instanceof byte[]) {
             byte[] bytes = (byte[]) value;
             return Arrays.copyOf(bytes, bytes.length);
@@ -746,7 +755,7 @@ public final class IngestDocument {
                 handler.accept(result, e);
             });
         } else {
-            handler.accept(null, new IllegalStateException("Cycle detected for pipeline: " + pipeline.getId()));
+            handler.accept(null, new IllegalStateException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
         }
     }
 

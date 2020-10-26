@@ -55,6 +55,9 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField METADATA = new ParseField("_meta");
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
+    private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
+
+    private static final Version ALLOW_AUTO_CREATE_VERSION = Version.V_8_0_0;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>("index_template",
@@ -65,7 +68,8 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             (Long) a[3],
             (Long) a[4],
             (Map<String, Object>) a[5],
-            (DataStreamTemplate) a[6]));
+            (DataStreamTemplate) a[6],
+            (Boolean) a[7]));
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX_PATTERNS);
@@ -75,6 +79,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), VERSION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), DataStreamTemplate.PARSER, DATA_STREAM);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_AUTO_CREATE);
     }
 
     private final List<String> indexPatterns;
@@ -90,6 +95,8 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     private final Map<String, Object> metadata;
     @Nullable
     private final DataStreamTemplate dataStreamTemplate;
+    @Nullable
+    private final Boolean allowAutoCreate;
 
     static Diff<ComposableIndexTemplate> readITV2DiffFrom(StreamInput in) throws IOException {
         return AbstractDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
@@ -101,12 +108,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
     public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
                                    @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, null);
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, null, null);
     }
 
     public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
                                    @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata,
-                                   @Nullable DataStreamTemplate dataStreamTemplate) {
+                                   @Nullable DataStreamTemplate dataStreamTemplate, @Nullable Boolean allowAutoCreate) {
         this.indexPatterns = indexPatterns;
         this.template = template;
         this.componentTemplates = componentTemplates;
@@ -114,6 +121,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         this.version = version;
         this.metadata = metadata;
         this.dataStreamTemplate = dataStreamTemplate;
+        this.allowAutoCreate = allowAutoCreate;
     }
 
     public ComposableIndexTemplate(StreamInput in) throws IOException {
@@ -131,6 +139,11 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         } else {
             this.dataStreamTemplate = null;
+        }
+        if (in.getVersion().onOrAfter(ALLOW_AUTO_CREATE_VERSION)) {
+            this.allowAutoCreate = in.readOptionalBoolean();
+        } else {
+            this.allowAutoCreate = null;
         }
     }
 
@@ -173,6 +186,11 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         return dataStreamTemplate;
     }
 
+    @Nullable
+    public Boolean getAllowAutoCreate() {
+        return this.allowAutoCreate;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(this.indexPatterns);
@@ -188,6 +206,9 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         out.writeMap(this.metadata);
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeOptionalWriteable(dataStreamTemplate);
+        }
+        if (out.getVersion().onOrAfter(ALLOW_AUTO_CREATE_VERSION)) {
+            out.writeOptionalBoolean(allowAutoCreate);
         }
     }
 
@@ -213,6 +234,9 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         if (this.dataStreamTemplate != null) {
             builder.field(DATA_STREAM.getPreferredName(), dataStreamTemplate);
         }
+        if (this.allowAutoCreate != null) {
+            builder.field(ALLOW_AUTO_CREATE.getPreferredName(), allowAutoCreate);
+        }
         builder.endObject();
         return builder;
     }
@@ -220,7 +244,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     @Override
     public int hashCode() {
         return Objects.hash(this.indexPatterns, this.template, this.componentTemplates, this.priority, this.version,
-            this.metadata, this.dataStreamTemplate);
+            this.metadata, this.dataStreamTemplate, this.allowAutoCreate);
     }
 
     @Override
@@ -238,7 +262,8 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             Objects.equals(this.priority, other.priority) &&
             Objects.equals(this.version, other.version) &&
             Objects.equals(this.metadata, other.metadata) &&
-            Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate);
+            Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate) &&
+            Objects.equals(this.allowAutoCreate, other.allowAutoCreate);
     }
 
     @Override

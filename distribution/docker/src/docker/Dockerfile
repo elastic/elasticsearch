@@ -61,10 +61,19 @@ RUN apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file
 RUN mkdir /work
 WORKDIR /work
 
-# Fetch curl sources and files for validation
-RUN wget "https://daniel.haxx.se/mykey.asc" -O "curl-gpg.pub" && \\
-    wget "\${TARBALL_URL}.asc" -O "\${TARBALL_PATH}.asc" && \\
-    wget "\${TARBALL_URL}" -O "\${TARBALL_PATH}"
+# Fetch curl sources and files for validation. Note that alpine's `wget` doesn't have retry options.
+RUN function retry_wget() { \\
+      local URL="\$1" ; \\
+      local DEST="\$2" ; \\
+      for iter in {1..10}; do \\
+        wget "\$URL" -O "\$DEST" && \\
+        exit_code=0 && break || exit_code=\$? && echo "wget error fetching \$URL: retry \$iter in 10s" && sleep 10; \\
+      done; \\
+      return \$exit_code ; \\
+    } ; \\
+    retry_wget "https://daniel.haxx.se/mykey.asc" "curl-gpg.pub" && \\
+    retry_wget "\${TARBALL_URL}.asc" "\${TARBALL_PATH}.asc" && \\
+    retry_wget "\${TARBALL_URL}" "\${TARBALL_PATH}"
 
 # Validate source
 RUN gpg --import --always-trust "curl-gpg.pub" && \\
@@ -198,7 +207,7 @@ RUN tar zxf /opt/elasticsearch.tar.gz --strip-components=1
 # Configure the distribution for Docker
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
 RUN mkdir -p config config/jvm.options.d data logs
-RUN chmod 0775 config config/jvm.options.d data logs
+RUN chmod 0775 config config/jvm.options.d data logs plugins
 COPY config/elasticsearch.yml config/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
@@ -216,7 +225,8 @@ RUN for iter in {1..10}; do \\
       ${package_manager} update --setopt=tsflags=nodocs -y && \\
       ${package_manager} install --setopt=tsflags=nodocs -y \\
         nc shadow-utils zip unzip findutils procps-ng && \\
-      ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
+      ${package_manager} clean all && \\
+      exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
       sleep 10; \\
     done; \\
     (exit \$exit_code)

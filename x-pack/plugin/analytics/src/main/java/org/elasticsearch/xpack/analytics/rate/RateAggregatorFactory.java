@@ -29,10 +29,13 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final Rounding.DateTimeUnit rateUnit;
 
+    private final RateMode rateMode;
+
     RateAggregatorFactory(
         String name,
         ValuesSourceConfig config,
         Rounding.DateTimeUnit rateUnit,
+        RateMode rateMode,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
@@ -40,6 +43,7 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.rateUnit = rateUnit;
+        this.rateMode = rateMode;
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -59,7 +63,7 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new AbstractRateAggregator(name, config, rateUnit, searchContext, parent, metadata) {
+        return new AbstractRateAggregator(name, config, rateUnit, rateMode, searchContext, parent, metadata) {
             @Override
             public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
@@ -76,6 +80,6 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
         return context.getValuesSourceRegistry()
             .getAggregator(RateAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, rateUnit, searchContext, parent, metadata);
+            .build(name, config, rateUnit, rateMode, searchContext, parent, metadata);
     }
 }

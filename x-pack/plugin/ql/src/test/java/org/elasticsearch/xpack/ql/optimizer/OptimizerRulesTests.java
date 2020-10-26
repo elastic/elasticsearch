@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -35,7 +36,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanEqualsSimplification;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
@@ -275,20 +276,33 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(expected, simplification.rule(actual));
     }
 
-    public void testBoolEqualsSimplification() {
-        BooleanEqualsSimplification s = new BooleanEqualsSimplification();
+    public void testBoolEqualsSimplificationOnExpressions() {
+        BooleanFunctionEqualsElimination s = new BooleanFunctionEqualsElimination();
+        Expression exp = new GreaterThan(EMPTY, getFieldAttribute(), L(0), null);
 
-        assertEquals(DUMMY_EXPRESSION, s.rule(new Equals(EMPTY, DUMMY_EXPRESSION, TRUE)));
-        assertEquals(new Not(EMPTY, DUMMY_EXPRESSION), s.rule(new Equals(EMPTY, DUMMY_EXPRESSION, FALSE)));
+        assertEquals(exp, s.rule(new Equals(EMPTY, exp, TRUE)));
+        assertEquals(new Not(EMPTY, exp), s.rule(new Equals(EMPTY, exp, FALSE)));
+    }
 
-        assertEquals(new Not(EMPTY, DUMMY_EXPRESSION), s.rule(notEqualsOf(DUMMY_EXPRESSION, TRUE)));
-        assertEquals(DUMMY_EXPRESSION, s.rule(notEqualsOf(DUMMY_EXPRESSION, FALSE)));
+    public void testBoolEqualsSimplificationOnFields() {
+        BooleanFunctionEqualsElimination s = new BooleanFunctionEqualsElimination();
 
-        assertEquals(NULL, s.rule(new Equals(EMPTY, NULL, TRUE)));
-        assertEquals(new Not(EMPTY, NULL), s.rule(new Equals(EMPTY, NULL, FALSE)));
+        FieldAttribute field = getFieldAttribute();
 
-        assertEquals(new Not(EMPTY, NULL), s.rule(notEqualsOf(NULL, TRUE)));
-        assertEquals(NULL, s.rule(notEqualsOf(NULL, FALSE)));
+        List<? extends BinaryComparison> comparisons = Arrays.asList(
+            new Equals(EMPTY, field, TRUE),
+            new Equals(EMPTY, field, FALSE),
+            notEqualsOf(field, TRUE),
+            notEqualsOf(field, FALSE),
+            new Equals(EMPTY, NULL, TRUE),
+            new Equals(EMPTY, NULL, FALSE),
+            notEqualsOf(NULL, TRUE),
+            notEqualsOf(NULL, FALSE)
+        );
+
+        for (BinaryComparison comparison : comparisons) {
+            assertEquals(comparison, s.rule(comparison));
+        }
     }
 
     //

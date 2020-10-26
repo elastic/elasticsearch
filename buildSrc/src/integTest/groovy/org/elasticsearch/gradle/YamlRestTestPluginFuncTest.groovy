@@ -26,7 +26,6 @@ class YamlRestTestPluginFuncTest extends AbstractGradleFuncTest {
 
     def "yamlRestTest does nothing when there are no tests"() {
         given:
-
         buildFile << """
         plugins {
           id 'elasticsearch.yaml-rest-test'
@@ -44,21 +43,9 @@ class YamlRestTestPluginFuncTest extends AbstractGradleFuncTest {
 
     def "yamlRestTest executes and copies api and tests from :rest-api-spec"() {
         given:
-        internalBuild()
-        addSubProject(":test:framework") <<  "apply plugin: 'elasticsearch.java'"
-        addSubProject(":distribution:archives:integ-test-zip") <<  "configurations { extracted }"
-        addSubProject(":rest-api-spec") <<  """
-        configurations { restSpecs\nrestTests }
-        artifacts {
-          restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
-          restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
-        }
-        """
-        addSubProject(":x-pack:plugin") << "configurations { restXpackSpecs\nrestXpackTests }"
-
-        //add the mock api and test files
-        file("rest-api-spec/src/main/resources/rest-api-spec/test/foo/10_basic.yml") << ""
-        file("rest-api-spec/src/main/resources/rest-api-spec/api/foo.json") << ""
+        String api = "foo.json"
+        String test = "foo/10_basic.yml"
+        setupInternalRestResources(api, test)
 
         buildFile << """
         apply plugin: 'elasticsearch.yaml-rest-test'
@@ -78,12 +65,12 @@ class YamlRestTestPluginFuncTest extends AbstractGradleFuncTest {
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
 
         File resourceDir = new File(testProjectDir.root, "build/resources/yamlRestTest/rest-api-spec")
-        assert new File(resourceDir, "test/foo/10_basic.yml").exists()
-        assert new File(resourceDir, "api/foo.json").exists()
+        assert new File(resourceDir, "/test/" + test).exists()
+        assert new File(resourceDir, "/api/" + api).exists()
 
         when:
         //add the mock java test and dependency to run
-        file("src/yamlRestTest/java/MockIT.java") <<  "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
+        file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
 
         buildFile << """
            dependencies {

@@ -133,4 +133,22 @@ abstract class AbstractGradleFuncTest extends Specification {
             System.err.println("Syserr: " + proc.errorStream.text)
         }
     }
+
+    void setupInternalRestResources(String api, String test){
+        internalBuild()
+        addSubProject(":test:framework") <<  "apply plugin: 'elasticsearch.java'"
+        addSubProject(":distribution:archives:integ-test-zip") <<  "configurations { extracted }"
+        addSubProject(":rest-api-spec") <<  """
+        configurations { restSpecs\nrestTests }
+        artifacts {
+          restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
+          restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
+        }
+        """
+        addSubProject(":x-pack:plugin") << "configurations { restXpackSpecs\nrestXpackTests }"
+
+        //add the mock api and test files
+        file("rest-api-spec/src/main/resources/rest-api-spec/test/" + test) << ""
+        file("rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
+    }
 }

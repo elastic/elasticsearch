@@ -31,7 +31,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -43,13 +42,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -159,7 +156,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             indexDocuments(w);
 
-            SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "this_field_does_not_exist").filterDuplicateText(true);
+            SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "this_field_does_not_exist")
+                .filterDuplicateText(true);
             if(randomBoolean()){
                 sigAgg.sourceFieldNames(Arrays.asList(new String [] {"json_only_field"}));
             }
@@ -172,7 +170,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 
                 IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () ->  searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType));
-                assertThat(e.getMessage(), equalTo("Field [this_field_does_not_exist] does not exist, SignificantText requires an analyzed field"));
+                assertThat(e.getMessage(), equalTo("Field [this_field_does_not_exist] does not exist, SignificantText "
+                    + "requires an analyzed field"));
             }
         }
     }

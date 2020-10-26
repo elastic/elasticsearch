@@ -414,7 +414,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         // avoid constantly trying to setup Watcher, which requires a lot of overhead and avoid attempting to setup during a cluster state
         // change. Provide a way to force it to initialize though.
-        setupClusterAlertsTasks(clusterState, clusterStateChange, forceAlertingSetup, setupListener, asyncActions, pendingResponses, errors);
+        setupClusterAlertsTasks(clusterState, clusterStateChange, forceAlertingSetup, setupListener, asyncActions, pendingResponses,
+            errors);
 
         if (asyncActions.size() > 0) {
             if (installingSomething.compareAndSet(false, true)) {
@@ -582,8 +583,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                     logger.trace("checking monitoring watch [{}]", uniqueWatchId);
 
                     asyncActions.add(() -> client.execute(GetWatchAction.INSTANCE, new GetWatchRequest(uniqueWatchId),
-                                                            new GetAndPutWatchResponseActionListener(client, watchId, uniqueWatchId,
-                                                                                                     pendingResponses, setupListener, errors)));
+                        new GetAndPutWatchResponseActionListener(client, watchId, uniqueWatchId, pendingResponses, setupListener,
+                            errors)));
                 } else {
                     logger.trace("pruning monitoring watch [{}]", uniqueWatchId);
 
@@ -727,7 +728,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
 
         private ResponseActionListener(String type, String name, AtomicInteger countDown,
-                                       Consumer<ExporterResourceStatus> setupListener, List<Exception> errors, @Nullable AtomicBoolean setup) {
+                                       Consumer<ExporterResourceStatus> setupListener, List<Exception> errors,
+                                       @Nullable AtomicBoolean setup) {
             this.type = Objects.requireNonNull(type);
             this.name = Objects.requireNonNull(name);
             this.countDown = Objects.requireNonNull(countDown);

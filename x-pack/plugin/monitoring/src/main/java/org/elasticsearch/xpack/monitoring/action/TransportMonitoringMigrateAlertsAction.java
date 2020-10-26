@@ -89,7 +89,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
      * to explicitly remove their installed alerts if possible. This makes sure that alerts are removed in a timely fashion instead of
      * waiting for metrics to be bulked into the monitoring cluster.
      */
-    private ActionListener<ClusterUpdateSettingsResponse> afterSettingUpdate(final ActionListener<MonitoringMigrateAlertsResponse> listener) {
+    private ActionListener<ClusterUpdateSettingsResponse> afterSettingUpdate(ActionListener<MonitoringMigrateAlertsResponse> listener) {
         return ActionListener.wrap(clusterUpdateSettingsResponse -> {
 
             // Ensure positive result
@@ -104,7 +104,8 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
             List<Runnable> refreshTasks = new ArrayList<>();
             AtomicInteger remaining = new AtomicInteger(enabledExporters.size() + disabledExporterConfigs.size());
             List<ExporterResourceStatus> results = Collections.synchronizedList(new ArrayList<>(remaining.get()));
-            logger.debug("Exporters in need of refreshing [{}]; enabled [{}], disabled [{}]", remaining.get(), enabledExporters.size(), disabledExporterConfigs.size());
+            logger.debug("Exporters in need of refreshing [{}]; enabled [{}], disabled [{}]", remaining.get(), enabledExporters.size(),
+                disabledExporterConfigs.size());
 
             for (Exporter enabledExporter : enabledExporters) {
                 refreshTasks.add(() -> refreshOpenExporter(enabledExporter,
@@ -172,7 +173,8 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
             }
 
             private Exception compileReason(ExporterResourceStatus status) {
-                // The reason for unsuccessful setup could be multiple exceptions: one or more watches may fail to be removed for any reason.
+                // The reason for unsuccessful setup could be multiple exceptions: one or more watches
+                // may fail to be removed for any reason.
                 List<Exception> exceptions = status.getExceptions();
                 if (exceptions == null || exceptions.size() == 0) {
                     return null;
@@ -195,23 +197,25 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
      * @param retries Number of retries left
      * @param retryBackoff Amount of time to wait between retries
      */
-    private void refreshOpenExporter(Exporter exporter, ActionListener<ExporterResourceStatus> listener, int retries, TimeValue retryBackoff) {
+    private void refreshOpenExporter(Exporter exporter, ActionListener<ExporterResourceStatus> listener, int retries,
+                                     TimeValue retryBackoff) {
         try {
             exporter.refreshAlerts(status -> {
                 if (Exporter.DeployState.IN_PROGRESS == status.getDeployState()) {
                     logger.debug("exporter [{}]: was in progress", exporter.config().name());
                     // Exporter is busy setting up in another thread. Retryable.
-                    // We just completed a settings update, so all exporters are fairly new. This retry loop is in case an exporter is actively
-                    // accepting results and something else has started its setup process, and also for Local Exporters which hook into cluster
-                    // state updates to kick off parts of their setup process.
+                    // We just completed a settings update, so all exporters are fairly new. This retry loop is in case an exporter is
+                    // actively accepting results and something else has started its setup process, and also for Local Exporters which hook
+                    // into cluster state updates to kick off parts of their setup process.
                     if (retries <= 0) {
                         // Exhausted our attempts at refreshing. This isn't necessarily a failure (Exporter might have just been busy).
-                        // It does leave the status of the migration in question. Since the migration just deletes the alerts at the moment,
-                        // it's fine to report a not ready status stating it's safe to try again.
+                        // It does leave the status of the migration in question. Since the migration just deletes the alerts at the
+                        // moment, it's fine to report a not ready status stating it's safe to try again.
                         listener.onResponse(ExporterResourceStatus.notReady(exporter.name(), exporter.config().type(),
                             "Exporter was too busy to acknowledge the migration of cluster alerts. Please attempt migration again."));
                     } else {
-                        threadPool.schedule(() -> refreshOpenExporter(exporter, listener, retries - 1, retryBackoff), retryBackoff, ThreadPool.Names.MANAGEMENT);
+                        threadPool.schedule(() -> refreshOpenExporter(exporter, listener, retries - 1, retryBackoff), retryBackoff,
+                            ThreadPool.Names.MANAGEMENT);
                     }
                 } else {
                     logger.debug("exporter [{}]: completed setup with status [{}]", exporter.config().name(), status.getDeployState());
@@ -220,7 +224,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
                 }
             });
         } catch (Exception e) {
-            logger.debug("exporter [{}]: exception encountered during refresh", exporter.config().name(), e);
+            logger.debug("exporter [" + exporter.config().name() + "]: exception encountered during refresh", e);
             listener.onFailure(e);
         }
     }
@@ -228,7 +232,8 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
     /**
      * Opens a disabled exporter in order to migrate it (best-effort), then makes sure it is closed at completion.
      */
-    private void refreshDisabledExporter(Exporter.Config exporterConf, ActionListener<ExporterResourceStatus> listener, int retries, TimeValue retryBackoff) {
+    private void refreshDisabledExporter(Exporter.Config exporterConf, ActionListener<ExporterResourceStatus> listener, int retries,
+                                         TimeValue retryBackoff) {
         Exporter disabledExporter = exporters.openExporter(exporterConf);
         refreshOpenExporter(disabledExporter, new ActionListener<>() {
                 @Override

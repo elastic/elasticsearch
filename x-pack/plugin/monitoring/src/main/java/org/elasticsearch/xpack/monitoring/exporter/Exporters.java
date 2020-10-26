@@ -79,7 +79,7 @@ public class Exporters extends AbstractLifecycleComponent {
         final Map<String, Exporter> enabledExporters;
         final Map<String, Exporter.Config> disabledExporters;
 
-        public InitializedExporters(Map<String, Exporter> enabledExporters, Map<String, Exporter.Config> disabledExporters) {
+        InitializedExporters(Map<String, Exporter> enabledExporters, Map<String, Exporter.Config> disabledExporters) {
             this.enabledExporters = enabledExporters;
             this.disabledExporters = disabledExporters;
         }

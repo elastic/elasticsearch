@@ -383,7 +383,7 @@ public class HttpExporter extends Exporter {
         MultiHttpResource allResources;
         HttpResource alertingResource;
 
-        public Resources(MultiHttpResource allResources, HttpResource alertingResource) {
+        Resources(MultiHttpResource allResources, HttpResource alertingResource) {
             this.allResources = allResources;
             this.alertingResource = alertingResource;
         }
@@ -408,8 +408,8 @@ public class HttpExporter extends Exporter {
      * @param listener The node failure listener used to notify an optional sniffer and resources
      * @throws SettingsException if any setting is malformed
      */
-    private HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext, final NodeFailureListener listener,
-                         final Resources resource) {
+    private HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext,
+                         final NodeFailureListener listener, final Resources resource) {
         this(config, sslService, threadContext, listener, resource.allResources, resource.alertingResource);
     }
 

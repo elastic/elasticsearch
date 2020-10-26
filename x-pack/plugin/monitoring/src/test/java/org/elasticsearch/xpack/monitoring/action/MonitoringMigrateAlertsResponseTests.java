@@ -22,8 +22,8 @@ import java.util.List;
 
 public class MonitoringMigrateAlertsResponseTests extends AbstractWireSerializingTestCase<MonitoringMigrateAlertsResponse> {
 
-    private final static class TestException extends IOException {
-        public TestException(String message) {
+    private static final class TestException extends IOException {
+        TestException(String message) {
             super(message);
         }
     }

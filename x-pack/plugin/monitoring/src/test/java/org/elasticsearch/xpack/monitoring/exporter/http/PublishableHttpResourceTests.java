@@ -184,7 +184,8 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         whenPerformRequestAsyncWith(client, request, e);
 
         final Map<String, String> parameters = Collections.emptyMap();
-        resource.putResource(client, publishListener, logger, resourceBasePath, resourceName, parameters, body, resourceType, owner, ownerType);
+        resource.putResource(client, publishListener, logger, resourceBasePath, resourceName, parameters, body, resourceType, owner,
+            ownerType);
 
         verifyPublishListener(null);
 
@@ -379,7 +380,8 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         whenPerformRequestAsyncWith(client, request, response);
 
         final Map<String, String> parameters = Collections.emptyMap();
-        resource.putResource(client, publishListener, logger, resourceBasePath, resourceName, parameters, body, resourceType, owner, ownerType);
+        resource.putResource(client, publishListener, logger, resourceBasePath, resourceName, parameters, body, resourceType, owner,
+            ownerType);
 
         verifyPublishListener(errorFree ? ResourcePublishResult.ready() : null);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));

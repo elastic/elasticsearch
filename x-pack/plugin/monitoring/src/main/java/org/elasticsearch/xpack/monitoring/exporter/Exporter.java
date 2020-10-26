@@ -272,7 +272,8 @@ public abstract class Exporter implements AutoCloseable {
         }
 
         public static ExporterResourceStatus determineReadiness(String exporterName, String exporterType, List<Exception> exceptions) {
-            return new ExporterResourceStatus(exporterName, exporterType, exceptions.size() > 0 ? DeployState.NOT_READY : DeployState.READY, exceptions);
+            return new ExporterResourceStatus(exporterName, exporterType,
+                exceptions.size() > 0 ? DeployState.NOT_READY : DeployState.READY, exceptions);
         }
 
         public String getExporterName() {

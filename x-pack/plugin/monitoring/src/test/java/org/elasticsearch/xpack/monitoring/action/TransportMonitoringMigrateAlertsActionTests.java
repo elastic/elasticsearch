@@ -6,6 +6,19 @@
 
 package org.elasticsearch.xpack.monitoring.action;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -50,20 +63,6 @@ import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -141,7 +140,6 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         ));
     }
 
-    @Test
     public void testLocalAlertsRemoval() throws Exception {
         try {
             // start monitoring service
@@ -181,7 +179,6 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
-    @Test
     public void testDisabledLocalExporterAlertsRemoval() throws Exception {
         try {
             // start monitoring service
@@ -224,7 +221,6 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
-    @Test
     public void testLocalExporterWithAlertingDisabled() throws Exception {
         try {
             // start monitoring service
@@ -265,7 +261,6 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
-    @Test
     public void testRemoteAlertsRemoval() throws Exception {
         try {
             // prepare mock web server
@@ -287,7 +282,8 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
 
             // send a manual monitoring bulk request to kickstart the monitoring bootstrap for the remote exporter
-            MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.ES, "test", "test-id", System.currentTimeMillis(), 0L, new BytesArray("{}"), XContentType.JSON);
+            MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.ES, "test", "test-id", System.currentTimeMillis(), 0L,
+                new BytesArray("{}"), XContentType.JSON);
             MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest().add(doc);
             client().execute(MonitoringBulkAction.INSTANCE, bulkRequest).actionGet();
 
@@ -320,7 +316,6 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
-    @Test
     public void testDisabledRemoteAlertsRemoval() throws Exception {
         try {
             // prepare mock web server
@@ -342,7 +337,8 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
 
             // send a manual monitoring bulk request to kickstart the monitoring bootstrap for the remote exporter
-            MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.ES, "test", "test-id", System.currentTimeMillis(), 0L, new BytesArray("{}"), XContentType.JSON);
+            MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.ES, "test", "test-id", System.currentTimeMillis(), 0L,
+                new BytesArray("{}"), XContentType.JSON);
             MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest().add(doc);
             client().execute(MonitoringBulkAction.INSTANCE, bulkRequest).actionGet();
 
@@ -382,7 +378,6 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
-    @Test
     public void testRemoteAlertsRemovalWhenOriginalMonitoringClusterIsGone() throws Exception {
         try {
             // start monitoring service
@@ -417,7 +412,6 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
-    @Test
     public void testRemoteAlertsRemovalFailure() throws Exception {
         try {
             // prepare mock web server
@@ -439,7 +433,8 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
 
             // send a manual monitoring bulk request to kickstart the monitoring bootstrap for the remote exporter
-            MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.ES, "test", "test-id", System.currentTimeMillis(), 0L, new BytesArray("{}"), XContentType.JSON);
+            MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.ES, "test", "test-id", System.currentTimeMillis(), 0L,
+                new BytesArray("{}"), XContentType.JSON);
             client().execute(MonitoringBulkAction.INSTANCE, new MonitoringBulkRequest().add(doc)).actionGet();
 
             // ensure resources exist and bulk successful
@@ -461,7 +456,8 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertThat(localExporterResult.getType(), is(HttpExporter.TYPE));
             assertThat(localExporterResult.isMigrationComplete(), is(false));
             assertThat(localExporterResult.getReason().getMessage(), startsWith("method [DELETE], host ["));
-            assertThat(localExporterResult.getReason().getMessage(), endsWith("status line [HTTP/1.1 500 Internal Server Error]\n{\"error\":{}}"));
+            assertThat(localExporterResult.getReason().getMessage(),
+                endsWith("status line [HTTP/1.1 500 Internal Server Error]\n{\"error\":{}}"));
 
         } finally {
             stopMonitoring();

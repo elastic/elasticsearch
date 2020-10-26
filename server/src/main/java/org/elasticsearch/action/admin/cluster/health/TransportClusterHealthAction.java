@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -50,7 +49,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -65,19 +63,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                                         ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver, AllocationService allocationService) {
         super(ClusterHealthAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
-            ClusterHealthRequest::new, indexNameExpressionResolver);
+                ClusterHealthRequest::new, indexNameExpressionResolver, ClusterHealthResponse::new, ThreadPool.Names.SAME);
         this.allocationService = allocationService;
-    }
-
-    @Override
-    protected String executor() {
-        // this should be executing quickly no need to fork off
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ClusterHealthResponse read(StreamInput in) throws IOException {
-        return new ClusterHealthResponse(in);
     }
 
     @Override

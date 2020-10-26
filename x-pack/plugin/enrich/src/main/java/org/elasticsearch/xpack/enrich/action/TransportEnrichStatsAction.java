@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -29,7 +28,6 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.Coo
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutingPolicy;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -54,7 +52,9 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
             threadPool,
             actionFilters,
             EnrichStatsAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            EnrichStatsAction.Response::new,
+            ThreadPool.Names.SAME
         );
         this.client = client;
         transportService.registerRequestHandler(
@@ -69,16 +69,6 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                 new ChannelActionListener<>(channel, EnrichStatsAction.BWC_NAME, request)
             )
         );
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected EnrichStatsAction.Response read(StreamInput in) throws IOException {
-        return new EnrichStatsAction.Response(in);
     }
 
     @Override

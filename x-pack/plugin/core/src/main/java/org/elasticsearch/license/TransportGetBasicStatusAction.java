@@ -14,11 +14,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction<GetBasicStatusRequest, GetBasicStatusResponse> {
 
@@ -27,17 +24,7 @@ public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetBasicStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                GetBasicStatusRequest::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetBasicStatusResponse read(StreamInput in) throws IOException {
-        return new GetBasicStatusResponse(in);
+                GetBasicStatusRequest::new, indexNameExpressionResolver, GetBasicStatusResponse::new, ThreadPool.Names.SAME);
     }
 
     @Override

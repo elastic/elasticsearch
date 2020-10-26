@@ -15,12 +15,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
-
-import java.io.IOException;
 
 public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAction<
     GetAutoscalingCapacityAction.Request,
@@ -46,21 +43,13 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
             threadPool,
             actionFilters,
             GetAutoscalingCapacityAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            GetAutoscalingCapacityAction.Response::new,
+            ThreadPool.Names.SAME
         );
         this.capacityService = capacityServiceHolder.get();
         this.clusterInfoService = clusterInfoService;
         assert this.capacityService != null;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetAutoscalingCapacityAction.Response read(final StreamInput in) throws IOException {
-        return new GetAutoscalingCapacityAction.Response(in);
     }
 
     @Override

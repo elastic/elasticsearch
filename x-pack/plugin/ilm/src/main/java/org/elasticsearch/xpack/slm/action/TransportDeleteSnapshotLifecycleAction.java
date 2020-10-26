@@ -18,14 +18,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -36,17 +34,8 @@ public class TransportDeleteSnapshotLifecycleAction extends
     public TransportDeleteSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteSnapshotLifecycleAction.Request::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected DeleteSnapshotLifecycleAction.Response read(StreamInput in) throws IOException {
-        return new DeleteSnapshotLifecycleAction.Response(in);
+                DeleteSnapshotLifecycleAction.Request::new, indexNameExpressionResolver, DeleteSnapshotLifecycleAction.Response::new,
+                ThreadPool.Names.SAME);
     }
 
     @Override

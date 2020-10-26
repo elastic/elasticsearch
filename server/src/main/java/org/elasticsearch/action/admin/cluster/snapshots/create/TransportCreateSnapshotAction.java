@@ -28,12 +28,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 /**
  * Transport action for create snapshot operation
@@ -46,28 +43,14 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              CreateSnapshotRequest::new, indexNameExpressionResolver);
+              CreateSnapshotRequest::new, indexNameExpressionResolver, CreateSnapshotResponse::new, ThreadPool.Names.SAME);
         this.snapshotsService = snapshotsService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected CreateSnapshotResponse read(StreamInput in) throws IOException {
-        return new CreateSnapshotResponse(in);
     }
 
     @Override
     protected ClusterBlockException checkBlock(CreateSnapshotRequest request, ClusterState state) {
         // We only check metadata block, as we want to snapshot closed indices (which have a read block)
-        ClusterBlockException clusterBlockException = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
-        if (clusterBlockException != null) {
-            return clusterBlockException;
-        }
-        return null;
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

@@ -49,7 +49,7 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
             ? (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSourceConfig.getValuesSource()
             : null;
         if (valuesSource != null) {
-            counts = context.bigArrays().newLongArray(1, true);
+            counts = bigArrays().newLongArray(1, true);
         }
     }
 
@@ -58,7 +58,7 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
+        final BigArrays bigArrays = bigArrays();
         final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(
             ctx,
             AggregateDoubleMetricFieldMapper.Metric.value_count

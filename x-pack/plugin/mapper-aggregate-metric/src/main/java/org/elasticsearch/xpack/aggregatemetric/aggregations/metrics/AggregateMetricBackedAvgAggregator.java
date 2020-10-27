@@ -68,7 +68,7 @@ class AggregateMetricBackedAvgAggregator extends NumericMetricsAggregator.Single
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
+        final BigArrays bigArrays = bigArrays();
         // Retrieve aggregate values for metrics sum and value_count
         final SortedNumericDoubleValues aggregateSums = valuesSource.getAggregateMetricValues(ctx, Metric.sum);
         final SortedNumericDoubleValues aggregateValueCounts = valuesSource.getAggregateMetricValues(ctx, Metric.value_count);

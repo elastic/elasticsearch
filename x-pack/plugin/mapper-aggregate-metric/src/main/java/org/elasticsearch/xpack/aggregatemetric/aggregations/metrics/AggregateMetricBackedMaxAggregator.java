@@ -67,7 +67,7 @@ class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.Single
             }
         }
 
-        final BigArrays bigArrays = context.bigArrays();
+        final BigArrays bigArrays = bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.getAggregateMetricValues(ctx, Metric.max);
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {

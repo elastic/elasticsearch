@@ -258,6 +258,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            // This is an internal field but it can match a field pattern so we return an empty list.
             return lookup -> List.of();
         }
     }

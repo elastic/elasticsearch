@@ -543,8 +543,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             skippedOps.get(), buildTookInMillis(), failures, clusters, searchContextId);
     }
 
-    boolean includeSearchContextInResponse() {
-        return request.pointInTimeBuilder() != null;
+    boolean buildPointInTimeFromSearchResults() {
+        // TODO: Until we implement the retry mechanism for point in times (i.e., replace an unavailable shard with an equivalent copy),
+        // we can simply return the point in time of the search request.
+        return false;
     }
 
     @Override
@@ -557,8 +559,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else {
             final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-            final String searchContextId =
-                includeSearchContextInResponse() ? SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion) : null;
+            final String searchContextId;
+            if (buildPointInTimeFromSearchResults()) {
+                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion);
+            } else {
+                if (request.source() != null && request.source().pointInTimeBuilder() != null) {
+                    searchContextId = request.source().pointInTimeBuilder().getId();
+                } else {
+                    searchContextId = null;
+                }
+            }
             listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
     }

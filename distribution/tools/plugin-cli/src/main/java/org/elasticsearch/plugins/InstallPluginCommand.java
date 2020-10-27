@@ -851,8 +851,10 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         throws Exception {
         final PluginInfo info = loadPluginInfo(terminal, tmpRoot, env);
         PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot);
-        Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
-        PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
+        if (pluginPolicy != null) {
+            Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
+            PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
+        }
 
         final Path destination = env.pluginsFile().resolve(info.getName());
         deleteOnFailure.add(destination);

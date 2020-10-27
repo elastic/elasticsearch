@@ -25,27 +25,16 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.net.URL;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.security.Permission;
-import java.security.PermissionCollection;
-import java.security.Permissions;
-import java.security.Policy;
-import java.security.Security;
-import java.security.URIParameter;
 import java.security.UnresolvedPermission;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 

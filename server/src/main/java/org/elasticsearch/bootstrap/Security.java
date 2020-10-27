@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
@@ -35,7 +34,6 @@ import java.net.SocketPermission;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.AccessMode;
-import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NotDirectoryException;
@@ -49,8 +47,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
@@ -145,6 +141,9 @@ final class Security {
         // now process each one
         for (Path plugin : pluginsAndModules) {
             PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(plugin);
+            if (pluginPolicy == null) {
+                continue;
+            }
 
             // consult this policy for each of the plugin's jars:
             for (URL jar : pluginPolicy.jars) {

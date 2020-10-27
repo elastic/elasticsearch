@@ -51,6 +51,7 @@ public class CacheFile {
     private final AbstractRefCounted refCounter = new AbstractRefCounted("CacheFile") {
         @Override
         protected void closeInternal() {
+            assert evicted.get();
             assert assertNoPendingListeners();
             try {
                 Files.deleteIfExists(file);

@@ -79,6 +79,12 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 @Override
                 public void onFailure(Exception e) {
                     Exception finalException = e;
+                    /* 
+                     * In a scenario when Security is enabled and a wildcarded pattern gets resolved to no index, the original error
+                     * message will not contain the initial pattern, but "*,-*". So, we'll throw a INFE from the PreAnalyzer that will
+                     * contain as cause the VerificationException with "*,-*" pattern but we'll rewrite the INFE here with the initial
+                     * pattern that failed resolving. More details here https://github.com/elastic/elasticsearch/issues/63529
+                     */
                     if (e instanceof IndexNotFoundException) {
                         IndexNotFoundException infe = (IndexNotFoundException) e;
                         if (infe.getIndex() != null && infe.getIndex().getName().equals("Unknown index [*,-*]")) {

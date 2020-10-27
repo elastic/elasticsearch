@@ -20,6 +20,8 @@ public class PreAnalyzer {
     public LogicalPlan preAnalyze(LogicalPlan plan, IndexResolution indices) {
         if (indices.isValid() == false) {
             VerificationException cause = new VerificationException(Collections.singletonList(Failure.fail(plan, indices.toString())));
+            // Wrapping the verification_exception in an infe to easily distinguish it on the rest layer in case it needs rewriting
+            // (see RestEqlSearchAction for its usage).
             throw new IndexNotFoundException(indices.toString(), cause);
         }
         if (plan.analyzed() == false) {

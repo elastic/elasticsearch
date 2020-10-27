@@ -391,6 +391,10 @@ setup:
 
 ---
 "Date range unmapped with children":
+  - skip:
+      version: " - 7.9.99"
+      reason: Fixed in 7.10.0
+
   - do:
       indices.create:
           index: test_a_unmapped

@@ -47,7 +47,7 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
         flush();
         refresh();
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
+        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(searchSource()
                 .aggregation(terms("index_action_indices").field("result.actions.index.response.index")))
                 .get();
 

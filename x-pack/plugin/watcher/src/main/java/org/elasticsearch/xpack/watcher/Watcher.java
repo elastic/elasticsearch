@@ -615,14 +615,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         indices.add(".watches");
         indices.add(".triggered_watches");
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6)));
+        indices.add(HistoryStoreField.DATA_STREAM);
         for (String index : indices) {
             boolean matched = false;
             for (String match : matches) {

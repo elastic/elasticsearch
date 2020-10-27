@@ -1569,9 +1569,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
 
-        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(now);
-        for (String index : new String[]{ Watch.INDEX, historyIndex, TriggeredWatchStoreField.INDEX_NAME }) {
+        for (String index : new String[]{ Watch.INDEX, HistoryStoreField.DATA_STREAM, TriggeredWatchStoreField.INDEX_NAME }) {
             assertOnlyReadAllowed(role, index);
         }
 
@@ -1604,9 +1602,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(TriggeredWatchStoreField.INDEX_NAME)),
                 is(false));
 
-        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(now);
-        for (String index : new String[]{ Watch.INDEX, historyIndex }) {
+        for (String index : new String[]{ Watch.INDEX, HistoryStoreField.DATA_STREAM }) {
             assertOnlyReadAllowed(role, index);
         }
 

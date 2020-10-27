@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     protected AggregateDoubleMetricFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(name, false, meta);
+        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(name, meta);
         for (AggregateDoubleMetricFieldMapper.Metric m : List.of(
             AggregateDoubleMetricFieldMapper.Metric.min,
             AggregateDoubleMetricFieldMapper.Metric.max

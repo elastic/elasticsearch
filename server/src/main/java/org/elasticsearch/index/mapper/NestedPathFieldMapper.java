@@ -33,6 +33,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
+import java.util.Set;
+import java.util.function.Supplier;
 
 public class NestedPathFieldMapper extends MetadataFieldMapper {
 
@@ -89,7 +91,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(Supplier<Set<String>> sourcePaths, SearchLookup lookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
     }

@@ -32,6 +32,8 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Set;
+import java.util.function.Supplier;
 
 public class DocumentFieldMapperTests extends LuceneTestCase {
 
@@ -71,7 +73,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(Supplier<Set<String>> sourcePaths, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
 

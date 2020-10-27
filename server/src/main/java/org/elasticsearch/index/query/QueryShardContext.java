@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -45,7 +46,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -243,6 +243,13 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public Set<String> simpleMatchToIndexNames(String pattern) {
         return mapperSnapshot.simpleMatchToFullName(pattern);
+    }
+
+    /**
+     * @return Whether a field is a metadata field.
+     */
+    public boolean isMetadataField(String field) {
+        return mapperSnapshot.isMetadataField(field);
     }
 
     /**
@@ -520,5 +527,23 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public BitsetFilterCache getBitsetFilterCache() {
         return bitsetFilterCache;
+    }
+
+    public Set<String> sourcePaths(String name) {
+        return mapperSnapshot.sourcePaths(name);
+    }
+
+    /**
+     * Is the source stored?
+     */
+    public boolean isSourceStored() {
+        return mapperSnapshot.isSourceStored();
+    }
+
+    /**
+     * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
+     */
+    public ObjectMapper findNestedObjectMapper(int nestedDocId, IndexSearcher searcher, LeafReaderContext context) throws IOException {
+        return mapperSnapshot.findNestedObjectMapper(nestedDocId, searcher, context);
     }
 }

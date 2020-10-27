@@ -26,6 +26,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Supplier;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends ParametrizedFieldMapper {
@@ -70,7 +72,7 @@ public class MockFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(Supplier<Set<String>> sourcePaths, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
     }

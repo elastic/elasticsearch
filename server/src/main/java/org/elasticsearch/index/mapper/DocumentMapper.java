@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -37,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -220,7 +220,7 @@ public class DocumentMapper implements ToXContentFragment {
     /**
      * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
      */
-    public ObjectMapper findNestedObjectMapper(int nestedDocId, SearchContext sc, LeafReaderContext context) throws IOException {
+    public ObjectMapper findNestedObjectMapper(int nestedDocId, IndexSearcher searcher, LeafReaderContext context) throws IOException {
         ObjectMapper nestedObjectMapper = null;
         for (ObjectMapper objectMapper : mappers().objectMappers().values()) {
             if (!objectMapper.nested().isNested()) {
@@ -233,7 +233,7 @@ public class DocumentMapper implements ToXContentFragment {
             }
             // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
             // therefore is guaranteed to be a live doc.
-            final Weight nestedWeight = filter.createWeight(sc.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            final Weight nestedWeight = filter.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer scorer = nestedWeight.scorer(context);
             if (scorer == null) {
                 continue;

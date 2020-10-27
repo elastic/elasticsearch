@@ -314,10 +314,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
 
-        MapperService mapperService = mock(MapperService.class);
         IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
-        when(mapperService.getIndexSettings()).thenReturn(settings);
-        when(searchContext.mapperService()).thenReturn(mapperService);
+        when(searchContext.indexSettings()).thenReturn(settings);
 
         InnerHitBuilder leafInnerHits = randomNestedInnerHits();
         NestedQueryBuilder query1 = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);

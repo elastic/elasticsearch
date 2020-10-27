@@ -80,7 +80,6 @@ import org.apache.lucene.util.bkd.BKDWriter;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -108,7 +107,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class QueryPhaseTests extends IndexShardTestCase {
@@ -676,9 +674,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         final String fieldNameDate = "date-field";
         MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(fieldNameLong, NumberFieldMapper.NumberType.LONG);
         MappedFieldType fieldTypeDate = new DateFieldMapper.DateFieldType(fieldNameDate);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType(fieldNameLong)).thenReturn(fieldTypeLong);
-        when(mapperService.fieldType(fieldNameDate)).thenReturn(fieldTypeDate);
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.getFieldType(fieldNameLong)).thenReturn(fieldTypeLong);
+        when(queryShardContext.getFieldType(fieldNameDate)).thenReturn(fieldTypeDate);
         // enough docs to have a tree with several leaf nodes
         final int numDocs = 3500 * 20;
         Directory dir = newDirectory();
@@ -697,9 +695,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         writer.close();
         final IndexReader reader = DirectoryReader.open(dir);
 
-        TestSearchContext searchContext =
-            spy(new TestSearchContext(null, indexShard, newOptimizedContextSearcher(reader, 0)));
-        when(searchContext.mapperService()).thenReturn(mapperService);
+        TestSearchContext searchContext = new TestSearchContext(queryShardContext, indexShard, newOptimizedContextSearcher(reader, 0));
 
         // 1. Test a sort on long field
         final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
@@ -750,8 +746,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         // 6. Test that sort optimization is NOT run with from = 0 and size= 0
         {
             sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
-            searchContext = spy(new TestSearchContext(null, indexShard, newContextSearcher(reader)));
-            when(searchContext.mapperService()).thenReturn(mapperService);
+            searchContext = new TestSearchContext(queryShardContext, indexShard, newContextSearcher(reader));
             searchContext.sort(sortAndFormats);
             searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
             searchContext.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));

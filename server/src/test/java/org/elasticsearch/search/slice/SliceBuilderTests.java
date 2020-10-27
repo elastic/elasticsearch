@@ -51,7 +51,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -68,7 +67,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
@@ -126,7 +127,7 @@ public class SliceBuilderTests extends ESTestCase {
             TextSearchInfo.NONE, Collections.emptyMap()) {
 
             @Override
-            public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            public ValueFetcher valueFetcher(Supplier<Set<String>> sourcePaths, SearchLookup searchLookup, String format) {
                 throw new UnsupportedOperationException();
             }
 

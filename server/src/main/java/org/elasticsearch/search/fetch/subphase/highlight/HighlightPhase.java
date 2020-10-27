@@ -104,14 +104,13 @@ public class HighlightPhase implements FetchSubPhase {
             Highlighter highlighter = getHighlighter(field);
             Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
-                fieldNamesToHighlight = context.mapperService().simpleMatchToFullName(field.field());
+                fieldNamesToHighlight = context.simpleMatchToIndexNames(field.field());
             } else {
                 fieldNamesToHighlight = Collections.singletonList(field.field());
             }
 
             if (highlightContext.forceSource(field)) {
-                SourceFieldMapper sourceFieldMapper = context.mapperService().documentMapper().sourceMapper();
-                if (sourceFieldMapper.enabled() == false) {
+                if (context.isSourceStored() == false) {
                     throw new IllegalArgumentException("source is forced for fields " + fieldNamesToHighlight
                         + " but _source is disabled");
                 }
@@ -119,7 +118,7 @@ public class HighlightPhase implements FetchSubPhase {
 
             boolean fieldNameContainsWildcards = field.field().contains("*");
             for (String fieldName : fieldNamesToHighlight) {
-                MappedFieldType fieldType = context.mapperService().fieldType(fieldName);
+                MappedFieldType fieldType = context.fieldType(fieldName);
                 if (fieldType == null) {
                     continue;
                 }

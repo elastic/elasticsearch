@@ -19,9 +19,13 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
@@ -36,8 +40,10 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.rescore.RescoreContext;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Encapsulates state required to execute fetch phases
@@ -70,17 +76,10 @@ public class FetchContext {
     }
 
     /**
-     * The mapper service for the index we are fetching documents from
-     */
-    public MapperService mapperService() {
-        return searchContext.mapperService();
-    }
-
-    /**
      * The index settings for the index we are fetching documents from
      */
     public IndexSettings getIndexSettings() {
-        return mapperService().getIndexSettings();
+        return searchContext.indexSettings();
     }
 
     /**
@@ -206,5 +205,49 @@ public class FetchContext {
      */
     public SearchExtBuilder getSearchExt(String name) {
         return searchContext.getSearchExt(name);
+    }
+
+    /**
+     * Get the {@link MappedFieldType} for a field.
+     */
+    public MappedFieldType fieldType(String name) {
+        return searchContext.fieldType(name);
+    }
+
+    /**
+     * Returns all the fields that match a given pattern. If prefixed with a
+     * type then the fields will be returned with a type prefix.
+     */
+    public Set<String> simpleMatchToIndexNames(String pattern) {
+        return searchContext.simpleMatchToIndexNames(pattern);
+    }
+
+    public Set<String> sourcePaths(String name) {
+        return searchContext.sourcePaths(name);
+    }
+
+    /**
+     * @return Whether a field is a metadata field.
+     */
+    public boolean isMetadataField(String field) {
+        return searchContext.isMetadataField(field);
+    }
+
+    /**
+     * Is the source stored?
+     */
+    public boolean isSourceStored() {
+        return searchContext.isSourceStored();
+    }
+
+    public Analyzer indexAnalyzer() {
+        return searchContext.indexAnalyzer();
+    }
+
+    /**
+     * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
+     */
+    public ObjectMapper findNestedObjectMapper(int nestedDocId, IndexSearcher searcher, LeafReaderContext context) throws IOException {
+        return searchContext.findNestedObjectMapper(nestedDocId, searcher, context);
     }
 }

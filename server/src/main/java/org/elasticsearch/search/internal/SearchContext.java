@@ -19,8 +19,11 @@
 package org.elasticsearch.search.internal;
 
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
@@ -29,9 +32,9 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -58,6 +61,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -221,7 +225,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract IndexShard indexShard();
 
-    public abstract MapperService mapperService();
+    public abstract IndexSettings indexSettings();
 
     public abstract SimilarityService similarityService();
 
@@ -401,4 +405,47 @@ public abstract class SearchContext implements Releasable {
     }
 
     public abstract ReaderContext readerContext();
+
+    public final Set<String> sourcePaths(String name) {
+        return getQueryShardContext().sourcePaths(name);
+    }
+
+    /**
+     * Returns all the fields that match a given pattern. If prefixed with a
+     * type then the fields will be returned with a type prefix.
+     */
+    public final Set<String> simpleMatchToIndexNames(String pattern) {
+        return getQueryShardContext().simpleMatchToIndexNames(pattern);
+    }
+
+    /**
+     * @return Whether a field is a metadata field.
+     */
+    public final boolean isMetadataField(String field) {
+        return getQueryShardContext().isMetadataField(field);
+    }
+
+    /**
+     * Is the source stored?
+     */
+    public final boolean isSourceStored() {
+        return getQueryShardContext().isSourceStored();
+    }
+
+    public final Analyzer indexAnalyzer() {
+        return getQueryShardContext().getIndexAnalyzer();
+    }
+
+    public final boolean hasNested() {
+        return getQueryShardContext().hasNested();
+    }
+
+    /**
+     * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
+     */
+    public final ObjectMapper findNestedObjectMapper(int nestedDocId, IndexSearcher searcher, LeafReaderContext context)
+        throws IOException {
+        return getQueryShardContext().findNestedObjectMapper(nestedDocId, searcher, context);
+    }
+
 }

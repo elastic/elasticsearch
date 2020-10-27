@@ -42,6 +42,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -450,11 +451,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
      * Returns the parent {@link ObjectMapper} instance of the specified object mapper or <code>null</code> if there
      * isn't any.
      */
-    public ObjectMapper getParentObjectMapper(MapperService mapperService) {
+    public ObjectMapper getParentObjectMapper(Function<String, ObjectMapper> getObjectMapper) {
         int indexOfLastDot = fullPath().lastIndexOf('.');
         if (indexOfLastDot != -1) {
             String parentNestObjectPath = fullPath().substring(0, indexOfLastDot);
-            return mapperService.getObjectMapper(parentNestObjectPath);
+            return getObjectMapper.apply(parentNestObjectPath);
         } else {
             return null;
         }
@@ -463,10 +464,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
     /**
      * Returns whether all parent objects fields are nested too.
      */
-    public boolean parentObjectMapperAreNested(MapperService mapperService) {
-        for (ObjectMapper parent = getParentObjectMapper(mapperService);
+    public boolean parentObjectMapperAreNested(Function<String, ObjectMapper> getObjectMapper) {
+        for (ObjectMapper parent = getParentObjectMapper(getObjectMapper);
              parent != null;
-             parent = parent.getParentObjectMapper(mapperService)) {
+             parent = parent.getParentObjectMapper(getObjectMapper)) {
 
             if (parent.nested().isNested() == false) {
                 return false;

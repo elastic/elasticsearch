@@ -26,9 +26,9 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -224,8 +224,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public MapperService mapperService() {
-        return in.mapperService();
+    public IndexSettings indexSettings() {
+        return in.indexSettings();
     }
 
     @Override

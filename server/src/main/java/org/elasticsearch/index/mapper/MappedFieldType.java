@@ -58,6 +58,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -105,7 +106,11 @@ public abstract class MappedFieldType {
      * for metadata fields, field types should not throw {@link UnsupportedOperationException} since this
      * could cause a search retrieving multiple fields (like "fields": ["*"]) to fail.
      */
-    public abstract ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format);
+    public abstract ValueFetcher valueFetcher(
+        Supplier<Set<String>> sourcePaths,
+        SearchLookup searchLookup,
+        @Nullable String format
+    );
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();

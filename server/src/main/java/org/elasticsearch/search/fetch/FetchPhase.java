@@ -41,9 +41,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchContextSourcePrinter;
@@ -229,7 +227,7 @@ public class FetchPhase {
                     continue;
                 }
 
-                Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(fieldNameOrPattern);
+                Collection<String> fieldNames = context.simpleMatchToIndexNames(fieldNameOrPattern);
                 for (String fieldName : fieldNames) {
                     MappedFieldType fieldType = context.fieldType(fieldName);
                     if (fieldType == null) {
@@ -260,7 +258,7 @@ public class FetchPhase {
     }
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
-        if (context.mapperService().hasNested()) {
+        if (context.hasNested()) {
             BitSet bits = context.bitsetFilterCache()
                 .getBitSetProducer(Queries.newNonNestedFilter())
                 .getBitSet(subReaderContext);
@@ -397,12 +395,9 @@ public class FetchPhase {
             }
         }
 
-        DocumentMapper documentMapper = context.mapperService().documentMapper();
-        ObjectMapper nestedObjectMapper
-            = documentMapper.findNestedObjectMapper(nestedDocId, context, subReaderContext);
+        ObjectMapper nestedObjectMapper = context.findNestedObjectMapper(nestedDocId, context.searcher(), subReaderContext);
         assert nestedObjectMapper != null;
-        SearchHit.NestedIdentity nestedIdentity =
-                getInternalNestedIdentity(context, nestedDocId, subReaderContext, context.mapperService(), nestedObjectMapper);
+        SearchHit.NestedIdentity nestedIdentity = getInternalNestedIdentity(context, nestedDocId, subReaderContext, nestedObjectMapper);
 
         SearchHit hit = new SearchHit(nestedTopDocId, rootId, nestedIdentity, docFields, metaFields);
         HitContext hitContext = new HitContext(
@@ -436,7 +431,7 @@ public class FetchPhase {
                     throw new IllegalStateException("extracted source isn't an object or an array");
                 }
                 if ((nestedParsedSource.get(0) instanceof Map) == false &&
-                    nestedObjectMapper.parentObjectMapperAreNested(context.mapperService()) == false) {
+                    nestedObjectMapper.parentObjectMapperAreNested(context::getObjectMapper) == false) {
                     // When one of the parent objects are not nested then XContentMapValues.extractValue(...) extracts the values
                     // from two or more layers resulting in a list of list being returned. This is because nestedPath
                     // encapsulates two or more object layers in the _source.
@@ -463,7 +458,6 @@ public class FetchPhase {
 
     private SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId,
                                                                LeafReaderContext subReaderContext,
-                                                               MapperService mapperService,
                                                                ObjectMapper nestedObjectMapper) throws IOException {
         int currentParent = nestedSubDocId;
         ObjectMapper nestedParentObjectMapper;
@@ -472,7 +466,7 @@ public class FetchPhase {
         SearchHit.NestedIdentity nestedIdentity = null;
         do {
             Query parentFilter;
-            nestedParentObjectMapper = current.getParentObjectMapper(mapperService);
+            nestedParentObjectMapper = current.getParentObjectMapper(context::getObjectMapper);
             if (nestedParentObjectMapper != null) {
                 if (nestedParentObjectMapper.nested().isNested() == false) {
                     current = nestedParentObjectMapper;
@@ -539,14 +533,14 @@ public class FetchPhase {
             List<Object> storedValues = entry.getValue();
             if (storedToRequestedFields.containsKey(storedField)) {
                 for (String requestedField : storedToRequestedFields.get(storedField)) {
-                    if (context.mapperService().isMetadataField(requestedField)) {
+                    if (context.isMetadataField(requestedField)) {
                         metaFields.put(requestedField, new DocumentField(requestedField, storedValues));
                     } else {
                         docFields.put(requestedField, new DocumentField(requestedField, storedValues));
                     }
                 }
             } else {
-                if (context.mapperService().isMetadataField(storedField)) {
+                if (context.isMetadataField(storedField)) {
                     metaFields.put(storedField, new DocumentField(storedField, storedValues));
                 } else {
                     docFields.put(storedField, new DocumentField(storedField, storedValues));

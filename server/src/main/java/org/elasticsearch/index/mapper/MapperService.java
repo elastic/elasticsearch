@@ -22,6 +22,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -398,7 +400,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
      * Given the full name of a field, returns its {@link MappedFieldType}.
+     * @deprecated Use {@link #snapshot()} and {@link Snapshot#fieldType(String)}
      */
+    @Deprecated
     public MappedFieldType fieldType(String fullName) {
         return snapshot().fieldType(fullName);
     }
@@ -406,17 +410,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.
+     * @deprecated Use {@link #snapshot()} and {@link Snapshot#simpleMatchToFullName(String)}
      */
+    @Deprecated
     public Set<String> simpleMatchToFullName(String pattern) {
         return snapshot().simpleMatchToFullName(pattern);
-    }
-
-    /**
-     * Given a field name, returns its possible paths in the _source. For example,
-     * the 'source path' for a multi-field is the path to its parent field.
-     */
-    public Set<String> sourcePath(String fullName) {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().sourcePaths(fullName);
     }
 
     /**
@@ -444,7 +442,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Deserialization of SearchHit objects sent from pre 7.8 nodes and GetResults objects sent from pre 7.3 nodes,
      * uses this method to divide fields into meta and document fields.
      * TODO: remove in v 9.0
-     * @deprecated  Use an instance method isMetadataField instead
+     * @deprecated  Use {@link #isMetadataField(String)} instead
      */
     @Deprecated
     public static boolean isMetadataFieldStatic(String fieldName) {
@@ -509,25 +507,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public Snapshot snapshot() {
-        return new Snapshot(mapper, indexAnalyzers, indexAnalyzer, parserContextSupplier);
+        return new Snapshot(mapper, this);
     }
 
     public static class Snapshot {
         private final DocumentMapper mapper;
-        private final IndexAnalyzers indexAnalyzers;
-        private final MapperAnalyzerWrapper indexAnalyzer;
-        private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
+        private final MapperService mothership;
 
-        public Snapshot(
-            DocumentMapper mapper,
-            IndexAnalyzers indexAnalyzers,
-            MapperAnalyzerWrapper indexAnalyzer,
-            Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier
-        ) {
+        public Snapshot(DocumentMapper mapper, MapperService mothership) {
             this.mapper = mapper;
-            this.indexAnalyzers = indexAnalyzers;
-            this.indexAnalyzer = indexAnalyzer;
-            this.parserContextSupplier = parserContextSupplier;
+            this.mothership = mothership;
         }
 
         /**
@@ -537,7 +526,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (fullName.equals(TypeFieldType.NAME)) {
                 return new TypeFieldType(this.mapper == null ? "_doc" : this.mapper.type());
             }
-            return this.mapper == null ? null : this.mapper.mappers().fieldTypes().get(fullName);
+            return mapper == null ? null : mapper.mappers().fieldTypes().get(fullName);
         }
 
         public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
@@ -573,15 +562,44 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         public Mapper.TypeParser.ParserContext parserContext() {
-            return parserContextSupplier.get();
+            return mothership.parserContextSupplier.get();
         }
 
         public IndexAnalyzers getIndexAnalyzers() {
-            return indexAnalyzers;
+            return mothership.getIndexAnalyzers();
         }
 
         public Analyzer indexAnalyzer() {
-            return indexAnalyzer;
+            return mothership.indexAnalyzer();
+        }
+
+        /**
+         * Given a field name, returns its possible paths in the _source. For example,
+         * the 'source path' for a multi-field is the path to its parent field.
+         */
+        public Set<String> sourcePaths(String name) {
+            return mapper == null ? Collections.emptySet() : mapper.mappers().fieldTypes().sourcePaths(name);
+        }
+
+        /**
+         * @return Whether a field is a metadata field.
+         */
+        public boolean isMetadataField(String field) {
+            return mothership.isMetadataField(field);
+        }
+
+        /**
+         * Is the source stored?
+         */
+        public boolean isSourceStored() {
+            return mapper.sourceMapper().enabled();
+        }
+
+        /**
+         * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
+         */
+        public ObjectMapper findNestedObjectMapper(int nestedDocId, IndexSearcher searcher, LeafReaderContext context) throws IOException {
+            return mapper.findNestedObjectMapper(nestedDocId, searcher, context);
         }
     }
 }

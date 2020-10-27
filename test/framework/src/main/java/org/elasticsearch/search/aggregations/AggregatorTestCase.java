@@ -179,13 +179,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return Collections.emptyMap();
     }
 
-    private static void registerFieldTypes(SearchContext searchContext, MapperService mapperService,
+    private static void registerFieldTypes(SearchContext searchContext, MapperService.Snapshot mapperSnapshot,
                                            Map<String, MappedFieldType> fieldNameToType) {
         for (Map.Entry<String, MappedFieldType> entry : fieldNameToType.entrySet()) {
             String fieldName = entry.getKey();
             MappedFieldType fieldType = entry.getValue();
 
-            when(mapperService.fieldType(fieldName)).thenReturn(fieldType);
+            when(mapperSnapshot.fieldType(fieldName)).thenReturn(fieldType);
             when(searchContext.fieldType(fieldName)).thenReturn(fieldType);
         }
     }
@@ -281,13 +281,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
         MapperService mapperService = mapperServiceMock();
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-        when(mapperService.hasNested()).thenReturn(false);
-        when(searchContext.mapperService()).thenReturn(mapperService);
+        MapperService.Snapshot mapperSnapshot = mock(MapperService.Snapshot.class);
         IndexFieldDataService ifds = new IndexFieldDataService(indexSettings,
             new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
             }), circuitBreakerService, mapperService);
         QueryShardContext queryShardContext =
-            queryShardContextMock(contextIndexSearcher, mapperService.snapshot(), indexSettings, circuitBreakerService, bigArrays);
+            queryShardContextMock(contextIndexSearcher, mapperSnapshot, indexSettings, circuitBreakerService, bigArrays);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
         when(queryShardContext.getObjectMapper(anyString())).thenAnswer(invocation -> {
             String fieldName = (String) invocation.getArguments()[0];
@@ -304,8 +303,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 
-        registerFieldTypes(searchContext, mapperService,
-            fieldNameToType);
+        registerFieldTypes(searchContext, mapperSnapshot, fieldNameToType);
         doAnswer(invocation -> {
             /* Store the release-ables so we can release them at the end of the test case. This is important because aggregations don't
              * close their sub-aggregations. This is fairly similar to what the production code does. */

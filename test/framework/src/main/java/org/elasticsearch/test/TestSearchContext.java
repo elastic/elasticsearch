@@ -27,9 +27,9 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -93,7 +93,6 @@ public class TestSearchContext extends SearchContext {
     private SearchContextAggregations aggregations;
     private ScrollContext scrollContext;
 
-    private final long originNanoTime = System.nanoTime();
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
     public TestSearchContext(BigArrays bigArrays, IndexService indexService) {
@@ -285,9 +284,9 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public MapperService mapperService() {
+    public IndexSettings indexSettings() {
         if (indexService != null) {
-            return indexService.mapperService();
+            return indexService.getIndexSettings();
         }
         return null;
     }
@@ -558,18 +557,12 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public MappedFieldType fieldType(String name) {
-        if (mapperService() != null) {
-            return mapperService().fieldType(name);
-        }
-        return null;
+        return queryShardContext.getFieldType(name);
     }
 
     @Override
     public ObjectMapper getObjectMapper(String name) {
-        if (mapperService() != null) {
-            return mapperService().getObjectMapper(name);
-        }
-        return null;
+        return queryShardContext.getObjectMapper(name);
     }
 
     @Override

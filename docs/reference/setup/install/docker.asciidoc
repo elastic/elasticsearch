@@ -87,9 +87,9 @@ endif::[]
 This sample Docker Compose file brings up a three-node {es} cluster.
 Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
 
-Please note that this configuration exposes port 9200 on all network interfaces, and given how 
-Docker manipulates `iptables` on Linux, this means that your {es} cluster is publically accessible, 
-potentially ignoring any firewall settings. If you don't want to expose port 9200 and instead use 
+Please note that this configuration exposes port 9200 on all network interfaces, and given how
+Docker manipulates `iptables` on Linux, this means that your {es} cluster is publically accessible,
+potentially ignoring any firewall settings. If you don't want to expose port 9200 and instead use
 a reverse proxy, replace `9200:9200` with `127.0.0.1:9200:9200` in the docker-compose.yml file.
 {es} will then only be accessible from the host machine itself.
 
@@ -349,7 +349,7 @@ without specifying them directly.
 
 For example, to set the {es} bootstrap password from a file, you can bind mount the
 file and set the `ELASTIC_PASSWORD_FILE` environment variable to the mount location.
-If you mount the password file to `/run/secrets/password.txt`, specify:
+If you mount the password file to `/run/secrets/bootstrapPassword.txt`, specify:
 
 [source,sh]
 --------------------------------------------

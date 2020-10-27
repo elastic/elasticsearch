@@ -211,7 +211,8 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             .metadata(Metadata.builder()
                 .put(foo1, false)
                 .put(foo2, false)
-                .put("template", new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate())))
+                .put("template", new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
+                    new ComposableIndexTemplate.DataStreamTemplate())))
             .build();
 
         ClusterState newState = MetadataMigrateToDataStreamService.migrateToDataStream(cs, this::getMapperService,
@@ -298,7 +299,8 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             .metadata(Metadata.builder()
                 .put(foo1, false)
                 .put(foo2, false)
-                .put("template", new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate())))
+                .put("template", new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
+                    new ComposableIndexTemplate.DataStreamTemplate())))
             .build();
 
         IllegalArgumentException e =

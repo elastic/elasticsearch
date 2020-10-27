@@ -92,7 +92,7 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
 
     @Override
     public DeferringBucketCollector getDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(context, descendsFromGlobalAggregator(parent()));
+        deferringCollector = new MergingBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
         return deferringCollector;
     }
 

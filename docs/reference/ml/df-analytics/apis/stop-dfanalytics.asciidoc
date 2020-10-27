@@ -10,7 +10,7 @@
 
 Stops one or more {dfanalytics-jobs}.
 
-experimental[]
+beta::[]
 
 [[ml-stop-dfanalytics-request]]
 == {api-request-title}

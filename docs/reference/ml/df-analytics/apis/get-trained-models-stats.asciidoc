@@ -9,7 +9,7 @@
 
 Retrieves usage information for trained models.
 
-experimental[]
+beta::[]
 
 
 [[ml-get-trained-models-stats-request]]

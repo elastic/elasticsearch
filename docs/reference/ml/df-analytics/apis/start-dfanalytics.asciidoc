@@ -10,7 +10,7 @@
 
 Starts a {dfanalytics-job}.
 
-experimental[]
+beta::[]
 
 [[ml-start-dfanalytics-request]]
 == {api-request-title}

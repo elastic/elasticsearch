@@ -5,8 +5,8 @@
 ++++
 
 Filters documents that include only hits that exists within a specific
-distance from a geo point. Assuming the following mapping and indexed
-document:
+distance from a `geo_shape` or `geo_point` field. Assuming the following mapping and indexed
+documents:
 
 [source,console]
 --------------------------------------------------
@@ -34,12 +34,37 @@ PUT /my_locations/_doc/1
     }
   }
 }
+
+PUT /my_geoshapes
+{
+  "mappings": {
+    "properties": {
+      "pin": {
+        "properties": {
+          "location": {
+            "type": "geo_shape"
+          }
+        }
+      }
+    }
+  }
+}
+
+PUT /my_geoshapes/_doc/1
+{
+  "pin": {
+    "location": {
+      "type" : "polygon",
+      "coordinates" : [[[13.0 ,51.5], [15.0, 51.5], [15.0, 54.0], [13.0, 54.0], [13.0 ,51.5]]]
+    }
+  }
+}
 --------------------------------------------------
 // TESTSETUP
 
 
 Then the following simple query can be executed with a `geo_distance`
-filter:
+filter against a `geo_point` field:
 
 [source,console]
 --------------------------------------------------
@@ -63,6 +88,57 @@ GET /my_locations/_search
   }
 }
 --------------------------------------------------
+
+The same simple query can be executed against the 'geo_shape field:
+
+[source,console]
+--------------------------------------------------
+GET my_locations,my_geoshapes/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_distance": {
+          "distance": "200km",
+          "pin.location": {
+            "lat": 40,
+            "lon": -70
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+Or it can be executed in both indexes at the same time:
+
+[source,console]
+--------------------------------------------------
+GET my_geoshapes/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_distance": {
+          "distance": "200km",
+          "pin.location": {
+            "lat": 40,
+            "lon": -70
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
 
 [discrete]
 ==== Accepted Formats
@@ -197,12 +273,6 @@ The following are options allowed on the filter:
     Set to `IGNORE_MALFORMED` to accept geo points with invalid latitude or
     longitude, set to `COERCE` to additionally try and infer correct
     coordinates (default is `STRICT`).
-
-[discrete]
-==== geo_point Type
-
-The filter *requires* the `geo_point` type to be set on the relevant
-field.
 
 [discrete]
 ==== Multi Location Per Document

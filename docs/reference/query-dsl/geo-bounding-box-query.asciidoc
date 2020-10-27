@@ -4,8 +4,8 @@
 <titleabbrev>Geo-bounding box</titleabbrev>
 ++++
 
-A query allowing to filter hits based on a point location using a
-bounding box. Assuming the following indexed document:
+A query allowing to filter hits based on the intersection of a bounding box with
+data stored on a `geo_shape` or `geo_point` field. Assuming the following indexed documents:
 
 [source,console]
 --------------------------------------------------
@@ -33,15 +33,101 @@ PUT /my_locations/_doc/1
     }
   }
 }
+
+PUT /my_geoshapes
+{
+  "mappings": {
+    "properties": {
+      "pin": {
+        "properties": {
+          "location": {
+            "type": "geo_shape"
+          }
+        }
+      }
+    }
+  }
+}
+
+PUT /my_geoshapes/_doc/1
+{
+  "pin": {
+    "location": {
+      "type" : "polygon",
+      "coordinates" : [[[13.0 ,51.5], [15.0, 51.5], [15.0, 54.0], [13.0, 54.0], [13.0 ,51.5]]]
+    }
+  }
+}
 --------------------------------------------------
 // TESTSETUP
 
 Then the following simple query can be executed with a
-`geo_bounding_box` filter:
+`geo_bounding_box` filter against a `geo_point` field:
 
 [source,console]
 --------------------------------------------------
 GET my_locations/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": {
+              "lat": 40.73,
+              "lon": -74.1
+            },
+            "bottom_right": {
+              "lat": 40.01,
+              "lon": -71.12
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+
+The same simple query can be executed against the 'geo_shape field:
+
+[source,console]
+--------------------------------------------------
+GET my_locations,my_geoshapes/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": {
+              "lat": 40.73,
+              "lon": -74.1
+            },
+            "bottom_right": {
+              "lat": 40.01,
+              "lon": -71.12
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+Or it can be executed in both indexes at the same time:
+
+[source,console]
+--------------------------------------------------
+GET my_geoshapes/_search
 {
   "query": {
     "bool": {
@@ -291,13 +377,6 @@ GET my_locations/_search
 }
 --------------------------------------------------
 
-
-[discrete]
-==== geo_point Type
-
-The filter *requires* the `geo_point` type to be set on the relevant
-field.
-
 [discrete]
 ==== Multi Location Per Document
 
@@ -315,6 +394,8 @@ range. In some cases, an `indexed` option will perform faster (but note
 that the `geo_point` type must have lat and lon indexed in this case).
 Note, when using the indexed option, multi locations per document field
 are not supported. Here is an example:
+
+//./gradlew ':docs:integTest' --tests "org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT.test {yaml=reference/query-dsl/geo-bounding-box-query/*}"
 
 [source,console]
 --------------------------------------------------
@@ -366,3 +447,9 @@ the upper bounds (top and right edges) might be selected by the query even if
 they are located slightly outside the edge. The rounding error should be less
 than 4.20e-8 degrees on the latitude and less than 8.39e-8 degrees on the
 longitude, which translates to less than 1cm error even at the equator.
+
+Likewise, geoshape have the same precision limitations. Therefore, shape edges
+along on the lower bounds (bottom and left edges of the bounding box) might not make it into
+the bounding box due to the rounding error. At the same time edges alongside
+the upper bounds (top and right edges) might be selected by the query even if
+they are located slightly outside the edge.

@@ -61,7 +61,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -552,10 +551,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
-            Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
             DateFieldMapper dateFieldMapper
                 = new DateFieldMapper.Builder("@timestamp", DateFieldMapper.Resolution.MILLISECONDS, null, false, Version.CURRENT)
-                .build(builderContext);
+                .build(new ContentPath());
             MetadataFieldMapper mockedTimestampField = mock(MetadataFieldMapper.class);
             when(mockedTimestampField.name()).thenReturn("_data_stream_timestamp");
             MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);

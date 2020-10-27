@@ -34,6 +34,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
@@ -118,7 +119,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
                 new AnnotationAnalyzerWrapper(in.analyzer()), positionIncrementGap);
         }
 
-        private AnnotatedTextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
+        private AnnotatedTextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {
             int posGap;
             if (positionIncrementGap.get() == POSITION_INCREMENT_GAP_USE_ANALYZER) {
                 posGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
@@ -135,7 +136,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
                 wrapAnalyzer(analyzers.getSearchAnalyzer(), posGap),
                 wrapAnalyzer(analyzers.getSearchQuoteAnalyzer(), posGap));
             AnnotatedTextFieldType ft = new AnnotatedTextFieldType(
-                buildFullName(context),
+                buildFullName(contentPath),
                 store.getValue(),
                 tsi,
                 meta.getValue());
@@ -144,14 +145,14 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public AnnotatedTextFieldMapper build(BuilderContext context) {
+        public AnnotatedTextFieldMapper build(ContentPath contentPath) {
             FieldType fieldType = TextParams.buildFieldType(() -> true, store, indexOptions, norms, termVectors);
             if (fieldType.indexOptions() == IndexOptions.NONE ) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
             }
             return new AnnotatedTextFieldMapper(
-                    name, fieldType, buildFieldType(fieldType, context),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
+                    name, fieldType, buildFieldType(fieldType, contentPath),
+                    multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 

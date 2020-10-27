@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -74,7 +75,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        static final Map<String, BiFunction<Builder, BuilderContext, AbstractScriptFieldType<?>>> FIELD_TYPE_RESOLVER = Map.of(
+        static final Map<String, BiFunction<Builder, ContentPath, AbstractScriptFieldType<?>>> FIELD_TYPE_RESOLVER = Map.of(
             BooleanFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
@@ -217,8 +218,8 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public RuntimeFieldMapper build(BuilderContext context) {
-            BiFunction<Builder, BuilderContext, AbstractScriptFieldType<?>> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
+        public RuntimeFieldMapper build(ContentPath contentPath) {
+            BiFunction<Builder, ContentPath, AbstractScriptFieldType<?>> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
                 runtimeType.getValue()
             );
             if (fieldTypeResolver == null) {
@@ -226,7 +227,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
                     "runtime_type [" + runtimeType.getValue() + "] not supported for " + CONTENT_TYPE + " field [" + name + "]"
                 );
             }
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
             if (multiFields.iterator().hasNext()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [fields]");
             }
@@ -236,7 +237,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
             }
             return new RuntimeFieldMapper(
                 name,
-                fieldTypeResolver.apply(this, context),
+                fieldTypeResolver.apply(this, contentPath),
                 MultiFields.empty(),
                 CopyTo.empty(),
                 runtimeType.getValue(),

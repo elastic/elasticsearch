@@ -151,7 +151,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public SearchAsYouTypeFieldMapper build(Mapper.BuilderContext context) {
+        public SearchAsYouTypeFieldMapper build(ContentPath contentPath) {
 
             FieldType fieldType = new FieldType();
             fieldType.setIndexOptions(TextParams.toIndexOptions(index.getValue(), indexOptions.getValue()));
@@ -162,7 +162,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
 
-            SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(buildFullName(context), fieldType, similarity.getValue(),
+            SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(buildFullName(contentPath), fieldType, similarity.getValue(),
                 analyzers.getSearchAnalyzer(), analyzers.getSearchQuoteAnalyzer(), meta.getValue());
             ft.setIndexAnalyzer(analyzers.getIndexAnalyzer());
 
@@ -171,7 +171,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
             prefixft.setStoreTermVectors(false);
             prefixft.setOmitNorms(true);
             prefixft.setStored(false);
-            final String fullName = buildFullName(context);
+            final String fullName = buildFullName(contentPath);
             // wrap the root field's index analyzer with shingles and edge ngrams
             final Analyzer prefixIndexWrapper =
                 SearchAsYouTypeAnalyzer.withShingleAndPrefix(indexAnalyzer.analyzer(), maxShingleSize.getValue());
@@ -192,7 +192,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
                 final int shingleSize = i + 2;
                 FieldType shingleft = new FieldType(fieldType);
                 shingleft.setStored(false);
-                String fieldName = getShingleFieldName(buildFullName(context), shingleSize);
+                String fieldName = getShingleFieldName(buildFullName(contentPath), shingleSize);
                 // wrap the root field's index, search, and search quote analyzers with shingles
                 final SearchAsYouTypeAnalyzer shingleIndexWrapper =
                     SearchAsYouTypeAnalyzer.withShingle(indexAnalyzer.analyzer(), shingleSize);

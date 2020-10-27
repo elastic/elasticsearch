@@ -128,7 +128,7 @@ public class CacheFile {
         return reference == null ? null : reference.fileChannel;
     }
 
-    public boolean acquire(final EvictionListener listener) throws IOException {
+    public void acquire(final EvictionListener listener) throws IOException {
         assert listener != null;
 
         ensureOpen();
@@ -150,12 +150,14 @@ public class CacheFile {
                     refCounter.decRef();
                 }
             }
+        } else {
+            assert evicted.get();
+            throwAlreadyEvicted();
         }
         assert invariant();
-        return success;
     }
 
-    public boolean release(final EvictionListener listener) {
+    public void release(final EvictionListener listener) {
         assert listener != null;
 
         boolean success = false;
@@ -179,7 +181,6 @@ public class CacheFile {
             }
         }
         assert invariant();
-        return success;
     }
 
     private boolean assertNoPendingListeners() {
@@ -244,8 +245,12 @@ public class CacheFile {
 
     private void ensureOpen() {
         if (evicted.get()) {
-            throw new AlreadyClosedException("Cache file is evicted");
+            throwAlreadyEvicted();
         }
+    }
+
+    private static void throwAlreadyEvicted() {
+        throw new AlreadyClosedException("Cache file is evicted");
     }
 
     @FunctionalInterface
@@ -284,33 +289,27 @@ public class CacheFile {
                 rangeListener(rangeToRead, reader, future, reference, decrementRef)
             );
 
-            if (gaps.isEmpty() == false) {
+            for (SparseFileTracker.Gap gap : gaps) {
                 executor.execute(new AbstractRunnable() {
 
                     @Override
-                    protected void doRun() {
-                        for (SparseFileTracker.Gap gap : gaps) {
-                            try {
-                                if (reference.tryIncRef() == false) {
-                                    assert false : "expected a non-closed channel reference";
-                                    throw new AlreadyClosedException("Cache file channel has been released and closed");
-                                }
-                                try {
-                                    ensureOpen();
-                                    writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
-                                } finally {
-                                    reference.decRef();
-                                }
-                                gap.onCompletion();
-                            } catch (Exception e) {
-                                gap.onFailure(e);
-                            }
+                    protected void doRun() throws Exception {
+                        if (reference.tryIncRef() == false) {
+                            assert false : "expected a non-closed channel reference";
+                            throw new AlreadyClosedException("Cache file channel has been released and closed");
                         }
+                        try {
+                            ensureOpen();
+                            writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
+                        } finally {
+                            reference.decRef();
+                        }
+                        gap.onCompletion();
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        gaps.forEach(gap -> gap.onFailure(e));
+                        gap.onFailure(e);
                     }
                 });
             }

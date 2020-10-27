@@ -43,8 +43,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * @deprecated use {@link GeoShapeQueryBuilder}
+ */
+@Deprecated
 public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQueryBuilder> {
     public static final String NAME = "geo_polygon";
+
+    public static final String GEO_POLYGON_DEPRECATION_MSG = "[" + GeoShapeQueryBuilder.NAME + "] query where polygons are defined in geojson or wkt";
 
     /**
      * The default value for ignore_unmapped.
@@ -62,6 +68,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
+    @Deprecated
     public GeoPolygonQueryBuilder(String fieldName, List<GeoPoint> points) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("fieldName must not be null");

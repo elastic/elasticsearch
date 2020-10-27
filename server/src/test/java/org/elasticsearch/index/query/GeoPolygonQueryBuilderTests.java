@@ -62,6 +62,34 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     @Override
+    public void testUnknownField() throws IOException {
+        super.testUnknownField();
+        assertDeprecationWarning();
+    }
+
+    @Override
+    public void testUnknownObjectException() throws IOException {
+        super.testUnknownObjectException();
+        assertDeprecationWarning();
+    }
+
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertDeprecationWarning();
+    }
+
+    @Override
+    public void testValidOutput() throws IOException {
+        super.testValidOutput();
+        assertDeprecationWarning();
+    }
+
+    private void assertDeprecationWarning() {
+       assertWarnings("Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]");
+    }
+
+    @Override
     protected void doAssertLuceneQuery(GeoPolygonQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
         if (fieldType == null) {
@@ -145,6 +173,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
             String query = copyToStringFromClasspath(brokenFile);
             expectThrows(ParsingException.class, () -> parseQuery(query));
         }
+        assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery1() throws IOException {
@@ -160,6 +189,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "    }\n" +
                 "}\n";
         assertGeoPolygonQuery(query);
+        assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery2() throws IOException {
@@ -184,6 +214,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "    }\n" +
                 "}\n";
         assertGeoPolygonQuery(query);
+        assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery3() throws IOException {
@@ -199,6 +230,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "    }\n" +
                 "}\n";
         assertGeoPolygonQuery(query);
+        assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery4() throws IOException {
@@ -214,6 +246,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "    }\n" +
                 "}\n";
         assertGeoPolygonQuery(query);
+        assertDeprecationWarning();
     }
 
     private void assertGeoPolygonQuery(String query) throws IOException {
@@ -237,6 +270,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         GeoPolygonQueryBuilder parsed = (GeoPolygonQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 4, parsed.points().size());
+        assertDeprecationWarning();
     }
 
     public void testIgnoreUnmapped() throws IOException {
@@ -284,5 +318,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
         QueryShardException e2 = expectThrows(QueryShardException.class, () -> parseQuery(queryInvalidLon).toQuery(context));
         assertThat(e2.getMessage(), containsString("illegal longitude value [-190.0] for [geo_polygon]"));
+        assertDeprecationWarning();
     }
 }

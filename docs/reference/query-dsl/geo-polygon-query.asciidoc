@@ -4,6 +4,9 @@
 <titleabbrev>Geo-polygon</titleabbrev>
 ++++
 
+deprecated[7.11.0,"Use <<query-dsl-geo-shape-query>> instead,
+where polygons are defined in geojson or wk."]
+
 A query returning hits that only fall within a polygon of
 points. Here is an example:
 

@@ -71,7 +71,7 @@ public final class QueryBuilders {
     public static MultiMatchQueryBuilder multiMatchQuery(Object text, String... fieldNames) {
         return new MultiMatchQueryBuilder(text, fieldNames); // BOOLEAN is the default
     }
-    
+
     /**
      * Creates a text query with type "BOOL_PREFIX" for the provided field name and text.
      *
@@ -81,7 +81,7 @@ public final class QueryBuilders {
     public static MatchBoolPrefixQueryBuilder matchBoolPrefixQuery(String name, Object text) {
         return new MatchBoolPrefixQueryBuilder(name, text);
     }
-    
+
     /**
      * Creates a text query with type "PHRASE" for the provided field name and text.
      *
@@ -624,7 +624,9 @@ public final class QueryBuilders {
      * A filter to filter based on a polygon defined by a set of locations  / points.
      *
      * @param name The location field name.
+     * @deprecated use {@link #geoIntersectionQuery(String, Geometry)} instead
      */
+    @Deprecated
     public static GeoPolygonQueryBuilder geoPolygonQuery(String name, List<GeoPoint> points) {
         return new GeoPolygonQueryBuilder(name, points);
     }

@@ -111,6 +111,7 @@ public class CacheFile {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.description = Objects.requireNonNull(description);
         this.file = Objects.requireNonNull(file);
+        assert invariant();
     }
 
     public long getLength() {
@@ -154,6 +155,7 @@ public class CacheFile {
             assert evicted.get();
             throwAlreadyEvicted();
         }
+        assert invariant();
     }
 
     public void release(final EvictionListener listener) {
@@ -179,6 +181,7 @@ public class CacheFile {
                 decrementRefCount();
             }
         }
+        assert invariant();
     }
 
     private boolean assertNoPendingListeners() {
@@ -206,6 +209,21 @@ public class CacheFile {
             decrementRefCount();
             evictionListeners.forEach(listener -> listener.onEviction(this));
         }
+        assert invariant();
+    }
+
+    private boolean invariant() {
+        synchronized (listeners) {
+            if (listeners.isEmpty()) {
+                assert channelRef == null;
+            } else {
+                assert channelRef != null;
+                assert refCounter.refCount() > 0;
+                assert channelRef.refCount() > 0;
+                assert Files.exists(file);
+            }
+        }
+        return true;
     }
 
     @Override

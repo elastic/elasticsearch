@@ -256,6 +256,7 @@ Machine Learning::
 * Improve handling of exception while starting data frame analytics process {es-pull}61838[#61838] (issue: {es-issue}61704[#61704])
 * Fix progress on resume after final training has completed for classification and regression. Previously, progress was shown stuck at zero for final training. {ml-pull}1443[#1443]
 * Avoid potential "Failed to compute quantile" and "No values added to quantile sketch" log errors training regression and classification models if there are features with mostly missing values {ml-pull}1500[#1500]
+* Correct the anomaly detection job model state `min_version` {ml-pull}1546[#1546]
 
 Mapping::
 * Improve 'ignore_malformed' handling for dates {es-pull}60211[#60211] (issue: {es-issue}52634[#52634])

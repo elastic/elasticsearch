@@ -18,7 +18,6 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -135,14 +134,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         return Tuple.tuple(start, end);
     }
 
-    private CacheFile getCacheFileSafe() throws Exception {
-        final CacheFile cacheFile = cacheFileReference.get();
-        if (cacheFile == null) {
-            throw new AlreadyClosedException("Failed to acquire a non-evicted cache file");
-        }
-        return cacheFile;
-    }
-
     @Override
     protected void readInternal(ByteBuffer b) throws IOException {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
@@ -163,7 +154,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
 
         try {
-            final CacheFile cacheFile = getCacheFileSafe();
+            final CacheFile cacheFile = cacheFileReference.get();
 
             // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
 
@@ -447,7 +438,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         assert assertRangeIsAlignedWithPart(partRange);
 
         try {
-            final CacheFile cacheFile = getCacheFileSafe();
+            final CacheFile cacheFile = cacheFileReference.get();
 
             final Tuple<Long, Long> range = cacheFile.getAbsentRangeWithin(partRange.v1(), partRange.v2());
             if (range == null) {
@@ -775,7 +766,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             this.directory = directory;
         }
 
-        @Nullable
         CacheFile get() throws Exception {
             CacheFile currentCacheFile = cacheFile.get();
             if (currentCacheFile != null) {
@@ -788,13 +778,11 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 if (currentCacheFile != null) {
                     return currentCacheFile;
                 }
-                if (newCacheFile.acquire(this)) {
-                    final CacheFile previousCacheFile = cacheFile.getAndSet(newCacheFile);
-                    assert previousCacheFile == null;
-                    return newCacheFile;
-                }
+                newCacheFile.acquire(this);
+                final CacheFile previousCacheFile = cacheFile.getAndSet(newCacheFile);
+                assert previousCacheFile == null;
+                return newCacheFile;
             }
-            return null;
         }
 
         @Override

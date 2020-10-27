@@ -316,6 +316,66 @@ public class GeometryIndexerTests extends ESTestCase {
         assertEquals(fields.size(), 4);
     }
 
+    public void testDegeneratedRectangles() {
+        Rectangle indexed = new Rectangle(-179, -179, 10, -10);
+        Geometry processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // Rectangle is a line
+        List<IndexableField> fields = indexer.indexShape(null, indexed);
+        assertEquals(fields.size(), 1);
+
+        indexed = new Rectangle(-179, -178, 10, 10);
+        processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // Rectangle is a line
+        fields = indexer.indexShape(null, indexed);
+        assertEquals(fields.size(), 1);
+
+        indexed = new Rectangle(-179, -179, 10, 10);
+        processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // Rectangle is a point
+        fields = indexer.indexShape(null, indexed);
+        assertEquals(fields.size(), 1);
+
+        indexed = new Rectangle(180, -179, 10, -10);
+        processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // Rectangle crossing the dateline, one side is a line
+        fields = indexer.indexShape(null, indexed);
+        assertEquals(fields.size(), 3);
+
+        indexed = new Rectangle(180, -179, 10, 10);
+        processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // Rectangle crossing the dateline, one side is a point,
+        // other side a line
+        fields = indexer.indexShape(null, indexed);
+        assertEquals(fields.size(), 2);
+
+        indexed = new Rectangle(-178, -180, 10, -10);
+        processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // Rectangle crossing the dateline, one side is a line
+        fields = indexer.indexShape(null, indexed);
+        assertEquals(fields.size(), 3);
+
+        indexed = new Rectangle(-178, -180, 10, 10);
+        processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // Rectangle crossing the dateline, one side is a point,
+        // other side a line
+        fields = indexer.indexShape(null, indexed);
+        assertEquals(fields.size(), 2);
+    }
+
     public void testPolygon() {
         Polygon polygon = new Polygon(new LinearRing(new double[]{160, 200, 200, 160, 160}, new double[]{10, 10, 20, 20, 10}));
         Geometry indexed = new MultiPolygon(Arrays.asList(

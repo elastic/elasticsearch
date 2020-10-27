@@ -52,7 +52,7 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
                                         CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
         if (unmapped) {
-            return new Unmapped(name, searchContext, parent, metadata);
+            return new Unmapped(name, searchContext, parent, factories, metadata);
         } else {
             return new ReverseNestedAggregator(name, factories, parentObjectMapper,
                 searchContext, parent, cardinality, metadata);
@@ -64,8 +64,9 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
         Unmapped(String name,
                     SearchContext context,
                     Aggregator parent,
+                    AggregatorFactories factories,
                     Map<String, Object> metadata) throws IOException {
-            super(name, context, parent, metadata);
+            super(name, context, parent, factories, metadata);
         }
 
         @Override

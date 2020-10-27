@@ -112,8 +112,8 @@ final class Security {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
-        Policy.setPolicy(new ESPolicy(codebases, createPermissions(environment), getPluginAndModulePermissions(environment), filterBadDefaults,
-            createRecursiveDataPathPermission(environment)));
+        Policy.setPolicy(new ESPolicy(codebases, createPermissions(environment),
+            getPluginAndModulePermissions(environment), filterBadDefaults, createRecursiveDataPathPermission(environment)));
 
         // enable security manager
         final String[] classesThatCanExit =

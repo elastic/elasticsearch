@@ -6,19 +6,19 @@
 --
 The data you store in {es} generally falls into one of two categories:
 
-* A collection of content you want to search such as a catalog of products
-* A stream of continuously-generated time series data such as log entries
+* Content: a collection of items you want to search, such as a catalog of products
+* Time series data: a stream of continuously-generated timestamped data, such as log entries
 
-Content collections might be frequently updated, 
+Content might be frequently updated, 
 but the value of the content remains relatively constant over time. 
 You want to be able to retrieve items quickly regardless of how old they are. 
 
-Time series data just keeps accumulating over time, so you need strategies for 
+Time series data keeps accumulating over time, so you need strategies for 
 balancing the value of the data against the cost of storing it. 
 As it ages, it tends to become less important and less-frequently accessed, 
 so you can move it to less expensive, less performant hardware. 
-For your oldest data, it doesn’t really matter how long queries take, 
-all that really matters is that you can access it. 
+For your oldest data, what matters is that you have access to the data. 
+It's ok if queries take longer to complete.
 
 To help you manage your data, {es} enables you to:
 

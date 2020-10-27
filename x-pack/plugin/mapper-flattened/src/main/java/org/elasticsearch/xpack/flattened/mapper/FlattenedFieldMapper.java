@@ -258,7 +258,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
+            return lookup -> List.of();
         }
     }
 

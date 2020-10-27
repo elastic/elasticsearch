@@ -13,6 +13,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -65,6 +66,12 @@ public class CacheFile {
     private final Path file;
 
     private final Set<EvictionListener> listeners = new HashSet<>();
+
+    /**
+     * Indicates whether the cache file has been synchronized with the storage device that contains it, since the last time data
+     * were written in cache (or since the creation of the file if no cached data have been written yet).
+     **/
+    private final AtomicBoolean fsynced = new AtomicBoolean();
 
     /**
      * A reference counted holder for the current channel to the physical file backing this cache file instance.
@@ -305,6 +312,7 @@ public class CacheFile {
                             reference.decRef();
                         }
                         gap.onCompletion();
+                        fsynced.set(false);
                     }
 
                     @Override
@@ -397,5 +405,53 @@ public class CacheFile {
     public Tuple<Long, Long> getAbsentRangeWithin(long start, long end) {
         ensureOpen();
         return tracker.getAbsentRangeWithin(start, end);
+    }
+
+    // used in tests
+    boolean isFSynced() {
+        return fsynced.get();
+    }
+
+    /**
+     * Ensure that all ranges of data written to the cache file are written to the storage device that contains it. This method returns the
+     * list of all successfully written ranges of data since the creation of the cache file.
+     *
+     * @return the list of ranges of data available in cache at the time this method is invoked
+     * @throws IOException                       if the cache file failed to be fsync
+     * @throws AlreadyClosedException            if the cache file is evicted
+     * @throws java.nio.file.NoSuchFileException if the cache file does not exist
+     */
+    public List<Tuple<Long, Long>> fsync() throws IOException {
+        ensureOpen();
+        if (refCounter.tryIncRef()) {
+            try {
+                // Capture the completed ranges before fsyncing; ranges that are completed after this point won't be considered as
+                // persisted on disk by the caller of this method, even if they are fully written to disk at the time the file
+                // fsync is effectively executed
+                final List<Tuple<Long, Long>> completedRanges = tracker.getCompletedRanges();
+                assert completedRanges != null;
+
+                if (fsynced.compareAndSet(false, true)) {
+                    boolean success = false;
+                    try {
+                        // check again if the file is evicted before doing expensive I/O
+                        ensureOpen();
+                        IOUtils.fsync(file, false); // TODO don't forget to fsync parent directory
+                        success = true;
+                    } finally {
+                        if (success == false) {
+                            fsynced.set(false);
+                        }
+                    }
+                }
+                return completedRanges;
+            } finally {
+                refCounter.decRef();
+            }
+        } else {
+            assert evicted.get();
+            throwAlreadyEvicted();
+        }
+        return List.of();
     }
 }

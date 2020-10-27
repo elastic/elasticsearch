@@ -77,21 +77,13 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        // TODO it is likely accidental that SigText supports anything other than Bytes, and then only text fields
-        return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BOOLEAN,
-            CoreValuesSourceType.BYTES,
-            CoreValuesSourceType.DATE,
-            CoreValuesSourceType.IP,
-            CoreValuesSourceType.RANGE,
-            CoreValuesSourceType.GEOPOINT);
+        return List.of(CoreValuesSourceType.BYTES);
     }
 
     @Override
     protected List<String> unsupportedMappedFieldTypes() {
         return List.of(
-            BinaryFieldMapper.CONTENT_TYPE, // binary fields are not supported because they do not have analyzers
-            GeoPointFieldMapper.CONTENT_TYPE // geopoint fields cannot use term queries
+            BinaryFieldMapper.CONTENT_TYPE // binary fields are not supported because they do not have analyzers
         );
     }
 

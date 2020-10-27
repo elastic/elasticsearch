@@ -10,12 +10,18 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
 public class DataStreamsRestIT extends ESRestTestCase {
+
+    @After
+    public void cleanUp() throws IOException {
+        adminClient().performRequest(new Request("DELETE", "_data_stream/*?expand_wildcards=hidden"));
+    }
 
     public void testHiddenDataStream() throws IOException {
         // Create a template

@@ -92,7 +92,7 @@ public class Classification implements Evaluation {
     }
 
     private static List<EvaluationMetric> defaultMetrics() {
-        return Arrays.asList(new MulticlassConfusionMatrix());
+        return Arrays.asList(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall());
     }
 
     public Classification(StreamInput in) throws IOException {

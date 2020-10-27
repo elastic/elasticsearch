@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
@@ -46,7 +45,7 @@ public class HistoBackedValueCountAggregator extends NumericMetricsAggregator.Si
         // TODO: stop using nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource() : null;
         if (valuesSource != null) {
-            counts = context.bigArrays().newLongArray(1, true);
+            counts = bigArrays().newLongArray(1, true);
         }
     }
 
@@ -56,13 +55,12 @@ public class HistoBackedValueCountAggregator extends NumericMetricsAggregator.Si
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
 
         final HistogramValues values = valuesSource.getHistogramValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays.grow(counts, bucket + 1);
+                counts = bigArrays().grow(counts, bucket + 1);
                 if (values.advanceExact(doc)) {
                     final HistogramValue sketch = values.histogram();
                     while (sketch.next()) {

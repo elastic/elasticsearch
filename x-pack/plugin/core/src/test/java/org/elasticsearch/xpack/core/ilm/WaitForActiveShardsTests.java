@@ -169,8 +169,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
                 Metadata.builder()
                     .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
                         org.elasticsearch.common.collect.List.of(originalIndexMeta.getIndex(),
-                        rolledIndexMeta.getIndex()),
-                        2L))
+                        rolledIndexMeta.getIndex())))
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)
             )

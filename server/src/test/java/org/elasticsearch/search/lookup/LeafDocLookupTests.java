@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -45,17 +44,13 @@ public class LeafDocLookupTests extends ESTestCase {
         when(fieldType.name()).thenReturn("field");
         when(fieldType.valueForDisplay(anyObject())).then(returnsFirstArg());
 
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType("_type")).thenReturn(fieldType);
-        when(mapperService.fieldType("field")).thenReturn(fieldType);
-        when(mapperService.fieldType("alias")).thenReturn(fieldType);
-
         docValues = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData = createFieldData(docValues);
 
-        docLookup = new LeafDocLookup(mapperService,
+        docLookup = new LeafDocLookup(
+            field -> field.equals("field") || field.equals("alias") || field.equals("_type") ? fieldType : null,
             ignored -> fieldData,
-            new String[] { "type" },
+            new String[]{"type"},
             null);
     }
 

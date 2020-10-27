@@ -33,7 +33,6 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +43,6 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.when;
 
 public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
     public void testBucketMergeNoDelete() throws Exception {
@@ -114,9 +112,7 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
                 Query query = new MatchAllDocsQuery();
-                SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), query, null);
-                when(searchContext.query()).thenReturn(query);
-                MergingBucketsDeferringCollector deferringCollector = new MergingBucketsDeferringCollector(searchContext, false);
+                MergingBucketsDeferringCollector deferringCollector = new MergingBucketsDeferringCollector(query, indexSearcher, false);
 
                 CollectingBucketCollector finalCollector = new CollectingBucketCollector();
                 deferringCollector.setDeferredCollector(Collections.singleton(finalCollector));

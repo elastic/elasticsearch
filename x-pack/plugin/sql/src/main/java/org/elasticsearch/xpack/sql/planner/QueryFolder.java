@@ -88,13 +88,11 @@ import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.common.collect.Tuple.tuple;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.DAY_INTERVAL;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.MONTH_INTERVAL;
@@ -144,8 +142,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 EsQueryExec exec = (EsQueryExec) project.child();
                 QueryContainer queryC = exec.queryContainer();
 
-                List<Tuple<Attribute, Expression>> aliases = new LinkedList<>();
-                List<Tuple<Attribute, Pipe>> scalarFunctions = new LinkedList<>();
+                Map<Attribute, Expression> aliases = new LinkedHashMap<>(queryC.aliases());
+                Map<Attribute, Pipe> processors = new LinkedHashMap<>(queryC.scalarFunctions());
 
                 for (NamedExpression pj : project.projections()) {
                     if (pj instanceof Alias) {
@@ -153,24 +151,19 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         Expression e = ((Alias) pj).child();
 
                         // track all aliases (to determine their reference later on)
-                        aliases.add(tuple(attr, e));
+                        aliases.put(attr, e);
 
                         // track scalar pipelines
                         if (e instanceof ScalarFunction) {
-                            scalarFunctions.add(tuple(attr, ((ScalarFunction) e).asPipe()));
+                            processors.put(attr, ((ScalarFunction) e).asPipe());
                         }
                     }
                 }
 
-                AttributeMap<Expression> combinedAliases = queryC.aliases().combine(AttributeMap.from(aliases, Tuple::v1, Tuple::v2));
-
-                AttributeMap<Pipe> combinedProcessors = queryC.scalarFunctions().combine(
-                        AttributeMap.from(scalarFunctions, Tuple::v1, Tuple::v2));
-
                 QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.fields(),
-                        combinedAliases,
+                        new AttributeMap<>(aliases),
                         queryC.pseudoFunctions(),
-                        combinedProcessors,
+                        new AttributeMap<>(processors),
                         queryC.sort(),
                         queryC.limit(),
                         queryC.shouldTrackHits(),
@@ -428,18 +421,18 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
             // track aliases defined in the SELECT and used inside GROUP BY
             // SELECT x AS a ... GROUP BY a
-            List<Alias> aliases = new LinkedList<>();
+            Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
             String id = null;
             for (NamedExpression ne : a.aggregates()) {
                 if (ne instanceof Alias) {
-                    aliases.add((Alias) ne);
+                    aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
                 }
             }
 
-            if (aliases.isEmpty() == false) {
-                AttributeMap<Expression> combinedAliases = queryC.aliases().combine(
-                    AttributeMap.from(aliases, Alias::toAttribute, Alias::child));
-                queryC = queryC.withAliases(combinedAliases);
+            if (aliasMap.isEmpty() == false) {
+                Map<Attribute, Expression> newAliases = new LinkedHashMap<>(queryC.aliases());
+                newAliases.putAll(aliasMap);
+                queryC = queryC.withAliases(new AttributeMap<>(newAliases));
             }
 
             // build the group aggregation

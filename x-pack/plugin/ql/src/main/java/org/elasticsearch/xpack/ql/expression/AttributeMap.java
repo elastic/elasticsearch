@@ -13,7 +13,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -142,8 +141,8 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     @SuppressWarnings("rawtypes")
-    private static final AttributeMap EMPTY = new AttributeMap<>(true);
-
+    public static final AttributeMap EMPTY = new AttributeMap<>();
+    
     @SuppressWarnings("unchecked")
     public static final <E> AttributeMap<E> emptyAttributeMap() {
         return EMPTY;
@@ -158,30 +157,6 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         delegate = new LinkedHashMap<>();
     }
 
-    /**
-     * Sort of a workaround to be able to create an empty map. Creates an empty AttributeMap, only for private use.
-     * @param doesNotMatter It absolutely does not matter what you pass in here, this is only here to be able to create
-     *                      this specific constructor.
-     */
-    private AttributeMap(boolean doesNotMatter) {
-        delegate = emptyMap();
-    }
-
-    /***
-     * DO NOT USE THIS CONSTRUCTOR, BECAUSE LIKELY YOU'LL END UP WITH A SUBTLE BUG
-     *
-     * This method should not be used. Normal maps use the {@link Attribute#equals(Object)} and {@link Attribute#hashCode()}
-     * instead of the {@link Attribute#semanticHash()} and {@link Attribute#semanticEquals(Expression)} which are used
-     * if the {@link Attribute}s are properly wrapped using the {@link Attribute} wrapper. The {@link Attribute#equals(Object)}
-     * and {@link Attribute#hashCode()} does not check the {@link Attribute#id()} and because of it the input Map likely
-     * already lost some key-value pairs due to overwrite.
-     *
-     * Rather collect your expressions first into a {@link Collection} (not a {@link Map} and use the
-     * {@link AttributeMap#from(Iterable, Function, Function)} to generate the attribute map.
-     *
-     * @param attr map to create the AttributeMap from
-     */
-    @Deprecated
     public AttributeMap(Map<Attribute, E> attr) {
         if (attr.isEmpty()) {
             delegate = emptyMap();
@@ -197,22 +172,6 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     public AttributeMap(Attribute key, E value) {
         delegate = singletonMap(new AttributeWrapper(key), value);
-    }
-
-    public static <X, E> AttributeMap<E> from(Stream<? extends X> collection,
-                                              java.util.function.Function<X, Attribute> attributeMapper,
-                                              java.util.function.Function<X, E> valueMapper) {
-        AttributeMap<E> map = new AttributeMap<>();
-        collection.forEach((c) -> map.add(attributeMapper.apply(c), valueMapper.apply(c)));
-        return map;
-    }
-
-    public static <X, E> AttributeMap<E> from(Iterable<? extends X> collection,
-                                              java.util.function.Function<X, Attribute> attributeMapper,
-                                              java.util.function.Function<X, E> valueMapper) {
-        AttributeMap<E> map = new AttributeMap<>();
-        collection.forEach((c) -> map.add(attributeMapper.apply(c), valueMapper.apply(c)));
-        return map;
     }
 
     void add(Attribute key, E value) {

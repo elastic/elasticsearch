@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.function.Function;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -22,7 +21,6 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 public class AttributeMapTests extends ESTestCase {
 
@@ -30,16 +28,13 @@ public class AttributeMapTests extends ESTestCase {
         return new UnresolvedAttribute(Source.EMPTY, name);
     }
 
-    private static Map<Attribute, String> threeMap() {
+    private static AttributeMap<String> threeMap() {
         Map<Attribute, String> map = new LinkedHashMap<>();
         map.put(a("one"), "one");
         map.put(a("two"), "two");
         map.put(a("three"), "three");
-        return map;
-    }
 
-    private static AttributeMap<String> threeAttributeMap() {
-        return AttributeMap.from(threeMap().entrySet(), Entry::getKey, Entry::getValue);
+        return new AttributeMap<>(map);
     }
 
     public void testEmptyConstructor() {
@@ -48,7 +43,6 @@ public class AttributeMapTests extends ESTestCase {
         assertThat(m.isEmpty(), is(true));
     }
 
-    @Deprecated
     public void testMapConstructor() {
         Map<Attribute, String> map = new LinkedHashMap<>();
         map.put(a("one"), "one");
@@ -73,32 +67,6 @@ public class AttributeMapTests extends ESTestCase {
         assertThat(m.isEmpty(), is(false));
     }
 
-    public void testIterableConstructor() {
-        Attribute one = a("one");
-        Attribute anotherOne = a("one");
-        Attribute two = a("two");
-        List<Attribute> attributes = List.of(one, anotherOne, two);
-        AttributeMap<String> attributeMap = AttributeMap.from(attributes, Function.identity(), Attribute::name);
-
-        assertThat(one.semanticEquals(anotherOne), is(false));
-        assertThat(one.semanticHash(), is(not(anotherOne.semanticHash())));
-        assertThat(attributeMap.size(), is(attributes.size()));
-        assertThat(attributeMap.keySet(), contains(one, anotherOne, two));
-    }
-
-    public void testStreamConstructor() {
-        Attribute one = a("one");
-        Attribute anotherOne = a("one");
-        Attribute two = a("two");
-        List<Attribute> attributes = List.of(one, anotherOne, two);
-        AttributeMap<String> attributeMap = AttributeMap.from(attributes.stream(), Function.identity(), Attribute::name);
-
-        assertThat(one.semanticEquals(anotherOne), is(false));
-        assertThat(one.semanticHash(), is(not(anotherOne.semanticHash())));
-        assertThat(attributeMap.size(), is(attributes.size()));
-        assertThat(attributeMap.keySet(), contains(one, anotherOne, two));
-    }
-
     public void testSingleItemConstructor() {
         Attribute one = a("one");
         AttributeMap<String> m = new AttributeMap<>(one, "one");
@@ -112,7 +80,7 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testSubtract() {
-        AttributeMap<String> m = threeAttributeMap();
+        AttributeMap<String> m = threeMap();
         AttributeMap<String> mo = new AttributeMap<>(m.keySet().iterator().next(), "one");
         AttributeMap<String> empty = new AttributeMap<>();
 
@@ -127,7 +95,7 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testIntersect() {
-        AttributeMap<String> m = threeAttributeMap();
+        AttributeMap<String> m = threeMap();
         AttributeMap<String> mo = new AttributeMap<>(m.keySet().iterator().next(), "one");
         AttributeMap<String> empty = new AttributeMap<>();
 
@@ -137,7 +105,7 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testSubsetOf() {
-        AttributeMap<String> m = threeAttributeMap();
+        AttributeMap<String> m = threeMap();
         AttributeMap<String> mo = new AttributeMap<>(m.keySet().iterator().next(), "one");
         AttributeMap<String> empty = new AttributeMap<>();
 
@@ -159,7 +127,7 @@ public class AttributeMapTests extends ESTestCase {
         map.put(two, "two");
         map.put(three, "three");
 
-        Set<Attribute> keySet = AttributeMap.from(map.entrySet(), Entry::getKey, Entry::getValue).keySet();
+        Set<Attribute> keySet = new AttributeMap<>(map).keySet();
         assertThat(keySet, contains(one, two, three));
 
         // toObject
@@ -170,7 +138,7 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testValues() {
-        AttributeMap<String> m = threeAttributeMap();
+        AttributeMap<String> m = threeMap();
         Collection<String> values = m.values();
 
         assertThat(values, hasSize(3));
@@ -187,7 +155,7 @@ public class AttributeMapTests extends ESTestCase {
         map.put(two, "two");
         map.put(three, "three");
 
-        Set<Entry<Attribute, String>> set = AttributeMap.from(map.entrySet(), Entry::getKey, Entry::getValue).entrySet();
+        Set<Entry<Attribute, String>> set = new AttributeMap<>(map).entrySet();
 
         assertThat(set, hasSize(3));
 
@@ -202,11 +170,11 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testForEach() {
-        AttributeMap<String> m = threeAttributeMap();
+        AttributeMap<String> m = threeMap();
 
         Map<Attribute, String> collect = new LinkedHashMap<>();
         m.forEach(collect::put);
-        AttributeMap<String> copy = AttributeMap.from(collect.entrySet(), Entry::getKey, Entry::getValue);
+        AttributeMap<String> copy = new AttributeMap<>(collect);
 
         assertThat(m, is(copy));
     }

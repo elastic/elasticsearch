@@ -179,15 +179,21 @@ public final class Verifier {
 
         if (failures.isEmpty()) {
             Set<Failure> localFailures = new LinkedHashSet<>();
+            final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
 
             checkFullTextSearchInSelect(plan, localFailures);
 
             // collect Attribute sources
             // only Aliases are interesting since these are the only ones that hide expressions
             // FieldAttribute for example are self replicating.
-            final List<Alias> aliases = plan.collectExpressions(Alias.class);
+            plan.forEachUp(p -> p.forEachExpressionsUp(e -> {
+                if (e instanceof Alias) {
+                    Alias a = (Alias) e;
+                    collectRefs.put(a.toAttribute(), a.child());
+                }
+            }));
 
-            final AttributeMap<Expression> attributeRefs = AttributeMap.from(aliases, Alias::toAttribute, Alias::child);
+            AttributeMap<Expression> attributeRefs = new AttributeMap<>(collectRefs);
 
             // for filtering out duplicated errors
             final Set<LogicalPlan> groupingFailures = new LinkedHashSet<>();

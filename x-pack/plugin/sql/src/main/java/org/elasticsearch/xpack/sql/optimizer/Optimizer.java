@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
@@ -40,7 +41,6 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRu
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -302,11 +302,21 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 OrderBy ob = (OrderBy) project.child();
 
                 // resolve function references (that maybe hiding the target)
+                final Map<Attribute, Function> collectRefs = new LinkedHashMap<>();
+
                 // collect Attribute sources
                 // only Aliases are interesting since these are the only ones that hide expressions
                 // FieldAttribute for example are self replicating.
-                final List<Alias> refs = project.collectExpressions(Alias.class, a -> a.child() instanceof Function);
-                AttributeMap<Function> functions = AttributeMap.from(refs, Alias::toAttribute, a -> (Function) a.child());
+                project.forEachUp(p -> p.forEachExpressionsUp(e -> {
+                    if (e instanceof Alias) {
+                        Alias a = (Alias) e;
+                        if (a.child() instanceof Function) {
+                            collectRefs.put(a.toAttribute(), (Function) a.child());
+                        }
+                    }
+                }));
+
+                AttributeMap<Function> functions = new AttributeMap<>(collectRefs);
 
                 // track the direct parents
                 Map<String, Order> nestedOrders = new LinkedHashMap<>();
@@ -530,11 +540,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             //TODO: this need rewriting when moving functions of NamedExpression
 
-            AttributeMap<NamedExpression> aliases = AttributeMap.from(
-                lower.stream().filter(ne -> ne instanceof Attribute),
-                NamedExpression::toAttribute,
-                java.util.function.Function.identity()
-            );
+            // collect aliases in the lower list
+            Map<Attribute, NamedExpression> map = new LinkedHashMap<>();
+            for (NamedExpression ne : lower) {
+                if ((ne instanceof Attribute) == false) {
+                    map.put(ne.toAttribute(), ne);
+                }
+            }
+
+            AttributeMap<NamedExpression> aliases = new AttributeMap<>(map);
             List<NamedExpression> replaced = new ArrayList<>();
 
             // replace any matching attribute with a lower alias (if there's a match)

@@ -6,15 +6,10 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
@@ -22,11 +17,9 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.stats.Metrics;
@@ -35,17 +28,10 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.startsWith;
 
 public class QueryFolderTests extends ESTestCase {
@@ -74,88 +60,7 @@ public class QueryFolderTests extends ESTestCase {
     }
 
     private PhysicalPlan plan(String sql) {
-        return plan(parser.createStatement(sql));
-    }
-
-    private PhysicalPlan plan(LogicalPlan statement) {
-        return planner.plan(optimizer.optimize(analyzer.analyze(statement, true)), true);
-    }
-
-    private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
-        return parser.createStatement(sql, Arrays.asList(params), UTC);
-    }
-
-    public void testFoldingWithAliasedParams() {
-        PhysicalPlan p = plan(parameterizedSql("SELECT ? as a, ? as b FROM test",
-            new SqlTypedParamValue("integer", 100),
-            new SqlTypedParamValue("integer", 200)));
-        assertEquals(EsQueryExec.class, p.getClass());
-        assertThat(p.output(), everyItem(isA(ReferenceAttribute.class)));
-        assertThat(p.output().stream().map(NamedExpression::name).collect(Collectors.toList()),
-            equalTo(Arrays.asList("a", "b")));
-    }
-
-    public void testFoldingWithParamsWithoutIndex() {
-        PhysicalPlan p = plan(parameterizedSql("SELECT ?, ?",
-            new SqlTypedParamValue("integer", 100),
-            new SqlTypedParamValue("integer", 200)));
-        assertEquals(LocalExec.class, p.getClass());
-        assertThat(p.output(), everyItem(isA(ReferenceAttribute.class)));
-        assertThat(p.output().stream().map(NamedExpression::name).collect(Collectors.toList()),
-            equalTo(Arrays.asList("?", "?")));
-    }
-
-    public void testFoldingWithIntegerParamsWithoutAlias() {
-        LogicalPlan logicalPlan = parameterizedSql("SELECT ?, ? FROM test",
-            new SqlTypedParamValue("integer", 100),
-            new SqlTypedParamValue("integer", 200)
-        );
-        List<? extends NamedExpression> projectionsAfterParsing = ((Project)((With)logicalPlan).child()).projections();
-        assertThat(projectionsAfterParsing, everyItem(isA(UnresolvedAlias.class)));
-
-        LogicalPlan analyzedPlan = analyzer.analyze(logicalPlan, true);
-        List<? extends NamedExpression> projectionsAfterAnalyzer = ((Project)analyzedPlan).projections();
-        assertThat(projectionsAfterAnalyzer, everyItem(isA(Alias.class)));
-        assertThat(projectionsAfterAnalyzer.stream().map(NamedExpression::name).collect(Collectors.toList()),
-            equalTo(Arrays.asList("?", "?")));
-
-        LogicalPlan optimizedPlan = optimizer.optimize(analyzedPlan);
-        PhysicalPlan mappedPlan = planner.mapPlan(optimizedPlan, true);
-        PhysicalPlan foldedPlan = planner.foldPlan(mappedPlan, true);
-        assertEquals(EsQueryExec.class, foldedPlan.getClass());
-        assertThat(foldedPlan.output(), everyItem(isA(ReferenceAttribute.class)));
-        assertThat(foldedPlan.output().stream().map(NamedExpression::name).collect(Collectors.toList()),
-            equalTo(Arrays.asList("?", "?")));
-    }
-
-    public void testFoldingWithSingleIntegerParamWithoutAlias() {
-        // SUCCESS originally
-        PhysicalPlan p = plan(parameterizedSql("SELECT ? FROM test",
-            new SqlTypedParamValue("integer", 100)));
-        assertEquals(EsQueryExec.class, p.getClass());
-        assertThat(p.output(), everyItem(isA(ReferenceAttribute.class)));
-        assertThat(p.output().stream().map(NamedExpression::name).collect(Collectors.toList()),
-            equalTo(Collections.singletonList("?")));
-    }
-
-    public void testFoldingWithMixedParamsWithoutAlias() {
-        PhysicalPlan p = plan(parameterizedSql("SELECT ?, ? FROM test",
-            new SqlTypedParamValue("integer", 100),
-            new SqlTypedParamValue("text", "200")));
-        assertEquals(EsQueryExec.class, p.getClass());
-        assertThat(p.output(), everyItem(isA(ReferenceAttribute.class)));
-        assertThat(p.output().stream().map(NamedExpression::name).collect(Collectors.toList()),
-            equalTo(Arrays.asList("?", "?")));
-    }
-
-    public void testFoldingWithStringParamsWithoutAlias() {
-        PhysicalPlan p = plan(parameterizedSql("SELECT ?, ? FROM test",
-            new SqlTypedParamValue("text", "100"),
-            new SqlTypedParamValue("text", "200")));
-        assertEquals(EsQueryExec.class, p.getClass());
-        assertThat(p.output(), everyItem(isA(ReferenceAttribute.class)));
-        assertThat(p.output().stream().map(NamedExpression::name).collect(Collectors.toList()),
-            equalTo(Arrays.asList("?", "?")));
+        return planner.plan(optimizer.optimize(analyzer.analyze(parser.createStatement(sql), true)), true);
     }
 
     public void testFoldingToLocalExecWithProject() {

@@ -63,13 +63,12 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         final HistogramValues values = ((HistogramValuesSource.Histogram)valuesSource).getHistogramValues(ctx);
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                TDigestState state = getExistingOrNewHistogram(bigArrays, bucket);
+                TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
                 if (values.advanceExact(doc)) {
                     final HistogramValue sketch = values.histogram();
                     while(sketch.next()) {

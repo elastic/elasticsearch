@@ -43,7 +43,8 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate()
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,

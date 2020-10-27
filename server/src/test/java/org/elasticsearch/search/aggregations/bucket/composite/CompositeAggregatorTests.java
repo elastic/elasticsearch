@@ -2252,13 +2252,25 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             }
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
                 Document document = new Document();
+                int id = 0;
                 for (Map<String, List<Object>> fields : dataset) {
-                    addToDocument(document, fields);
-                    indexWriter.addDocument(document);
                     document.clear();
+                    addToDocument(id, document, fields);
+                    indexWriter.addDocument(document);
+                    id++;
                 }
                 if (rarely()) {
                     indexWriter.forceMerge(1);
+                }
+                if (dataset.size() > 0) {
+                    int numDeletes = randomIntBetween(1, 25);
+                    for (int i = 0; i < numDeletes; i++) {
+                        id = randomIntBetween(0, dataset.size() - 1);
+                        indexWriter.deleteDocuments(new Term("id", Integer.toString(id)));
+                        document.clear();
+                        addToDocument(id, document, dataset.get(id));
+                        indexWriter.addDocument(document);
+                    }
                 }
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -2284,7 +2296,8 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         return IndexSettingsModule.newIndexSettings(new Index("_index", "0"), builder.build());
     }
 
-    private void addToDocument(Document doc, Map<String, List<Object>> keys) {
+    private void addToDocument(int id, Document doc, Map<String, List<Object>> keys) {
+        doc.add(new StringField("id", Integer.toString(id), Field.Store.NO));
         for (Map.Entry<String, List<Object>> entry : keys.entrySet()) {
             final String name = entry.getKey();
             for (Object value : entry.getValue()) {

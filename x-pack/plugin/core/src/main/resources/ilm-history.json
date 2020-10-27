@@ -80,6 +80,7 @@
         }
       }
   },
+  "allow_auto_create": true,
   "_meta": {
     "description": "index template for ILM history indices",
     "managed": true

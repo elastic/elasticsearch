@@ -34,6 +34,7 @@ GET /_search
   }
 }
 --------------------------------------------------
+// TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 [discrete]
 ==== Query Options
@@ -83,6 +84,7 @@ GET /_search
   }
 }
 --------------------------------------------------
+// TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 [discrete]
 ===== Lat Lon as String
@@ -113,6 +115,7 @@ GET /_search
   }
 }
 --------------------------------------------------
+// TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 [discrete]
 ===== Geohash
@@ -141,6 +144,7 @@ GET /_search
   }
 }
 --------------------------------------------------
+// TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 [discrete]
 ==== geo_point Type

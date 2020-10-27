@@ -50,7 +50,8 @@ import java.util.Objects;
 public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQueryBuilder> {
     public static final String NAME = "geo_polygon";
 
-    public static final String GEO_POLYGON_DEPRECATION_MSG = "[" + GeoShapeQueryBuilder.NAME + "] query where polygons are defined in geojson or wkt";
+    public static final String GEO_POLYGON_DEPRECATION_MSG = "[" + GeoShapeQueryBuilder.NAME + "] query " +
+        "where polygons are defined in geojson or wkt";
 
     /**
      * The default value for ignore_unmapped.

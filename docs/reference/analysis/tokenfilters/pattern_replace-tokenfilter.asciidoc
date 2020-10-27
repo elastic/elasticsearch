@@ -11,8 +11,7 @@ https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java's
 regular expression syntax]. By default, the filter replaces matching
 substrings with an empty substring (`""`).
 
-Regular expressions cannot be anchored to the
-beginning or end of a token. Replacement substrings can use Java's
+Replacement substrings can use Java's
 https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[`$g` syntax] to reference capture groups
 from the original token text.
 

@@ -424,6 +424,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes();
     }
 
+    /**
+     * Get the {@linkplain ObjectMapper} at the provided path.
+     * @deprecated prefer {@link #snapshot()} then {@link Snapshot#getObjectMapper(String)}.
+     */
+    @Deprecated
     public ObjectMapper getObjectMapper(String name) {
         return snapshot().getObjectMapper(name);
     }

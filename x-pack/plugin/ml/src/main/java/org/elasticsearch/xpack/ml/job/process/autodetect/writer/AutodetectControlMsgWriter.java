@@ -241,4 +241,15 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
         fillCommandBuffer();
         lengthEncodedWriter.flush();
     }
+
+    public void writeStartBackgroundPersistMessage(long snapshotTimestamp, String snapshotId, String description) throws IOException {
+        StringBuilder stringBuilder = new StringBuilder(BACKGROUND_PERSIST_MESSAGE_CODE);
+        stringBuilder.append(snapshotTimestamp).append(" ").append(snapshotId);
+        if (description != null) {
+            stringBuilder.append(" ").append(description);
+        }
+        writeMessage(stringBuilder.toString());
+        fillCommandBuffer();
+        lengthEncodedWriter.flush();
+    }
 }

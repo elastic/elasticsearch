@@ -410,6 +410,9 @@ public final class AggregationResultUtils {
 
         @Override
         public Object value(Object key, String type) {
+            if (isNumericType(type) && key instanceof Double) {
+                return dropFloatingPointComponentIfTypeRequiresIt(type, (Double) key);
+            }
             return key;
         }
 

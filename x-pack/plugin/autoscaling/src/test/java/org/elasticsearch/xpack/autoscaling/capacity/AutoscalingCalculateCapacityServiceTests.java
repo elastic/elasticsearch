@@ -127,8 +127,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             .collect(Collectors.toSet());
         state = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
-                DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Map.of(), roles, Version.CURRENT))
+                DiscoveryNodes.builder().add(new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Map.of(), roles, Version.CURRENT))
             )
             .build();
         context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info);

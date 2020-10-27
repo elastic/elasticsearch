@@ -307,19 +307,17 @@ public class QueryShardContextTests extends ESTestCase {
             Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
             Collections.emptyMap(), Collections.emptyMap()
         );
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-        when(mapperService.index()).thenReturn(indexMetadata.getIndex());
-        when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+        MapperService.Snapshot mapperSnapshot = mock(MapperService.Snapshot.class);
+        when(mapperSnapshot.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         Map<String, Mapper.TypeParser> typeParserMap = IndicesModule.getMappers(Collections.emptyList());
         Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(name -> null, typeParserMap::get,
-            Version.CURRENT, () -> null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
+            Version.CURRENT, () -> null, null, null, indexAnalyzers, indexSettings,
             () -> {
                 throw new UnsupportedOperationException();
             });
-        when(mapperService.parserContext()).thenReturn(parserContext);
+        when(mapperSnapshot.parserContext()).thenReturn(parserContext);
         if (runtimeDocValues != null) {
-            when(mapperService.fieldType(any())).thenAnswer(fieldTypeInv -> {
+            when(mapperSnapshot.fieldType(any())).thenAnswer(fieldTypeInv -> {
                 String fieldName = (String)fieldTypeInv.getArguments()[0];
                 return mockFieldType(fieldName, (leafSearchLookup, docId) -> runtimeDocValues.apply(fieldName, leafSearchLookup, docId));
             });
@@ -328,7 +326,7 @@ public class QueryShardContextTests extends ESTestCase {
         return new QueryShardContext(
             0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
                 (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
-                mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
+                mapperSnapshot, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
             null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
     }
 

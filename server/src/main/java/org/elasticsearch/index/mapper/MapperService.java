@@ -42,6 +42,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
@@ -147,10 +148,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.indexAnalyzers.get(analyzerName);
     }
 
-    public Mapper.TypeParser.ParserContext parserContext() {
-        return parserContextSupplier.get();
-    }
-
     DocumentParser documentParser() {
         return this.documentParser;
     }
@@ -162,7 +159,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
         if (existingMapper == null) {
             for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
-                MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
+                MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContextSupplier.get());
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
             }
 
@@ -403,10 +400,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
-        if (fullName.equals(TypeFieldType.NAME)) {
-            return new TypeFieldType(this.mapper == null ? "_doc" : this.mapper.type());
-        }
-        return this.mapper == null ? null : this.mapper.mappers().fieldTypes().get(fullName);
+        return snapshot().fieldType(fullName);
     }
 
     /**
@@ -414,11 +408,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * then the fields will be returned with a type prefix.
      */
     public Set<String> simpleMatchToFullName(String pattern) {
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            return Collections.singleton(pattern);
-        }
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().simpleMatchToFullName(pattern);
+        return snapshot().simpleMatchToFullName(pattern);
     }
 
     /**
@@ -437,7 +427,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public ObjectMapper getObjectMapper(String name) {
-        return this.mapper == null ? null : this.mapper.mappers().objectMappers().get(name);
+        return snapshot().getObjectMapper(name);
     }
 
     public Analyzer indexAnalyzer() {
@@ -516,5 +506,82 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
         return reloadedAnalyzers;
+    }
+
+    public Snapshot snapshot() {
+        return new Snapshot(mapper, indexAnalyzers, indexAnalyzer, parserContextSupplier);
+    }
+
+    public static class Snapshot {
+        private final DocumentMapper mapper;
+        private final IndexAnalyzers indexAnalyzers;
+        private final MapperAnalyzerWrapper indexAnalyzer;
+        private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
+
+        public Snapshot(
+            DocumentMapper mapper,
+            IndexAnalyzers indexAnalyzers,
+            MapperAnalyzerWrapper indexAnalyzer,
+            Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier
+        ) {
+            this.mapper = mapper;
+            this.indexAnalyzers = indexAnalyzers;
+            this.indexAnalyzer = indexAnalyzer;
+            this.parserContextSupplier = parserContextSupplier;
+        }
+
+        /**
+         * Given the full name of a field, returns its {@link MappedFieldType}.
+         */
+        public MappedFieldType fieldType(String fullName) {
+            if (fullName.equals(TypeFieldType.NAME)) {
+                return new TypeFieldType(this.mapper == null ? "_doc" : this.mapper.type());
+            }
+            return this.mapper == null ? null : this.mapper.mappers().fieldTypes().get(fullName);
+        }
+
+        public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
+            return mapper == null ? null : mapper.parse(source);
+        }
+
+        public FieldNameAnalyzer getFieldNameIndexAnalyzer() {
+            return mapper == null ? null : mapper.mappers().indexAnalyzer();
+        }
+
+        public boolean hasNested() {
+            return mapper != null && mapper.hasNestedObjects();
+        }
+
+        public boolean hasMappings() {
+            return mapper != null;
+        }
+
+        /**
+         * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
+         * then the fields will be returned with a type prefix.
+         */
+        public Set<String> simpleMatchToFullName(String pattern) {
+            if (Regex.isSimpleMatchPattern(pattern) == false) {
+                // no wildcards
+                return Collections.singleton(pattern);
+            }
+            return mapper == null ? Collections.emptySet() : mapper.mappers().fieldTypes().simpleMatchToFullName(pattern);
+        }
+
+        public ObjectMapper getObjectMapper(String name) {
+            return mapper == null ? null : mapper.mappers().objectMappers().get(name);
+        }
+
+        public Mapper.TypeParser.ParserContext parserContext() {
+            return parserContextSupplier.get();
+        }
+
+        public IndexAnalyzers getIndexAnalyzers() {
+            return indexAnalyzers;
+        }
+
+        public Analyzer indexAnalyzer() {
+            return indexAnalyzer;
+        }
     }
 }

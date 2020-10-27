@@ -287,7 +287,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
             }), circuitBreakerService, mapperService);
         QueryShardContext queryShardContext =
-            queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
+            queryShardContextMock(contextIndexSearcher, mapperService.snapshot(), indexSettings, circuitBreakerService, bigArrays);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
         when(queryShardContext.getObjectMapper(anyString())).thenAnswer(invocation -> {
             String fieldName = (String) invocation.getArguments()[0];
@@ -337,14 +337,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * sub-tests that need a more complex mock can overwrite this
      */
     protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
-                                                      MapperService mapperService,
+                                                      MapperService.Snapshot mapperSnapshot,
                                                       IndexSettings indexSettings,
                                                       CircuitBreakerService circuitBreakerService,
                                                       BigArrays bigArrays) {
 
         return new QueryShardContext(0, indexSettings, bigArrays, null,
-            getIndexFieldDataLookup(mapperService, circuitBreakerService),
-            mapperService, null, getMockScriptService(), xContentRegistry(),
+            getIndexFieldDataLookup(indexSettings, circuitBreakerService),
+            mapperSnapshot, null, getMockScriptService(), xContentRegistry(),
             writableRegistry(), null, searcher, System::currentTimeMillis, null, null, () -> true,
             valuesSourceRegistry);
     }
@@ -353,9 +353,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Sub-tests that need a more complex index field data provider can override this
      */
     protected TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> getIndexFieldDataLookup(
-        MapperService mapperService, CircuitBreakerService circuitBreakerService) {
-        return (fieldType, s, searchLookup) -> fieldType.fielddataBuilder(
-            mapperService.getIndexSettings().getIndex().getName(), searchLookup)
+        IndexSettings indexSettings,
+        CircuitBreakerService circuitBreakerService
+    ) {
+        return (fieldType, s, searchLookup) -> fieldType.fielddataBuilder(indexSettings.getIndex().getName(), searchLookup)
             .build(new IndexFieldDataCache.None(), circuitBreakerService);
     }
 

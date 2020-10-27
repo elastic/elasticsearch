@@ -165,10 +165,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected QueryShardContext queryShardContextMock(IndexSearcher searcher, MapperService mapperService,
+    protected QueryShardContext queryShardContextMock(IndexSearcher searcher, MapperService.Snapshot mapperSnapshot,
                                                       IndexSettings indexSettings, CircuitBreakerService circuitBreakerService,
                                                       BigArrays bigArrays) {
-         this.queryShardContext = super.queryShardContextMock(searcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
+         this.queryShardContext = super.queryShardContextMock(searcher, mapperSnapshot, indexSettings, circuitBreakerService, bigArrays);
          return queryShardContext;
     }
 

@@ -522,7 +522,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             final LeafReaderContext leaf = directoryReader.leaves().get(0);
 
             final QueryShardContext shardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+                null, null, mapperService.snapshot(), null, null, xContentRegistry(), writableRegistry(),
                 client, new IndexSearcher(directoryReader), () -> nowInMillis, null, null, () -> true, null);
 
             context = new TestIndexContext(directory, iw, directoryReader, shardContext, leaf);

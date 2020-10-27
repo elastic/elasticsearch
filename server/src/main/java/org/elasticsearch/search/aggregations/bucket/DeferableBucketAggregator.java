@@ -21,8 +21,8 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketCollector;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -74,7 +74,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     public DeferringBucketCollector getDeferringCollector() {
         // Default impl is a collector that selects the best buckets
         // but an alternative defer policy may be based on best docs.
-        return new BestBucketsDeferringCollector(context(), descendsFromGlobalAggregator(parent()));
+        return new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
     }
 
     /**

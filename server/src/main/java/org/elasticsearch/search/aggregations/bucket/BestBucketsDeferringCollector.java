@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -36,7 +37,6 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +64,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     protected List<Entry> entries = new ArrayList<>();
     protected BucketCollector collector;
-    protected final SearchContext searchContext;
+    private final Query topLevelQuery;
+    private final IndexSearcher searcher;
     protected final boolean isGlobal;
     protected LeafReaderContext context;
     protected PackedLongValues.Builder docDeltasBuilder;
@@ -75,11 +76,11 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     /**
      * Sole constructor.
-     * @param context The search context
      * @param isGlobal Whether this collector visits all documents (global context)
      */
-    public BestBucketsDeferringCollector(SearchContext context, boolean isGlobal) {
-        this.searchContext = context;
+    public BestBucketsDeferringCollector(Query topLevelQuery, IndexSearcher searcher, boolean isGlobal) {
+        this.topLevelQuery = topLevelQuery;
+        this.searcher = searcher;
         this.isGlobal = isGlobal;
     }
 
@@ -162,8 +163,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
         if (needsScores) {
-            Query query = isGlobal ? new MatchAllDocsQuery() : searchContext.query();
-            weight = searchContext.searcher().createWeight(searchContext.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
+            Query query = isGlobal ? new MatchAllDocsQuery() : topLevelQuery;
+            weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE, 1f);
         }
 
         for (Entry entry : entries) {

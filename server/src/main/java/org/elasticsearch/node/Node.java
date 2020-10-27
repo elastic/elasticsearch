@@ -303,7 +303,11 @@ public class Node implements Closeable {
                 Constants.JVM_NAME,
                 Constants.JAVA_VERSION,
                 Constants.JVM_VERSION);
-            logger.info("JVM home [{}]", System.getProperty("java.home"));
+            if (jvmInfo.getBundledJdk()) {
+                logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
+            } else {
+                logger.info("JVM home [{}]", System.getProperty("java.home"));
+            }
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
             if (Build.CURRENT.isProductionRelease() == false) {
                 logger.warn(

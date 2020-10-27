@@ -154,7 +154,8 @@ public class GeoPolygonDecomposer {
         }
         if (signedArea == 0) {
             // Points are collinear or self-intersection
-            throw new InvalidShapeException("Cannot determine orientation: signed area equal to 0");
+            throw new InvalidShapeException("Cannot determine orientation: signed area equal to 0." +
+                " Points are collinear or polygon self-intersects.");
         }
         boolean orientation = signedArea < 0;
 

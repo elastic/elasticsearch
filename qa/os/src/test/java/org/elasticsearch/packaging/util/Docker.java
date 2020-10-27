@@ -41,6 +41,7 @@ import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.FileMatcher.p664;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
@@ -486,7 +487,7 @@ public class Docker {
         // also don't want any SELinux security context indicator.
         Set<PosixFilePermission> actualPermissions = fromString(permissions.substring(1, 10));
 
-        assertEquals("Permissions of " + path + " are wrong", actualPermissions, expectedPermissions);
+        assertEquals("Permissions of " + path + " are wrong", expectedPermissions, actualPermissions);
         assertThat("File owner of " + path + " is wrong", username, equalTo("elasticsearch"));
         assertThat("File group of " + path + " is wrong", group, equalTo("root"));
     }
@@ -530,8 +531,10 @@ public class Docker {
 
         Stream.of(es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
-        Stream.of("elasticsearch.keystore", "elasticsearch.yml", "jvm.options", "log4j2.properties")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
+        assertPermissionsAndOwnership(es.config("elasticsearch.keystore"), p660);
+
+        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
+            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
 
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
@@ -580,7 +583,7 @@ public class Docker {
         assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p755);
 
         Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
+            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {

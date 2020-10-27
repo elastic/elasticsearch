@@ -3968,7 +3968,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         assertThat(engine.getProcessedLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
-        try (Engine.GetResult result = engine.get(new Engine.Get(true, false, "2"), searcherFactory)) {
+        try (Engine.GetResult result = engine.get(new Engine.Get(true, false, "1"), searcherFactory)) {
             assertThat(result.exists(), equalTo(exists));
         }
     }

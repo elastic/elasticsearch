@@ -67,7 +67,7 @@ class AggregateMetricBackedMinAggregator extends NumericMetricsAggregator.Single
             }
         }
 
-        final BigArrays bigArrays = context.bigArrays();
+        final BigArrays bigArrays = bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.getAggregateMetricValues(ctx, Metric.min);
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {

@@ -5,10 +5,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.history;
 
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
-
-import java.time.ZonedDateTime;
 
 public final class HistoryStoreField {
 

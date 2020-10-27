@@ -234,6 +234,39 @@ chmod g+rwx esdatadir
 chgrp 0 esdatadir
 --------------------------------------------
 
+If you want to run the container using a custom UID and GID, then you must
+ensure that the {es} process is still a member of the `root` group inside
+the container using the `--group-add` Docker command-line option. If you
+are using bind-mounted volumes, any files written by the container will
+still be owned by the user and group that you specified, not the `root`
+group.
+
+[source,sh]
+--------------------------------------------
+ES_USER=myuser
+ES_ID=1001
+
+# Create the user and group
+groupadd --gid $ES_ID $ES_USER
+adduser --uid $ES_ID --gid $ES_ID --home-dir /home/$ES_USER $ES_USER
+
+# Prepare directories
+mkdir -p /home/$ES_USER/{data,logs,config}
+chown -R $ES_ID:$ES_ID /home/$ES_USER
+
+# Before continuing, you need to put the correct configuration files
+# under /home/$ES_USER/config
+
+# Run {es}
+docker run \
+  --user $ES_ID:$ES_ID --group-add 0 \
+  --volume /home/$ES_USER/config:/usr/share/elasticsearch/config \
+  --volume /home/$ES_USER/data:/usr/share/elasticsearch/data \
+  --volume /home/$ES_USER/logs:/usr/share/elasticsearch/logs \
+  {docker-image}
+--------------------------------------------
+
+
 ===== Increase ulimits for nofile and nproc
 
 Increased ulimits for <<setting-system-settings,nofile>> and <<max-number-threads-check,nproc>>

@@ -384,3 +384,39 @@ setup:
   - match: { aggregations.age_groups.buckets.2.key: "Generation Y" }
 
   - match: { aggregations.age_groups.buckets.2.doc_count: 2 }
+
+
+---
+"Date range unmapped with children":
+  - do:
+      indices.create:
+          index: test_a_unmapped
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+  - do:
+      search:
+        index: test_a_unmapped
+        body:
+          size: 0
+          query:
+            terms:
+              animal: []
+          aggs:
+            date_range:
+              date_range:
+                field: date
+                ranges:
+                 - from: 2020-01-01T00:00:00Z
+              aggs:
+                sounds:
+                  cardinality:
+                    field: sound.keyword
+
+  - match: { hits.total.value: 0 }
+  - length: { aggregations.date_range.buckets: 1 }
+  - match: { aggregations.date_range.buckets.0.doc_count: 0 }
+  - match: { aggregations.date_range.buckets.0.key: "2020-01-01T00:00:00.000Z-*" }
+  - is_false: aggregations.date_range.buckets.0.to
+  - match: { aggregations.date_range.buckets.0.sounds.value: 0 }

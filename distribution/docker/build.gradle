@@ -47,7 +47,7 @@ ext.expansions = { Architecture architecture, boolean oss, DockerBase base, bool
     classifier = "linux-\$(arch)"
   }
 
-  final String elasticsearch = "elasticsearch-${oss ? 'oss-' : ''}$VersionProperties.elasticsearch-${classifier}.tar.gz"
+  final String elasticsearch = "elasticsearch-${oss ? 'oss-' : ''}${VersionProperties.elasticsearch}-${classifier}.tar.gz"
 
   String buildArgs = '#'
   if (base == DockerBase.IRON_BANK) {

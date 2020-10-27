@@ -20,27 +20,8 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 public abstract class ExpressionNode extends IRNode {
-
-    /* ---- begin node data ---- */
-
-    private Class<?> expressionType;
-
-    public void setExpressionType(Class<?> expressionType) {
-        this.expressionType = expressionType;
-    }
-
-    public Class<?> getExpressionType() {
-        return expressionType;
-    }
-
-    public String getExpressionCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(expressionType);
-    }
-
-    /* ---- end node data ---- */
 
     public ExpressionNode(Location location) {
         super(location);

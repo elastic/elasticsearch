@@ -22,7 +22,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -60,7 +59,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         // TODO: stop expecting nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
         if (valuesSource != null) {
-            counts = context.bigArrays().newLongArray(1, true);
+            counts = bigArrays().newLongArray(1, true);
         }
     }
 
@@ -70,7 +69,6 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
 
         if (valuesSource instanceof ValuesSource.Numeric) {
             final SortedNumericDocValues values = ((ValuesSource.Numeric)valuesSource).longValues(ctx);
@@ -78,7 +76,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    counts = bigArrays.grow(counts, bucket + 1);
+                    counts = bigArrays().grow(counts, bucket + 1);
                     if (values.advanceExact(doc)) {
                         counts.increment(bucket, values.docValueCount());
                     }
@@ -91,7 +89,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    counts = bigArrays.grow(counts, bucket + 1);
+                    counts = bigArrays().grow(counts, bucket + 1);
                     if (values.advanceExact(doc)) {
                         counts.increment(bucket, values.docValueCount());
                     }
@@ -104,7 +102,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays.grow(counts, bucket + 1);
+                counts = bigArrays().grow(counts, bucket + 1);
                 if (values.advanceExact(doc)) {
                     counts.increment(bucket, values.docValueCount());
                 }

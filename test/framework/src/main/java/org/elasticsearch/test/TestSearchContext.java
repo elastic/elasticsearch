@@ -93,7 +93,6 @@ public class TestSearchContext extends SearchContext {
     private SearchContextAggregations aggregations;
     private ScrollContext scrollContext;
 
-    private final long originNanoTime = System.nanoTime();
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
     public TestSearchContext(BigArrays bigArrays, IndexService indexService) {
@@ -286,10 +285,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public MapperService mapperService() {
-        if (indexService != null) {
-            return indexService.mapperService();
-        }
-        return null;
+        return indexService == null ? null : indexService.mapperService();
     }
 
     @Override
@@ -558,18 +554,12 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public MappedFieldType fieldType(String name) {
-        if (mapperService() != null) {
-            return mapperService().fieldType(name);
-        }
-        return null;
+        return queryShardContext.getFieldType(name);
     }
 
     @Override
     public ObjectMapper getObjectMapper(String name) {
-        if (mapperService() != null) {
-            return mapperService().getObjectMapper(name);
-        }
-        return null;
+        return queryShardContext.getObjectMapper(name);
     }
 
     @Override

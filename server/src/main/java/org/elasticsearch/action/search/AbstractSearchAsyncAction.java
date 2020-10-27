@@ -544,6 +544,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     boolean buildPointInTimeFromSearchResults() {
+        // TODO: Until we implement the retry mechanism for point in times (i.e., replace an unavailable shard with an equivalent copy),
+        // we can simply return the point in time of the search request.
         return false;
     }
 

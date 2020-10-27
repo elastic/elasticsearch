@@ -248,7 +248,7 @@ public class ServerUtils {
     }
 
     public static String makeRequest(Request request, String username, String password, Path caCert) throws Exception {
-//        request = request.setHeader("Accept", "application/json");
+        // request = request.setHeader("Accept", "application/json");
         final HttpResponse response = execute(request, username, password, caCert);
         final String body = EntityUtils.toString(response.getEntity());
 

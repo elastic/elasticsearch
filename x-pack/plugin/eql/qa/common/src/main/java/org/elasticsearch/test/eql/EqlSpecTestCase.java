@@ -13,8 +13,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.test.eql.DataLoader.TEST_INDEX;
-
 public abstract class EqlSpecTestCase extends BaseEqlSpecTestCase {
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
@@ -47,11 +45,11 @@ public abstract class EqlSpecTestCase extends BaseEqlSpecTestCase {
     }
 
     @Override
-    protected String sequenceField() {
-        return "serial_event_id";
+    protected String tiebreaker() {
+        return "event.sequence";
     }
 
     public EqlSpecTestCase(String query, String name, long[] eventIds) {
-        super(TEST_INDEX, query, name, eventIds);
+        super(".ds-logs-endpoint.events.*", query, name, eventIds);
     }
 }

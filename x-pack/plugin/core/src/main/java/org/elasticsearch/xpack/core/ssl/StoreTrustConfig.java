@@ -13,12 +13,8 @@ import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
@@ -64,12 +60,6 @@ class StoreTrustConfig extends TrustConfig {
         try {
             KeyStore trustStore = getStore(storePath, trustStoreType, trustStorePassword);
             return CertParsingUtils.trustManager(trustStore, trustStoreAlgorithm);
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            throw missingTrustConfigFile(e, TRUSTSTORE_FILE, storePath);
-        } catch (AccessDeniedException  e) {
-            throw unreadableTrustConfigFile(e, TRUSTSTORE_FILE, storePath);
-        } catch (AccessControlException e) {
-            throw blockedTrustConfigFile(e, environment, TRUSTSTORE_FILE, List.of(storePath));
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize SSL TrustManager", e);
         }

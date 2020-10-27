@@ -14,10 +14,8 @@ import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -104,44 +102,6 @@ abstract class TrustConfig {
         }
         throw new IllegalArgumentException("keystore.path or truststore.path can only be empty when using a PKCS#11 token");
     }
-
-    /**
-     * generate a new exception caused by a missing file, that is required for this trust config
-     */
-    protected ElasticsearchException missingTrustConfigFile(IOException cause, String fileType, Path path) {
-        return new ElasticsearchException(
-            "failed to initialize SSL TrustManager - " + fileType + " file [{}] does not exist", cause, path.toAbsolutePath());
-    }
-
-    /**
-     * generate a new exception caused by an unreadable file (i.e. file-system access denied), that is required for this trust config
-     */
-    protected ElasticsearchException unreadableTrustConfigFile(AccessDeniedException cause, String fileType, Path path) {
-        return new ElasticsearchException(
-            "failed to initialize SSL TrustManager - not permitted to read " + fileType + " file [{}]", cause, path.toAbsolutePath());
-    }
-
-    /**
-     * generate a new exception caused by a blocked file (i.e. security-manager access denied), that is required for this trust config
-     * @param paths A list of possible files. Depending on the context, it may not be possible to know exactly which file caused the
-     *              exception, so this method accepts multiple paths.
-     */
-    protected ElasticsearchException blockedTrustConfigFile(AccessControlException cause, Environment environment,
-                                                            String fileType, List<Path> paths) {
-        if (paths.size() == 1) {
-            return new ElasticsearchException(
-                "failed to initialize SSL TrustManager - access to read {} file [{}] is blocked;" +
-                    " SSL resources should be placed in the [{}] directory",
-                cause, fileType, paths.get(0).toAbsolutePath(), environment.configFile());
-        } else {
-            final String pathString = paths.stream().map(Path::toAbsolutePath).map(Path::toString).collect(Collectors.joining(", "));
-            return new ElasticsearchException(
-                "failed to initialize SSL TrustManager - access to read one or more of the {} files [{}] is blocked;" +
-                    " SSL resources should be placed in the [{}] directory",
-                cause, fileType, pathString, environment.configFile());
-        }
-    }
-
 
     /**
      * A trust configuration that is a combination of a trust configuration with the default JDK trust configuration. This trust

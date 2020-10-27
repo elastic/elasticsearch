@@ -37,14 +37,11 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-
-import static org.mockito.Mockito.when;
 
 public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
@@ -67,9 +64,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         Query rewrittenQuery = indexSearcher.rewrite(termQuery);
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
-        SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), rewrittenQuery, null);
-        when(searchContext.query()).thenReturn(rewrittenQuery);
-        BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(searchContext, false) {
+        BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(rewrittenQuery, indexSearcher, false) {
             @Override
             public ScoreMode scoreMode() {
                 return ScoreMode.COMPLETE;
@@ -88,7 +83,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         }
 
         topDocs = indexSearcher.search(new MatchAllDocsQuery(), numDocs);
-        collector = new BestBucketsDeferringCollector(searchContext, true);
+        collector = new BestBucketsDeferringCollector(rewrittenQuery, indexSearcher, true);
         deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();

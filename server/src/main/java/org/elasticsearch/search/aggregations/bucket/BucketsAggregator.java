@@ -54,7 +54,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private final BigArrays bigArrays;
     private final IntConsumer multiBucketConsumer;
     private LongArray docCounts;
-    protected final FieldBasedDocCountProvider docCountProvider;
+    protected final DocCountProvider docCountProvider;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             CardinalityUpperBound bucketCardinality, Map<String, Object> metadata) throws IOException {
@@ -66,7 +66,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
             multiBucketConsumer = (count) -> {};
         }
         docCounts = bigArrays.newLongArray(1, true);
-        docCountProvider = new FieldBasedDocCountProvider();
+        docCountProvider = new DocCountProvider();
     }
 
     /**
@@ -418,7 +418,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     @Override
     protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
         super.preGetSubLeafCollectors(ctx);
-        // Set LeafReaderContext to the field based doc_count provider
+        // Set LeafReaderContext to the doc_count provider
         docCountProvider.setLeafReaderContext(ctx);
     }
 }

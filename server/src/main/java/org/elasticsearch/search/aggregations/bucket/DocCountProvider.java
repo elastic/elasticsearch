@@ -27,20 +27,13 @@ import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import java.io.IOException;
 
 /**
- * An implementation of a doc_count provider that reads the doc_count value
- * in a doc value field in the document. If a document has no doc_count field
- * the implementation will return 1 as the default value.
+ * An implementation of a doc_count provider that reads the value
+ * of the _doc_count field in the document. If a document does not have a
+ * _doc_count field the implementation will return 1 as the default value.
  */
-public class FieldBasedDocCountProvider {
+public class DocCountProvider {
 
-    private final String docCountFieldName;
     private NumericDocValues docCountValues;
-
-    public FieldBasedDocCountProvider() {
-        // Since we allow a single doc_count field per mapping, we use a constant
-        // canonical name for the Lucene field.
-        this.docCountFieldName = DocCountFieldMapper.NAME;
-    }
 
     public long getDocCount(int doc) throws IOException {
         if (docCountValues != null && docCountValues.advanceExact(doc)) {
@@ -52,7 +45,7 @@ public class FieldBasedDocCountProvider {
 
     public void setLeafReaderContext(LeafReaderContext ctx) {
         try {
-            docCountValues = DocValues.getNumeric(ctx.reader(), docCountFieldName);
+            docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
         } catch (IOException e) {
             docCountValues = null;
         }

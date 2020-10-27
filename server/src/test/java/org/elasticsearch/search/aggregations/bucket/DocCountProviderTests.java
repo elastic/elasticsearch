@@ -40,7 +40,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.singleton;
 
 
-public class FieldBasedDocCountProviderTests extends AggregatorTestCase {
+public class DocCountProviderTests extends AggregatorTestCase {
 
     private static final String DOC_COUNT_FIELD = DocCountFieldMapper.NAME;
     private static final String NUMBER_FIELD = "number";

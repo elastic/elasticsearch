@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.analytics.mapper;
 
 import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.IntArrayList;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.BinaryDocValues;
@@ -21,7 +20,6 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
@@ -53,7 +51,6 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -225,11 +222,6 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
             throw new IllegalArgumentException("[" + CONTENT_TYPE + "] field do not support searching, " +
                 "use dedicated aggregations instead: [" + name() + "]");
         }
-    }
-
-    @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-        analyzerRegistry.accept(name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

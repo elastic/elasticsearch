@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.murmur3;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -44,7 +43,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 public class Murmur3FieldMapper extends ParametrizedFieldMapper {
@@ -132,10 +130,6 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
     }
 
     @Override

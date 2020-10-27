@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.function.BiConsumer;
+import java.util.Map;
 
 public class DocumentFieldMapperTests extends LuceneTestCase {
 
@@ -94,8 +94,8 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
-        public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-            analyzerRegistry.accept(name(), new FakeAnalyzer(indexedValue));
+        public Map<String, Analyzer> indexAnalyzers() {
+            return Collections.singletonMap(name(), new FakeAnalyzer(indexedValue));
         }
 
         @Override

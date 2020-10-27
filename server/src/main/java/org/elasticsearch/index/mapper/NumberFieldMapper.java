@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
@@ -38,7 +37,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -60,7 +58,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -1041,12 +1038,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     @Override
     public NumberFieldType fieldType() {
         return (NumberFieldType) super.fieldType();
-    }
-
-    @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-        // allows number fields in significant text aggs - do we need this?
-        analyzerRegistry.accept(name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

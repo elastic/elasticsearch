@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -54,7 +52,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
@@ -456,11 +453,6 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         public Object getTo() {
             return to;
         }
-    }
-
-    @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-        analyzerRegistry.accept(name(), Lucene.KEYWORD_ANALYZER);
     }
 
     static class BinaryRangesDocValuesField extends CustomDocValuesField {

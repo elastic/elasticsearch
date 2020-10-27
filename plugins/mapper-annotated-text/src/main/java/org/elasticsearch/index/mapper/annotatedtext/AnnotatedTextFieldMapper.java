@@ -50,11 +50,11 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -521,8 +521,8 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-        analyzerRegistry.accept(name(), analyzer);
+    public Map<String, Analyzer> indexAnalyzers() {
+        return Collections.singletonMap(name(), analyzer);
     }
 
     @Override

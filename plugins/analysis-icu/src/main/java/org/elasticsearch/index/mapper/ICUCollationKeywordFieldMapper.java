@@ -49,7 +49,6 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
@@ -437,8 +436,8 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-        analyzerRegistry.accept(name(), Lucene.KEYWORD_ANALYZER);
+    public Map<String, Analyzer> indexAnalyzers() {
+        return Collections.singletonMap(name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

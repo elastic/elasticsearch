@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.PointBuilder;
@@ -34,7 +33,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.BiConsumer;
 
 /**
  * This mapper add a new sub fields
@@ -177,11 +175,6 @@ public class ExternalMapper extends ParametrizedFieldMapper {
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), generatedValue, mapperName);
-    }
-
-    @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-
     }
 
     @Override

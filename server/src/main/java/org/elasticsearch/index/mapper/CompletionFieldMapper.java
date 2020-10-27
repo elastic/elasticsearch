@@ -55,7 +55,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 /**
  * Mapper for completion field. The field values are indexed as a weighted FST for
@@ -327,8 +326,8 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-        analyzerRegistry.accept(name(), analyzer);
+    public Map<String, Analyzer> indexAnalyzers() {
+        return Collections.singletonMap(name(), analyzer);
     }
 
     int getMaxInputLength() {

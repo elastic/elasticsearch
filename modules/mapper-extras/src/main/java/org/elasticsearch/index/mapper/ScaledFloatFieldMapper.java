@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
@@ -54,7 +53,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
@@ -312,10 +310,6 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
     }
 
     @Override

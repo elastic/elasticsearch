@@ -43,7 +43,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -351,8 +350,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-        analyzerRegistry.accept(name(), fieldType().normalizer());
+    public Map<String, Analyzer> indexAnalyzers() {
+        return Collections.singletonMap(name(), fieldType().normalizer);
     }
 
     @Override

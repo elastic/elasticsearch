@@ -60,7 +60,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType.hasGaps;
@@ -419,8 +418,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-            analyzerRegistry.accept(name(), analyzer);
+        public Map<String, Analyzer> indexAnalyzers() {
+            return Collections.singletonMap(name(), analyzer);
         }
 
         @Override
@@ -453,8 +452,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-            analyzerRegistry.accept(name(), analyzer);
+        public Map<String, Analyzer> indexAnalyzers() {
+            return Collections.singletonMap(name(), analyzer);
         }
 
         @Override
@@ -592,8 +591,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-        analyzerRegistry.accept(name(), analyzer);
+    public Map<String, Analyzer> indexAnalyzers() {
+        return Collections.singletonMap(name(), analyzer);
     }
 
     @Override

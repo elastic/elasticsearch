@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -46,7 +45,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -236,11 +234,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
     @Override
     public ConstantKeywordFieldType fieldType() {
         return (ConstantKeywordFieldType) super.fieldType();
-    }
-
-    @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-
     }
 
     @Override

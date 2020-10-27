@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteArrayDataOutput;
@@ -43,7 +42,6 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 public class BinaryFieldMapper extends ParametrizedFieldMapper {
@@ -193,11 +191,6 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-
     }
 
     public static class CustomBinaryDocValuesField extends CustomDocValuesField {

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -47,7 +46,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -492,9 +490,6 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
             createFieldNamesField(context);
         }
     }
-
-    @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {}
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {

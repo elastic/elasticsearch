@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.vectors.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -25,7 +24,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * A {@link FieldMapper} for indexing a sparse vector of floats.
@@ -134,10 +132,6 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
     }
 
     @Override

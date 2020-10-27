@@ -102,7 +102,7 @@ public final class MappingLookup implements Iterable<Mapper> {
             if (fieldMappers.put(mapper.name(), mapper) != null) {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined more than once");
             }
-            mapper.registerIndexAnalyzer(indexAnalyzers::put);
+            indexAnalyzers.putAll(mapper.indexAnalyzers());
         }
         this.metadataFieldCount = metadataFieldCount;
 

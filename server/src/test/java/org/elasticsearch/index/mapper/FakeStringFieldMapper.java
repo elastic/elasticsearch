@@ -29,7 +29,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.Map;
 
 // Like a String mapper but with very few options. We just use it to test if highlighting on a custom string mapped field works as expected.
 public class FakeStringFieldMapper extends ParametrizedFieldMapper {
@@ -88,8 +88,8 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-        analyzerRegistry.accept(name(), Lucene.STANDARD_ANALYZER);
+    public Map<String, Analyzer> indexAnalyzers() {
+        return Collections.singletonMap(name(), Lucene.STANDARD_ANALYZER);
     }
 
     @Override

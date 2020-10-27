@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.BiConsumer;
 import java.util.stream.StreamSupport;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
@@ -468,7 +467,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected abstract String contentType();
 
-    public abstract void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry);
+    public Map<String, Analyzer> indexAnalyzers() {
+        return Collections.emptyMap();
+    }
 
     public static class MultiFields implements Iterable<Mapper> {
 

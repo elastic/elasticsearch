@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -59,7 +58,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -626,11 +624,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         if (store) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
-    }
-
-    @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-
     }
 
     public boolean getIgnoreMalformed() {

@@ -78,11 +78,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
@@ -590,11 +590,6 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         protected String contentType() {
             return "phrase";
         }
-
-        @Override
-        public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-            analyzerRegistry.accept(name(), analyzer);
-        }
     }
 
     private static final class PrefixFieldMapper extends FieldMapper {
@@ -618,11 +613,6 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
-        }
-
-        @Override
-        public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-            analyzerRegistry.accept(name(), analyzer);
         }
 
         @Override
@@ -929,8 +919,16 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public void registerIndexAnalyzer(BiConsumer<String, Analyzer> analyzerRegistry) {
-        analyzerRegistry.accept(name(), builder.analyzers.getIndexAnalyzer());
+    public Map<String, Analyzer> indexAnalyzers() {
+        Map<String, Analyzer> analyzers = new HashMap<>();
+        analyzers.put(name(), builder.analyzers.getIndexAnalyzer());
+        if (phraseFieldMapper != null) {
+            analyzers.put(phraseFieldMapper.name(), phraseFieldMapper.analyzer);
+        }
+        if (prefixFieldMapper != null) {
+            analyzers.put(prefixFieldMapper.name(), prefixFieldMapper.analyzer);
+        }
+        return analyzers;
     }
 
     public static Query createPhraseQuery(TokenStream stream, String field, int slop, boolean enablePositionIncrements) throws IOException {

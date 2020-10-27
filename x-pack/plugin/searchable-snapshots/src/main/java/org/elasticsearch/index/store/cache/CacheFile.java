@@ -47,15 +47,11 @@ public class CacheFile {
      * Reference counter that counts the number of eviction listeners referencing this cache file plus the number of open file channels
      * for it. Once this instance has been evicted, all listeners notified and all {@link FileChannelReference} for it released,
      * it makes sure to delete the physical file backing this cache.
-     * Once peculiarity of this reference counter is that it may only be decremented when holding the lock for {@link #listeners} to make
-     * sure that we get a consistent view of the ref counts and the filesystem state for assertions in {@link #invariant()}.
      */
     private final AbstractRefCounted refCounter = new AbstractRefCounted("CacheFile") {
         @Override
         protected void closeInternal() {
-            assert Thread.holdsLock(listeners);
-            assert listeners.isEmpty();
-            assert channelRef == null;
+            assert assertNoPendingListeners();
             try {
                 Files.deleteIfExists(file);
             } catch (IOException e) {
@@ -99,9 +95,7 @@ public class CacheFile {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } finally {
-                synchronized (listeners) {
-                    refCounter.decRef();
-                }
+                decrementRefCount();
             }
         }
     }
@@ -116,7 +110,6 @@ public class CacheFile {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.description = Objects.requireNonNull(description);
         this.file = Objects.requireNonNull(file);
-        assert invariant();
     }
 
     public long getLength() {
@@ -153,16 +146,13 @@ public class CacheFile {
                 success = true;
             } finally {
                 if (success == false) {
-                    synchronized (listeners) {
-                        refCounter.decRef();
-                    }
+                    decrementRefCount();
                 }
             }
         } else {
             assert evicted.get();
             throwAlreadyEvicted();
         }
-        assert invariant();
     }
 
     public void release(final EvictionListener listener) {
@@ -185,12 +175,22 @@ public class CacheFile {
             success = true;
         } finally {
             if (success) {
-                synchronized (listeners) {
-                    refCounter.decRef();
-                }
+                decrementRefCount();
             }
         }
-        assert invariant();
+    }
+
+    private boolean assertNoPendingListeners() {
+        synchronized (listeners) {
+            assert listeners.isEmpty();
+            assert channelRef == null;
+        }
+        return true;
+    }
+
+    private void decrementRefCount() {
+        final boolean released = refCounter.decRef();
+        assert released == false || Files.notExists(file);
     }
 
     /**
@@ -201,26 +201,10 @@ public class CacheFile {
             final Set<EvictionListener> evictionListeners;
             synchronized (listeners) {
                 evictionListeners = new HashSet<>(listeners);
-                refCounter.decRef();
             }
+            decrementRefCount();
             evictionListeners.forEach(listener -> listener.onEviction(this));
         }
-        assert invariant();
-    }
-
-    private boolean invariant() {
-        synchronized (listeners) {
-            if (listeners.isEmpty()) {
-                assert channelRef == null;
-                assert evicted.get() == false || refCounter.refCount() != 0 || Files.notExists(file);
-            } else {
-                assert channelRef != null;
-                assert refCounter.refCount() > 0;
-                assert channelRef.refCount() > 0;
-                assert Files.exists(file);
-            }
-        }
-        return true;
     }
 
     @Override

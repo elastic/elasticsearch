@@ -60,7 +60,6 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     private final IndicesFieldDataCache indicesFieldDataCache;
     // the below map needs to be modified under a lock
     private final Map<String, IndexFieldDataCache> fieldDataCaches = new HashMap<>();
-    private final MapperService mapperService;
     private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {
         @Override
         public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
@@ -74,11 +73,10 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
 
 
     public IndexFieldDataService(IndexSettings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
-                                 CircuitBreakerService circuitBreakerService, MapperService mapperService) {
+                                 CircuitBreakerService circuitBreakerService) {
         super(indexSettings);
         this.indicesFieldDataCache = indicesFieldDataCache;
         this.circuitBreakerService = circuitBreakerService;
-        this.mapperService = mapperService;
     }
 
     public synchronized void clear() {

@@ -279,12 +279,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.bigArrays()).thenReturn(bigArrays);
 
         // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
-        MapperService mapperService = mapperServiceMock();
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-        MapperService.Snapshot mapperSnapshot = mock(MapperService.Snapshot.class);
+        MapperService.Snapshot mapperSnapshot = mapperSnapshotMock();
         IndexFieldDataService ifds = new IndexFieldDataService(indexSettings,
             new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
-            }), circuitBreakerService, mapperService);
+            }), circuitBreakerService);
         QueryShardContext queryShardContext =
             queryShardContextMock(contextIndexSearcher, mapperSnapshot, indexSettings, circuitBreakerService, bigArrays);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
@@ -327,8 +325,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * sub-tests that need a more complex mock can overwrite this
      */
-    protected MapperService mapperServiceMock() {
-        return mock(MapperService.class);
+    protected MapperService.Snapshot mapperSnapshotMock() {
+        return mock(MapperService.Snapshot.class);
     }
 
     /**

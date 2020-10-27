@@ -274,16 +274,16 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected MapperService mapperServiceMock() {
+    protected MapperService.Snapshot mapperSnapshotMock() {
         ParentJoinFieldMapper joinFieldMapper = createJoinFieldMapper();
-        MapperService mapperService = mock(MapperService.class);
+        MapperService.Snapshot mapperSnapshot = mock(MapperService.Snapshot.class);
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
         when(metaJoinFieldType.getJoinField()).thenReturn("join_field");
-        when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
-        when(mapperService.fieldType("join_field")).thenReturn(joinFieldMapper.fieldType());
-        when(mapperService.fieldType("join_field#" + PARENT_TYPE))
+        when(mapperSnapshot.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
+        when(mapperSnapshot.fieldType("join_field")).thenReturn(joinFieldMapper.fieldType());
+        when(mapperSnapshot.fieldType("join_field#" + PARENT_TYPE))
             .thenReturn(new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false));
-        return mapperService;
+        return mapperSnapshot;
     }
 
     private static ParentJoinFieldMapper createJoinFieldMapper() {

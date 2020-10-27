@@ -494,7 +494,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         }
     }
 
-    private TestIndexContext testIndex(MapperService mapperService, Client client) throws IOException {
+    private TestIndexContext testIndex(MapperService.Snapshot mapperSnapshot, Client client) throws IOException {
         TestIndexContext context = null;
 
         final long nowInMillis = randomNonNegativeLong();
@@ -522,7 +522,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             final LeafReaderContext leaf = directoryReader.leaves().get(0);
 
             final QueryShardContext shardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, mapperService.snapshot(), null, null, xContentRegistry(), writableRegistry(),
+                null, null, mapperSnapshot, null, null, xContentRegistry(), writableRegistry(),
                 client, new IndexSearcher(directoryReader), () -> nowInMillis, null, null, () -> true, null);
 
             context = new TestIndexContext(directory, iw, directoryReader, shardContext, leaf);
@@ -543,8 +543,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     private void runTestOnIndices(int numberIndices, CheckedConsumer<List<TestIndexContext>, Exception> body) throws Exception {
-        final MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType(Mockito.anyString())).thenAnswer(invocation -> {
+        final MapperService.Snapshot mapperSnapshot = mock(MapperService.Snapshot.class);
+        when(mapperSnapshot.fieldType(Mockito.anyString())).thenAnswer(invocation -> {
             final String fieldName = (String) invocation.getArguments()[0];
             if (fieldName.equals(MISSING_FIELD_NAME)) {
                 return null;
@@ -559,7 +559,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         final List<TestIndexContext> context = new ArrayList<>(numberIndices);
         try {
             for (int i = 0; i < numberIndices; i++) {
-                context.add(testIndex(mapperService, client));
+                context.add(testIndex(mapperSnapshot, client));
             }
 
             body.accept(context);

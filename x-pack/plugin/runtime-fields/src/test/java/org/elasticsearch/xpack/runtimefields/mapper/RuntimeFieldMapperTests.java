@@ -322,7 +322,7 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
         IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(build).build(), Settings.EMPTY);
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
+        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService);
         IndexSortConfig config = indexSettings.getIndexSortConfig();
         assertTrue(config.hasIndexSort());
         IllegalArgumentException iae = expectThrows(

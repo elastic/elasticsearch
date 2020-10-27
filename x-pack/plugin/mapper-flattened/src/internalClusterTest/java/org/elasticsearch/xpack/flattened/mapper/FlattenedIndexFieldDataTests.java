@@ -49,8 +49,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
-            indicesService.getCircuitBreakerService(),
-            indexService.mapperService());
+            indicesService.getCircuitBreakerService());
 
         Mapper.BuilderContext ctx = new Mapper.BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("json").build(ctx);

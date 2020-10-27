@@ -33,6 +33,7 @@ configure this setting, then the node has the following roles by default:
 * `ingest`
 * `ml`
 * `remote_cluster_client`
+* `transform`
 
 NOTE: If you set `node.roles`, the node is assigned only the roles you specify.
 

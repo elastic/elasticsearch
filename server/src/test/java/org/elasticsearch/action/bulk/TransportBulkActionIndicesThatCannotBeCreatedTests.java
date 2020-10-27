@@ -19,20 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
-import java.util.function.Function;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -60,6 +46,20 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCase {
     private static final Consumer<String> noop = index -> {};

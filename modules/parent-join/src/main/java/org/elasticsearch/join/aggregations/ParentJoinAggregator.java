@@ -119,7 +119,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
 
     @Override
     protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {
-        IndexReader indexReader = context().searcher().getIndexReader();
+        IndexReader indexReader = searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
             Scorer childDocsScorer = outFilter.scorer(ctx);
             if (childDocsScorer == null) {
@@ -196,7 +196,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         private final BitArray ordsBits;
 
         public DenseCollectionStrategy(long maxOrd, BigArrays bigArrays) {
-            ordsBits = new BitArray(maxOrd, context.bigArrays());
+            ordsBits = new BitArray(maxOrd, bigArrays());
         }
 
         @Override

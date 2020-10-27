@@ -44,6 +44,7 @@ if (BuildParams.inFipsJvm) {
           }
         }
         testClusters.all {
+          setTestDistribution("default")
           extraConfigFile "fips_java.security", fipsSecurity
           extraConfigFile "fips_java.policy", fipsPolicy
           extraConfigFile "cacerts.bcfks", fipsTrustStore

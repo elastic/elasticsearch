@@ -13,7 +13,7 @@ dependencies {
 testClusters.integTest {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
-  keystorePassword 's3cr3t'
+  keystorePassword 'keystore-password'
 
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.anonymous.roles', 'anonymous'

@@ -117,6 +117,7 @@ testClusters.all {
   setting 'xpack.license.self_generated.type', 'trial'
   // disable ILM history, since it disturbs tests using _all
   setting 'indices.lifecycle.history_index_enabled', 'false'
+  keystorePassword 'keystore-password'
   keystore 'bootstrap.password', 'x-pack-test-password'
   keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 

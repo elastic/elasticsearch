@@ -845,7 +845,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             Integer remotePort = host.getPort();
             String remoteHost = host.getHostName();
             String user = "test_user";
-            String password = "test-password";
+            String password = "test-user-password";
 
             // tag::reindex-request-remote
             request.setRemoteInfo(

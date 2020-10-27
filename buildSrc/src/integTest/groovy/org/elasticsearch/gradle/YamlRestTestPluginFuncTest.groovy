@@ -33,7 +33,7 @@ class YamlRestTestPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result = gradleRunner("yamlRestTest", '-i').build()
+        def result = gradleRunner("yamlRestTest").build()
 
         then:
         result.task(':yamlRestTest').outcome == TaskOutcome.NO_SOURCE
@@ -57,7 +57,7 @@ class YamlRestTestPluginFuncTest extends AbstractGradleFuncTest {
         }
         """
         when:
-        def result = gradleRunner("yamlRestTest", '-i').build()
+        def result = gradleRunner("yamlRestTest").build()
 
         then:
         result.task(':yamlRestTest').outcome == TaskOutcome.NO_SOURCE //no Java classes in source set

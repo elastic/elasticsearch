@@ -73,11 +73,9 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         SourceSet yamlTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME);
         GradleUtils.extendSourceSet(project, YamlRestTestPlugin.SOURCE_SET_NAME, SOURCE_SET_NAME);
 
-        // create the test cluster container, and use the default distribution. System property is only used to help test this plugin.
+        // create the test cluster container, and always use the default distribution
         ElasticsearchCluster testCluster = createTestCluster(project, yamlCompatTestSourceSet);
-        if (Boolean.TRUE.equals(Boolean.parseBoolean(System.getProperty("tests.rest.compat.use.default.distro", "true")))) {
-            testCluster.setTestDistribution(TestDistribution.DEFAULT);
-        }
+        testCluster.setTestDistribution(TestDistribution.DEFAULT);
 
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create("bwcMinor");

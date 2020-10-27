@@ -42,7 +42,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result = gradleRunner("yamlRestCompatTest", '-i').build()
+        def result = gradleRunner("yamlRestCompatTest").build()
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
@@ -56,9 +56,6 @@ class YamlRestCompatTestPluginFuncTest extends AbstractGradleFuncTest {
         String test = "wrongversion.yml"
         setupInternalRestResources(api, test)
 
-        //don't use default distro from here since it requires resolving OS specific project and don't want to create the mock projects
-        System.setProperty("tests.rest.compat.use.default.distro", "false");
-
         addSubProject(":distribution:bwc:minor") <<  """
         configurations { checkout }
         artifacts {
@@ -70,10 +67,16 @@ class YamlRestCompatTestPluginFuncTest extends AbstractGradleFuncTest {
         file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/foo/10_basic.yml") << ""
         file("distribution/bwc/minor/checkoutDir/rest-api-spec/src/main/resources/rest-api-spec/api/foo.json") << ""
 
-        buildFile << " apply plugin: 'elasticsearch.yaml-rest-compat-test'"
+        buildFile << """
+          apply plugin: 'elasticsearch.yaml-rest-compat-test'
+          import org.elasticsearch.gradle.testclusters.TestDistribution;
+          testClusters {
+            yamlRestCompatTest.setTestDistribution(TestDistribution.INTEG_TEST)
+          }
+        """
 
         when:
-        def result = gradleRunner("yamlRestCompatTest", '-i').build()
+        def result = gradleRunner("yamlRestCompatTest").build()
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE //no Java classes in source set

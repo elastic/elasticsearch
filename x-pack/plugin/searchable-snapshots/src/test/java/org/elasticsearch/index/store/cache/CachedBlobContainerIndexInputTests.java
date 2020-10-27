@@ -301,7 +301,6 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
         private final CountingBlobContainer container;
 
-        private long bytesRead = 0L;
         private long position = 0L;
         private long start = Long.MAX_VALUE;
         private long end = Long.MIN_VALUE;
@@ -322,7 +321,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             if (result == -1) {
                 return result;
             }
-            bytesRead += 1L;
+            this.container.totalBytes.increment();
             position += 1L;
 
             if (position > end) {
@@ -338,19 +337,13 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             }
 
             final int result = in.read(b, offset, len);
-            bytesRead += len;
+            this.container.totalBytes.add(len);
             position += len;
 
             if (position > end) {
                 end = position;
             }
             return result;
-        }
-
-        @Override
-        public void close() throws IOException {
-            in.close();
-            this.container.totalBytes.add(bytesRead);
         }
     }
 }

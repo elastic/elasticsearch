@@ -173,10 +173,6 @@ public class MetadataMigrateToDataStreamService {
             throw new IllegalArgumentException("backing index [" + im.getIndex().getName() + "] must have mappings for a timestamp field");
         }
 
-        //im.toXContent(null, Params)
-            //mm.source().uncompressed().toString();
-
-
         MapperService mapperService = mapperSupplier.apply(im);
         mapperService.merge(im, MapperService.MergeReason.MAPPING_RECOVERY);
         mapperService.merge("_doc", Map.of("_data_stream_timestamp", Map.of("enabled", true)), MapperService.MergeReason.MAPPING_UPDATE);

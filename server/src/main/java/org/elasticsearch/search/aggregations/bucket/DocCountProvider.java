@@ -43,11 +43,7 @@ public class DocCountProvider {
         }
     }
 
-    public void setLeafReaderContext(LeafReaderContext ctx) {
-        try {
-            docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
-        } catch (IOException e) {
-            docCountValues = null;
-        }
+    public void setLeafReaderContext(LeafReaderContext ctx) throws IOException {
+        docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
     }
 }

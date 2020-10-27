@@ -63,7 +63,7 @@ public class RestTable {
             return XContentType.fromFormat(request.param("format"));
         }
         if(request.getParsedAccept() != null){
-            request.getParsedAccept().toMediaType(XContentType.mediaTypeRegistry);
+            return request.getParsedAccept().toMediaType(XContentType.mediaTypeRegistry);
         }
         return null;
     }

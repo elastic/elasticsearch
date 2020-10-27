@@ -106,7 +106,8 @@ public class ParsedMediaType {
             }
             return type;
         }
-        throw new IllegalArgumentException("Unknown media type "+mimeTypeWithoutParams());
+        return null;
+        //throw new IllegalArgumentException("Unknown media type "+mimeTypeWithoutParams());
     }
 
     private boolean isValidParameter(String paramName, String value, Map<String, Pattern> registeredParams) {

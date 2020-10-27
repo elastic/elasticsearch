@@ -1899,10 +1899,13 @@ public class RestHighLevelClient implements Closeable {
         if (entity.getContentType() == null) {
             throw new IllegalStateException("Elasticsearch didn't return the [Content-Type] header, unable to parse response body");
         }
-        XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
-        if (xContentType == null) {
-            throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
+        XContentType xContentType;
+        try {
+            xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue(), e);
         }
+
         try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
             return entityParser.apply(parser);
         }

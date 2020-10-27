@@ -49,8 +49,10 @@ public class SqlMediaTypeParser {
             return validateColumnarRequest(sqlRequest.columnar(), mediaTypeRegistry.formatToMediaType(request.param(URL_PARAM_FORMAT)));
         }
 
-        return request.getParsedAccept()
-            .toMediaType(mediaTypeRegistry);
+        if(request.getParsedAccept() != null) {
+            return request.getParsedAccept().toMediaType(mediaTypeRegistry);
+        }
+        return request.getXContentType();
     }
 
     private static MediaType validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType) {

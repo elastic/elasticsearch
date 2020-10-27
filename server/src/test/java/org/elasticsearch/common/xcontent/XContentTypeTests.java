@@ -90,10 +90,10 @@ public class XContentTypeTests extends ESTestCase {
     }
 
     public void testFromRubbish() throws Exception {
-        expectThrows(IllegalArgumentException.class, ()-> XContentType.fromMediaType(null));
-        expectThrows(IllegalArgumentException.class, ()-> XContentType.fromMediaType(""));
-        expectThrows(IllegalArgumentException.class, ()-> XContentType.fromMediaType("text/plain"));
-        expectThrows(IllegalArgumentException.class, ()-> XContentType.fromMediaType("gobbly;goop"));
+        assertThat(XContentType.fromMediaType(null), nullValue());
+        assertThat(XContentType.fromMediaType(""), nullValue());
+        assertThat(XContentType.fromMediaType("text/plain"), nullValue());
+        assertThat(XContentType.fromMediaType("gobbly;goop"), nullValue());
     }
 
     public void testVersionedMediaType() {
@@ -148,7 +148,8 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.parseVersion("application/json; sth=123"),
             is(nullValue()));    }
 
-// this use case probably won't be needed. application/json does not enforce compatible-with param validation. Most likely application/json will be removed.
+// this use case probably won't be needed. application/json does not enforce compatible-with param validation.
+// Most likely application/json will be removed.
 //    public void testMediaTypeWithoutESSubtype() {
 //        String version = String.valueOf(randomNonNegativeByte());
 //        assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version), nullValue());

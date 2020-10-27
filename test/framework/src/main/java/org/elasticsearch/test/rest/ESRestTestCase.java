@@ -961,6 +961,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (System.getProperty("tests.rest.client_path_prefix") != null) {
             builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client_path_prefix"));
         }
+        builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client_path_prefix"));
+//        builder.put(ThreadContext.PREFIX + ".Accept", "application/json");
         return builder.build();
     }
 

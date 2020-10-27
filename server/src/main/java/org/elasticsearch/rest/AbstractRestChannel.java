@@ -104,8 +104,12 @@ public abstract class AbstractRestChannel implements RestChannel {
             if (Strings.hasText(format)) {
                 responseContentType = XContentType.fromFormat(format);
             }
-            if (responseContentType == null && Strings.hasText(acceptHeader)) {
-                responseContentType = XContentType.fromMediaType(acceptHeader);
+            if (responseContentType == null && Strings.hasText(acceptHeader) ) {
+                if(acceptHeader.equals("/*")){
+                    requestContentType = null;
+                }else{
+                    responseContentType = XContentType.fromMediaType(acceptHeader);
+                }
             }
         }
         // try to determine the response content type from the media type or the format query string parameter, with the format parameter

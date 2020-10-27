@@ -43,8 +43,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     }
 
     /**
-     * @param fieldName The name of the field.
-     * @param mapperService A mapper service.
+     * @param sourcePaths The paths in the source to read.
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
     public ArraySourceValueFetcher(Set<String> sourcePaths, Object nullValue) {

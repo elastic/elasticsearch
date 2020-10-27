@@ -40,16 +40,14 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     private final @Nullable Object nullValue;
 
     /**
-     * @param fieldName The name of the field.
-     * @param sourcePaths The path to the field in the _source.
+     * @param sourcePaths The paths in the source to read.
      */
     public SourceValueFetcher(Set<String> sourcePaths) {
         this(sourcePaths, null);
     }
 
     /**
-     * @param fieldName The name of the field.
-     * @param sourcePaths The path to the field in the _source.
+     * @param sourcePaths The paths in the source to read.
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
     public SourceValueFetcher(Set<String> sourcePaths, @Nullable Object nullValue) {

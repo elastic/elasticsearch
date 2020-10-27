@@ -62,7 +62,10 @@ public class RestTable {
         if (request.hasParam("format")) {
             return XContentType.fromFormat(request.param("format"));
         }
-        return XContentType.fromMediaType(request.header("Accept"));
+        if(request.getParsedAccept() != null){
+            request.getParsedAccept().toMediaType(XContentType.mediaTypeRegistry);
+        }
+        return null;
     }
 
     public static RestResponse buildXContentBuilder(Table table, RestChannel channel) throws Exception {

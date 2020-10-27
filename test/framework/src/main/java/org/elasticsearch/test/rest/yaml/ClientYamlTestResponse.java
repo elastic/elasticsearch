@@ -45,7 +45,7 @@ public class ClientYamlTestResponse {
 
     private final Response response;
     private final byte[] body;
-    private final XContentType bodyContentType;
+    private XContentType bodyContentType;
     private ObjectPath parsedResponse;
     private String bodyAsString;
 
@@ -54,7 +54,7 @@ public class ClientYamlTestResponse {
         if (response.getEntity() != null) {
             String contentType = response.getHeader("Content-Type");
             //todo pg this does not know about sql media types. relies on null
-            this.bodyContentType = XContentType.fromMediaType(contentType);
+            this.bodyContentType = getContentTypeIgnoreExceptions(contentType);
             try {
                 byte[] bytes = EntityUtils.toByteArray(response.getEntity());
                 //skip parsing if we got text back (e.g. if we called _cat apis)
@@ -69,6 +69,14 @@ public class ClientYamlTestResponse {
         } else {
             this.body = null;
             this.bodyContentType = null;
+        }
+    }
+
+    private XContentType getContentTypeIgnoreExceptions(String contentType) {
+        try{
+            return XContentType.fromMediaType(contentType);
+        }catch (IllegalArgumentException e){
+            return null;
         }
     }
 

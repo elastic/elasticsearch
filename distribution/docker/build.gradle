@@ -93,8 +93,8 @@ RUN curl --retry 8 -S -L \\
  * This filter squashes long runs of newlines so that the output
  * is a little more aesthetically pleasing.
  */
-class MarkdownFilter extends FilterReader {
-  MarkdownFilter(Reader input) {
+class SquashNewlinesFilter extends FilterReader {
+  SquashNewlinesFilter(Reader input) {
     super(new StringReader(input.text.replaceAll("\n{2,}", "\n\n")))
   }
 }
@@ -138,7 +138,7 @@ project.ext {
         }
 
         into('config') {
-          // Oss and default distribution can have different configuration, therefore we want to
+          // The OSS and default distribution can have different configuration, therefore we want to
           // allow overriding the default configuration by creating config files in oss or default
           // build-context sub-modules.
           duplicatesStrategy = DuplicatesStrategy.INCLUDE
@@ -151,7 +151,7 @@ project.ext {
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
         expand(varExpansions)
-        filter MarkdownFilter
+        filter SquashNewlinesFilter
       }
     }
   }

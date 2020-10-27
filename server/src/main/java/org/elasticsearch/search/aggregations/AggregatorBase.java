@@ -50,7 +50,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     protected final String name;
     protected final Aggregator parent;
-    private final SearchContext context;
+    protected final SearchContext context;
     private final Map<String, Object> metadata;
 
     protected final Aggregator[] subAggregators;

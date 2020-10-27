@@ -184,14 +184,14 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
             .setQuery(
                 boolQuery().must(termQuery("userid", 880)).filter(
-                    geoDistanceQuery("location").point(60.0, 120.0).distance(10000, DistanceUnit.MILES))
+                    geoDistanceQuery("location").point(20, 60.0).distance(500, DistanceUnit.MILES))
             ).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         searchResponse = client().prepareSearch()
             .setQuery(
                 boolQuery().must(termQuery("userid", 534)).filter(
-                    geoDistanceQuery("location").point(60.0, 120.0).distance(10000, DistanceUnit.MILES))
+                    geoDistanceQuery("location").point(45.0, -73.0).distance(500, DistanceUnit.MILES))
             ).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
@@ -268,14 +268,9 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
         // Distance query
         searchResponse = client().prepareSearch()
             .setQuery(
-                geoDistanceQuery("location").point(0.0, 0.0).distance(5000, DistanceUnit.MILES)
+                geoDistanceQuery("location").point(60.0, -20.0).distance(1800, DistanceUnit.MILES)
             ).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        searchResponse = client().prepareSearch()
-            .setQuery(
-                geoDistanceQuery("location").point(0.0, 0.0).distance(5500, DistanceUnit.MILES)
-            ).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
     }
 }
 

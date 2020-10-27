@@ -114,7 +114,6 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             } else {
                 out.writeBoolean(false);
             }
-
             if (deciders != null) {
                 out.writeBoolean(true);
                 out.writeNamedWriteableList(deciders.values().stream().collect(Collectors.toUnmodifiableList()));

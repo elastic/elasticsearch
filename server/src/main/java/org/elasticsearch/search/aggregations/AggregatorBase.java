@@ -19,10 +19,13 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -47,7 +50,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     protected final String name;
     protected final Aggregator parent;
-    protected final SearchContext context;
+    private final SearchContext context;
     private final Map<String, Object> metadata;
 
     protected final Aggregator[] subAggregators;
@@ -119,7 +122,7 @@ public abstract class AggregatorBase extends Aggregator {
      * @param config The config for the values source metric.
      */
     public final Function<byte[], Number> pointReaderIfAvailable(ValuesSourceConfig config) {
-        if (context.query() != null && context.query().getClass() != MatchAllDocsQuery.class) {
+        if (topLevelQuery() != null && topLevelQuery().getClass() != MatchAllDocsQuery.class) {
             return null;
         }
         if (parent != null) {
@@ -241,14 +244,6 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * @return  The current aggregation context.
-     */
-    @Override
-    public SearchContext context() {
-        return context;
-    }
-
-    /**
      * Called after collection of all document is done.
      * <p>
      * Warning: this is not final only to allow the parent join aggregator
@@ -291,5 +286,35 @@ public abstract class AggregatorBase extends Aggregator {
     @Override
     public String toString() {
         return name;
+    }
+
+    /**
+     * Utilities for sharing large primitive arrays and tracking their usage.
+     * Used by all subclasses.
+     */
+    protected final BigArrays bigArrays() {
+        return context.bigArrays();
+    }
+
+    /**
+     * The "top level" query that will filter the results sent to this
+     * {@linkplain Aggregator}. Used by all {@linkplain Aggregator}s that
+     * perform extra collection phases in addition to the one done in
+     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector)}.
+     */
+    protected final Query topLevelQuery() {
+        return context.query();
+    }
+
+    /**
+     * The searcher for the shard this {@linkplain Aggregator} is running
+     * against. Used by all {@linkplain Aggregator}s that perform extra
+     * collection phases in addition to the one done in
+     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector)}
+     * and by to look up extra "background" information about contents of
+     * the shard itself.
+     */
+    protected final IndexSearcher searcher() {
+        return context.searcher();
     }
 }

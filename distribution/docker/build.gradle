@@ -47,10 +47,7 @@ ext.expansions = { Architecture architecture, boolean oss, DockerBase base, bool
     classifier = "linux-\$(arch)"
   }
 
-  final String elasticsearch = "elasticsearch-" +
-    (oss ? 'oss-' : '') +
-    "${VersionProperties.elasticsearch}-${classifier}.tar" +
-    '.gz'
+  final String elasticsearch = "elasticsearch-${oss ? 'oss-' : ''}$VersionProperties.elasticsearch-${classifier}.tar.gz"
 
   String buildArgs = '#'
   if (base == DockerBase.IRON_BANK) {
@@ -67,7 +64,7 @@ ARG BASE_TAG=8.2
    * architecture. */
   String sourceElasticsearch
   if (local || base == DockerBase.IRON_BANK) {
-    sourceElasticsearch = "COPY ${elasticsearch} /opt/elasticsearch.tar.gz"
+    sourceElasticsearch = "COPY $elasticsearch /opt/elasticsearch.tar.gz"
   } else {
     sourceElasticsearch = """
 RUN curl --retry 8 -S -L \\
@@ -84,7 +81,7 @@ RUN curl --retry 8 -S -L \\
     'config_dir'          : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'        : BuildParams.gitRevision,
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
-    'package_manager'     : base == DockerBase.IRON_BANK ? 'microdnf' : 'yum',
+    'package_manager'     : base == DockerBase.UBI ? 'microdnf' : 'yum',
     'source_elasticsearch': sourceElasticsearch,
     'docker_base'         : base.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch,

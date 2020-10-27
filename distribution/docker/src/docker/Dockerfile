@@ -56,7 +56,8 @@ FROM ${base_image} AS builder
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
-COPY tini /tini
+COPY tini /bin/tini
+RUN chmod 0755 /bin/tini
 
 <% } else { %>
 
@@ -305,7 +306,7 @@ RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
-COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # 1. The JDK's directories' permissions don't allow `java` to be executed under a different
 #    group to the default. Fix this.
@@ -339,7 +340,7 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
 
-<% if (docker_base == 'ubi') { %>
+<% if (docker_base == 'ubi' || docker_base == 'iron_bank') { %>
 LABEL name="Elasticsearch" \\
   maintainer="infra@elastic.co" \\
   vendor="Elastic" \\

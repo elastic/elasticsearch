@@ -126,6 +126,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         addTestCaseIfNotDisabled(new TermsGroupByIT());
         addTestCaseIfNotDisabled(new DateHistogramGroupByIT());
         addTestCaseIfNotDisabled(new DateHistogramGroupByOtherTimeFieldIT());
+        addTestCaseIfNotDisabled(new HistogramGroupByIT());
     }
 
     @Before

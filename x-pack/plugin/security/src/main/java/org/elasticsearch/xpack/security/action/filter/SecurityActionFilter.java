@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -87,7 +88,7 @@ public class SecurityActionFilter implements ActionFilter {
         if (licenseState.isSecurityEnabled()) {
             final ActionListener<Response> contextPreservingListener =
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
-            final ActionListener<Void> authenticatedListener = ActionListener.delegateFailure(contextPreservingListener,
+            final ActionListener<Void> postAuthzListener = ActionListener.delegateFailure(contextPreservingListener,
                     (ignore, aVoid) -> {
                         // extract the requestId and the authentication from the threadContext before executing the action
                         final String requestId = AuditUtil.extractRequestId(threadContext);
@@ -110,15 +111,15 @@ public class SecurityActionFilter implements ActionFilter {
             try {
                 if (useSystemUser) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {
-                        applyInternal(action, request, authenticatedListener);
+                        applyInternal(action, request, postAuthzListener);
                     }, Version.CURRENT);
                 } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext)) {
                     AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, (original) -> {
-                        applyInternal(action, request, authenticatedListener);
+                        applyInternal(action, request, postAuthzListener);
                     });
                 } else {
                     try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
-                        applyInternal(action, request, authenticatedListener);
+                        applyInternal(action, request, postAuthzListener);
                     }
                 }
             } catch (Exception e) {
@@ -143,8 +144,7 @@ public class SecurityActionFilter implements ActionFilter {
         return Integer.MIN_VALUE;
     }
 
-    private <Request extends ActionRequest> void applyInternal(String action, Request request,
-                                                               ActionListener<Void> listener) {
+    private <Request extends ActionRequest> void applyInternal(String action, Request request, ActionListener<Void> listener) {
         if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {
@@ -183,8 +183,7 @@ public class SecurityActionFilter implements ActionFilter {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be non null for authorization"));
         } else {
-            authzService.authorize(authentication, securityAction, request, ActionListener.wrap(ignore -> listener.onResponse(null),
-                listener::onFailure));
+            authzService.authorize(authentication, securityAction, request, listener);
         }
     }
 }

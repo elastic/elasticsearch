@@ -22,13 +22,13 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class SearchLookup {
@@ -53,19 +53,21 @@ public class SearchLookup {
     private final DocLookup docMap;
     private final SourceLookup sourceLookup;
     private final FieldsLookup fieldsLookup;
+    private final Function<String, MappedFieldType> fieldTypeLookup;
     private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
 
     /**
      * Create the top level field lookup for a search request. Provides a way to look up fields from  doc_values,
      * stored fields, or _source.
      */
-    public SearchLookup(MapperService mapperService,
+    public SearchLookup(Function<String, MappedFieldType> fieldTypeLookup,
                         BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup) {
+        this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
-        docMap = new DocLookup(mapperService,
+        docMap = new DocLookup(fieldTypeLookup,
             fieldType -> fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())));
         sourceLookup = new SourceLookup();
-        fieldsLookup = new FieldsLookup(mapperService);
+        fieldsLookup = new FieldsLookup(fieldTypeLookup);
         this.fieldDataLookup = fieldDataLookup;
     }
 
@@ -78,10 +80,11 @@ public class SearchLookup {
      */
     private SearchLookup(SearchLookup searchLookup, Set<String> fieldChain) {
         this.fieldChain = Collections.unmodifiableSet(fieldChain);
-        this.docMap = new DocLookup(searchLookup.docMap.mapperService(),
+        this.docMap = new DocLookup(searchLookup.fieldTypeLookup,
             fieldType -> searchLookup.fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())));
         this.sourceLookup = searchLookup.sourceLookup;
         this.fieldsLookup = searchLookup.fieldsLookup;
+        this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
     }
 

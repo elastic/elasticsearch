@@ -12,8 +12,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeCoordinateEncoder;
-import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeWriter;
+import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueWriter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,8 +40,8 @@ public class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
     @Override
     public BytesRef binaryValue() {
         try {
-            final TriangleTreeWriter writer = new TriangleTreeWriter(triangles, GeoShapeCoordinateEncoder.INSTANCE, centroidCalculator);
-            ByteBuffersDataOutput output = new ByteBuffersDataOutput();
+            final GeometryDocValueWriter writer = new GeometryDocValueWriter(triangles, CoordinateEncoder.GEO, centroidCalculator);
+            final ByteBuffersDataOutput output = new ByteBuffersDataOutput();
             writer.writeTo(output);
             return new BytesRef(output.toArrayCopy(), 0, Math.toIntExact(output.size()));
         } catch (IOException e) {

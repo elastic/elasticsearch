@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class MetadataMigrateToDataStreamService {
@@ -54,18 +55,15 @@ public class MetadataMigrateToDataStreamService {
 
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
-    private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndicesService indexServices;
 
     @Inject
     public MetadataMigrateToDataStreamService(ThreadPool threadPool,
                                               ClusterService clusterService,
-                                              MetadataCreateIndexService metadataCreateIndexService,
                                               IndicesService indexServices) {
         this.clusterService = clusterService;
         this.indexServices = indexServices;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
-        this.metadataCreateIndexService = metadataCreateIndexService;
     }
 
     public void migrateToDataStream(MigrateToDataStreamClusterStateUpdateRequest request,
@@ -95,7 +93,16 @@ public class MetadataMigrateToDataStreamService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    ClusterState clusterState = migrateToDataStream(indexServices, metadataCreateIndexService, currentState, request);
+                    ClusterState clusterState = migrateToDataStream(
+                        currentState,
+                        indexMetadata -> {
+                            try {
+                                return indexServices.createIndexMapperService(indexMetadata);
+                            } catch (IOException e) {
+                                throw new IllegalStateException(e);
+                            }
+                        },
+                        request);
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
                 }
@@ -107,9 +114,8 @@ public class MetadataMigrateToDataStreamService {
             });
     }
 
-    static ClusterState migrateToDataStream(IndicesService indicesServices,
-                                            MetadataCreateIndexService metadataCreateIndexService,
-                                            ClusterState currentState,
+    static ClusterState migrateToDataStream(ClusterState currentState,
+                                            Function<IndexMetadata, MapperService> mapperSupplier,
                                             MigrateToDataStreamClusterStateUpdateRequest request) throws Exception {
         if (currentState.nodes().getMinNodeVersion().before(Version.V_8_0_0)) {
             throw new IllegalStateException("data stream migration requires minimum node version of " + Version.V_8_0_0);
@@ -121,7 +127,7 @@ public class MetadataMigrateToDataStreamService {
         validateBackingIndices(currentState, request.aliasName);
         Metadata.Builder mb = Metadata.builder(currentState.metadata());
         for (IndexMetadata im : alias.getIndices()) {
-            prepareBackingIndex(mb, im, request.aliasName, indicesServices);
+            prepareBackingIndex(mb, im, request.aliasName, mapperSupplier);
         }
         currentState = ClusterState.builder(currentState).metadata(mb).build();
 
@@ -133,8 +139,7 @@ public class MetadataMigrateToDataStreamService {
             .collect(Collectors.toList());
 
         logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
-        return MetadataCreateDataStreamService.createDataStream(
-            metadataCreateIndexService, currentState, request.aliasName, backingIndices, writeIndex);
+        return MetadataCreateDataStreamService.createDataStream(null, currentState, request.aliasName, backingIndices, writeIndex);
     }
 
     // package-visible for testing
@@ -161,14 +166,18 @@ public class MetadataMigrateToDataStreamService {
         Metadata.Builder b,
         IndexMetadata im,
         String dataStreamName,
-        IndicesService indicesService) throws IOException {
+        Function<IndexMetadata, MapperService> mapperSupplier) throws IOException {
         // hides the index, removes the original alias, and adds data stream timestamp field mapper
         MappingMetadata mm = im.mapping();
         if (mm == null) {
             throw new IllegalArgumentException("backing index [" + im.getIndex().getName() + "] must have mappings for a timestamp field");
         }
 
-        MapperService mapperService = indicesService.createIndexMapperService(im);
+        //im.toXContent(null, Params)
+            //mm.source().uncompressed().toString();
+
+
+        MapperService mapperService = mapperSupplier.apply(im);
         mapperService.merge(im, MapperService.MergeReason.MAPPING_RECOVERY);
         mapperService.merge("_doc", Map.of("_data_stream_timestamp", Map.of("enabled", true)), MapperService.MergeReason.MAPPING_UPDATE);
         DocumentMapper mapper = mapperService.documentMapper();

@@ -143,7 +143,9 @@ public class MetadataCreateDataStreamService {
                                          List<IndexMetadata> backingIndices,
                                          IndexMetadata writeIndex) throws Exception
     {
-        Objects.requireNonNull(metadataCreateIndexService);
+        if (writeIndex == null) {
+            Objects.requireNonNull(metadataCreateIndexService);
+        }
         Objects.requireNonNull(currentState);
         Objects.requireNonNull(backingIndices);
         if (currentState.metadata().dataStreams().containsKey(dataStreamName)) {

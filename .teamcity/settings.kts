@@ -21,11 +21,11 @@ import builds.BwcChecks
 import builds.OssChecks
 import builds.SanityCheck
 import builds.XpackChecks
-import jetbrains.buildServer.configs.kotlin.v2019_2.*
-import jetbrains.buildServer.configs.kotlin.v2019_2.buildFeatures.notifications
-import jetbrains.buildServer.configs.kotlin.v2019_2.projectFeatures.VersionedSettings
-import jetbrains.buildServer.configs.kotlin.v2019_2.projectFeatures.versionedSettings
+import jetbrains.buildServer.configs.kotlin.v2019_2.BuildTypeSettings
+import jetbrains.buildServer.configs.kotlin.v2019_2.FailureAction
+import jetbrains.buildServer.configs.kotlin.v2019_2.project
 import jetbrains.buildServer.configs.kotlin.v2019_2.triggers.vcs
+import jetbrains.buildServer.configs.kotlin.v2019_2.version
 import templates.DefaultTemplate
 
 version = "2020.1"

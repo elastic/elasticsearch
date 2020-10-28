@@ -1,8 +1,3 @@
-import jetbrains.buildServer.configs.kotlin.v2019_2.BuildType
-import jetbrains.buildServer.configs.kotlin.v2019_2.FailureAction
-import jetbrains.buildServer.configs.kotlin.v2019_2.ReuseBuilds
-import jetbrains.buildServer.configs.kotlin.v2019_2.SnapshotDependency
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -21,6 +16,11 @@ import jetbrains.buildServer.configs.kotlin.v2019_2.SnapshotDependency
  * specific language governing permissions and limitations
  * under the License.
  */
+
+import jetbrains.buildServer.configs.kotlin.v2019_2.BuildType
+import jetbrains.buildServer.configs.kotlin.v2019_2.FailureAction
+import jetbrains.buildServer.configs.kotlin.v2019_2.ReuseBuilds
+import jetbrains.buildServer.configs.kotlin.v2019_2.SnapshotDependency
 
 fun BuildType.dependsOn(buildType: BuildType, init: SnapshotDependency.() -> Unit) {
     dependencies {

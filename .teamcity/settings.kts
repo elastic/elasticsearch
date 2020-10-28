@@ -74,7 +74,7 @@ project {
 
         features {
             pullRequests {
-                github {
+                provider = github {
                     authType = token {
                         token = "credentialsJSON:c8d7c068-fdda-4800-92f2-106fcebbfca4"
                     }

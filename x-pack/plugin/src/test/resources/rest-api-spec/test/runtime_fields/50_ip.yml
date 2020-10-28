@@ -18,18 +18,20 @@ setup:
                 runtime_type: ip
                 script:
                   source: |
-                    String m = doc["message"].value;
-                    int end = m.indexOf(" ");
-                    emit(m.substring(0, end));
+                    Matcher m = /([^ ]+) .+/.matcher(doc["message"].value);
+                    if (m.matches()) {
+                      emit(m.group(1));
+                    }
               # Test fetching from _source
               ip_from_source:
                 type: runtime
                 runtime_type: ip
                 script:
                   source: |
-                    String m = params._source.message;
-                    int end = m.indexOf(" ");
-                    emit(m.substring(0, end));
+                    Matcher m = /([^ ]+) .+/.matcher(params._source.message);
+                    if (m.matches()) {
+                      emit(m.group(1));
+                    }
               # Test emitting many values
               ip_many:
                 type: runtime
@@ -71,9 +73,10 @@ setup:
   - match: {http_logs.mappings.properties.ip.runtime_type: ip }
   - match:
       http_logs.mappings.properties.ip.script.source: |
-        String m = doc["message"].value;
-        int end = m.indexOf(" ");
-        emit(m.substring(0, end));
+        Matcher m = /([^ ]+) .+/.matcher(doc["message"].value);
+        if (m.matches()) {
+          emit(m.group(1));
+        }
   - match: {http_logs.mappings.properties.ip.script.lang: painless }
 
 ---

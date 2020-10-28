@@ -24,7 +24,7 @@ public class ShapeFieldTypeTests extends FieldTypeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
-        MappedFieldType mapper = new ShapeFieldMapper.Builder("field").build(context).fieldType();
+        MappedFieldType mapper = new ShapeFieldMapper.Builder("field", false, true).build(context).fieldType();
 
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
             List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));

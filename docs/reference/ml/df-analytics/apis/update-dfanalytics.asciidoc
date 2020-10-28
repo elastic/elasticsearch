@@ -9,7 +9,7 @@
 
 Updates an existing {dfanalytics-job}.
 
-experimental[]
+beta::[]
 
 [[ml-update-dfanalytics-request]]
 == {api-request-title}

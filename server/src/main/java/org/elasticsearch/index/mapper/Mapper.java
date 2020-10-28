@@ -118,8 +118,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return indexSettings;
             }
 
-            public boolean isIdFieldDataEnabled() {
-                return idFieldDataEnabled.getAsBoolean();
+            public BooleanSupplier isIdFieldDataEnabled() {
+                return idFieldDataEnabled;
             }
 
             public Settings getSettings() {

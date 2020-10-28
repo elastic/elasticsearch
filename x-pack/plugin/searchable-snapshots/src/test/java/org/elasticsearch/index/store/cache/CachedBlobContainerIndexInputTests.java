@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.index.store.SearchableSnapshotDirectoryTests;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -45,7 +46,6 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
-    public void testRandomReads() throws IOException {
+    public void testRandomReads() throws Exception {
         final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
         try (CacheService cacheService = createCacheService(random())) {
             cacheService.start();
@@ -155,11 +155,11 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 }
             }
         } finally {
-            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+            SearchableSnapshotDirectoryTests.terminateSafely(threadPool);
         }
     }
 
-    public void testThrowsEOFException() throws IOException {
+    public void testThrowsEOFException() throws Exception {
         try (CacheService cacheService = createCacheService(random())) {
             cacheService.start();
 
@@ -223,7 +223,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     }
                 }
             } finally {
-                terminate(threadPool);
+                SearchableSnapshotDirectoryTests.terminateSafely(threadPool);
             }
         }
     }

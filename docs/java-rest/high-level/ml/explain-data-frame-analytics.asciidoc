@@ -7,7 +7,7 @@
 [id="{upid}-{api}"]
 === Explain {dfanalytics} API
 
-experimental::[]
+beta::[]
 
 Explains the following about a {dataframe-analytics-config}:
 

@@ -136,7 +136,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         public ScaledFloatFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
                                     Map<String, String> meta, double scalingFactor, Double nullValue) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.scalingFactor = scalingFactor;
             this.nullValue = nullValue;
         }

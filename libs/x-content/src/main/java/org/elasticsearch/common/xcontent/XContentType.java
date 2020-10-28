@@ -155,11 +155,12 @@ public enum XContentType implements MediaType {
      */
     public static XContentType fromMediaType(String mediaTypeHeaderValue) throws IllegalArgumentException{
         ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaTypeHeaderValue);
-        if(parsedMediaType!=null){
+        if (parsedMediaType != null) {
             return parsedMediaType
                 .toMediaType(mediaTypeRegistry);
         }
-        throw new IllegalArgumentException("invalid media type [" + mediaTypeHeaderValue + "]");
+        return null;
+        //throw new IllegalArgumentException("invalid media type [" + mediaTypeHeaderValue + "]");
     }
 
     private int index;

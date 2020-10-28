@@ -1905,6 +1905,9 @@ public class RestHighLevelClient implements Closeable {
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue(), e);
         }
+        if (xContentType == null) {
+            throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
+        }
 
         try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
             return entityParser.apply(parser);

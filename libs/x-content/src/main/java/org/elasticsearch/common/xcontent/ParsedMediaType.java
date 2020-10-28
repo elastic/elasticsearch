@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 public class ParsedMediaType {
+    //sun.net.www.protocol.http.HttpURLConnection sets a default Accept header if it was not provided on a request
+    public static final String DEFAULT_ACCEPT_STRING = "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2";
 
     private final String type;
     private final String subType;
@@ -57,6 +59,9 @@ public class ParsedMediaType {
      * @throws IllegalArgumentException if the header is malformed
      */
     public static ParsedMediaType parseMediaType(String headerValue) {
+        if (DEFAULT_ACCEPT_STRING.equals(headerValue)) {
+            return null;
+        }
         if (headerValue != null) {
             final String[] elements = headerValue.toLowerCase(Locale.ROOT).split("[\\s\\t]*;");
 

@@ -91,9 +91,11 @@ public class XContentTypeTests extends ESTestCase {
 
     public void testFromRubbish() throws Exception {
         assertThat(XContentType.fromMediaType(null), nullValue());
-        assertThat(XContentType.fromMediaType(""), nullValue());
+        expectThrows(IllegalArgumentException.class, ()->XContentType.fromMediaType(""));
+        expectThrows(IllegalArgumentException.class, ()->XContentType.fromMediaType("gobbly;goop"));
         assertThat(XContentType.fromMediaType("text/plain"), nullValue());
-        assertThat(XContentType.fromMediaType("gobbly;goop"), nullValue());
+
+
     }
 
     public void testVersionedMediaType() {

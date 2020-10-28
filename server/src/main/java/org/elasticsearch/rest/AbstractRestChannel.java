@@ -104,8 +104,8 @@ public abstract class AbstractRestChannel implements RestChannel {
             if (Strings.hasText(format)) {
                 responseContentType = XContentType.fromFormat(format);
             }
-            if (responseContentType == null && Strings.hasText(acceptHeader) ) {
-                if(acceptHeader.equals("/*")){
+            if (responseContentType == null && Strings.hasText(acceptHeader)) {
+                if(acceptHeader.equals("*/*")){
                     requestContentType = null;
                 }else{
                     responseContentType = XContentType.fromMediaType(acceptHeader);

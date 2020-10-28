@@ -168,9 +168,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Hook to allow taking an action before building buckets.
+     * Hook to allow taking an action before building the sub agg results.
      */
-    protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {}
+    protected void prepareSubAggs(long[] bucketOrdsToCollect) throws IOException {}
 
     /**
      * Build the results of the sub-aggregations of the buckets at each of
@@ -186,7 +186,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      *         array of ordinals
      */
     protected final InternalAggregations[] buildSubAggsForBuckets(long[] bucketOrdsToCollect) throws IOException {
-        beforeBuildingBuckets(bucketOrdsToCollect);
+        prepareSubAggs(bucketOrdsToCollect);
         InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {
             aggregations[i] = subAggregators[i].buildAggregations(bucketOrdsToCollect);

@@ -152,10 +152,10 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchIsEmpty() throws IOException {
-        Map<String, Object> sourceValue = Map.of("key", "value");
+        Map<String, Object> sourceValue = Collections.singletonMap("key", "value");
         KeyedFlattenedFieldType ft = createFieldType();
 
-        assertEquals(List.of(), fetchSourceValue(ft, sourceValue));
-        assertEquals(List.of(), fetchSourceValue(ft, null));
+        assertEquals(Collections.emptyList(), fetchSourceValue(ft, sourceValue));
+        assertEquals(Collections.emptyList(), fetchSourceValue(ft, null));
     }
 }

@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-trained-models.html",
       "description":"Retrieves configuration information for a trained inference model."
     },
-    "stability":"experimental",
+    "stability":"beta",
     "url":{
       "paths":[
         {

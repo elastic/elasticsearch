@@ -42,7 +42,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         public static final VersionFieldType INSTANCE = new VersionFieldType();
 
         private VersionFieldType() {
-            super(NAME, false, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override

@@ -150,8 +150,6 @@ include::types/geo-shape.asciidoc[]
 
 include::types/ip.asciidoc[]
 
-include::types/version.asciidoc[]
-
 include::types/parent-join.asciidoc[]
 
 include::types/keyword.asciidoc[]
@@ -174,8 +172,12 @@ include::types/rank-features.asciidoc[]
 
 include::types/search-as-you-type.asciidoc[]
 
+include::types/shape.asciidoc[]
+
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
 
-include::types/shape.asciidoc[]
+include::unsigned_long.asciidoc[]
+
+include::types/version.asciidoc[]

@@ -891,7 +891,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
      * While we have no NPE in DefaultContext constructor anymore, we still want to guard against it (or other failures) in the future to
      * avoid leaking searchers.
      */
-    public void testCreateSearchContextFailure() throws IOException {
+    public void testCreateSearchContextFailure() throws Exception {
         final String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
         final IndexService indexService = createIndex(index);
         final SearchService service = getInstanceFromNode(SearchService.class);
@@ -908,7 +908,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 () -> service.createContext(reader, request, null, randomBoolean()));
             assertEquals("expected", e.getMessage());
         }
-        assertEquals("should have 2 store refs (IndexService + InternalEngine)", 2, indexService.getShard(0).store().refCount());
+        // Needs to busily assert because Engine#refreshNeeded can increase the refCount.
+        assertBusy(() ->
+            assertEquals("should have 2 store refs (IndexService + InternalEngine)", 2, indexService.getShard(0).store().refCount()));
     }
 
     public void testMatchNoDocsEmptyResponse() throws InterruptedException {

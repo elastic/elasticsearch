@@ -196,9 +196,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=request_cache]
 
 `refresh`::
-(Optional, boolean) If `true`, {es} refreshes the affected shards to make this
-operation visible to search, if `false` do nothing with refreshes.
-Valid values: `true`, `false`. Default: `false`.
+(Optional, Boolean)
+If `true`, {es} refreshes affected shards to make the operation visible to
+search. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 

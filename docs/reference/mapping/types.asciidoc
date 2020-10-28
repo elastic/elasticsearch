@@ -140,13 +140,13 @@ include::types/date_nanos.asciidoc[]
 
 include::types/dense-vector.asciidoc[]
 
-include::types/histogram.asciidoc[]
-
 include::types/flattened.asciidoc[]
 
 include::types/geo-point.asciidoc[]
 
 include::types/geo-shape.asciidoc[]
+
+include::types/histogram.asciidoc[]
 
 include::types/ip.asciidoc[]
 

@@ -14,6 +14,7 @@ import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -99,6 +100,7 @@ public final class AggregationResultUtils {
 
             groups.getGroups().forEach((destinationFieldName, singleGroupSource) -> {
                 Object value = bucket.getKey().get(destinationFieldName);
+
                 idGen.add(destinationFieldName, value);
                 updateDocument(
                     document,
@@ -412,7 +414,10 @@ public final class AggregationResultUtils {
         public Object value(Object key, String type) {
             if (isNumericType(type) && key instanceof Double) {
                 return dropFloatingPointComponentIfTypeRequiresIt(type, (Double) key);
-            }
+            } else if ((DateFieldMapper.CONTENT_TYPE.equals(type) || DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(type))
+                && key instanceof Long) {
+                    return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis((Long) key);
+                }
             return key;
         }
 

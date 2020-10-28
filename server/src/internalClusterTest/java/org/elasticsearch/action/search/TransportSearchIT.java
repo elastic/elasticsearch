@@ -508,7 +508,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                                                     Aggregator parent,
                                                     CardinalityUpperBound cardinality,
                                                     Map<String, Object> metadata) throws IOException {
-                    return new TestAggregator(name, parent, searchContext);
+                    return new TestAggregator(name, parent);
                 }
             };
         }
@@ -541,23 +541,16 @@ public class TransportSearchIT extends ESIntegTestCase {
     private static class TestAggregator extends Aggregator {
         private final String name;
         private final Aggregator parent;
-        private final SearchContext context;
 
-        private TestAggregator(String name, Aggregator parent, SearchContext context) {
+        private TestAggregator(String name, Aggregator parent) {
             this.name = name;
             this.parent = parent;
-            this.context = context;
         }
 
 
         @Override
         public String name() {
             return name;
-        }
-
-        @Override
-        public SearchContext context() {
-            return context;
         }
 
         @Override

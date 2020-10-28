@@ -436,6 +436,9 @@ buildRestTests.setups['news'] = '''
                   type: keyword
                 content:
                   type: text
+                  copy_to: custom_all
+                custom_all:
+                  type: text
   - do:
         bulk:
           index: news

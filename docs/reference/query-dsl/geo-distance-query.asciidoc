@@ -4,9 +4,14 @@
 <titleabbrev>Geo-distance</titleabbrev>
 ++++
 
-Filters documents that include only hits that exists within a specific
-distance from a `geo_shape` or `geo_point` field. Assuming the following mapping and indexed
-documents:
+Matches <<geo-point,`geo_point`>> and <<geo-shape,`geo_shape`>> values within
+a given distance of a geopoint.
+
+[discrete]
+[[geo-distance-query-ex]]
+==== Example
+
+Assume the following the following documents are indexed:
 
 [source,console]
 --------------------------------------------------
@@ -63,8 +68,8 @@ PUT /my_geoshapes/_doc/1
 // TESTSETUP
 
 
-Then the following simple query can be executed with a `geo_distance`
-filter against a `geo_point` field:
+Use a `geo_distance` filter to match `geo_point` values within a specified
+distance of another geopoint:
 
 [source,console]
 --------------------------------------------------
@@ -89,11 +94,11 @@ GET /my_locations/_search
 }
 --------------------------------------------------
 
-The same simple query can be executed against the 'geo_shape field:
+Use the same filter to match `geo_shape` values within the given distance:
 
 [source,console]
 --------------------------------------------------
-GET my_locations,my_geoshapes/_search
+GET my_geoshapes/_search
 {
   "query": {
     "bool": {
@@ -114,11 +119,11 @@ GET my_locations,my_geoshapes/_search
 }
 --------------------------------------------------
 
-Or it can be executed in both indexes at the same time:
+To match both `geo_point` and `geo_shape` values, search both indices:
 
 [source,console]
 --------------------------------------------------
-GET my_geoshapes/_search
+GET my_locations,my_geoshapes/_search
 {
   "query": {
     "bool": {

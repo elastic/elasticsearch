@@ -337,6 +337,10 @@ GET /_xpack/usage
       "primary_shard_size_median_bytes" : 0,
       "primary_shard_size_mad_bytes" : 0
     }
+  },
+  "aggregate_metric" : {
+    "available" : true,
+    "enabled" : true
   }
 }
 ------------------------------------------------------------

@@ -67,6 +67,10 @@ Example response:
         "available" : true,
         "enabled" : true
       },
+     "aggregate_metric" : {
+          "available" : true,
+          "enabled" : true
+      },
       "analytics" : {
           "available" : true,
           "enabled" : true

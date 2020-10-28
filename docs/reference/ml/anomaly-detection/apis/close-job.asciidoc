@@ -92,7 +92,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 --------------------------------------------------
 POST _ml/anomaly_detectors/low_request_rate/_close
 --------------------------------------------------
-// TEST[skip:sometimes fails due to https://github.com/elastic/elasticsearch/pull/48583#issuecomment-552991325]
+// TEST[skip:Kibana sample data]
 
 When the job is closed, you receive the following results:
 

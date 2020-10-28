@@ -109,9 +109,6 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     }
 
     public PrefixQueryBuilder caseInsensitive(boolean caseInsensitive) {
-        if (caseInsensitive == false) {
-            throw new IllegalArgumentException("The case insensitive setting cannot be set to false.");
-        }
         this.caseInsensitive = caseInsensitive;
         return this;
     }
@@ -175,10 +172,6 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                             rewrite = parser.textOrNull();
                         } else if (CASE_INSENSITIVE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             caseInsensitive = parser.booleanValue();
-                            if (caseInsensitive == false) {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "[prefix] query does not support [" + currentFieldName + "] = false");
-                            }
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
                                     "[prefix] query does not support [" + currentFieldName + "]");
@@ -196,9 +189,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                 .rewrite(rewrite)
                 .boost(boost)
                 .queryName(queryName);
-        if (caseInsensitive) {
-            result.caseInsensitive(caseInsensitive);
-        }
+        result.caseInsensitive(caseInsensitive);
         return result;
     }
 

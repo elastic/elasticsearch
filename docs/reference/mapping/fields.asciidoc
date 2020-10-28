@@ -55,6 +55,11 @@ fields can be customized when a mapping is created.
 
     Application specific metadata.
 
+=== Doc count metadata field
+
+<<mapping-doc-count-field,`_doc_count`>>::
+
+    A custom field used for storing doc counts when a document represents pre-aggregated data.
 
 include::fields/field-names-field.asciidoc[]
 
@@ -70,3 +75,4 @@ include::fields/routing-field.asciidoc[]
 
 include::fields/source-field.asciidoc[]
 
+include::fields/doc-count-field.asciidoc[]

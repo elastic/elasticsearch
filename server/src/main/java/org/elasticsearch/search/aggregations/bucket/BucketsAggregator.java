@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
@@ -53,6 +54,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private final BigArrays bigArrays;
     private final IntConsumer multiBucketConsumer;
     private IntArray docCounts;
+    protected final FieldBasedDocCountProvider docCountProvider;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             CardinalityUpperBound bucketCardinality, Map<String, Object> metadata) throws IOException {
@@ -64,6 +66,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
             multiBucketConsumer = (count) -> {};
         }
         docCounts = bigArrays.newIntArray(1, true);
+        docCountProvider = new FieldBasedDocCountProvider();
     }
 
     /**
@@ -92,7 +95,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
      */
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
-        if (docCounts.increment(bucketOrd, 1) == 1) {
+        int docCount = docCountProvider.getDocCount(doc);
+        if (docCounts.increment(bucketOrd, docCount) == docCount) {
             // We calculate the final number of buckets only during the reduce phase. But we still need to
             // trigger bucket consumer from time to time in order to give it a chance to check available memory and break
             // the execution if we are running out. To achieve that we are passing 0 as a bucket count.
@@ -411,4 +415,10 @@ public abstract class BucketsAggregator extends AggregatorBase {
         return false;
     }
 
+    @Override
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
+        super.preGetSubLeafCollectors(ctx);
+        // Set LeafReaderContext to the field based doc_count provider
+        docCountProvider.setLeafReaderContext(ctx);
+    }
 }

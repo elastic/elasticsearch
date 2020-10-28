@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.logstash.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.support.ActionFilters;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.logstash.Logstash;
@@ -37,8 +39,17 @@ public class TransportDeletePipelineAction extends HandledTransportAction<Delete
             .execute(
                 ActionListener.wrap(
                     deleteResponse -> listener.onResponse(new DeletePipelineResponse(deleteResponse.getResult() == Result.DELETED)),
-                    listener::onFailure
+                    e -> handleFailure(e, listener)
                 )
             );
+    }
+
+    private void handleFailure(Exception e, ActionListener<DeletePipelineResponse> listener) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (cause instanceof IndexNotFoundException) {
+            listener.onResponse(new DeletePipelineResponse(false));
+        } else {
+            listener.onFailure(e);
+        }
     }
 }

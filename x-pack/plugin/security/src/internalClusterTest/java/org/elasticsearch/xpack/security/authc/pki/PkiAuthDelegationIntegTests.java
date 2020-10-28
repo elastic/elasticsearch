@@ -149,6 +149,9 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                         optionsBuilder.build());
                 String token = delegatePkiResponse.getAccessToken();
                 assertThat(token, is(notNullValue()));
+                assertNotNull(delegatePkiResponse.getAuthentication());
+                assertEquals("Elasticsearch Test Client", delegatePkiResponse.getAuthentication().getUser().getUsername());
+
                 // authenticate
                 optionsBuilder = RequestOptions.DEFAULT.toBuilder();
                 optionsBuilder.addHeader("Authorization", "Bearer " + token);
@@ -187,6 +190,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                     optionsBuilder.build());
             String token = delegatePkiResponse.getAccessToken();
             assertThat(token, is(notNullValue()));
+            assertNotNull(delegatePkiResponse.getAuthentication());
             // authenticate
             optionsBuilder = RequestOptions.DEFAULT.toBuilder();
             optionsBuilder.addHeader("Authorization", "Bearer " + token);
@@ -208,7 +212,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             assertThat(authnRealm.getType(), is("pki"));
             assertThat(resp.getAuthenticationType(), is("token"));
             // invalidate
-            InvalidateTokenRequest invalidateRequest = new InvalidateTokenRequest(token, null, null, null);
+            InvalidateTokenRequest invalidateRequest = InvalidateTokenRequest.accessToken(token);
             optionsBuilder = RequestOptions.DEFAULT.toBuilder();
             optionsBuilder.addHeader("Authorization",
                     basicAuthHeaderValue(delegateeUsername, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));

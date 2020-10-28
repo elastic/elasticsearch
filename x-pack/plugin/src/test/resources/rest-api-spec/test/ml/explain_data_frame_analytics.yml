@@ -225,7 +225,7 @@
   - match: { field_selection.2.is_included: false }
   - match: { field_selection.2.is_required: false }
   - is_false: field_selection.2.feature_type
-  - match: { field_selection.2.reason: "unsupported type; supported types are [boolean, byte, double, float, half_float, integer, ip, keyword, long, scaled_float, short, text]" }
+  - match: { field_selection.2.reason: "unsupported type; supported types are [boolean, byte, double, float, half_float, integer, ip, keyword, long, scaled_float, short, text, unsigned_long]" }
   - match: { field_selection.3.name: "field_4" }
   - match: { field_selection.3.mapping_types: ["text"] }
   - match: { field_selection.3.is_included: false }
@@ -299,7 +299,7 @@
   - match: { field_selection.2.is_included: false }
   - match: { field_selection.2.is_required: false }
   - is_false: field_selection.2.feature_type
-  - match: { field_selection.2.reason: "unsupported type; supported types are [boolean, byte, double, float, half_float, integer, ip, keyword, long, scaled_float, short, text]" }
+  - match: { field_selection.2.reason: "unsupported type; supported types are [boolean, byte, double, float, half_float, integer, ip, keyword, long, scaled_float, short, text, unsigned_long]" }
   - match: { field_selection.3.name: "field_4" }
   - match: { field_selection.3.mapping_types: ["text"] }
   - match: { field_selection.3.is_included: false }

@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Randomness;
@@ -14,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -41,7 +42,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 
 public class Classification implements DataFrameAnalysis {
 
@@ -374,28 +374,19 @@ public class Classification implements DataFrameAnalysis {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
+    public Map<String, Object> getExplicitlyMappedFields(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Map<String, Object> additionalProperties = new HashMap<>();
         additionalProperties.put(resultsFieldName + ".feature_importance", FEATURE_IMPORTANCE_MAPPING);
-        Object dependentVariableMapping = extractMapping(dependentVariable, mappingsProperties);
-        if ((dependentVariableMapping instanceof Map) == false) {
+        Map<String, FieldCapabilities> dependentVariableFieldCaps = fieldCapabilitiesResponse.getField(dependentVariable);
+        if (dependentVariableFieldCaps == null || dependentVariableFieldCaps.isEmpty()) {
             return additionalProperties;
         }
-        Map<String, Object> dependentVariableMappingAsMap = (Map) dependentVariableMapping;
-        // If the source field is an alias, fetch the concrete field that the alias points to.
-        if (FieldAliasMapper.CONTENT_TYPE.equals(dependentVariableMappingAsMap.get("type"))) {
-            String path = (String) dependentVariableMappingAsMap.get(FieldAliasMapper.Names.PATH);
-            dependentVariableMapping = extractMapping(path, mappingsProperties);
-        }
-        // We may have updated the value of {@code dependentVariableMapping} in the "if" block above.
-        // Hence, we need to check the "instanceof" condition again.
-        if ((dependentVariableMapping instanceof Map) == false) {
-            return additionalProperties;
-        }
-        additionalProperties.put(resultsFieldName + "." + predictionFieldName, dependentVariableMapping);
+        Object dependentVariableMappingType = dependentVariableFieldCaps.values().iterator().next().getType();
+        additionalProperties.put(
+            resultsFieldName + "." + predictionFieldName, Collections.singletonMap("type", dependentVariableMappingType));
 
         Map<String, Object> topClassesProperties = new HashMap<>();
-        topClassesProperties.put("class_name", dependentVariableMapping);
+        topClassesProperties.put("class_name", Collections.singletonMap("type", dependentVariableMappingType));
         topClassesProperties.put("class_probability", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
 
         Map<String, Object> topClassesMapping = new HashMap<>();
@@ -404,10 +395,6 @@ public class Classification implements DataFrameAnalysis {
 
         additionalProperties.put(resultsFieldName + ".top_classes", topClassesMapping);
         return additionalProperties;
-    }
-
-    private static Object extractMapping(String path, Map<String, Object> mappingsProperties) {
-        return extractValue(String.join(".properties.", path.split("\\.")), mappingsProperties);
     }
 
     @Override

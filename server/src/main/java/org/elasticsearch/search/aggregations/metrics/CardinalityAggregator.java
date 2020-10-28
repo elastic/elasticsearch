@@ -116,7 +116,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             // only use ordinals if they don't increase memory usage by more than 25%
             if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
                 ordinalsCollectorsUsed++;
-                return new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+                return new OrdinalsCollector(counts, ordinalValues, bigArrays());
             }
             ordinalsCollectorsOverheadTooHigh++;
         }

@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -82,11 +81,6 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         @Override
         public Aggregator parent() {
             return in.parent();
-        }
-
-        @Override
-        public SearchContext context() {
-            return in.context();
         }
 
         @Override

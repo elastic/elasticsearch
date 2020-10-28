@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -106,13 +105,9 @@ public class TransportClearVotingConfigExclusionsAction
 
     private void submitClearVotingConfigExclusionsTask(ClearVotingConfigExclusionsRequest request, long startTimeMillis,
                                                        ActionListener<ClearVotingConfigExclusionsResponse> listener) {
-        final long timeout = request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis();
-        final String source = "clear-voting-config-exclusions";
-        if (timeout <= 0) {
-            listener.onFailure(new ProcessClusterEventTimeoutException(request.getTimeout(), source));
-            return;
-        }
-        clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(Priority.URGENT, TimeValue.timeValueMillis(timeout)) {
+        clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT,
+                TimeValue.timeValueMillis(
+                        Math.max(0, request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis()))) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final CoordinationMetadata newCoordinationMetadata =

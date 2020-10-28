@@ -58,7 +58,6 @@ public class ParsedMediaTypeTests extends ESTestCase {
 
     }
 
-    //exceptions are thrown now
 //    public void testInvalidParameters() {
 //        String mediaType = "application/vnd.elasticsearch+json";
 //        assertThat(ParsedMediaType.parseMediaType(mediaType + "; charset=unknown")

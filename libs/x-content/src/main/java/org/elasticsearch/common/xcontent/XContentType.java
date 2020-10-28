@@ -153,7 +153,7 @@ public enum XContentType implements MediaType {
      * This method is suitable for parsing of the {@code Content-Type} and {@code Accept} HTTP headers.
      * This method will return {@code null} if no match is found
      */
-    public static XContentType fromMediaType(String mediaTypeHeaderValue) throws IllegalArgumentException{
+    public static XContentType fromMediaType(String mediaTypeHeaderValue) throws IllegalArgumentException {
         ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaTypeHeaderValue);
         if (parsedMediaType != null) {
             return parsedMediaType

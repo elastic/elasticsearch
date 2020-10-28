@@ -19,9 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,8 +35,8 @@ import java.util.function.LongUnaryOperator;
  * rounding interval.
  */
 public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollector {
-    public MergingBucketsDeferringCollector(SearchContext context, boolean isGlobal) {
-        super(context, isGlobal);
+    public MergingBucketsDeferringCollector(Query topLevelQuery, IndexSearcher searcher, boolean isGlobal) {
+        super(topLevelQuery, searcher, isGlobal);
     }
 
     /**

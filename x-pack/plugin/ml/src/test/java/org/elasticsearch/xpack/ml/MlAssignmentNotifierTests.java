@@ -26,7 +26,7 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 
-import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
+import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;

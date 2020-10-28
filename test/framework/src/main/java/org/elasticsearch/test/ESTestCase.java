@@ -426,7 +426,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                     filteredWarnings = filteredWarnings
                         .stream()
                         .filter(k -> k.contains(
-                            "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release") == false)
+                            "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release"
+                        ) == false)
                         .collect(Collectors.toList());
                 }
                 assertThat("unexpected warning headers", filteredWarnings, empty());

@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoSha
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeTileGridAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.BoundsAggregationBuilder;
-import org.elasticsearch.xpack.spatial.search.aggregations.metrics.BoundsAggregatorSupplier;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalBounds;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.ParsedBounds;

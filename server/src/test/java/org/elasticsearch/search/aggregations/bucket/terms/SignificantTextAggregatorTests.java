@@ -51,6 +51,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -79,11 +80,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        // TODO it is likely accidental that SigText supports anything other than Bytes, and then only text fields
-        return Arrays.asList(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BYTES,
-            CoreValuesSourceType.RANGE,
-            CoreValuesSourceType.GEOPOINT);
+        return Collections.singletonList(CoreValuesSourceType.BYTES);
     }
 
     @Override
@@ -145,7 +142,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    
+
     public void testMissingField() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
@@ -167,7 +164,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = DirectoryReader.open(w)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
-                
+
                 IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () ->  searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType));
                 assertThat(e.getMessage(), equalTo("Field [this_field_does_not_exist] does not exist, SignificantText "
@@ -175,7 +172,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             }
         }
     }
-    
+
     public void testFieldAlias() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));

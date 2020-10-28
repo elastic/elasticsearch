@@ -74,7 +74,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
         );
         this.valuesSource = valuesSource;
         this.filter = filter;
-        this.bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     protected SortedNumericDocValues getValues(ValuesSource.Numeric valuesSource, LeafReaderContext ctx) throws IOException {
@@ -126,7 +126,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
         Arrays.fill(mergeMap, -1);
         long offset = 0;
         for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
-            try (LongHash bucketsInThisOwningBucketToCollect = new LongHash(1, context.bigArrays())) {
+            try (LongHash bucketsInThisOwningBucketToCollect = new LongHash(1, bigArrays())) {
                 filters[owningOrdIdx] = newFilter();
                 List<LongRareTerms.Bucket> builtBuckets = new ArrayList<>();
                 LongKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds[owningOrdIdx]);

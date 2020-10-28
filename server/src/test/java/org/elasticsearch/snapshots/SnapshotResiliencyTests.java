@@ -1402,6 +1402,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             private final ThreadPool threadPool;
 
+            private final BigArrays bigArrays;
+
             private Coordinator coordinator;
 
             TestClusterNode(DiscoveryNode node) throws IOException {
@@ -1503,7 +1505,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 rerouteServiceSetOnce.set(rerouteService);
                 final IndexScopedSettings indexScopedSettings =
                     new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-                final BigArrays bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
+                bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 indicesService = new IndicesService(
                     settings,
@@ -1670,7 +1672,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             private Repository.Factory getRepoFactory(Environment environment) {
                 // Run half the tests with the eventually consistent repository
                 if (blobStoreContext == null) {
-                    return metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService,
+                    return metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService, bigArrays,
                         recoverySettings) {
                         @Override
                         protected void assertSnapshotOrGenericThread() {

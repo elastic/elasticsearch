@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.Token;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SingleStatementContext;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -16,10 +17,11 @@ import java.util.Map;
 class AstBuilder extends CommandBuilder {
     /**
      * Create AST Builder
-     * @param params a map between '?' tokens that represent parameters and the actual parameter values
+     * @param params a map between '?' tokens that represent parameters and the
+     *               zero-based index of the parameter and the value
      * @param zoneId user specified timezone in the session
      */
-    AstBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
+    AstBuilder(Map<Token, Tuple<Integer, SqlTypedParamValue>> params, ZoneId zoneId) {
         super(params, zoneId);
     }
 

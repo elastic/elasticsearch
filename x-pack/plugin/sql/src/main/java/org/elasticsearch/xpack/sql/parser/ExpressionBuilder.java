@@ -139,10 +139,10 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.dateTimeOfEscapedLitera
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
 
-    private final Map<Token, SqlTypedParamValue> params;
+    private final Map<Token, Tuple<Integer, SqlTypedParamValue>> params;
     private final ZoneId zoneId;
 
-    ExpressionBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
+    ExpressionBuilder(Map<Token, Tuple<Integer, SqlTypedParamValue>> params, ZoneId zoneId) {
         this.params = params;
         this.zoneId = zoneId;
     }
@@ -165,7 +165,17 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression exp = expression(ctx.expression());
         String alias = visitIdentifier(ctx.identifier());
         Source source = source(ctx);
-        return alias != null ? new Alias(source, alias, exp) : new UnresolvedAlias(source, exp);
+        if (alias != null) {
+            return new Alias(source, alias, exp);
+        }
+        if (exp instanceof Literal && "?".equals(exp.source().text())) {
+            // we are talking about a parameter literal here
+            assert ctx.getStart().equals(ctx.getStop()) : "not a single token param literal";
+            int paramIndex = params.get(ctx.getStart()).v1();
+            // all indexes related to JDBC or databases usually start with 1
+            return new Alias(source, "?" + (paramIndex+1), exp);
+        }
+        return new UnresolvedAlias(source, exp);
     }
 
     @Override
@@ -700,7 +710,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitParamLiteral(ParamLiteralContext ctx) {
-        SqlTypedParamValue param = param(ctx.PARAM());
+        SqlTypedParamValue param = param(ctx.PARAM()).v2();
         DataType dataType = SqlDataTypes.fromTypeName(param.type);
         Source source = source(ctx);
         if (dataType == null) {
@@ -745,15 +755,17 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx == null) {
             return null;
         }
-        SqlTypedParamValue param = param(ctx.PARAM());
-        if (param != null) {
-            return param.value != null ? param.value.toString() : null;
-        } else {
-            return unquoteString(ctx.getText());
+        Tuple<Integer, SqlTypedParamValue> paramIndexAndValue = param(ctx.PARAM());
+        if (paramIndexAndValue != null) {
+            SqlTypedParamValue param = paramIndexAndValue.v2();
+            if (param != null) {
+                return param.value != null ? param.value.toString() : null;
+            }
         }
+        return unquoteString(ctx.getText());
     }
 
-    private SqlTypedParamValue param(TerminalNode node) {
+    private Tuple<Integer, SqlTypedParamValue> param(TerminalNode node) {
         if (node == null) {
             return null;
         }

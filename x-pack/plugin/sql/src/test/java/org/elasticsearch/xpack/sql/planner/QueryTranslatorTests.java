@@ -2253,25 +2253,20 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testFoldingWithParamsWithoutIndex() {
-        // note: this query failed before, no breaking change
         PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ? FROM test",
             new SqlTypedParamValue("integer", 100),
             new SqlTypedParamValue("integer", 200)));
         assertThat(p.output(), everyItem(isA(ReferenceAttribute.class)));
-        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(0).toString(), startsWith("?1{r}#"));
         assertThat(p.output().get(1).toString(), startsWith("?2{r}#"));
     }
 
     public void testFoldingWithMixedParamsWithoutAlias() {
-        // note: this query executed before, we are introducing a breaking change here
         PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ? FROM test",
             new SqlTypedParamValue("integer", 100),
             new SqlTypedParamValue("text", "200")));
         assertThat(p.output(), everyItem(isA(ReferenceAttribute.class)));
-        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
-        // note: this case worked before, both references were aliased as `?`
-        // the query successfully executed and returned two columns with the same name
-        // the same query will executed, but the text field will be aliased to `?2` instead of `?`
+        assertThat(p.output().get(0).toString(), startsWith("?1{r}#"));
         assertThat(p.output().get(1).toString(), startsWith("?2{r}#"));
     }
 }

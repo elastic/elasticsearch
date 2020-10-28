@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.Token;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
@@ -45,7 +46,7 @@ import java.util.Map;
 
 abstract class CommandBuilder extends LogicalPlanBuilder {
 
-    protected CommandBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
+    protected CommandBuilder(Map<Token, Tuple<Integer, SqlTypedParamValue>> params, ZoneId zoneId) {
         super(params, zoneId);
     }
 

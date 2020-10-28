@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Foldables;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -66,7 +65,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -958,7 +956,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         private List<NamedExpression> assignAliases(List<? extends NamedExpression> exprs) {
             List<NamedExpression> newExpr = new ArrayList<>(exprs.size());
-            final AtomicInteger unaliasedParamLiteralCounter = new AtomicInteger(0);
             for (NamedExpression expr : exprs) {
                 NamedExpression transformed = (NamedExpression) expr.transformUp(ua -> {
                     Expression child = ua.child();
@@ -974,22 +971,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                             return new Alias(c.source(), ((NamedExpression) c.field()).name(), c);
                         }
                     }
-                    if (isParamLiteral(child)) {
-                        int counter = unaliasedParamLiteralCounter.incrementAndGet();
-                        String name = child.sourceText() + "" + (counter > 1 ? counter : "");
-                        return new Alias(child.source(), name, child);
-                    }
                     return new Alias(child.source(), child.sourceText(), child);
                 }, UnresolvedAlias.class);
                 newExpr.add(expr.equals(transformed) ? expr : transformed);
             }
             return newExpr;
-        }
-
-        private static boolean isParamLiteral(Expression child) {
-            // The Literal class does not have any other marker, the only way to identify
-            // if it was a param literal by looking at the sourceText()
-            return (child instanceof Literal) && ("?".equals(child.sourceText()));
         }
     }
 

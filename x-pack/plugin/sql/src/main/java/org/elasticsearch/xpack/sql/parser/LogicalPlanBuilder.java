@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -64,7 +65,7 @@ import static java.util.Collections.emptyList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    protected LogicalPlanBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
+    protected LogicalPlanBuilder(Map<Token, Tuple<Integer, SqlTypedParamValue>> params, ZoneId zoneId) {
         super(params, zoneId);
     }
 

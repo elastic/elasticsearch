@@ -24,6 +24,7 @@ import org.antlr.v4.runtime.misc.Pair;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -40,6 +41,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.lang.String.format;
+import static org.elasticsearch.common.collect.Tuple.tuple;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class SqlParser {
@@ -104,7 +106,7 @@ public class SqlParser {
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
 
-            Map<Token, SqlTypedParamValue> paramTokens = new HashMap<>();
+            Map<Token, Tuple<Integer, SqlTypedParamValue>> paramTokens = new HashMap<>();
             TokenSource tokenSource = new ParametrizedTokenSource(lexer, paramTokens, params);
 
             CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
@@ -240,26 +242,28 @@ public class SqlParser {
     private static class ParametrizedTokenSource implements TokenSource {
 
         private TokenSource delegate;
-        private Map<Token, SqlTypedParamValue> paramTokens;
-        private int param;
+        private Map<Token, Tuple<Integer,SqlTypedParamValue>> paramTokens;
+        private int paramIndex;
         private List<SqlTypedParamValue> params;
 
-        ParametrizedTokenSource(TokenSource delegate, Map<Token, SqlTypedParamValue> paramTokens, List<SqlTypedParamValue> params) {
+        ParametrizedTokenSource(TokenSource delegate,
+                                Map<Token, Tuple<Integer,SqlTypedParamValue>> paramTokens,
+                                List<SqlTypedParamValue> params) {
             this.delegate = delegate;
             this.paramTokens = paramTokens;
             this.params = params;
-            param = 0;
+            paramIndex = 0;
         }
 
         @Override
         public Token nextToken() {
             Token token = delegate.nextToken();
             if (token.getType() == SqlBaseLexer.PARAM) {
-                if (param >= params.size()) {
+                if (paramIndex >= params.size()) {
                     throw new ParsingException("Not enough actual parameters {} ", params.size());
                 }
-                paramTokens.put(token, params.get(param));
-                param++;
+                paramTokens.put(token, tuple(paramIndex, params.get(paramIndex)));
+                paramIndex++;
             }
             return token;
         }

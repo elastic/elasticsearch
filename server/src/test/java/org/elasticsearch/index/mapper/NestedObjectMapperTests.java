@@ -590,7 +590,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()).mapperService();
         ObjectMapper objectMapper = mapperService.getObjectMapper("comments.messages");
-        assertTrue(objectMapper.parentObjectMapperAreNested(mapperService));
+        assertTrue(objectMapper.parentObjectMapperAreNested(mapperService::getObjectMapper));
 
         mapperService = createIndex("index2", Settings.EMPTY, jsonBuilder().startObject()
             .startObject("properties")
@@ -604,7 +604,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject()).mapperService();
         objectMapper = mapperService.getObjectMapper("comments.messages");
-        assertFalse(objectMapper.parentObjectMapperAreNested(mapperService));
+        assertFalse(objectMapper.parentObjectMapperAreNested(mapperService::getObjectMapper));
     }
 
     public void testLimitNestedDocsDefaultSettings() throws Exception{

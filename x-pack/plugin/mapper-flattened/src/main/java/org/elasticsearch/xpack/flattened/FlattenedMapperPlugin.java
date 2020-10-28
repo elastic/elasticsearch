@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.flattened;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper;
+import org.elasticsearch.xpack.flattened.mapper.FlattenedFieldMapper;
 
 import java.util.Map;
 
@@ -21,6 +21,6 @@ public class FlattenedMapperPlugin extends Plugin implements MapperPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(FlatObjectFieldMapper.CONTENT_TYPE, FlatObjectFieldMapper.PARSER);
+        return singletonMap(FlattenedFieldMapper.CONTENT_TYPE, FlattenedFieldMapper.PARSER);
     }
 }

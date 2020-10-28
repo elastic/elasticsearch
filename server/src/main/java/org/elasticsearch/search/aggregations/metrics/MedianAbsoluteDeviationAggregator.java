@@ -23,7 +23,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -93,14 +92,13 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
 
-                valueSketches = bigArrays.grow(valueSketches, bucket + 1);
+                valueSketches = bigArrays().grow(valueSketches, bucket + 1);
 
                 TDigestState valueSketch = valueSketches.get(bucket);
                 if (valueSketch == null) {

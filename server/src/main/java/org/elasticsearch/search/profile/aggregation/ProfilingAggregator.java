@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -56,11 +55,6 @@ public class ProfilingAggregator extends Aggregator {
     @Override
     public String name() {
         return delegate.name();
-    }
-
-    @Override
-    public SearchContext context() {
-        return delegate.context();
     }
 
     @Override

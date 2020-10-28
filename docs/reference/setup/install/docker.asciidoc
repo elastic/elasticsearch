@@ -344,7 +344,7 @@ without specifying them directly.
 
 For example, to set the {es} bootstrap password from a file, you can bind mount the
 file and set the `ELASTIC_PASSWORD_FILE` environment variable to the mount location.
-If you mount the password file to `/run/secrets/password.txt`, specify:
+If you mount the password file to `/run/secrets/bootstrapPassword.txt`, specify:
 
 [source,sh]
 --------------------------------------------

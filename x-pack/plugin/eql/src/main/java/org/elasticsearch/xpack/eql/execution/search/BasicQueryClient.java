@@ -32,7 +32,9 @@ import java.util.Map;
 import java.util.StringJoiner;
 
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
+import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.multiSearchLogListener;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareRequest;
+import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchLogListener;
 
 public class BasicQueryClient implements QueryClient {
 
@@ -55,7 +57,7 @@ public class BasicQueryClient implements QueryClient {
         searchSource.timeout(cfg.requestTimeout());
 
         SearchRequest search = prepareRequest(client, searchSource, false, indices);
-        search(search, new BasicListener(listener));
+        search(search, searchLogListener(listener, log));
     }
 
     protected void search(SearchRequest search, ActionListener<SearchResponse> listener) {
@@ -85,7 +87,7 @@ public class BasicQueryClient implements QueryClient {
             log.trace("About to execute multi-queries {} on {}", sj, indices);
         }
 
-        client.multiSearch(search, listener);
+        client.multiSearch(search, multiSearchLogListener(listener, log));
     }
 
     @Override

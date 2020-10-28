@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -17,9 +18,11 @@ import java.util.Collections;
 public class PreAnalyzer {
 
     public LogicalPlan preAnalyze(LogicalPlan plan, IndexResolution indices) {
-        // wrap a potential index_not_found_exception with a VerificationException (expected by client)
         if (indices.isValid() == false) {
-            throw new VerificationException(Collections.singletonList(Failure.fail(plan, indices.toString())));
+            VerificationException cause = new VerificationException(Collections.singletonList(Failure.fail(plan, indices.toString())));
+            // Wrapping the verification_exception in an infe to easily distinguish it on the rest layer in case it needs rewriting
+            // (see RestEqlSearchAction for its usage).
+            throw new IndexNotFoundException(indices.toString(), cause);
         }
         if (plan.analyzed() == false) {
             final EsRelation esRelation = new EsRelation(plan.source(), indices.get(), false);

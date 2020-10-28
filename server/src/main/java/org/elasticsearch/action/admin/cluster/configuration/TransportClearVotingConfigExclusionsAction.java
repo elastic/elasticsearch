@@ -105,7 +105,9 @@ public class TransportClearVotingConfigExclusionsAction
 
     private void submitClearVotingConfigExclusionsTask(ClearVotingConfigExclusionsRequest request, long startTimeMillis,
                                                        ActionListener<ClearVotingConfigExclusionsResponse> listener) {
-        clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
+        clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT,
+                TimeValue.timeValueMillis(
+                        Math.max(0, request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis()))) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final CoordinationMetadata newCoordinationMetadata =
@@ -118,11 +120,6 @@ public class TransportClearVotingConfigExclusionsAction
             @Override
             public void onFailure(String source, Exception e) {
                 listener.onFailure(e);
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return TimeValue.timeValueMillis(request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis());
             }
 
             @Override

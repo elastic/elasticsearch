@@ -144,7 +144,8 @@ public class CacheFileTests extends ESTestCase {
                 Tuple.tuple(0L, length),
                 channel -> Math.toIntExact(length),
                 (channel, from, to, progressUpdater) -> progressUpdater.accept(length),
-                threadPool.generic()
+                threadPool.generic(),
+                randomBoolean()
             );
         } else {
             populateAndReadFuture = null;

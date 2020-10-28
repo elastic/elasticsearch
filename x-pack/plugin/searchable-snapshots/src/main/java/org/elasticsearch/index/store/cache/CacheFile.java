@@ -111,7 +111,6 @@ public class CacheFile {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.description = Objects.requireNonNull(description);
         this.file = Objects.requireNonNull(file);
-        assert invariant();
     }
 
     public long getLength() {
@@ -155,7 +154,6 @@ public class CacheFile {
             assert evicted.get();
             throwAlreadyEvicted();
         }
-        assert invariant();
     }
 
     public void release(final EvictionListener listener) {
@@ -181,7 +179,6 @@ public class CacheFile {
                 decrementRefCount();
             }
         }
-        assert invariant();
     }
 
     private boolean assertNoPendingListeners() {
@@ -274,6 +271,9 @@ public class CacheFile {
      * available then the {@link RangeAvailableHandler} is called synchronously by this method; if not then the given {@link Executor}
      * processes the missing ranges and notifies the {@link RangeAvailableHandler}.
      *
+     * @param allowBlocking if this method may use the calling thread for processing the missing ranges and fall back to the given
+     *                      {@code executor} if more than one range is missing
+     *
      * @return a future which returns the result of the {@link RangeAvailableHandler} once it has completed.
      */
     Future<Integer> populateAndRead(
@@ -281,7 +281,8 @@ public class CacheFile {
         final Tuple<Long, Long> rangeToRead,
         final RangeAvailableHandler reader,
         final RangeMissingHandler writer,
-        final Executor executor
+        final Executor executor,
+        boolean allowBlocking
     ) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         Releasable decrementRef = null;
@@ -293,23 +294,13 @@ public class CacheFile {
                 rangeToRead,
                 rangeListener(rangeToRead, reader, future, reference, decrementRef)
             );
-
-            for (SparseFileTracker.Gap gap : gaps) {
+            for (int i = (allowBlocking ? 1 : 0); i < gaps.size(); i++) {
+                final SparseFileTracker.Gap gap = gaps.get(i);
                 executor.execute(new AbstractRunnable() {
 
                     @Override
                     protected void doRun() throws Exception {
-                        if (reference.tryIncRef() == false) {
-                            assert false : "expected a non-closed channel reference";
-                            throw new AlreadyClosedException("Cache file channel has been released and closed");
-                        }
-                        try {
-                            ensureOpen();
-                            writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
-                        } finally {
-                            reference.decRef();
-                        }
-                        gap.onCompletion();
+                        populateGap(writer, reference, gap);
                     }
 
                     @Override
@@ -318,10 +309,32 @@ public class CacheFile {
                     }
                 });
             }
+            if (allowBlocking && gaps.isEmpty() == false) {
+                final SparseFileTracker.Gap firstGap = gaps.get(0);
+                try {
+                    populateGap(writer, reference, firstGap);
+                } catch (Exception e) {
+                    firstGap.onFailure(e);
+                }
+            }
         } catch (Exception e) {
             releaseAndFail(future, decrementRef, e);
         }
         return future;
+    }
+
+    private void populateGap(RangeMissingHandler writer, FileChannelReference reference, SparseFileTracker.Gap gap) throws IOException {
+        if (reference.tryIncRef() == false) {
+            assert false : "expected a non-closed channel reference";
+            throw new AlreadyClosedException("Cache file channel has been released and closed");
+        }
+        try {
+            ensureOpen();
+            writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
+        } finally {
+            reference.decRef();
+        }
+        gap.onCompletion();
     }
 
     /**

@@ -240,7 +240,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                                 stats.addCachedBytesWritten(to - from, endTimeNanos - startTimeNanos);
                                 logger.trace("copied bytes [{}-{}] of file [{}] from cache index to disk", from, to, fileInfo);
                             },
-                            directory.cacheFetchAsyncExecutor()
+                            directory.cacheFetchAsyncExecutor(),
+                            false
                         );
                     } catch (Exception e) {
                         logger.debug(
@@ -295,7 +296,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     read = readCacheFile(channel, position, b);
                 }
                 return read;
-            }, this::writeCacheFile, directory.cacheFetchAsyncExecutor());
+            }, this::writeCacheFile, directory.cacheFetchAsyncExecutor(), indexCacheMiss == null);
 
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();
@@ -496,7 +497,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         );
                         totalBytesWritten.addAndGet(writtenBytes);
                         progressUpdater.accept(start + writtenBytes);
-                    }, directory.cacheFetchAsyncExecutor()).get();
+                    }, directory.cacheFetchAsyncExecutor(), true).get();
                     totalBytesRead += bytesRead;
                     remainingBytes -= bytesRead;
                 }
@@ -511,7 +512,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @SuppressForbidden(reason = "Use positional writes on purpose")
     private static int positionalWrite(FileChannel fc, long start, ByteBuffer byteBuffer) throws IOException {
-        assert assertCurrentThreadMayWriteCacheFile();
         return fc.write(byteBuffer, start);
     }
 
@@ -586,7 +586,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private void writeCacheFile(final FileChannel fc, final long start, final long end, final Consumer<Long> progressUpdater)
         throws IOException {
         assert assertFileChannelOpen(fc);
-        assert assertCurrentThreadMayWriteCacheFile();
         final long length = end - start;
         final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
         logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference));
@@ -825,14 +824,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     private static boolean isCacheFetchAsyncThread(final String threadName) {
         return threadName.contains('[' + SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']');
-    }
-
-    private static boolean assertCurrentThreadMayWriteCacheFile() {
-        final String threadName = Thread.currentThread().getName();
-        assert isCacheFetchAsyncThread(threadName) : "expected the current thread ["
-            + threadName
-            + "] to belong to the cache fetch async thread pool";
-        return true;
     }
 
     private static boolean assertCurrentThreadIsNotCacheFetchAsync() {

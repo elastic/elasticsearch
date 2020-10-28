@@ -178,6 +178,6 @@ include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
 
-include::unsigned_long.asciidoc[]
+include::types/unsigned_long.asciidoc[]
 
 include::types/version.asciidoc[]

@@ -85,7 +85,7 @@ project {
                     authType = token {
                         token = "credentialsJSON:c8d7c068-fdda-4800-92f2-106fcebbfca4"
                     }
-                    filterTargetBranch = "refs/heads/${DslContext.projectName}"
+                    filterTargetBranch = "+:refs/heads/${DslContext.projectName}"
                     filterAuthorRole = PullRequests.GitHubRoleFilter.MEMBER
                 }
             }

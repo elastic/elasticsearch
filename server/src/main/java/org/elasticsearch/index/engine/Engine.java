@@ -22,9 +22,11 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -43,6 +45,7 @@ import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -58,7 +61,9 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVers
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
@@ -96,7 +101,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -559,9 +563,7 @@ public abstract class Engine implements Closeable {
 
     }
 
-    protected final GetResult getFromSearcher(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory,
-                                                SearcherScope scope) throws EngineException {
-        final Engine.Searcher searcher = searcherFactory.apply("get", scope);
+    protected final GetResult getFromSearcher(Get get, Engine.Searcher searcher) throws EngineException {
         final DocIdAndVersion docIdAndVersion;
         try {
             docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
@@ -596,7 +598,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException;
+    public abstract GetResult get(Get get, DocumentMapper mapper, Function<Engine.Searcher, Engine.Searcher> searcherWrapper);
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
@@ -674,6 +676,80 @@ public abstract class Engine implements Closeable {
         } finally {
             Releasables.close(releasable);
         }
+    }
+
+    public static Engine.Searcher wrapSearcher(Engine.Searcher searcher,
+                                               CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) {
+        assert readerWrapper != null;
+        final ElasticsearchDirectoryReader esReader =
+            ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher.getDirectoryReader());
+        if (esReader == null) {
+            throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
+        }
+        boolean success = false;
+        DirectoryReader toClose = null;
+        try {
+            NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(searcher.getDirectoryReader());
+            DirectoryReader wrappedReader = readerWrapper.apply(nonClosingReaderWrapper);
+            toClose = wrappedReader;
+            if (wrappedReader == nonClosingReaderWrapper) {
+                success = true;
+                return searcher;
+            }
+            if (wrappedReader.getReaderCacheHelper() != esReader.getReaderCacheHelper()) {
+                throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey," +
+                    " wrappers must override this method and delegate to the original readers core cache key. Wrapped readers can't be "
+                    + "used as cache keys since their are used only per request which would lead to subtle bugs");
+            }
+            if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(wrappedReader) != esReader) {
+                // prevent that somebody wraps with a non-filter reader
+                throw new IllegalStateException("wrapped directory reader hides actual ElasticsearchDirectoryReader but shouldn't");
+            }
+            // we close the reader to make sure wrappers can release resources if needed....
+            // our NonClosingReaderWrapper makes sure that our reader is not closed
+            final Searcher wrappedSearcher = new Searcher(searcher.source(), wrappedReader,
+                searcher.getSimilarity(), searcher.getQueryCache(), searcher.getQueryCachingPolicy(),
+                () -> IOUtils.close(
+                    wrappedReader, // this will close the wrappers excluding the NonClosingReaderWrapper
+                    searcher));
+            toClose = null;
+            success = true;
+            return wrappedSearcher; // this will run the closeable on the wrapped engine reader
+        } catch (IOException e) {
+            throw new EngineException(esReader.shardId(), "failed to wrap the engine searcher");
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(searcher, toClose);
+            }
+        }
+    }
+
+    private static final class NonClosingReaderWrapper extends FilterDirectoryReader {
+
+        private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return reader;
+                }
+            });
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new NonClosingReaderWrapper(in);
+        }
+
+        @Override
+        protected void doClose() throws IOException {
+            // don't close here - mimic the MultiReader#doClose = false behavior that FilterDirectoryReader doesn't have
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+
     }
 
     protected abstract ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope);

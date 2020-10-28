@@ -42,7 +42,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.TranslogLeafReader;
+import org.elasticsearch.index.engine.SingleDocLeafReader;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -210,7 +210,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         // force fetching source if we read from translog and need to recreate stored fields
         boolean forceSourceForComputingTranslogStoredFields = get.isFromTranslog() && storedFields != null &&
-                Stream.of(storedFields).anyMatch(f -> TranslogLeafReader.ALL_FIELD_NAMES.contains(f) == false);
+                Stream.of(storedFields).anyMatch(f -> SingleDocLeafReader.ALL_FIELD_NAMES.contains(f) == false);
         FieldsVisitor fieldVisitor = buildFieldsVisitors(storedFields,
             forceSourceForComputingTranslogStoredFields ? FetchSourceContext.FETCH_SOURCE : fetchSourceContext);
         if (fieldVisitor != null) {

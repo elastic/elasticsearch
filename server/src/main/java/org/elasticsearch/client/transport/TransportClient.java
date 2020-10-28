@@ -137,14 +137,13 @@ public abstract class TransportClient extends AbstractClient {
             providedSettings = Settings.builder().put(providedSettings).put(Node.NODE_NAME_SETTING.getKey(), "_client_").build();
         }
         final PluginsService pluginsService = newPluginService(providedSettings, plugins);
-        final Settings settings =
-                Settings.builder()
-                        .put(defaultSettings)
-                        .put(pluginsService.updatedSettings())
-                        .put(TransportSettings.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
-                        .build()
-                        .filter(k -> k.equals("node.roles") == false);
         final List<Closeable> resourcesToClose = new ArrayList<>();
+        final Settings settings =
+            Settings.builder()
+                .put(defaultSettings)
+                .put(pluginsService.updatedSettings())
+                .put(TransportSettings.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
+                .build();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
         final NetworkService networkService = new NetworkService(emptyList());

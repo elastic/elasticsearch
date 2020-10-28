@@ -243,28 +243,28 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         try {
             FileUtils.writeStringToFile(
                 sourceFile,
-                "        public class Vendors {\n"
-                    + "            private enum SysProp {\n"
-                    + "                JAVA_HOME(\"java.home\"),\n"
-                    + "                VERSION(\"java.version\"),\n"
-                    + "                VENDOR(\"java.vendor\"),\n"
-                    + "                ARCH(\"os.arch\"),\n"
-                    + "                VM(\"java.vm.name\"),\n"
-                    + "                VM_VERSION(\"java.vm.version\"),\n"
-                    + "                RUNTIME(\"java.runtime.name\"),\n"
-                    + "                Z_ERROR(\"Internal\"); // This line MUST be last!\n"
-                    + "                private final String sysProp;\n"
-                    + "                SysProp(String sysProp) {\n"
-                    + "                    this.sysProp = sysProp;\n"
-                    + "                }\n"
-                    + "            }\n"
-                    + "            public static void main(String[] args) {\n"
-                    + "                System.out.println(\"######################\");\n"
-                    + "                for (Vendors.SysProp type : Vendors.SysProp.values()) {\n"
-                    + "                    System.out.println(type.sysProp + \": \" + \"\\\"\" + System.getProperty(type.sysProp) +\"\\\"\");\n"
-                    + "                }\n"
-                    + "                System.out.println(\"######################\");\n"
-                    + "            }\n"
+                "public class Vendors {\n"
+                    + " private enum SysProp {\n"
+                    + "     JAVA_HOME(\"java.home\"),\n"
+                    + "     VERSION(\"java.version\"),\n"
+                    + "     VENDOR(\"java.vendor\"),\n"
+                    + "     ARCH(\"os.arch\"),\n"
+                    + "     VM(\"java.vm.name\"),\n"
+                    + "     VM_VERSION(\"java.vm.version\"),\n"
+                    + "     RUNTIME(\"java.runtime.name\"),\n"
+                    + "     Z_ERROR(\"Internal\"); // This line MUST be last!\n"
+                    + "     private final String sysProp;\n"
+                    + "     SysProp(String sysProp) {\n"
+                    + "         this.sysProp = sysProp;\n"
+                    + "     }\n"
+                    + " }\n"
+                    + " public static void main(String[] args) {\n"
+                    + "     System.out.println(\"######################\");\n"
+                    + "     for (Vendors.SysProp type : Vendors.SysProp.values()) {\n"
+                    + "         System.out.println(type.sysProp + \": \" + \"\\\"\" + System.getProperty(type.sysProp) +\"\\\"\");\n"
+                    + "     }\n"
+                    + "     System.out.println(\"######################\");\n"
+                    + " }\n"
                     + "        }"
             );
 
@@ -288,7 +288,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                     javaExecSpec.setExecutable(new File(javaHomeDirectory, execFile));
                     javaExecSpec.setStandardOutput(System.out);
                     javaExecSpec.workingDir(sourceFile.getParentFile());
-                    javaExecSpec.args("Vendors");
+                    javaExecSpec.args("-cp", ".", "Vendors");
                 }
             });
         } catch (IOException ioException) {

@@ -92,6 +92,7 @@ public class TestSearchContext extends SearchContext {
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private SearchContextAggregations aggregations;
     private ScrollContext scrollContext;
+    private FieldDoc searchAfter;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
@@ -373,12 +374,13 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext searchAfter(FieldDoc searchAfter) {
-        return null;
+        this.searchAfter = searchAfter;
+        return this;
     }
 
     @Override
     public FieldDoc searchAfter() {
-        return null;
+        return searchAfter;
     }
 
     @Override

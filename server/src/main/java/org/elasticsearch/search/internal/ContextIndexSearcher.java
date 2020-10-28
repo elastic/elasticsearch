@@ -176,6 +176,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,
             QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
+        // As a single collector expects segments in order of doc,
+        // and we reordered segments, we have to create a separate collector for each segment.
         final List<Collector> collectors = new ArrayList<>(leaves.size());
         for (LeafReaderContext ctx : leaves) {
             final Collector collector = manager.newCollector();
@@ -195,7 +197,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         for (LeafReaderContext ctx : leaves) { // search each subreader
             searchLeaf(ctx, weight, collector);
         }

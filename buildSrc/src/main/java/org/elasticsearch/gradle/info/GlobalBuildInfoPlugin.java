@@ -18,14 +18,17 @@
  */
 package org.elasticsearch.gradle.info;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.Util;
+import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
@@ -34,6 +37,8 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.jvm.toolchain.JavaInstallation;
 import org.gradle.jvm.toolchain.JavaInstallationRegistry;
+import org.gradle.process.ExecOperations;
+import org.gradle.process.ExecSpec;
 import org.gradle.util.GradleVersion;
 
 import javax.inject.Inject;
@@ -71,12 +76,22 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final ObjectFactory objects;
     private final ProviderFactory providers;
+    private final ExecOperations execOperations;
+    private final FileOperations fileOperations;
 
     @Inject
-    public GlobalBuildInfoPlugin(JavaInstallationRegistry javaInstallationRegistry, ObjectFactory objects, ProviderFactory providers) {
+    public GlobalBuildInfoPlugin(
+        JavaInstallationRegistry javaInstallationRegistry,
+        ObjectFactory objects,
+        ProviderFactory providers,
+        ExecOperations execOperations,
+        FileOperations fileOperations
+    ) {
         this.javaInstallationRegistry = javaInstallationRegistry;
         this.objects = objects;
         this.providers = providers;
+        this.execOperations = execOperations;
+        this.fileOperations = fileOperations;
     }
 
     @Override
@@ -199,9 +214,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             int version = v;
             String javaHomeEnvVarName = getJavaHomeEnvVarName(Integer.toString(version));
             if (System.getenv(javaHomeEnvVarName) != null) {
+
                 String javaHomeString = findJavaHome(Integer.toString(version));
+
                 Logging.getLogger(getClass()).quiet("javaHomeString: " + javaHomeString);
                 File javaHomeDirectory = new File(findJavaHome(Integer.toString(version)));
+                probeJava(javaHomeDirectory);
                 Provider<JavaInstallation> javaInstallationProvider = javaInstallationRegistry.installationForDirectory(
                     objects.directoryProperty().fileValue(javaHomeDirectory)
                 );
@@ -216,6 +234,67 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             }
         }
         return javaVersions;
+    }
+
+    private void probeJava(File javaHomeDirectory) {
+        System.out.println("Probing " + javaHomeDirectory);
+        File sourceFile = fileOperations.file("build/javaprobe/" + javaHomeDirectory.getName() + "/Vendors.java");
+        sourceFile.getParentFile().mkdirs();
+        try {
+            FileUtils.writeStringToFile(
+                sourceFile,
+                "        public class Vendors {\n"
+                    + "            private enum SysProp {\n"
+                    + "                JAVA_HOME(\"java.home\"),\n"
+                    + "                VERSION(\"java.version\"),\n"
+                    + "                VENDOR(\"java.vendor\"),\n"
+                    + "                ARCH(\"os.arch\"),\n"
+                    + "                VM(\"java.vm.name\"),\n"
+                    + "                VM_VERSION(\"java.vm.version\"),\n"
+                    + "                RUNTIME(\"java.runtime.name\"),\n"
+                    + "                Z_ERROR(\"Internal\"); // This line MUST be last!\n"
+                    + "                private final String sysProp;\n"
+                    + "                SysProp(String sysProp) {\n"
+                    + "                    this.sysProp = sysProp;\n"
+                    + "                }\n"
+                    + "            }\n"
+                    + "            public static void main(String[] args) {\n"
+                    + "                System.out.println(\"######################\");\n"
+                    + "                for (Vendors.SysProp type : Vendors.SysProp.values()) {\n"
+                    + "                    System.out.println(type.sysProp + \": \" + \"\\\"\" + System.getProperty(type.sysProp) +\"\\\"\");\n"
+                    + "                }\n"
+                    + "                System.out.println(\"######################\");\n"
+                    + "            }\n"
+                    + "        }"
+            );
+
+            execOperations.exec(new Action<ExecSpec>() {
+                @Override
+                public void execute(ExecSpec javaExecSpec) {
+                    boolean isWindows = OS.current() == OS.WINDOWS;
+                    String compilerExec = isWindows ? "bin/javac.bat" : "bin/javac";
+                    javaExecSpec.setExecutable(new File(javaHomeDirectory, compilerExec));
+                    javaExecSpec.setStandardOutput(System.out);
+                    javaExecSpec.workingDir(sourceFile.getParentFile());
+                    javaExecSpec.args(sourceFile.getName());
+                }
+            });
+
+            execOperations.exec(new Action<ExecSpec>() {
+                @Override
+                public void execute(ExecSpec javaExecSpec) {
+                    boolean isWindows = OS.current() == OS.WINDOWS;
+                    String execFile = isWindows ? "bin/java.bat" : "bin/java";
+                    javaExecSpec.setExecutable(new File(javaHomeDirectory, execFile));
+                    javaExecSpec.setStandardOutput(System.out);
+                    javaExecSpec.workingDir(sourceFile.getParentFile());
+                    javaExecSpec.args("Vendors");
+                }
+            });
+        } catch (IOException ioException) {
+            ioException.printStackTrace();
+        }
+
     }
 
     private static boolean isCurrentJavaHome(File javaHome) {
@@ -467,6 +546,33 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         public String getOrigin() {
             return origin;
+        }
+    }
+
+    public static class Vendors {
+        private enum SysProp {
+            JAVA_HOME("java.home"),
+            VERSION("java.version"),
+            VENDOR("java.vendor"),
+            ARCH("os.arch"),
+            VM("java.vm.name"),
+            VM_VERSION("java.vm.version"),
+            RUNTIME("java.runtime.name"),
+            Z_ERROR("Internal"); // This line MUST be last!
+
+            private final String sysProp;
+
+            SysProp(String sysProp) {
+                this.sysProp = sysProp;
+            }
+        }
+
+        public static void main(String[] args) {
+            System.out.println("######################");
+            for (SysProp type : SysProp.values()) {
+                System.out.println(type.sysProp + ": " + System.getProperty(type.sysProp));
+            }
+            System.out.println("######################");
         }
     }
 }

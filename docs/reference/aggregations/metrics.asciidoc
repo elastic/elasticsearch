@@ -51,6 +51,7 @@ include::metrics/valuecount-aggregation.asciidoc[]
 
 include::metrics/t-test-aggregation.asciidoc[]
 
+include::metrics/rate-aggregation.asciidoc[]
 
 
 

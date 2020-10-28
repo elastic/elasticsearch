@@ -29,6 +29,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -49,7 +50,7 @@ import java.util.function.BiConsumer;
  *
  * @see Rounding
  */
-class DateHistogramAggregator extends BucketsAggregator {
+class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
@@ -62,7 +63,8 @@ class DateHistogramAggregator extends BucketsAggregator {
     private final boolean keyed;
 
     private final long minDocCount;
-    private final ExtendedBounds extendedBounds;
+    private final LongBounds extendedBounds;
+    private final LongBounds hardBounds;
 
     private final LongKeyedBucketOrds bucketOrds;
 
@@ -70,31 +72,32 @@ class DateHistogramAggregator extends BucketsAggregator {
         String name,
         AggregatorFactories factories,
         Rounding rounding,
-        Rounding.Prepared preparedRounding,
         BucketOrder order,
         boolean keyed,
         long minDocCount,
-        @Nullable ExtendedBounds extendedBounds,
+        @Nullable LongBounds extendedBounds,
+        @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext aggregationContext,
         Aggregator parent,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
 
-        super(name, factories, aggregationContext, parent, metadata);
+        super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
-        this.preparedRounding = preparedRounding;
+        this.preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
         this.order = order;
         order.validate(this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
+        this.hardBounds = hardBounds;
         // TODO: Stop using null here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
         this.formatter = valuesSourceConfig.format();
 
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     @Override
@@ -125,12 +128,14 @@ class DateHistogramAggregator extends BucketsAggregator {
                         if (rounded == previousRounded) {
                             continue;
                         }
-                        long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
-                        if (bucketOrd < 0) { // already seen
-                            bucketOrd = -1 - bucketOrd;
-                            collectExistingBucket(sub, doc, bucketOrd);
-                        } else {
-                            collectBucket(sub, doc, bucketOrd);
+                        if (hardBounds == null || hardBounds.contain(rounded)) {
+                            long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
+                            if (bucketOrd < 0) { // already seen
+                                bucketOrd = -1 - bucketOrd;
+                                collectExistingBucket(sub, doc, bucketOrd);
+                            } else {
+                                collectBucket(sub, doc, bucketOrd);
+                            }
                         }
                         previousRounded = rounded;
                     }
@@ -175,5 +180,19 @@ class DateHistogramAggregator extends BucketsAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("total_buckets", bucketOrds.size());
+    }
+
+    /**
+     * Returns the size of the bucket in specified units.
+     *
+     * If unitSize is null, returns 1.0
+     */
+    @Override
+    public double bucketSize(long bucket, Rounding.DateTimeUnit unitSize) {
+        if (unitSize != null) {
+            return preparedRounding.roundingSize(bucketOrds.get(bucket), unitSize);
+        } else {
+            return 1.0;
+        }
     }
 }

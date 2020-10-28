@@ -19,13 +19,17 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
@@ -34,6 +38,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Base implementation for concrete aggregators.
@@ -45,7 +50,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     protected final String name;
     protected final Aggregator parent;
-    protected final SearchContext context;
+    private final SearchContext context;
     private final Map<String, Object> metadata;
 
     protected final Aggregator[] subAggregators;
@@ -62,18 +67,19 @@ public abstract class AggregatorBase extends Aggregator {
      * @param factories             The factories for all the sub-aggregators under this aggregator
      * @param context               The aggregation context
      * @param parent                The parent aggregator (may be {@code null} for top level aggregators)
+     * @param subAggregatorCardinality Upper bound of the number of buckets that sub aggregations will collect
      * @param metadata              The metadata associated with this aggregator
      */
     protected AggregatorBase(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
+            CardinalityUpperBound subAggregatorCardinality, Map<String, Object> metadata) throws IOException {
         this.name = name;
         this.metadata = metadata;
         this.parent = parent;
         this.context = context;
         this.breakerService = context.bigArrays().breakerService();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
-        this.subAggregators = factories.createSubAggregators(context, this);
-        context.addReleasable(this, Lifetime.PHASE);
+        this.subAggregators = factories.createSubAggregators(context, this, subAggregatorCardinality);
+        context.addReleasable(this);
         final SearchShardTarget shardTarget = context.shardTarget();
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
@@ -103,6 +109,26 @@ public abstract class AggregatorBase extends Aggregator {
             }
         };
         addRequestCircuitBreakerBytes(DEFAULT_WEIGHT);
+    }
+
+    /**
+     * Returns a converter for point values if it's safe to use the indexed data instead of
+     * doc values.  Generally, this means that the query has no filters or scripts, the aggregation is
+     * top level, and the underlying field is indexed, and the index is sorted in the right order.
+     *
+     * If those conditions aren't met, return <code>null</code> to indicate a point reader cannot
+     * be used in this case.
+     *
+     * @param config The config for the values source metric.
+     */
+    public final Function<byte[], Number> pointReaderIfAvailable(ValuesSourceConfig config) {
+        if (topLevelQuery() != null && topLevelQuery().getClass() != MatchAllDocsQuery.class) {
+            return null;
+        }
+        if (parent != null) {
+            return null;
+        }
+        return config.getPointReaderOrNull();
     }
 
     /**
@@ -218,18 +244,13 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * @return  The current aggregation context.
-     */
-    @Override
-    public SearchContext context() {
-        return context;
-    }
-
-    /**
      * Called after collection of all document is done.
+     * <p>
+     * Warning: this is not final only to allow the parent join aggregator
+     * to delay this until building buckets.
      */
     @Override
-    public final void postCollection() throws IOException {
+    public void postCollection() throws IOException {
         // post-collect this agg before subs to make it possible to buffer and then replay in postCollection()
         doPostCollection();
         collectableSubAggregators.postCollection();
@@ -265,5 +286,35 @@ public abstract class AggregatorBase extends Aggregator {
     @Override
     public String toString() {
         return name;
+    }
+
+    /**
+     * Utilities for sharing large primitive arrays and tracking their usage.
+     * Used by all subclasses.
+     */
+    protected final BigArrays bigArrays() {
+        return context.bigArrays();
+    }
+
+    /**
+     * The "top level" query that will filter the results sent to this
+     * {@linkplain Aggregator}. Used by all {@linkplain Aggregator}s that
+     * perform extra collection phases in addition to the one done in
+     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector)}.
+     */
+    protected final Query topLevelQuery() {
+        return context.query();
+    }
+
+    /**
+     * The searcher for the shard this {@linkplain Aggregator} is running
+     * against. Used by all {@linkplain Aggregator}s that perform extra
+     * collection phases in addition to the one done in
+     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector)}
+     * and by to look up extra "background" information about contents of
+     * the shard itself.
+     */
+    protected final IndexSearcher searcher() {
+        return context.searcher();
     }
 }

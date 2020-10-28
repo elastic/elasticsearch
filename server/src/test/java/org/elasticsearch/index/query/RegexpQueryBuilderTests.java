@@ -47,6 +47,9 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
             query.flags(flags.toArray(new RegexpFlag[flags.size()]));
         }
         if (randomBoolean()) {
+            query.caseInsensitive(true);
+        }
+        if (randomBoolean()) {
             query.maxDeterminizedStates(randomInt(50000));
         }
         if (randomBoolean()) {
@@ -101,6 +104,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
                 "    \"name.first\" : {\n" +
                 "      \"value\" : \"s.*y\",\n" +
                 "      \"flags_value\" : 7,\n" +
+                "      \"case_insensitive\" : true,\n" +
                 "      \"max_determinized_states\" : 20000,\n" +
                 "      \"boost\" : 1.0\n" +
                 "    }\n" +

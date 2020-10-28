@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -123,14 +124,14 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
     }
 
     private final String[] keys;
-    private Weight[] filters;
+    private final Weight[] filters;
     private final int totalNumKeys;
     private final int totalNumIntersections;
     private final String separator;
 
     public AdjacencyMatrixAggregator(String name, AggregatorFactories factories, String separator, String[] keys,
             Weight[] filters, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.separator = separator;
         this.keys = keys;
         this.filters = filters;

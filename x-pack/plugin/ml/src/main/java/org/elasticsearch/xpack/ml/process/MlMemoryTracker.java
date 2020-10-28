@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -102,6 +102,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void onMaster() {
         isMaster = true;
         logger.trace("ML memory tracker on master");
+        asyncRefresh();
     }
 
     @Override
@@ -129,11 +130,6 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         stopPhaser.arriveAndAwaitAdvance();
         assert stopPhaser.getPhase() > 0;
         logger.debug("ML memory tracker stopped");
-    }
-
-    @Override
-    public String executorName() {
-        return MachineLearning.UTILITY_THREAD_POOL_NAME;
     }
 
     /**
@@ -222,7 +218,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     aVoid -> logger.trace("Job memory requirement refresh request completed successfully"),
                     e -> logger.warn("Failed to refresh job memory requirements", e)
                 );
-                threadPool.executor(executorName()).execute(
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
                     () -> refresh(clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE), listener));
                 return true;
             } catch (EsRejectedExecutionException e) {
@@ -339,7 +335,8 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     // can occur if the searches happen to be on the local node, as the huge
                     // chain of listeners are all called in the same thread if only one node
                     // is involved
-                    mem -> threadPool.executor(executorName()).execute(() -> iterateAnomalyDetectorJobTasks(iterator, refreshComplete)),
+                    mem -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                        .execute(() -> iterateAnomalyDetectorJobTasks(iterator, refreshComplete)),
                     refreshComplete::onFailure));
         } else {
             refreshComplete.onResponse(null);
@@ -430,7 +427,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             if (memoryLimitMb == null) {
                 memoryLimitMb = AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB;
             }
-            Long memoryRequirementBytes = ByteSizeUnit.MB.toBytes(memoryLimitMb) + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
+            Long memoryRequirementBytes = ByteSizeValue.ofMb(memoryLimitMb).getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
             memoryRequirementByAnomalyDetectorJob.put(jobId, memoryRequirementBytes);
             listener.onResponse(memoryRequirementBytes);
         }, e -> {

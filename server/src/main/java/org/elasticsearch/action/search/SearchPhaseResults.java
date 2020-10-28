@@ -48,8 +48,9 @@ abstract class SearchPhaseResults<Result extends SearchPhaseResult> {
     /**
      * Consumes a single shard result
      * @param result the shards result
+     * @param next a {@link Runnable} that is executed when the response has been fully consumed
      */
-    abstract void consumeResult(Result result);
+    abstract void consumeResult(Result result, Runnable next);
 
     /**
      * Returns <code>true</code> iff a result if present for the given shard ID.
@@ -65,7 +66,7 @@ abstract class SearchPhaseResults<Result extends SearchPhaseResult> {
     /**
      * Reduces the collected results
      */
-    SearchPhaseController.ReducedQueryPhase reduce() {
+    SearchPhaseController.ReducedQueryPhase reduce() throws Exception {
         throw new UnsupportedOperationException("reduce is not supported");
     }
 }

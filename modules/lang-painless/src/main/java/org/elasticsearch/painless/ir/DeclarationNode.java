@@ -19,12 +19,9 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class DeclarationNode extends StatementNode {
 
@@ -65,33 +62,24 @@ public class DeclarationNode extends StatementNode {
         return PainlessLookupUtility.typeToCanonicalTypeName(declarationType);
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeStatementOffset(location);
-
-        Variable variable = writeScope.defineVariable(declarationType, name);
-
-        if (expressionNode == null) {
-            Class<?> sort = variable.getType();
-
-            if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                    sort == short.class || sort == char.class || sort == int.class) {
-                methodWriter.push(0);
-            } else if (sort == long.class) {
-                methodWriter.push(0L);
-            } else if (sort == float.class) {
-                methodWriter.push(0F);
-            } else if (sort == double.class) {
-                methodWriter.push(0D);
-            } else {
-                methodWriter.visitInsn(Opcodes.ACONST_NULL);
-            }
-        } else {
-            expressionNode.write(classWriter, methodWriter, writeScope);
-        }
-
-        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitDeclaration(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        if (expressionNode != null) {
+            expressionNode.visit(irTreeVisitor, scope);
+        }
+    }
+
+    /* ---- end visitor ---- */
+
+    public DeclarationNode(Location location) {
+        super(location);
+    }
+
 }

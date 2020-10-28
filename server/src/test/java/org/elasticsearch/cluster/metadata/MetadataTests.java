@@ -1016,7 +1016,7 @@ public class MetadataTests extends ESTestCase {
             backingIndices.add(im.getIndex());
         }
 
-        b.put(new DataStream(dataStreamName, createTimestampField("ts"), backingIndices, lastBackingIndexNum));
+        b.put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices, lastBackingIndexNum, null));
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(1));
         assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
@@ -1034,7 +1034,7 @@ public class MetadataTests extends ESTestCase {
                 indices.add(idx.getIndex());
                 b.put(idx, true);
             }
-            b.put(new DataStream(name, createTimestampField("ts"), indices, indices.size()));
+            b.put(new DataStream(name, createTimestampField("@timestamp"), indices));
         }
 
         Metadata metadata = b.build();
@@ -1099,9 +1099,8 @@ public class MetadataTests extends ESTestCase {
         }
         DataStream dataStream = new DataStream(
             dataStreamName,
-            createTimestampField("ts"),
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
-            backingIndices.size()
+            createTimestampField("@timestamp"),
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
 
         IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, backingIndices);
@@ -1173,9 +1172,8 @@ public class MetadataTests extends ESTestCase {
         }
         DataStream dataStream = new DataStream(
             dataStreamName,
-            createTimestampField("ts"),
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
-            backingIndices.size()
+            createTimestampField("@timestamp"),
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
 
         IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, backingIndices);
@@ -1237,7 +1235,7 @@ public class MetadataTests extends ESTestCase {
             .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
             .put("index_template_v2_" + randomAlphaOfLength(3), ComposableIndexTemplateTests.randomInstance());
 
-        DataStream randomDataStream = DataStreamTests.randomInstance();
+        DataStream randomDataStream = DataStreamTestHelper.randomInstance();
         for (Index index : randomDataStream.getIndices()) {
             md.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
         }
@@ -1275,7 +1273,7 @@ public class MetadataTests extends ESTestCase {
             b.put(im, false);
             backingIndices.add(im.getIndex());
         }
-        b.put(new DataStream(dataStreamName, createTimestampField("ts"), backingIndices, lastBackingIndexNum));
+        b.put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices, lastBackingIndexNum, null));
         return new CreateIndexResult(indices, backingIndices, b.build());
     }
 

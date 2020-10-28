@@ -105,16 +105,17 @@ public class SuggestionEntryTests extends ESTestCase {
                 // exclude "options" which contain SearchHits,
                 // on root level of SearchHit fields are interpreted as meta-fields and will be kept
                 Predicate<String> excludeFilter = (
-                        path) -> (path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()) || path.endsWith("highlight")
-                                || path.endsWith("fields") || path.contains("_source") || path.contains("inner_hits")
+                        path -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()) || path.endsWith("highlight")
+                                || path.contains("fields") || path.contains("_source") || path.contains("inner_hits")
                                 || path.contains("options"));
+
                 mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
             } else {
                 mutated = originalBytes;
             }
             Entry<Option> parsed;
             try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                 parsed = ENTRY_PARSERS.get(entry.getClass()).apply(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());

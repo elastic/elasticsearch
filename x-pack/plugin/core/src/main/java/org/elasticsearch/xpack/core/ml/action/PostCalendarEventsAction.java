@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -65,9 +63,6 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
         private String calendarId;
         private List<ScheduledEvent> scheduledEvents;
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             calendarId = in.readString();
@@ -118,13 +113,6 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
             }
             Request other = (Request) obj;
             return Objects.equals(calendarId, other.calendarId) && Objects.equals(scheduledEvents, other.scheduledEvents);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
         }
     }
 

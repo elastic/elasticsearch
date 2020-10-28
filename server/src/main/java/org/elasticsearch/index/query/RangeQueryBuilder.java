@@ -430,7 +430,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
         if (shardContext != null) {
-            final MappedFieldType fieldType = shardContext.fieldMapper(fieldName);
+            final MappedFieldType fieldType = shardContext.getFieldType(fieldName);
             if (fieldType == null) {
                 return MappedFieldType.Relation.DISJOINT;
             }
@@ -475,21 +475,21 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (from == null && to == null) {
-            /**
+            /*
              * Open bounds on both side, we can rewrite to an exists query
              * if the {@link FieldNamesFieldMapper} is enabled.
              */
-            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-                (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fieldType(FieldNamesFieldMapper.NAME);
-            if (fieldNamesFieldType == null) {
+            if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
                 return new MatchNoDocsQuery("No mappings yet");
             }
+            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+                (FieldNamesFieldMapper.FieldNamesFieldType) context.getFieldType(FieldNamesFieldMapper.NAME);
             // Exists query would fail if the fieldNames field is disabled.
             if (fieldNamesFieldType.isEnabled()) {
-                return ExistsQueryBuilder.newFilter(context, fieldName);
+                return ExistsQueryBuilder.newFilter(context, fieldName, false);
             }
         }
-        MappedFieldType mapper = context.fieldMapper(this.fieldName);
+        MappedFieldType mapper = context.getFieldType(this.fieldName);
         if (mapper == null) {
             throw new IllegalStateException("Rewrite first");
         }

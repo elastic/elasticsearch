@@ -81,15 +81,15 @@ public final class TransportSettings {
         affixKeySetting("transport.profiles.", "tcp.keep_alive",
             key -> boolSetting(key, TCP_KEEP_ALIVE, Setting.Property.NodeScope));
     public static final Setting<Integer> TCP_KEEP_IDLE =
-        intSetting("transport.tcp.keep_idle", NetworkService.TCP_KEEP_IDLE, -1, Setting.Property.NodeScope);
+        intSetting("transport.tcp.keep_idle", NetworkService.TCP_KEEP_IDLE, -1, 300, Setting.Property.NodeScope);
     public static final Setting.AffixSetting<Integer> TCP_KEEP_IDLE_PROFILE =
         affixKeySetting("transport.profiles.", "tcp.keep_idle",
-            key -> intSetting(key, TCP_KEEP_IDLE, -1, Setting.Property.NodeScope));
+            key -> intSetting(key, TCP_KEEP_IDLE, -1, 300, Setting.Property.NodeScope));
     public static final Setting<Integer> TCP_KEEP_INTERVAL =
-        intSetting("transport.tcp.keep_interval", NetworkService.TCP_KEEP_INTERVAL, -1, Setting.Property.NodeScope);
+        intSetting("transport.tcp.keep_interval", NetworkService.TCP_KEEP_INTERVAL, -1, 300, Setting.Property.NodeScope);
     public static final Setting.AffixSetting<Integer> TCP_KEEP_INTERVAL_PROFILE =
         affixKeySetting("transport.profiles.", "tcp.keep_interval",
-            key -> intSetting(key, TCP_KEEP_INTERVAL, -1, Setting.Property.NodeScope));
+            key -> intSetting(key, TCP_KEEP_INTERVAL, -1, 300, Setting.Property.NodeScope));
     public static final Setting<Integer> TCP_KEEP_COUNT =
         intSetting("transport.tcp.keep_count", NetworkService.TCP_KEEP_COUNT, -1, Setting.Property.NodeScope);
     public static final Setting.AffixSetting<Integer> TCP_KEEP_COUNT_PROFILE =
@@ -131,6 +131,12 @@ public final class TransportSettings {
         listSetting("transport.tracer.exclude",
             Arrays.asList("internal:coordination/fault_detection/*"),
             Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    // Time that processing an inbound message on a transport thread may take at the most before a warning is logged
+    public static final Setting<TimeValue> SLOW_OPERATION_THRESHOLD_SETTING =
+            Setting.positiveTimeSetting("transport.slow_operation_logging_threshold", TimeValue.timeValueSeconds(5),
+                    Setting.Property.Dynamic, Setting.Property.NodeScope);
+
 
     private TransportSettings() {
     }

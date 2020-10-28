@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.ingest.IngestService;
@@ -52,10 +51,10 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
-import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
+import org.elasticsearch.xpack.transform.transforms.Function;
+import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Map;
@@ -127,7 +126,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             threadPool,
             actionFilters,
             StartTransformAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            StartTransformAction.Response::new,
+            ThreadPool.Names.SAME
         );
         this.licenseState = licenseState;
         this.transformConfigManager = transformServices.getConfigManager();
@@ -140,20 +141,11 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             DiscoveryNode.isRemoteClusterClient(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
+            ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
         this.ingestService = ingestService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected StartTransformAction.Response read(StreamInput in) throws IOException {
-        return new StartTransformAction.Response(in);
     }
 
     @Override
@@ -270,22 +262,12 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 createTransform(config.getId(), config.getVersion(), config.getFrequency(), config.getSource().requiresRemoteCluster())
             );
             transformConfigHolder.set(config);
-            if (config.getDestination().getPipeline() != null) {
-                if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
-                    return;
-                }
-            }
 
             sourceDestValidator.validate(
                 clusterService.state(),
                 config.getSource().getIndex(),
                 config.getDestination().getIndex(),
+                config.getDestination().getPipeline(),
                 SourceDestValidations.ALL_VALIDATIONS,
                 validationListener
             );
@@ -297,7 +279,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
     private void createDestinationIndex(final TransformConfig config, final ActionListener<Boolean> listener) {
 
-        final Pivot pivot = new Pivot(config.getPivotConfig());
+        final Function function = FunctionFactory.create(config);
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(mappings -> {
             TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
@@ -312,7 +294,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             )
         );
 
-        pivot.deduceMappings(client, config.getSource(), deduceMappingsListener);
+        function.deduceMappings(client, config.getSource(), deduceMappingsListener);
     }
 
     @Override

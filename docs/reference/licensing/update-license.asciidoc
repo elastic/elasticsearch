@@ -21,7 +21,7 @@ Updates the license for your {es} cluster.
 If {es} {security-features} are enabled, you need `manage` cluster privileges to
 install the license.
 
-If {es} {security-features} are enabled and you are installing a gold or platinum
+If {es} {security-features} are enabled and you are installing a gold or higher
 license, you must enable TLS on the transport networking layer before you
 install the license. See <<configuring-tls>>.
 

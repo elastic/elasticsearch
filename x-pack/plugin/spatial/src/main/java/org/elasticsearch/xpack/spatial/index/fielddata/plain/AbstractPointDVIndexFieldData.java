@@ -15,12 +15,9 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -33,29 +30,19 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.PointValuesSo
 
 public abstract class AbstractPointDVIndexFieldData implements IndexPointFieldData {
 
-    protected final Index index;
-    protected final String fieldName;
+    protected final String name;
+    protected final ValuesSourceType valuesSourceType;
 
-
-    AbstractPointDVIndexFieldData(Index index, String fieldName) {
-        this.index = index;
-        this.fieldName = fieldName;
+    AbstractPointDVIndexFieldData(String name, ValuesSourceType valuesSourceType) {
+        this.name = name;
+        this.valuesSourceType = valuesSourceType;
     }
 
     @Override
     public final String getFieldName() {
-        return fieldName;
+        return name;
     }
 
-    @Override
-    public final void clear() {
-        // can't do
-    }
-
-    @Override
-    public final Index index() {
-        return index;
-    }
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested,
@@ -75,18 +62,18 @@ public abstract class AbstractPointDVIndexFieldData implements IndexPointFieldDa
     }
 
     public static class CartesianPointDVIndexFieldData extends AbstractPointDVIndexFieldData {
-        public CartesianPointDVIndexFieldData(Index index, String fieldName) {
-            super(index, fieldName);
+        public CartesianPointDVIndexFieldData(String name, ValuesSourceType valuesSourceType) {
+            super(name, valuesSourceType);
         }
 
         @Override
         public LeafPointFieldData load(LeafReaderContext context) {
             LeafReader reader = context.reader();
-            FieldInfo info = reader.getFieldInfos().fieldInfo(fieldName);
+            FieldInfo info = reader.getFieldInfos().fieldInfo(name);
             if (info != null) {
                 checkCompatible(info);
             }
-            return new CartesianPointDVLeafFieldData(reader, fieldName);
+            return new CartesianPointDVLeafFieldData(reader, name);
         }
 
         @Override
@@ -109,11 +96,19 @@ public abstract class AbstractPointDVIndexFieldData implements IndexPointFieldDa
     }
 
     public static class Builder implements IndexFieldData.Builder {
+
+        private final String name;
+        private final ValuesSourceType valuesSourceType;
+
+        public Builder(String name, ValuesSourceType valuesSourceType) {
+            this.name = name;
+            this.valuesSourceType = valuesSourceType;
+        }
+
         @Override
-        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService, MapperService mapperService) {
+        public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             // ignore breaker
-            return new CartesianPointDVIndexFieldData(indexSettings.getIndex(), fieldType.name());
+            return new CartesianPointDVIndexFieldData(name, valuesSourceType);
         }
     }
 }

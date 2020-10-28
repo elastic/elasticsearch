@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -29,6 +30,7 @@ import java.util.stream.IntStream;
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.generators.RandomPicks.randomFrom;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 
 public class ConfigTestHelpers {
@@ -69,7 +71,10 @@ public class ConfigTestHelpers {
     }
 
     public static DateHistogramGroupConfig randomDateHistogramGroupConfig(final Random random) {
-        final String field = randomField(random);
+        return randomDateHistogramGroupConfigWithField(random, randomField(random));
+    }
+
+    public static DateHistogramGroupConfig randomDateHistogramGroupConfigWithField(final Random random, final String field) {
         final DateHistogramInterval delay = random.nextBoolean() ? randomInterval() : null;
         final String timezone = random.nextBoolean() ? randomZone().getId() : null;
         if (random.nextBoolean()) {
@@ -128,26 +133,11 @@ public class ConfigTestHelpers {
 
     public static MetricConfig randomMetricConfig(final Random random) {
         final String field = randomAsciiAlphanumOfLengthBetween(random, 15, 25);  // large names so we don't accidentally collide
-        final List<String> metrics = new ArrayList<>();
-        if (random.nextBoolean()) {
-            metrics.add("min");
-        }
-        if (random.nextBoolean()) {
-            metrics.add("max");
-        }
-        if (random.nextBoolean()) {
-            metrics.add("sum");
-        }
-        if (random.nextBoolean()) {
-            metrics.add("avg");
-        }
-        if (random.nextBoolean()) {
-            metrics.add("value_count");
-        }
-        if (metrics.size() == 0) {
-            metrics.add("min");
-        }
-        return new MetricConfig(field, Collections.unmodifiableList(metrics));
+        return randomMetricConfigWithFieldAndMetrics(random, field, RollupField.SUPPORTED_METRICS);
+    }
+
+    public static MetricConfig randomMetricConfigWithFieldAndMetrics(final Random random, String field, Collection<String> metrics) {
+        return new MetricConfig(field, Collections.unmodifiableList(randomSubsetOf(randomIntBetween(random, 1, metrics.size()), metrics)));
     }
 
     public static TermsGroupConfig randomTermsGroupConfig(final Random random) {

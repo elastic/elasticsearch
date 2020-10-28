@@ -24,8 +24,7 @@ import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
-
-import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
+import java.util.Objects;
 
 /**
  * Represents a point in the cartesian space.
@@ -36,18 +35,18 @@ public class CartesianPoint implements ToXContentFragment {
     private static final ParseField Y_FIELD = new ParseField("y");
     private static final ParseField Z_FIELD = new ParseField("z");
 
-    protected float x;
-    protected float y;
+    protected double x;
+    protected double y;
 
     public CartesianPoint() {
     }
 
-    public CartesianPoint(float x, float y) {
+    public CartesianPoint(double x, double y) {
         this.x = x;
         this.y = y;
     }
 
-    public CartesianPoint reset(float x, float y) {
+    public CartesianPoint reset(double x, double y) {
         this.x = x;
         this.y = y;
         return this;
@@ -78,11 +77,11 @@ public class CartesianPoint implements ToXContentFragment {
             throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates "
                 + "but found: [{}]", vals, vals.length);
         }
-        final float x;
-        final float y;
+        final double x;
+        final double y;
         try {
-            x = Float.parseFloat(vals[0].trim());
-            if (Float.isFinite(x) == false) {
+            x = Double.parseDouble(vals[0].trim());
+            if (Double.isFinite(x) == false) {
                 throw new ElasticsearchParseException("invalid [{}] value [{}]; " +
                     "must be between -3.4028234663852886E38 and 3.4028234663852886E38",
                     X_FIELD.getPreferredName(),
@@ -92,8 +91,8 @@ public class CartesianPoint implements ToXContentFragment {
             throw new ElasticsearchParseException("[{}]] must be a number", X_FIELD.getPreferredName());
         }
         try {
-            y = Float.parseFloat(vals[1].trim());
-            if (Float.isFinite(y) == false) {
+            y = Double.parseDouble(vals[1].trim());
+            if (Double.isFinite(y) == false) {
                 throw new ElasticsearchParseException("invalid [{}] value [{}]; " +
                     "must be between -3.4028234663852886E38 and 3.4028234663852886E38",
                     Y_FIELD.getPreferredName(),
@@ -104,7 +103,7 @@ public class CartesianPoint implements ToXContentFragment {
         }
         if (vals.length > 2) {
             try {
-                CartesianPoint.assertZValue(ignoreZValue, Float.parseFloat(vals[2].trim()));
+                CartesianPoint.assertZValue(ignoreZValue, Double.parseDouble(vals[2].trim()));
             } catch (NumberFormatException ex) {
                 throw new ElasticsearchParseException("[{}]] must be a number", Y_FIELD.getPreferredName());
             }
@@ -125,14 +124,14 @@ public class CartesianPoint implements ToXContentFragment {
                 "but found {}", PointFieldMapper.CONTENT_TYPE, geometry.type());
         }
         org.elasticsearch.geometry.Point point = (org.elasticsearch.geometry.Point) geometry;
-        return reset((float) point.getX(), (float) point.getY());
+        return reset(point.getX(), point.getY());
     }
 
-    public float getX() {
+    public double getX() {
         return this.x;
     }
 
-    public float getY() {
+    public double getY() {
         return this.y;
     }
 
@@ -143,21 +142,15 @@ public class CartesianPoint implements ToXContentFragment {
 
         CartesianPoint point = (CartesianPoint) o;
 
-        if (Float.compare(point.x, x) != 0) return false;
-        if (Float.compare(point.y, y) != 0) return false;
+        if (Double.compare(point.x, x) != 0) return false;
+        if (Double.compare(point.y, y) != 0) return false;
 
         return true;
     }
 
     @Override
     public int hashCode() {
-        int result;
-        int temp;
-        temp = x != +0.0f ? Float.floatToIntBits(x) : 0;
-        result = Integer.hashCode(temp);
-        temp = y != +0.0f ? Float.floatToIntBits(y) : 0;
-        result = 31 * result + Integer.hashCode(temp);
-        return result;
+        return Objects.hash(x, y);
     }
 
     @Override
@@ -172,8 +165,8 @@ public class CartesianPoint implements ToXContentFragment {
 
     public static CartesianPoint parsePoint(XContentParser parser, CartesianPoint point, boolean ignoreZvalue)
         throws IOException, ElasticsearchParseException {
-        float x = Float.NaN;
-        float y = Float.NaN;
+        double x = Double.NaN;
+        double y = Double.NaN;
         NumberFormatException numberFormatException = null;
 
         if(parser.currentToken() == XContentParser.Token.START_OBJECT) {
@@ -187,7 +180,7 @@ public class CartesianPoint implements ToXContentFragment {
                                 case VALUE_NUMBER:
                                 case VALUE_STRING:
                                     try {
-                                        x = subParser.floatValue(true);
+                                        x = subParser.doubleValue(true);
                                     } catch (NumberFormatException e) {
                                         numberFormatException = e;
                                     }
@@ -202,7 +195,7 @@ public class CartesianPoint implements ToXContentFragment {
                                 case VALUE_NUMBER:
                                 case VALUE_STRING:
                                     try {
-                                        y = subParser.floatValue(true);
+                                        y = subParser.doubleValue(true);
                                     } catch (NumberFormatException e) {
                                         numberFormatException = e;
                                     }
@@ -217,7 +210,7 @@ public class CartesianPoint implements ToXContentFragment {
                                 case VALUE_NUMBER:
                                 case VALUE_STRING:
                                     try {
-                                         CartesianPoint.assertZValue(ignoreZvalue, subParser.floatValue(true));
+                                         CartesianPoint.assertZValue(ignoreZvalue, subParser.doubleValue(true));
                                     } catch (NumberFormatException e) {
                                         numberFormatException = e;
                                     }
@@ -237,12 +230,12 @@ public class CartesianPoint implements ToXContentFragment {
                 }
             }
            if (numberFormatException != null) {
-                throw new ElasticsearchParseException("[{}] and [{}] must be valid float values", numberFormatException,
+                throw new ElasticsearchParseException("[{}] and [{}] must be valid double values", numberFormatException,
                     X_FIELD.getPreferredName(),
                     Y_FIELD.getPreferredName());
-            } else if (Float.isNaN(x)) {
+            } else if (Double.isNaN(x)) {
                 throw new ElasticsearchParseException("field [{}] missing", X_FIELD.getPreferredName());
-            } else if (Float.isNaN(y)) {
+            } else if (Double.isNaN(y)) {
                 throw new ElasticsearchParseException("field [{}] missing", Y_FIELD.getPreferredName());
             } else {
                 return point.reset(x, y);
@@ -255,9 +248,9 @@ public class CartesianPoint implements ToXContentFragment {
                     if (subParser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                         element++;
                         if (element == 1) {
-                            x = subParser.floatValue();
+                            x = subParser.doubleValue();
                         } else if (element == 2) {
-                            y = subParser.floatValue();
+                            y = subParser.doubleValue();
                         } else {
                             throw new ElasticsearchParseException("[{}}] field type does not accept > 2 dimensions",
                                 PointFieldMapper.CONTENT_TYPE);
@@ -292,12 +285,12 @@ public class CartesianPoint implements ToXContentFragment {
         }
     }
 
-    public static double assertZValue(final boolean ignoreZValue, float zValue) {
+    public static double assertZValue(final boolean ignoreZValue, double zValue) {
         if (ignoreZValue == false) {
-            throw new ElasticsearchParseException("Exception parsing coordinates: found Z value [{}] but [{}] "
-                + "parameter is [{}]", zValue, IGNORE_Z_VALUE, ignoreZValue);
+            throw new ElasticsearchParseException("Exception parsing coordinates: found Z value [{}] but [ignore_z_value] "
+                + "parameter is [{}]", zValue, ignoreZValue);
         }
-        if (Float.isFinite(zValue) == false) {
+        if (Double.isFinite(zValue) == false) {
             throw new ElasticsearchParseException("invalid [{}] value [{}]; " +
                 "must be between -3.4028234663852886E38 and 3.4028234663852886E38",
                 Z_FIELD.getPreferredName(),

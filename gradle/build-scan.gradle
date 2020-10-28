@@ -21,7 +21,7 @@ buildScan {
   }
 
   // Automatically publish scans from Elasticsearch CI
-  if (jenkinsUrl?.host?.endsWith('elastic.co')) {
+  if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev')) {
     publishAlways()
     buildScan.server = 'https://gradle-enterprise.elastic.co'
   }
@@ -61,7 +61,7 @@ buildScan {
     }
 
     tag 'CI'
-    link 'Jenkins Build', buildUrl
+    link 'CI Build', buildUrl
     link 'GCP Upload', "https://console.cloud.google.com/storage/elasticsearch-ci-artifacts/jobs/${jobName}/build/${buildNumber}.tar.bz2"
     value 'Job Number', buildNumber
 

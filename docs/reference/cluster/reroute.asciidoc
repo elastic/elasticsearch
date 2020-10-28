@@ -185,20 +185,20 @@ This is a short example of a simple reroute API call:
 --------------------------------------------------
 POST /_cluster/reroute
 {
-    "commands" : [
-        {
-            "move" : {
-                "index" : "test", "shard" : 0,
-                "from_node" : "node1", "to_node" : "node2"
-            }
-        },
-        {
-          "allocate_replica" : {
-                "index" : "test", "shard" : 1,
-                "node" : "node3"
-          }
-        }
-    ]
+  "commands": [
+    {
+      "move": {
+        "index": "test", "shard": 0,
+        "from_node": "node1", "to_node": "node2"
+      }
+    },
+    {
+      "allocate_replica": {
+        "index": "test", "shard": 1,
+        "node": "node3"
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[skip:doc tests run with only a single node]

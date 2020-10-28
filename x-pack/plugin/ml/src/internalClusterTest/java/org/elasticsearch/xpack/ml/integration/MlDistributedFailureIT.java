@@ -17,7 +17,6 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -81,13 +80,13 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     public void testFailOver() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
-        ensureStableClusterOnAllNodes(3);
+        ensureStableCluster();
         run("fail-over-job", () -> {
             GetJobsStatsAction.Request  request = new GetJobsStatsAction.Request("fail-over-job");
             GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
             DiscoveryNode discoveryNode = response.getResponse().results().get(0).getNode();
             internalCluster().stopRandomNode(settings -> discoveryNode.getName().equals(settings.get("node.name")));
-            ensureStableClusterOnAllNodes(2);
+            ensureStableCluster();
         });
     }
 
@@ -97,7 +96,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
         String mlAndDataNode = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
-        ensureStableClusterOnAllNodes(2);
+        ensureStableCluster();
         run("lose-dedicated-master-node-job", () -> {
             logger.info("Stopping dedicated master node");
             Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
@@ -112,19 +111,18 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
                     .put(masterDataPathSettings)
                     .put(masterOnlyNode())
                     .build());
-            ensureStableClusterOnAllNodes(2);
+            ensureStableCluster();
         });
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/58532")
     public void testFullClusterRestart() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
-        ensureStableClusterOnAllNodes(3);
+        ensureStableCluster();
         run("full-cluster-restart-job", () -> {
             logger.info("Restarting all nodes");
             internalCluster().fullRestart();
             logger.info("Restarted all nodes");
-            ensureStableClusterOnAllNodes(3);
+            ensureStableCluster();
         });
     }
 
@@ -134,7 +132,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
         logger.info("Starting ml and data node...");
         internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
-        ensureStableClusterOnAllNodes(2);
+        ensureStableCluster();
 
         // index some datafeed data
         client().admin().indices().prepareCreate("data")
@@ -211,7 +209,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         }
         logger.info("Starting dedicated ml node...");
         internalCluster().startNode(onlyRole(MachineLearning.ML_ROLE));
-        ensureStableClusterOnAllNodes(4);
+        ensureStableCluster();
 
         // index some datafeed data
         client().admin().indices().prepareCreate("data")
@@ -318,7 +316,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
         internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
-        ensureStableClusterOnAllNodes(2);
+        ensureStableCluster();
 
         // index some datafeed data
         client().admin().indices().prepareCreate("data")
@@ -364,20 +362,20 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     public void testJobRelocationIsMemoryAware() throws Exception {
 
         internalCluster().ensureAtLeastNumDataNodes(1);
-        ensureStableClusterOnAllNodes(1);
+        ensureStableCluster();
 
         // Open 4 small jobs.  Since there is only 1 node in the cluster they'll have to go on that node.
 
-        setupJobWithoutDatafeed("small1", new ByteSizeValue(2, ByteSizeUnit.MB));
-        setupJobWithoutDatafeed("small2", new ByteSizeValue(2, ByteSizeUnit.MB));
-        setupJobWithoutDatafeed("small3", new ByteSizeValue(2, ByteSizeUnit.MB));
-        setupJobWithoutDatafeed("small4", new ByteSizeValue(2, ByteSizeUnit.MB));
+        setupJobWithoutDatafeed("small1", ByteSizeValue.ofMb(2));
+        setupJobWithoutDatafeed("small2", ByteSizeValue.ofMb(2));
+        setupJobWithoutDatafeed("small3", ByteSizeValue.ofMb(2));
+        setupJobWithoutDatafeed("small4", ByteSizeValue.ofMb(2));
 
         // Expand the cluster to 3 nodes.  The 4 small jobs will stay on the
         // same node because we don't rebalance jobs that are happily running.
 
         internalCluster().ensureAtLeastNumDataNodes(3);
-        ensureStableClusterOnAllNodes(3);
+        ensureStableCluster();
 
         // Wait for the cluster to be green - this means the indices have been replicated.
 
@@ -385,12 +383,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // Open a big job.  This should go on a different node to the 4 small ones.
 
-        setupJobWithoutDatafeed("big1", new ByteSizeValue(500, ByteSizeUnit.MB));
+        setupJobWithoutDatafeed("big1", ByteSizeValue.ofMb(500));
 
         // Stop the current master node - this should be the one with the 4 small jobs on.
 
         internalCluster().stopCurrentMasterNode();
-        ensureStableClusterOnAllNodes(2);
+        ensureStableCluster();
 
         // If memory requirements are used to reallocate the 4 small jobs (as we expect) then they should
         // all reallocate to the same node, that being the one that doesn't have the big job on.  If job counts
@@ -542,9 +540,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    private void ensureStableClusterOnAllNodes(int nodeCount) {
-        for (String nodeName : internalCluster().getNodeNames()) {
-            ensureStableCluster(nodeCount, nodeName);
-        }
+    private void ensureStableCluster() {
+        ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60));
     }
 }

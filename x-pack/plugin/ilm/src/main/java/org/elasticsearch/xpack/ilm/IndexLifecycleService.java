@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -51,7 +50,7 @@ import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDatePars
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
  */
 public class IndexLifecycleService
-    implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, LocalNodeMasterListener, IndexEventListener {
+    implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, IndexEventListener {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
     private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkStep.NAME);
     private volatile boolean isMaster = false;
@@ -82,7 +81,6 @@ public class IndexLifecycleService
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         clusterService.addStateApplier(this);
         clusterService.addListener(this);
-        clusterService.addLocalNodeMasterListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING,
             this::updatePollInterval);
     }
@@ -121,13 +119,11 @@ public class IndexLifecycleService
         return newState;
     }
 
-    @Override
-    public void onMaster() {
-        this.isMaster = true;
+    // package private for testing
+    void onMaster(ClusterState clusterState) {
         maybeScheduleJob();
 
-        ClusterState clusterState = clusterService.state();
-        IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        final IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
             OperationMode currentMode = currentMetadata.getOperationMode();
             if (OperationMode.STOPPED.equals(currentMode)) {
@@ -185,17 +181,6 @@ public class IndexLifecycleService
     }
 
     @Override
-    public void offMaster() {
-        this.isMaster = false;
-        cancelJob();
-    }
-
-    @Override
-    public String executorName() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
     public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
         if (shouldParseIndexName(indexSettings)) {
             parseIndexNameAndExtractDate(index.getName());
@@ -237,7 +222,20 @@ public class IndexLifecycleService
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
+        // Instead of using a LocalNodeMasterListener to track master changes, this service will
+        // track them here to avoid conditions where master listener events run after other
+        // listeners that depend on what happened in the master listener
+        final boolean prevIsMaster = this.isMaster;
+        if (prevIsMaster != event.localNodeMaster()) {
+            this.isMaster = event.localNodeMaster();
+            if (this.isMaster) {
+                onMaster(event.state());
+            } else {
+                cancelJob();
+            }
+        }
+
+        final IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
         if (this.isMaster && lifecycleMetadata != null) {
             triggerPolicies(event.state(), true);
         }

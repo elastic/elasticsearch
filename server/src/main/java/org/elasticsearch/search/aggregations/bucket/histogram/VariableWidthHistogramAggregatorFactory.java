@@ -19,12 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -37,8 +36,11 @@ import java.util.Map;
 public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(VariableWidthHistogramAggregationBuilder.NAME, CoreValuesSourceType.NUMERIC,
-            (VariableWidthHistogramAggregatorSupplier) VariableWidthHistogramAggregator::new);
+        builder.register(
+            VariableWidthHistogramAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.NUMERIC,
+            VariableWidthHistogramAggregator::new,
+                true);
     }
 
     private final int numBuckets;
@@ -50,11 +52,11 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
                                             int numBuckets,
                                             int shardSize,
                                             int initialBuffer,
-                                            QueryShardContext queryShardContext,
+                                            AggregationContext context,
                                             AggregatorFactory parent,
                                             AggregatorFactories.Builder subFactoriesBuilder,
                                             Map<String, Object> metadata) throws IOException{
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.numBuckets = numBuckets;
         this.shardSize = shardSize;
         this.initialBuffer = initialBuffer;
@@ -63,23 +65,18 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
     @Override
     protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException{
-        if (collectsFromSingleBucket == false) {
+        if (cardinality != CardinalityUpperBound.ONE) {
             throw new IllegalArgumentException(
                 "["
                     + VariableWidthHistogramAggregationBuilder.NAME
                     + "] cannot be nested inside an aggregation that collects more than a single bucket."
             );
         }
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            VariableWidthHistogramAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof VariableWidthHistogramAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        return ((VariableWidthHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, shardSize, initialBuffer,
-            config, searchContext, parent, metadata);
+        return context.getValuesSourceRegistry()
+            .getAggregator(VariableWidthHistogramAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, factories, numBuckets, shardSize, initialBuffer, config, searchContext, parent, metadata);
     }
 
     @Override

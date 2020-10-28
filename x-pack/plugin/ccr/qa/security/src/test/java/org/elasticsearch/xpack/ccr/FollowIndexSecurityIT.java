@@ -132,8 +132,8 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
     public void testAutoFollowPatterns() throws Exception {
         assumeFalse("Test should only run when both clusters are running", "leader".equals(targetCluster));
-        String allowedIndex = "logs-eu-20190101";
-        String disallowedIndex = "logs-us-20190101";
+        String allowedIndex = "logs-eu_20190101";
+        String disallowedIndex = "logs-us_20190101";
 
         {
             Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
@@ -143,7 +143,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         }
 
         Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu-*\"], \"remote_cluster\": \"leader_cluster\"}");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu*\"], \"remote_cluster\": \"leader_cluster\"}");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {

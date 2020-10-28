@@ -6,7 +6,7 @@ A multi-bucket aggregation that creates composite buckets from different sources
 Unlike the other `multi-bucket` aggregation the `composite` aggregation can be used
 to paginate **all** buckets from a multi-level aggregation efficiently. This aggregation
 provides a way to stream **all** buckets of a specific aggregation similarly to what
-<<request-body-search-scroll, scroll>> does for documents.
+<<scroll-search-results, scroll>> does for documents.
 
 The composite buckets are built from the combinations of the
 values extracted/created for each document and each combination is considered as
@@ -31,6 +31,9 @@ PUT /sales
       },
       "shop": {
           "type": "keyword"
+      },
+      "location": {
+          "type": "geo_point"
       },
       "nested": {
           "type": "nested",
@@ -75,8 +78,8 @@ For instance the following document:
 [source,js]
 --------------------------------------------------
 {
-    "keyword": ["foo", "bar"],
-    "number": [23, 65, 76]
+  "keyword": ["foo", "bar"],
+  "number": [23, 65, 76]
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -117,16 +120,16 @@ Example:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "product": { "terms" : { "field": "product" } } }
-                ]
-            }
-        }
-     }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "product": { "terms": { "field": "product" } } }
+        ]
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -136,25 +139,25 @@ Like the `terms` aggregation it is also possible to use a script to create the v
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    {
-                        "product": {
-                            "terms" : {
-                                "script" : {
-                                    "source": "doc['product'].value",
-                                    "lang": "painless"
-                                }
-                            }
-                        }
-                    }
-                ]
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          {
+            "product": {
+              "terms": {
+                "script": {
+                  "source": "doc['product'].value",
+                  "lang": "painless"
+                }
+              }
             }
-        }
+          }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -172,16 +175,16 @@ Example:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "histo": { "histogram" : { "field": "price", "interval": 5 } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "histo": { "histogram": { "field": "price", "interval": 5 } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -191,26 +194,26 @@ The values are built from a numeric field or a script that return numerical valu
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    {
-                        "histo": {
-                            "histogram" : {
-                                "interval": 5,
-                                "script" : {
-                                    "source": "doc['price'].value",
-                                    "lang": "painless"
-                                }
-                            }
-                        }
-                    }
-                ]
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          {
+            "histo": {
+              "histogram": {
+                "interval": 5,
+                "script": {
+                  "source": "doc['price'].value",
+                  "lang": "painless"
+                }
+              }
             }
-        }
+          }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -224,16 +227,16 @@ is specified by date/time expression:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "date": { "date_histogram" : { "field": "timestamp", "calendar_interval": "1d" } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -254,24 +257,24 @@ the format specified with the format parameter:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    {
-                        "date": {
-                            "date_histogram" : {
-                                "field": "timestamp",
-                                "calendar_interval": "1d",
-                                "format": "yyyy-MM-dd" <1>
-                            }
-                        }
-                    }
-                ]
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          {
+            "date": {
+              "date_histogram": {
+                "field": "timestamp",
+                "calendar_interval": "1d",
+                "format": "yyyy-MM-dd"         <1>
+              }
             }
-        }
+          }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -293,17 +296,17 @@ include::datehistogram-aggregation.asciidoc[tag=offset-explanation]
 
 [source,console,id=composite-aggregation-datehistogram-offset-example]
 ----
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "date": "2015-10-01T05:30:00Z"
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "date": "2015-10-01T06:30:00Z"
 }
 
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "my_buckets": {
@@ -359,7 +362,7 @@ include::datehistogram-aggregation.asciidoc[tag=offset-note]
 The `geotile_grid` value source works on `geo_point` fields and groups points into buckets that represent
 cells in a grid. The resulting grid can be sparse and only contains cells
 that have matching data. Each cell corresponds to a
-https://en.wikipedia.org/wiki/Tiled_web_map[map tile] as used by many online map
+{wikipedia}/Tiled_web_map[map tile] as used by many online map
 sites. Each cell is labeled using a "{zoom}/{x}/{y}" format, where zoom is equal
 to the user-specified precision.
 
@@ -367,16 +370,16 @@ to the user-specified precision.
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "tile": { "geotile_grid" : { "field": "location", "precision": 8 } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "tile": { "geotile_grid": { "field": "location", "precision": 8 } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -400,27 +403,27 @@ precision tiling.
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    {
-                        "tile": {
-                            "geotile_grid" : {
-                                "field" : "location",
-                                "precision" : 22,
-                                "bounds": {
-                                    "top_left" : "52.4, 4.9",
-                                    "bottom_right" : "52.3, 5.0"
-                                }
-                            }
-                        }
-                    }
-                ]
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          {
+            "tile": {
+              "geotile_grid": {
+                "field": "location",
+                "precision": 22,
+                "bounds": {
+                  "top_left": "52.4, 4.9",
+                  "bottom_right": "52.3, 5.0"
+                }
+              }
             }
-        }
+          }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -434,17 +437,17 @@ For example:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } },
-                    { "product": { "terms": {"field": "product" } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } },
+          { "product": { "terms": { "field": "product" } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -457,18 +460,18 @@ in the composite buckets.
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "shop": { "terms": {"field": "shop" } } },
-                    { "product": { "terms": { "field": "product" } } },
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "shop": { "terms": { "field": "shop" } } },
+          { "product": { "terms": { "field": "product" } } },
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -487,17 +490,17 @@ For example:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
-                    { "product": { "terms": {"field": "product", "order": "asc" } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
+          { "product": { "terms": { "field": "product", "order": "asc" } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -514,16 +517,16 @@ It is possible to include them in the response by setting `missing_bucket` to
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "product_name": { "terms" : { "field": "product", "missing_bucket": true } } }
-                ]
-            }
-        }
-     }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "product_name": { "terms": { "field": "product", "missing_bucket": true } } }
+        ]
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -535,10 +538,10 @@ first (ascending order, `asc`) or last (descending order, `desc`).
 ==== Size
 
 The `size` parameter can be set to define how many composite buckets should be returned.
-Each composite bucket is considered as a single bucket so setting a size of 10 will return the
+Each composite bucket is considered as a single bucket, so setting a size of 10 will return the
 first 10 composite buckets created from the values source.
 The response contains the values for each composite bucket in an array containing the values extracted
-from each value source.
+from each value source. Defaults to `10`.
 
 ==== Pagination
 
@@ -554,18 +557,18 @@ For example:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "size": 2,
-                "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } },
-                    { "product": { "terms": {"field": "product" } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "size": 2,
+        "sources": [
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } },
+          { "product": { "terms": { "field": "product" } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
@@ -575,31 +578,31 @@ GET /_search
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "my_buckets": {
-            "after_key": {
-                "date": 1494288000000,
-                "product": "mad max"
-            },
-            "buckets": [
-                {
-                    "key": {
-                        "date": 1494201600000,
-                        "product": "rocky"
-                    },
-                    "doc_count": 1
-                },
-                {
-                    "key": {
-                        "date": 1494288000000,
-                        "product": "mad max"
-                    },
-                    "doc_count": 2
-                }
-            ]
+  ...
+  "aggregations": {
+    "my_buckets": {
+      "after_key": {
+        "date": 1494288000000,
+        "product": "mad max"
+      },
+      "buckets": [
+        {
+          "key": {
+            "date": 1494201600000,
+            "product": "rocky"
+          },
+          "doc_count": 1
+        },
+        {
+          "key": {
+            "date": 1494288000000,
+            "product": "mad max"
+          },
+          "doc_count": 2
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
@@ -612,19 +615,19 @@ For example, this request uses the `after_key` value provided in the previous re
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "size": 2,
-                 "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
-                    { "product": { "terms": {"field": "product", "order": "asc" } } }
-                ],
-                "after": { "date": 1494288000000, "product": "mad max" } <1>
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "size": 2,
+        "sources": [
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
+          { "product": { "terms": { "field": "product", "order": "asc" } } }
+        ],
+        "after": { "date": 1494288000000, "product": "mad max" } <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -642,25 +645,25 @@ For instance the following index sort:
 
 [source,console]
 --------------------------------------------------
-PUT twitter
+PUT my-index-000001
 {
-    "settings" : {
-        "index" : {
-            "sort.field" : ["username", "timestamp"],   <1>
-            "sort.order" : ["asc", "desc"]              <2>
-        }
-    },
-    "mappings": {
-        "properties": {
-            "username": {
-                "type": "keyword",
-                "doc_values": true
-            },
-            "timestamp": {
-                "type": "date"
-            }
-        }
+  "settings": {
+    "index": {
+      "sort.field": [ "username", "timestamp" ],   <1>
+      "sort.order": [ "asc", "desc" ]              <2>
     }
+  },
+  "mappings": {
+    "properties": {
+      "username": {
+        "type": "keyword",
+        "doc_values": true
+      },
+      "timestamp": {
+        "type": "date"
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -673,16 +676,16 @@ PUT twitter
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "user_name": { "terms" : { "field": "user_name" } } }     <1>
-                ]
-            }
-        }
-     }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "user_name": { "terms": { "field": "user_name" } } }     <1>
+        ]
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -692,17 +695,17 @@ GET /_search
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "user_name": { "terms" : { "field": "user_name" } } }, <1>
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } } <2>
-                ]
-            }
-        }
-     }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "user_name": { "terms": { "field": "user_name" } } }, <1>
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } } <2>
+        ]
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -717,18 +720,18 @@ and it would be costly to compute this number on every page:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "track_total_hits": false,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "user_name": { "terms" : { "field": "user_name" } } },
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } }
-                ]
-            }
-        }
-     }
+  "size": 0,
+  "track_total_hits": false,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "user_name": { "terms": { "field": "user_name" } } },
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } }
+        ]
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -756,22 +759,22 @@ per composite bucket:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                 "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
-                    { "product": { "terms": {"field": "product" } } }
-                ]
-            },
-            "aggregations": {
-                "the_avg": {
-                    "avg": { "field": "price" }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
+          { "product": { "terms": { "field": "product" } } }
+        ]
+      },
+      "aggregations": {
+        "the_avg": {
+          "avg": { "field": "price" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
@@ -781,57 +784,57 @@ GET /_search
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "my_buckets": {
-            "after_key": {
-                "date": 1494201600000,
-                "product": "rocky"
-            },
-            "buckets": [
-                {
-                    "key": {
-                        "date": 1494460800000,
-                        "product": "apocalypse now"
-                    },
-                    "doc_count": 1,
-                    "the_avg": {
-                        "value": 10.0
-                    }
-                },
-                {
-                    "key": {
-                        "date": 1494374400000,
-                        "product": "mad max"
-                    },
-                    "doc_count": 1,
-                    "the_avg": {
-                        "value": 27.0
-                    }
-                },
-                {
-                    "key": {
-                        "date": 1494288000000,
-                        "product" : "mad max"
-                    },
-                    "doc_count": 2,
-                    "the_avg": {
-                        "value": 22.5
-                    }
-                },
-                {
-                    "key": {
-                        "date": 1494201600000,
-                        "product": "rocky"
-                    },
-                    "doc_count": 1,
-                    "the_avg": {
-                        "value": 10.0
-                    }
-                }
-            ]
+  ...
+  "aggregations": {
+    "my_buckets": {
+      "after_key": {
+        "date": 1494201600000,
+        "product": "rocky"
+      },
+      "buckets": [
+        {
+          "key": {
+            "date": 1494460800000,
+            "product": "apocalypse now"
+          },
+          "doc_count": 1,
+          "the_avg": {
+            "value": 10.0
+          }
+        },
+        {
+          "key": {
+            "date": 1494374400000,
+            "product": "mad max"
+          },
+          "doc_count": 1,
+          "the_avg": {
+            "value": 27.0
+          }
+        },
+        {
+          "key": {
+            "date": 1494288000000,
+            "product": "mad max"
+          },
+          "doc_count": 2,
+          "the_avg": {
+            "value": 22.5
+          }
+        },
+        {
+          "key": {
+            "date": 1494201600000,
+            "product": "rocky"
+          },
+          "doc_count": 1,
+          "the_avg": {
+            "value": 10.0
+          }
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]

@@ -44,7 +44,8 @@
                 "process",
                 "thread_pool",
                 "transport",
-                "discovery"
+                "discovery",
+                "indexing_pressure"
               ],
               "description":"Limit the information returned to the specified metrics"
             }
@@ -69,7 +70,8 @@
                 "process",
                 "thread_pool",
                 "transport",
-                "discovery"
+                "discovery",
+                "indexing_pressure"
               ],
               "description":"Limit the information returned to the specified metrics"
             },
@@ -98,7 +100,8 @@
                 "process",
                 "thread_pool",
                 "transport",
-                "discovery"
+                "discovery",
+                "indexing_pressure"
               ],
               "description":"Limit the information returned to the specified metrics"
             },
@@ -146,7 +149,8 @@
                 "process",
                 "thread_pool",
                 "transport",
-                "discovery"
+                "discovery",
+                "indexing_pressure"
               ],
               "description":"Limit the information returned to the specified metrics"
             },

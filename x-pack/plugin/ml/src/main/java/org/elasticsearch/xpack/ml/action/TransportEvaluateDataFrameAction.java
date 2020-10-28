@@ -13,19 +13,23 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
+import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class TransportEvaluateDataFrameAction extends HandledTransportAction<EvaluateDataFrameAction.Request,
     EvaluateDataFrameAction.Response> {
@@ -33,9 +37,11 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
     private final ThreadPool threadPool;
     private final Client client;
     private final AtomicReference<Integer> maxBuckets = new AtomicReference<>();
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportEvaluateDataFrameAction(TransportService transportService,
+                                            Settings settings,
                                             ActionFilters actionFilters,
                                             ThreadPool threadPool,
                                             Client client,
@@ -43,6 +49,8 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
         super(EvaluateDataFrameAction.NAME, transportService, actionFilters, EvaluateDataFrameAction.Request::new);
         this.threadPool = threadPool;
         this.client = client;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
+            new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.maxBuckets.set(MAX_BUCKET_SETTING.get(clusterService.getSettings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_BUCKET_SETTING, this::setMaxBuckets);
     }
@@ -66,7 +74,7 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
 
         // Create an immutable collection of parameters to be used by evaluation metrics.
         EvaluationParameters parameters = new EvaluationParameters(maxBuckets.get());
-        EvaluationExecutor evaluationExecutor = new EvaluationExecutor(threadPool, client, parameters, request);
+        EvaluationExecutor evaluationExecutor = new EvaluationExecutor(threadPool, client, parameters, request, securityContext);
         evaluationExecutor.execute(resultsListener);
     }
 
@@ -89,13 +97,19 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
         private final EvaluationParameters parameters;
         private final EvaluateDataFrameAction.Request request;
         private final Evaluation evaluation;
+        private final SecurityContext securityContext;
 
-        EvaluationExecutor(ThreadPool threadPool, Client client, EvaluationParameters parameters, EvaluateDataFrameAction.Request request) {
+        EvaluationExecutor(ThreadPool threadPool,
+                           Client client,
+                           EvaluationParameters parameters,
+                           EvaluateDataFrameAction.Request request,
+                           SecurityContext securityContext) {
             super(threadPool.generic(), unused -> true, unused -> true);
             this.client = client;
             this.parameters = parameters;
             this.request = request;
             this.evaluation = request.getEvaluation();
+            this.securityContext = securityContext;
             // Add one task only. Other tasks will be added as needed by the nextTask method itself.
             add(nextTask());
         }
@@ -104,18 +118,19 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
             return listener -> {
                 SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(parameters, request.getParsedQuery());
                 SearchRequest searchRequest = new SearchRequest(request.getIndices()).source(searchSourceBuilder);
-                client.execute(
-                    SearchAction.INSTANCE,
-                    searchRequest,
-                    ActionListener.wrap(
-                        searchResponse -> {
-                            evaluation.process(searchResponse);
-                            if (evaluation.hasAllResults() == false) {
-                                add(nextTask());
-                            }
-                            listener.onResponse(null);
-                        },
-                        listener::onFailure));
+                useSecondaryAuthIfAvailable(securityContext,
+                    () -> client.execute(
+                        SearchAction.INSTANCE,
+                        searchRequest,
+                        ActionListener.wrap(
+                            searchResponse -> {
+                                evaluation.process(searchResponse);
+                                if (evaluation.hasAllResults() == false) {
+                                    add(nextTask());
+                                }
+                                listener.onResponse(null);
+                            },
+                            listener::onFailure)));
             };
         }
     }

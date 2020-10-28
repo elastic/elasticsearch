@@ -164,11 +164,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     }
 
     public RepositoriesMetadata(StreamInput in) throws IOException {
-        RepositoryMetadata[] repository = new RepositoryMetadata[in.readVInt()];
-        for (int i = 0; i < repository.length; i++) {
-            repository[i] = new RepositoryMetadata(in);
-        }
-        this.repositories = List.of(repository);
+        this.repositories = in.readList(RepositoryMetadata::new);
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws  IOException {
@@ -180,10 +176,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(repositories.size());
-        for (RepositoryMetadata repository : repositories) {
-            repository.writeTo(out);
-        }
+        out.writeList(repositories);
     }
 
     public static RepositoriesMetadata fromXContent(XContentParser parser) throws IOException {

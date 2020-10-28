@@ -61,19 +61,24 @@ public class InternalBounds extends InternalAggregation implements Bounds {
                 continue;
             }
             if (bounds.box.top() > top) {
-                top = bounds.box.top();
+                top = (float) bounds.box.top();
             }
             if (bounds.box.bottom() < bottom) {
-                bottom = bounds.box.bottom();
+                bottom = (float) bounds.box.bottom();
             }
             if (bounds.box.left() < posLeft) {
-                posLeft = bounds.box.left();
+                posLeft = (float) bounds.box.left();
             }
             if (bounds.box.right() > posRight) {
-                posRight = bounds.box.right();
+                posRight = (float) bounds.box.right();
             }
         }
         return new InternalBounds(name, top, bottom, posLeft, posRight, getMetadata());
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return false;
     }
 
     @Override

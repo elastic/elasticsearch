@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsRestTestCase;
 
@@ -19,14 +18,6 @@ public class FsSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTest
 
     @Override
     protected Settings repositorySettings() {
-        final Settings.Builder settings = Settings.builder();
-        settings.put("location", System.getProperty("tests.path.repo"));
-        if (randomBoolean()) {
-            settings.put("compress", randomBoolean());
-        }
-        if (randomBoolean()) {
-            settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
-        }
-        return settings.build();
+        return Settings.builder().put("location", System.getProperty("tests.path.repo")).build();
     }
 }

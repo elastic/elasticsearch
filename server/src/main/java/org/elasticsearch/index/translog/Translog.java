@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -34,14 +33,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
@@ -72,6 +72,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
 
 /**
  * A Translog is a per index shard component that records all non-committed index operations in a durable manner.
@@ -117,7 +119,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     // the list of translog readers is guaranteed to be in order of translog generation
     private final List<TranslogReader> readers = new ArrayList<>();
-    private BigArrays bigArrays;
+    private final BigArrays bigArrays;
     protected final ReleasableLock readLock;
     protected final ReleasableLock writeLock;
     private final Path location;
@@ -497,9 +499,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     TranslogWriter createWriter(long fileGeneration, long initialMinTranslogGen, long initialGlobalCheckpoint,
                                 LongConsumer persistedSequenceNumberConsumer) throws IOException {
-        final TranslogWriter newFile;
+        final TranslogWriter newWriter;
         try {
-            newFile = TranslogWriter.create(
+            newWriter = TranslogWriter.create(
                 shardId,
                 translogUUID,
                 fileGeneration,
@@ -508,11 +510,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 config.getBufferSize(),
                 initialMinTranslogGen, initialGlobalCheckpoint,
                 globalCheckpointSupplier, this::getMinFileGeneration, primaryTermSupplier.getAsLong(), tragedy,
-                persistedSequenceNumberConsumer);
+                persistedSequenceNumberConsumer,
+                bigArrays);
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }
-        return newFile;
+        return newWriter;
     }
 
     /**
@@ -1160,7 +1163,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public long estimateSize() {
-            return (id.length() * 2) + source.length() + 12;
+            return (2 * id.length())
+                + source.length()
+                + (routing != null ? 2 * routing.length() : 0)
+                + (4 * Long.BYTES); // timestamp, seq_no, primary_term, and version
         }
 
         public String id() {
@@ -1279,7 +1285,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public static final int SERIALIZATION_FORMAT = FORMAT_NO_DOC_TYPE;
 
         private final String id;
-        private final Term uid;
         private final long seqNo;
         private final long primaryTerm;
         private final long version;
@@ -1292,7 +1297,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 // Can't assert that this is _doc because pre-8.0 indexes can have any name for a type
             }
             id = in.readString();
-            uid = new Term(in.readString(), in.readBytesRef());
+            if (format < FORMAT_NO_DOC_TYPE) {
+                final String docType = in.readString();
+                assert docType.equals(IdFieldMapper.NAME) : docType + " != " + IdFieldMapper.NAME;
+                in.readBytesRef(); // uid
+            }
             this.version = in.readLong();
             if (format < FORMAT_NO_VERSION_TYPE) {
                 in.readByte(); // versionType
@@ -1302,17 +1311,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         public Delete(Engine.Delete delete, Engine.DeleteResult deleteResult) {
-            this(delete.id(), delete.uid(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion());
+            this(delete.id(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion());
         }
 
         /** utility for testing */
-        public Delete(String id, long seqNo, long primaryTerm, Term uid) {
-            this(id, uid, seqNo, primaryTerm, Versions.MATCH_ANY);
+        public Delete(String id, long seqNo, long primaryTerm) {
+            this(id, seqNo, primaryTerm, Versions.MATCH_ANY);
         }
 
-        public Delete(String id, Term uid, long seqNo, long primaryTerm, long version) {
+        public Delete(String id, long seqNo, long primaryTerm, long version) {
             this.id = Objects.requireNonNull(id);
-            this.uid = uid;
             this.seqNo = seqNo;
             this.primaryTerm = primaryTerm;
             this.version = version;
@@ -1325,15 +1333,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public long estimateSize() {
-            return ((uid.field().length() + uid.text().length()) * 2) + 20;
+            return (2 * id.length())
+                + (3 * Long.BYTES); // seq_no, primary_term, and version;
         }
 
         public String id() {
             return id;
-        }
-
-        public Term uid() {
-            return this.uid;
         }
 
         @Override
@@ -1362,8 +1367,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);
             }
             out.writeString(id);
-            out.writeString(uid.field());
-            out.writeBytesRef(uid.bytes());
+            if (format < FORMAT_NO_DOC_TYPE) {
+                out.writeString(IdFieldMapper.NAME);
+                out.writeBytesRef(Uid.encodeId(id));
+            }
             out.writeLong(version);
             if (format < FORMAT_NO_VERSION_TYPE) {
                 out.writeByte(VersionType.EXTERNAL.getValue());
@@ -1383,16 +1390,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
             Delete delete = (Delete) o;
 
-            return version == delete.version &&
+            return id.equals(delete.id) &&
                 seqNo == delete.seqNo &&
                 primaryTerm == delete.primaryTerm &&
-                uid.equals(delete.uid);
+                version == delete.version;
         }
 
         @Override
         public int hashCode() {
-            int result = uid.hashCode();
-            result = 31 * result + Long.hashCode(seqNo);
+            int result = id.hashCode();
+            result += 31 * Long.hashCode(seqNo);
             result = 31 * result + Long.hashCode(primaryTerm);
             result = 31 * result + Long.hashCode(version);
             return result;
@@ -1401,8 +1408,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public String toString() {
             return "Delete{" +
-                "uid=" + uid +
-                ", seqNo=" + seqNo +
+                "seqNo=" + seqNo +
                 ", primaryTerm=" + primaryTerm +
                 ", version=" + version +
                 '}';
@@ -1479,7 +1485,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public int hashCode() {
-            return 31 * 31 * 31 + 31 * 31 * Long.hashCode(seqNo) + 31 * Long.hashCode(primaryTerm) + reason().hashCode();
+            return 31 * 31 * Long.hashCode(seqNo) + 31 * Long.hashCode(primaryTerm) + reason().hashCode();
         }
 
         @Override
@@ -1885,7 +1891,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         IOUtils.fsync(checkpointFile, false);
         final TranslogWriter writer = TranslogWriter.create(shardId, uuid, generation, translogFile, channelFactory,
-            new ByteSizeValue(10), minTranslogGeneration, initialGlobalCheckpoint,
+            EMPTY_TRANSLOG_BUFFER_SIZE, minTranslogGeneration, initialGlobalCheckpoint,
             () -> {
                 throw new UnsupportedOperationException();
             }, () -> {
@@ -1895,7 +1901,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             new TragicExceptionHolder(),
             seqNo -> {
                 throw new UnsupportedOperationException();
-            });
+            }, BigArrays.NON_RECYCLING_INSTANCE);
         writer.close();
         return uuid;
     }

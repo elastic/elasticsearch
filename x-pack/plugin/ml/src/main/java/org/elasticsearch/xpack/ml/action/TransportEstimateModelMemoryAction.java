@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -35,9 +34,9 @@ import java.util.Set;
 public class TransportEstimateModelMemoryAction
     extends HandledTransportAction<EstimateModelMemoryAction.Request, EstimateModelMemoryAction.Response> {
 
-    static final ByteSizeValue BASIC_REQUIREMENT = new ByteSizeValue(10, ByteSizeUnit.MB);
-    static final long BYTES_PER_INFLUENCER_VALUE = new ByteSizeValue(10, ByteSizeUnit.KB).getBytes();
-    private static final long BYTES_IN_MB = new ByteSizeValue(1, ByteSizeUnit.MB).getBytes();
+    static final ByteSizeValue BASIC_REQUIREMENT = ByteSizeValue.ofMb(10);
+    static final long BYTES_PER_INFLUENCER_VALUE = ByteSizeValue.ofKb(10).getBytes();
+    private static final long BYTES_IN_MB = ByteSizeValue.ofMb(1).getBytes();
 
     @Inject
     public TransportEstimateModelMemoryAction(TransportService transportService,
@@ -57,7 +56,7 @@ public class TransportEstimateModelMemoryAction
         long answer = BASIC_REQUIREMENT.getBytes();
         answer = addNonNegativeLongsWithMaxValueCap(answer, calculateDetectorsRequirementBytes(analysisConfig, overallCardinality));
         answer = addNonNegativeLongsWithMaxValueCap(answer, calculateInfluencerRequirementBytes(analysisConfig, maxBucketCardinality));
-        answer = addNonNegativeLongsWithMaxValueCap(answer, calculateCategorizationRequirementBytes(analysisConfig));
+        answer = addNonNegativeLongsWithMaxValueCap(answer, calculateCategorizationRequirementBytes(analysisConfig, overallCardinality));
 
         listener.onResponse(new EstimateModelMemoryAction.Response(roundUpToNextMb(answer)));
     }
@@ -87,11 +86,11 @@ public class TransportEstimateModelMemoryAction
             case NON_ZERO_COUNT:
             case LOW_NON_ZERO_COUNT:
             case HIGH_NON_ZERO_COUNT:
-                answer = new ByteSizeValue(32, ByteSizeUnit.KB).getBytes();
+                answer = ByteSizeValue.ofKb(32).getBytes();
                 break;
             case RARE:
             case FREQ_RARE:
-                answer = new ByteSizeValue(2, ByteSizeUnit.KB).getBytes();
+                answer = ByteSizeValue.ofKb(2).getBytes();
                 break;
             case INFO_CONTENT:
             case LOW_INFO_CONTENT:
@@ -114,23 +113,23 @@ public class TransportEstimateModelMemoryAction
             case VARP:
             case LOW_VARP:
             case HIGH_VARP:
-                answer = new ByteSizeValue(48, ByteSizeUnit.KB).getBytes();
+                answer = ByteSizeValue.ofKb(48).getBytes();
                 break;
             case METRIC:
                 // metric analyses mean, min and max simultaneously, and uses about 2.5 times the memory of one of these
-                answer = new ByteSizeValue(120, ByteSizeUnit.KB).getBytes();
+                answer = ByteSizeValue.ofKb(120).getBytes();
                 break;
             case MEDIAN:
             case LOW_MEDIAN:
             case HIGH_MEDIAN:
-                answer = new ByteSizeValue(64, ByteSizeUnit.KB).getBytes();
+                answer = ByteSizeValue.ofKb(64).getBytes();
                 break;
             case TIME_OF_DAY:
             case TIME_OF_WEEK:
-                answer = new ByteSizeValue(10, ByteSizeUnit.KB).getBytes();
+                answer = ByteSizeValue.ofKb(10).getBytes();
                 break;
             case LAT_LONG:
-                answer = new ByteSizeValue(64, ByteSizeUnit.KB).getBytes();
+                answer = ByteSizeValue.ofKb(64).getBytes();
                 break;
             default:
                 assert false : "unhandled detector function: " + detector.getFunction().getFullName();
@@ -174,7 +173,7 @@ public class TransportEstimateModelMemoryAction
             // length of all the distinct values of the function field concatenated in the bucket.
             // However, that would be very expensive and complex for the caller to calculate so
             // we just allow a fixed amount.
-            answer = addNonNegativeLongsWithMaxValueCap(answer, new ByteSizeValue(5, ByteSizeUnit.MB).getBytes());
+            answer = addNonNegativeLongsWithMaxValueCap(answer, ByteSizeValue.ofMb(5).getBytes());
         }
 
         return answer;
@@ -194,14 +193,29 @@ public class TransportEstimateModelMemoryAction
         return multiplyNonNegativeLongsWithMaxValueCap(BYTES_PER_INFLUENCER_VALUE, totalInfluencerCardinality);
     }
 
-    static long calculateCategorizationRequirementBytes(AnalysisConfig analysisConfig) {
+    static long calculateCategorizationRequirementBytes(AnalysisConfig analysisConfig, Map<String, Long> overallCardinality) {
 
         if (analysisConfig.getCategorizationFieldName() == null) {
             return 0;
         }
+
+        long relevantPartitionFieldCardinalityEstimate = 1;
+        if (analysisConfig.getPerPartitionCategorizationConfig().isEnabled()) {
+            // It is enforced that only one partition field name be configured when per-partition categorization
+            // is enabled, so we can stop after finding a non-null partition field name
+            for (Detector detector : analysisConfig.getDetectors()) {
+                String partitionFieldName = detector.getPartitionFieldName();
+                if (partitionFieldName != null) {
+                    relevantPartitionFieldCardinalityEstimate = Math.max(1, cardinalityEstimate(
+                        Detector.PARTITION_FIELD_NAME_FIELD.getPreferredName(), partitionFieldName, overallCardinality, true));
+                    break;
+                }
+            }
+        }
+
         // 5MB is a pretty conservative estimate of the memory requirement for categorization.
         // Often it is considerably less, but it's very hard to predict from simple statistics.
-        return new ByteSizeValue(5, ByteSizeUnit.MB).getBytes();
+        return ByteSizeValue.ofMb(5 * relevantPartitionFieldCardinalityEstimate).getBytes();
     }
 
     static long cardinalityEstimate(String description, String fieldName, Map<String, Long> suppliedCardinailityEstimates,
@@ -220,7 +234,7 @@ public class TransportEstimateModelMemoryAction
 
     static ByteSizeValue roundUpToNextMb(long bytes) {
         assert bytes >= 0 : "negative bytes " + bytes;
-        return new ByteSizeValue(addNonNegativeLongsWithMaxValueCap(bytes, BYTES_IN_MB - 1) / BYTES_IN_MB, ByteSizeUnit.MB);
+        return ByteSizeValue.ofMb(addNonNegativeLongsWithMaxValueCap(bytes, BYTES_IN_MB - 1) / BYTES_IN_MB);
     }
 
     /**

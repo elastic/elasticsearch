@@ -51,16 +51,16 @@ public class InternalBoundsTests extends InternalAggregationTestCase<InternalBou
 
         for (InternalBounds bounds : inputs) {
             if (bounds.topLeft().getY() > top) {
-                top = bounds.topLeft().getY() ;
+                top = (float) bounds.topLeft().getY() ;
             }
             if (bounds.bottomRight().getY()  < bottom) {
-                bottom = bounds.bottomRight().getY();
+                bottom = (float) bounds.bottomRight().getY();
             }
             if (bounds.topLeft().getX() < posLeft) {
-                posLeft = bounds.topLeft().getX();
+                posLeft = (float) bounds.topLeft().getX();
             }
             if (bounds.bottomRight().getX() > posRight) {
-                posRight = bounds.bottomRight().getX() ;
+                posRight = (float) bounds.bottomRight().getX() ;
             }
         }
         assertThat(reduced.topLeft().getY(), equalTo(top));
@@ -81,10 +81,10 @@ public class InternalBoundsTests extends InternalAggregationTestCase<InternalBou
     @Override
     protected InternalBounds mutateInstance(InternalBounds instance) {
         String name = instance.getName();
-        float top = instance.topLeft().getY();
-        float bottom = instance.bottomRight().getY();
-        float posLeft = instance.topLeft().getX();
-        float posRight = instance.bottomRight().getX();
+        float top = (float) instance.topLeft().getY();
+        float bottom = (float) instance.bottomRight().getY();
+        float posLeft = (float) instance.topLeft().getX();
+        float posRight =  (float) instance.bottomRight().getX();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
         case 0:

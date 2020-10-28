@@ -2,11 +2,11 @@
 [[watcher-release-notes]]
 == Watcher Release Notes (Pre-5.0)
 
-[float]
+[discrete]
 [[watcher-change-list]]
 === Change List
 
-[float]
+[discrete]
 ==== 2.4.2
 November 22, 2016
 
@@ -15,7 +15,7 @@ November 22, 2016
 order to prevent failed deletions with watches having small intervals
 * Chain input: Parsing now throws an exception if a data structure is added, that cannot keep its order
 
-[float]
+[discrete]
 ==== 2.4.1
 September 28, 2016
 
@@ -35,7 +35,7 @@ in the watch history.
 HTTP actions.
 * Running watches can be updated and deleted.
 
-[float]
+[discrete]
 ==== 2.4.0
 August 31, 2016
 
@@ -43,7 +43,7 @@ August 31, 2016
 * The HTTP headers of a response are now part of the payload and can be accessed via `ctx.payload._headers`
 
 
-[float]
+[discrete]
 ==== 2.3.5
 August 3, 2016
 
@@ -59,7 +59,7 @@ need to wait one day for this update to take effect when a new history index is
 created.
 * The `watcher.http.proxy.port` setting for global proxy configuration was not applied correctly.
 
-[float]
+[discrete]
 ==== 2.3.4
 July 7, 2016
 
@@ -77,14 +77,14 @@ created.
 elements and the colspan and rowspan attributes on <td> and <tr> elements.
 * Fixed the Watcher/Marvel examples in the documentation.
 
-[float]
+[discrete]
 ==== 2.3.3
 May 18, 2016
 
 .Enhancements
 * Adds support for Elasticsearch 2.3.3
 
-[float]
+[discrete]
 ==== 2.3.2
 April 26, 2016
 
@@ -99,14 +99,14 @@ becomes `foo_bar`
 are not specified at the account level or within the action itself, instead
 of failing.
 
-[float]
+[discrete]
 ==== 2.3.1
 April 4, 2016
 
 .Enhancements
 * Adds support for Elasticsearch 2.3.1
 
-[float]
+[discrete]
 ==== 2.3.0
 March 30, 2016
 
@@ -125,35 +125,35 @@ March 30, 2016
   via HTTP requests and superseding and deprecating the usage of `attach_data`
   in order to use this feature
 
-[float]
+[discrete]
 ==== 2.2.1
 March 10, 2016
 
 .Bug Fixes
 * The `croneval` CLI tool sets the correct environment to run
 
-[float]
+[discrete]
 ==== 2.2.0
 February 2, 2016
 
 .Enhancements
 * Adds support for Elasticsearch 2.2.0.
 
-[float]
+[discrete]
 ==== 2.1.2
 February 2, 2016
 
 .Enhancements
 * Adds support for Elasticsearch 2.1.2
 
-[float]
+[discrete]
 ==== 2.1.1
 December 17, 2015
 
 .Bug Fixes
 * Fixed an issue that prevented sending of emails
 
-[float]
+[discrete]
 ==== 2.1.0
 November 24, 2015
 
@@ -174,7 +174,7 @@ November 24, 2015
   running and those watch execution are unable the execute during the current
   start process.
 
-[float]
+[discrete]
 ==== 2.0.1
 November 24, 2015
 
@@ -187,7 +187,7 @@ November 24, 2015
   was running and those watch execution are unable the execute during the current
   start process.
 
-[float]
+[discrete]
 ==== 2.0.0
 October 28, 2015
 
@@ -242,7 +242,7 @@ October 28, 2015
 * Fixed url encoding issue in http input and webhook output. The url params were
   url encoded twice.
 
-[float]
+[discrete]
 ==== 1.0.1
 July 29, 2015
 
@@ -256,7 +256,7 @@ July 29, 2015
 * Fixed a compatibility issue with Elasticsearch 1.6.1 and 1.7.2, which were
   released earlier today.
 
-[float]
+[discrete]
 ==== 1.0.0
 June 25, 2015
 
@@ -269,7 +269,7 @@ June 25, 2015
 * Cleaned up the <<watcher-api-stats, Stats API>> response.
 
 
-[float]
+[discrete]
 ==== 1.0.0-rc1
 June 19, 2015
 
@@ -282,7 +282,7 @@ June 19, 2015
 * It is now possible to configure timeouts for http requests in
   <<http-input-attributes,HTTP input>> and <<webhook-action-attributes,webhook actions>>.
 
-[float]
+[discrete]
 ==== 1.0.0-Beta2
 June 10, 2015
 

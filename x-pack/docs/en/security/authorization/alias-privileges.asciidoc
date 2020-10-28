@@ -1,10 +1,104 @@
 [role="xpack"]
 [[securing-aliases]]
-=== Granting privileges for indices and aliases
+=== Granting privileges for data streams and index aliases
 
-Elasticsearch allows to execute operations against
-<<indices-aliases,index aliases>>,
-which are effectively virtual indices. An alias points to one or more indices,
+{es} {security-features} allow you to secure operations executed against
+<<data-streams,data streams>> and <<indices-aliases,index aliases>>.
+
+[[data-stream-privileges]]
+==== Data stream privileges
+
+A data stream consists of one or more backing indices, which store the stream's
+data. Most requests sent to a data stream are routed to one or more of these
+backing indices.
+
+Similar to an index, you can use <<privileges-list-indices,indices privileges>>
+to control access to a data stream. Any role or user granted privileges to a
+data stream are automatically granted the same privileges to its backing
+indices.
+
+For example, `my-data-stream` consists of two backing indices:
+`.ds-my-data-stream-000001` and `.ds-my-data-stream-000002`.
+
+A user is granted the `read` privilege to `my-data-stream`.
+
+[source,js]
+--------------------------------------------------
+{
+  "names" : [ "my-data-stream" ],
+  "privileges" : [ "read" ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Because the user is automatically granted the same privileges to the stream's
+backing indices, the user can retrieve a document directly from
+`.ds-my-data-stream-000002`:
+
+////
+[source,console]
+----
+PUT /_index_template/my-data-stream-template
+{
+  "index_patterns": [ "my-data-stream*" ],
+  "data_stream": { }
+}
+
+PUT /_data_stream/my-data-stream
+
+POST /my-data-stream/_rollover/
+
+PUT /my-data-stream/_create/2?refresh=wait_for
+{
+  "@timestamp": "2020-12-07T11:06:07.000Z"
+}
+----
+////
+
+[source,console]
+----
+GET /.ds-my-data-stream-000002/_doc/2
+----
+// TEST[continued]
+
+Later `my-data-stream` <<manually-roll-over-a-data-stream,rolls over>>. This
+creates a new backing index: `.ds-my-data-stream-000003`. Because the user still
+has the `read` privilege for `my-data-stream`, the user can retrieve
+documents directly from `.ds-my-data-stream-000003`:
+
+////
+[source,console]
+----
+POST /my-data-stream/_rollover/
+
+PUT /my-data-stream/_create/2?refresh=wait_for
+{
+  "@timestamp": "2020-12-07T11:06:07.000Z"
+}
+----
+// TEST[continued]
+////
+
+[source,console]
+----
+GET /.ds-my-data-stream-000003/_doc/2
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE /_data_stream/*
+
+DELETE /_index_template/*
+----
+// TEST[continued]
+////
+
+[[index-alias-privileges]]
+==== Index alias privileges
+
+An index alias points to one or more indices,
 holds metadata and potentially a filter. The {es} {security-features} treat
 aliases and indices
 the same. Privileges for indices actions are granted on specific indices or
@@ -45,7 +139,7 @@ would be as follows:
 --------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 ==== Managing aliases
 
 Unlike creating indices, which requires the `create_index` privilege, adding,
@@ -56,9 +150,9 @@ added to an index directly as part of the index creation:
 -------------------------------------------------------------------------------
 PUT /2015
 {
-    "aliases" : {
-        "current_year" : {}
-    }
+  "aliases": {
+    "current_year": {}
+  }
 }
 -------------------------------------------------------------------------------
 
@@ -68,9 +162,9 @@ or via the dedicated aliases api if the index already exists:
 -------------------------------------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "add" : { "index" : "2015", "alias" : "current_year" } }
-    ]
+  "actions" : [
+    { "add" : { "index" : "2015", "alias" : "current_year" } }
+  ]
 }
 -------------------------------------------------------------------------------
 // TEST[s/^/PUT 2015\n/]
@@ -92,7 +186,7 @@ The privileges required for such a request are the same as above. Both index and
 alias need the `manage` permission.
 
 
-[float]
+[discrete]
 ==== Filtered aliases
 
 Aliases can hold a filter, which allows to select a subset of documents that can

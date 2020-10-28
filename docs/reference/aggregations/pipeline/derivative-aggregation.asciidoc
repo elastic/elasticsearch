@@ -38,27 +38,27 @@ The following snippet calculates the derivative of the total monthly `sales`:
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                },
-                "sales_deriv": {
-                    "derivative": {
-                        "buckets_path": "sales" <1>
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
+        },
+        "sales_deriv": {
+          "derivative": {
+            "buckets_path": "sales" <1>
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -131,32 +131,32 @@ monthly sales:
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                },
-                "sales_deriv": {
-                    "derivative": {
-                        "buckets_path": "sales"
-                    }
-                },
-                "sales_2nd_deriv": {
-                    "derivative": {
-                        "buckets_path": "sales_deriv" <1>
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
+        },
+        "sales_deriv": {
+          "derivative": {
+            "buckets_path": "sales"
+          }
+        },
+        "sales_2nd_deriv": {
+          "derivative": {
+            "buckets_path": "sales_deriv" <1>
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -230,28 +230,28 @@ of the total sales per month but ask for the derivative of the sales as in the u
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                },
-                "sales_deriv": {
-                    "derivative": {
-                        "buckets_path": "sales",
-                        "unit": "day" <1>
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
+        },
+        "sales_deriv": {
+          "derivative": {
+            "buckets_path": "sales",
+            "unit": "day" <1>
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

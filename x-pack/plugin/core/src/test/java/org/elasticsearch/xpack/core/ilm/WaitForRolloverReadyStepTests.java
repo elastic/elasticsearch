@@ -151,8 +151,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         Metadata metadata = Metadata.builder().put(indexMetadata, true)
-            .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
-                List.of(indexMetadata.getIndex()), 1L))
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                List.of(indexMetadata.getIndex())))
             .build();
         step.evaluateCondition(metadata, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 

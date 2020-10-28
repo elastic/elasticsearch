@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.HistogramValue;
@@ -32,7 +31,7 @@ import java.util.Map;
  * Average aggregator operating over histogram datatypes {@link HistogramValuesSource}
  * The aggregation computes weighted average by taking counts into consideration for each value
  */
-class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleValue {
+public class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final HistogramValuesSource.Histogram valuesSource;
 
@@ -41,7 +40,7 @@ class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray compensations;
     DocValueFormat format;
 
-    HistoBackedAvgAggregator(
+    public HistoBackedAvgAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
@@ -53,10 +52,9 @@ class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleValue {
         this.valuesSource = valuesSourceConfig.hasValues() ? (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource() : null;
         this.format = valuesSourceConfig.format();
         if (valuesSource != null) {
-            final BigArrays bigArrays = context.bigArrays();
-            counts = bigArrays.newLongArray(1, true);
-            sums = bigArrays.newDoubleArray(1, true);
-            compensations = bigArrays.newDoubleArray(1, true);
+            counts = bigArrays().newLongArray(1, true);
+            sums = bigArrays().newDoubleArray(1, true);
+            compensations = bigArrays().newDoubleArray(1, true);
         }
     }
 
@@ -71,16 +69,15 @@ class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         final HistogramValues values = valuesSource.getHistogramValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays.grow(counts, bucket + 1);
-                sums = bigArrays.grow(sums, bucket + 1);
-                compensations = bigArrays.grow(compensations, bucket + 1);
+                counts = bigArrays().grow(counts, bucket + 1);
+                sums = bigArrays().grow(sums, bucket + 1);
+                compensations = bigArrays().grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final HistogramValue sketch = values.histogram();

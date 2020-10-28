@@ -66,7 +66,7 @@ is not `0`, a reason for the rejection or failure is included in the response.
 
 `cluster_name`::
 (string)
-Name of the cluster, based on the <<cluster.name>> setting.
+Name of the cluster, based on the <<cluster-name>> setting.
 
 `cluster_uuid`::
 (string)
@@ -74,7 +74,7 @@ Unique identifier for the cluster.
 
 `timestamp`::
 (integer)
-https://en.wikipedia.org/wiki/Unix_time[Unix timestamp], in milliseconds, of
+{wikipedia}/Unix_time[Unix timestamp], in milliseconds, of
 the last time the cluster statistics were refreshed.
 
 `status`::
@@ -447,7 +447,7 @@ assigned to selected nodes.
 
 `max_unsafe_auto_id_timestamp`::
 (integer)
-https://en.wikipedia.org/wiki/Unix_time[Unix timestamp], in milliseconds, of
+{wikipedia}/Unix_time[Unix timestamp], in milliseconds, of
 the most recently retried indexing request.
 
 `file_sizes`::
@@ -467,7 +467,7 @@ Contains statistics about <<mapping,field mappings>> in selected nodes.
 =====
 `field_types`::
 (array of objects)
-Contains statistics about <<mapping-types,field datatypes>> used in selected
+Contains statistics about <<mapping-types,field data types>> used in selected
 nodes.
 +
 .Properties of `field_types` objects
@@ -475,15 +475,15 @@ nodes.
 ======
 `name`::
 (string)
-Field datatype used in selected nodes.
+Field data type used in selected nodes.
 
 `count`::
 (integer)
-Number of fields mapped to the field datatype in selected nodes.
+Number of fields mapped to the field data type in selected nodes.
 
 `index_count`::
 (integer)
-Number of indices containing a mapping of the field datatype in selected nodes.
+Number of indices containing a mapping of the field data type in selected nodes.
 ======
 =====
 
@@ -1100,7 +1100,7 @@ Number of selected nodes using the distribution flavor and file type.
 --------------------------------------------------
 GET /_cluster/stats?human&pretty
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following response:
 

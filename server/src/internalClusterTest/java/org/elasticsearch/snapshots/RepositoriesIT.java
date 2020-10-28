@@ -69,7 +69,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(repositoriesMetadata.repository("test-repo-1").type(), equalTo("fs"));
 
         logger.info("-->  creating another repository");
-        createRepository("test-repo-2", "fs", randomRepoPath());
+        createRepository("test-repo-2", "fs");
 
         logger.info("--> check that both repositories are in cluster state");
         clusterStateResponse = client.admin().cluster().prepareState().clear().setMetadata(true).get();

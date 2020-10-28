@@ -10,7 +10,6 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
@@ -93,31 +92,34 @@ public abstract class MultiGeoShapeValues {
      */
     public abstract GeoShapeValue nextValue() throws IOException;
 
+    /** thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
+     * the Geo decoder */
     public static class GeoShapeValue {
         private static final WellKnownText MISSING_GEOMETRY_PARSER = new WellKnownText(true, new GeographyValidator(true));
 
-        private final TriangleTreeReader reader;
+        private final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
+        private final Tile2DVisitor tile2DVisitor;
 
-        public GeoShapeValue(TriangleTreeReader reader)  {
+        public GeoShapeValue(GeometryDocValueReader reader)  {
             this.reader = reader;
             this.boundingBox = new BoundingBox();
+            tile2DVisitor = new Tile2DVisitor();
         }
 
         public BoundingBox boundingBox() {
-            boundingBox.reset(reader.getExtent(), GeoShapeCoordinateEncoder.INSTANCE);
+            boundingBox.reset(reader.getExtent(), CoordinateEncoder.GEO);
             return boundingBox;
         }
 
-        /**
-         * @return the latitude of the centroid of the shape
-         */
         public GeoRelation relate(Rectangle rectangle) {
-            int minX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMinX());
-            int maxX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMaxX());
-            int minY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMinY());
-            int maxY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMaxY());
-            return reader.relateTile(minX, minY, maxX, maxY);
+            int minX = CoordinateEncoder.GEO.encodeX(rectangle.getMinX());
+            int maxX = CoordinateEncoder.GEO.encodeX(rectangle.getMaxX());
+            int minY = CoordinateEncoder.GEO.encodeY(rectangle.getMinY());
+            int maxY = CoordinateEncoder.GEO.encodeY(rectangle.getMaxY());
+            tile2DVisitor.reset(minX, minY, maxX, maxY);
+            reader.visit(tile2DVisitor);
+            return tile2DVisitor.relation();
         }
 
         public DimensionalShapeType dimensionalShapeType() {
@@ -128,27 +130,30 @@ public abstract class MultiGeoShapeValues {
             return reader.getSumCentroidWeight();
         }
 
+        /**
+         * @return the latitude of the centroid of the shape
+         */
         public double lat() {
-            return reader.getCentroidY();
+            return CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
         }
 
         /**
          * @return the longitude of the centroid of the shape
          */
         public double lon() {
-            return reader.getCentroidX();
+            return CoordinateEncoder.GEO.decodeX(reader.getCentroidX());
         }
 
         public static GeoShapeValue missing(String missing) {
             try {
                 Geometry geometry = MISSING_GEOMETRY_PARSER.fromWKT(missing);
                 ShapeField.DecodedTriangle[] triangles = toDecodedTriangles(geometry);
-                TriangleTreeWriter writer =
-                    new TriangleTreeWriter(Arrays.asList(triangles), GeoShapeCoordinateEncoder.INSTANCE,
+                GeometryDocValueWriter writer =
+                    new GeometryDocValueWriter(Arrays.asList(triangles), CoordinateEncoder.GEO,
                         new CentroidCalculator(geometry));
                 ByteBuffersDataOutput output = new ByteBuffersDataOutput();
                 writer.writeTo(output);
-                TriangleTreeReader reader = new TriangleTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
+                GeometryDocValueReader reader = new GeometryDocValueReader();
                 reader.reset(new BytesRef(output.toArrayCopy(), 0, Math.toIntExact(output.size())));
                 return new GeoShapeValue(reader);
             } catch (IOException | ParseException e) {
@@ -201,22 +206,6 @@ public abstract class MultiGeoShapeValues {
             } else {
                 this.posLeft = coordinateEncoder.decodeX(extent.posLeft);
                 this.posRight = coordinateEncoder.decodeX(extent.posRight);
-            }
-        }
-
-        private void reset(GeoPoint point) {
-            this.top = point.lat();
-            this.bottom = point.lat();
-            if (point.lon() < 0) {
-                this.negLeft = point.lon();
-                this.negRight = point.lon();
-                this.posLeft = Double.POSITIVE_INFINITY;
-                this.posRight = Double.NEGATIVE_INFINITY;
-            } else {
-                this.negLeft = Double.POSITIVE_INFINITY;
-                this.negRight = Double.NEGATIVE_INFINITY;
-                this.posLeft = point.lon();
-                this.posRight = point.lon();
             }
         }
 

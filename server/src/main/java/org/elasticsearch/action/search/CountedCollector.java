@@ -23,20 +23,18 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 
-import java.util.function.Consumer;
-
 /**
  * This is a simple base class to simplify fan out to shards and collect their results. Each results passed to
  * {@link #onResult(SearchPhaseResult)} will be set to the provided result array
  * where the given index is used to set the result on the array.
  */
 final class CountedCollector<R extends SearchPhaseResult> {
-    private final Consumer<R> resultConsumer;
+    private final ArraySearchPhaseResults<R> resultConsumer;
     private final CountDown counter;
     private final Runnable onFinish;
     private final SearchPhaseContext context;
 
-    CountedCollector(Consumer<R> resultConsumer, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
+    CountedCollector(ArraySearchPhaseResults<R> resultConsumer, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
         this.resultConsumer = resultConsumer;
         this.counter = new CountDown(expectedOps);
         this.onFinish = onFinish;
@@ -58,11 +56,7 @@ final class CountedCollector<R extends SearchPhaseResult> {
      * Sets the result to the given array index and then runs {@link #countDown()}
      */
     void onResult(R result) {
-        try {
-            resultConsumer.accept(result);
-        } finally {
-            countDown();
-        }
+        resultConsumer.consumeResult(result,  this::countDown);
     }
 
     /**

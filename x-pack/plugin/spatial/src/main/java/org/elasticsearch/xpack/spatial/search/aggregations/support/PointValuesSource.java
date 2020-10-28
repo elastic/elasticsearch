@@ -33,6 +33,11 @@ public abstract class PointValuesSource extends ValuesSource {
             return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
         }
 
+        @Override
+        protected Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
+            throw new AggregationExecutionException("can't round a [POINT]");
+        }
+
     };
 
     @Override
@@ -44,11 +49,6 @@ public abstract class PointValuesSource extends ValuesSource {
                 return values.advanceExact(doc);
             }
         };
-    }
-
-    @Override
-    public final Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException {
-        throw new AggregationExecutionException("can't round a [POINT]");
     }
 
     public abstract MultiPointValues geoPointValues(LeafReaderContext context);
@@ -64,6 +64,11 @@ public abstract class PointValuesSource extends ValuesSource {
         @Override
         public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
             return indexFieldData.load(context).getBytesValues();
+        }
+
+        @Override
+        protected Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
+            throw new AggregationExecutionException("can't round a [POINT]");
         }
 
         public MultiPointValues geoPointValues(LeafReaderContext context) {

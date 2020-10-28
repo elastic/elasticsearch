@@ -53,21 +53,21 @@ public class CartesianBoundingBox implements ToXContentObject, Writeable {
     }
 
     public CartesianBoundingBox(StreamInput input) throws IOException {
-        this.topLeft = new CartesianPoint(input.readFloat(), input.readFloat());
-        this.bottomRight = new CartesianPoint(input.readFloat(), input.readFloat());
+        this.topLeft = new CartesianPoint(input.readDouble(), input.readDouble());
+        this.bottomRight = new CartesianPoint(input.readDouble(), input.readDouble());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeFloat(topLeft.getX());
-        out.writeFloat(topLeft.getY());
-        out.writeFloat(bottomRight.getX());
-        out.writeFloat(bottomRight.getY());
+        out.writeDouble(topLeft.getX());
+        out.writeDouble(topLeft.getY());
+        out.writeDouble(bottomRight.getX());
+        out.writeDouble(bottomRight.getY());
     }
 
     public boolean isUnbounded() {
-        return Float.isInfinite(topLeft.getX()) && Float.isInfinite(topLeft.getY())
-            && Float.isInfinite(bottomRight.getX()) && Float.isInfinite(bottomRight.getY());
+        return Double.isInfinite(topLeft.getX()) && Double.isInfinite(topLeft.getY())
+            && Double.isInfinite(bottomRight.getX()) && Double.isInfinite(bottomRight.getY());
     }
 
     public CartesianPoint topLeft() {
@@ -78,19 +78,19 @@ public class CartesianBoundingBox implements ToXContentObject, Writeable {
         return bottomRight;
     }
 
-    public float top() {
+    public double top() {
         return topLeft.getY();
     }
 
-    public float bottom() {
+    public double bottom() {
         return bottomRight.getY();
     }
 
-    public float left() {
+    public double left() {
         return topLeft.getX();
     }
 
-    public float right() {
+    public double right() {
         return bottomRight.getX();
     }
 

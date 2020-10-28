@@ -14,8 +14,13 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.PointValuesSourceType;
 
@@ -25,6 +30,8 @@ import java.util.Map;
 public class BoundsAggregationBuilder extends ValuesSourceAggregationBuilder<BoundsAggregationBuilder> {
 
     public static final String NAME = "bounds";
+    public static final ValuesSourceRegistry.RegistryKey<BoundsAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, BoundsAggregatorSupplier.class);
 
     public static final ObjectParser<BoundsAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, BoundsAggregationBuilder::new);
@@ -55,7 +62,12 @@ public class BoundsAggregationBuilder extends ValuesSourceAggregationBuilder<Bou
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
+    protected void innerWriteTo(StreamOutput out) {
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 
     @Override
@@ -69,10 +81,10 @@ public class BoundsAggregationBuilder extends ValuesSourceAggregationBuilder<Bou
     }
 
     @Override
-    protected BoundsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
-                                                    AggregatorFactory parent,
-                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new BoundsAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+    protected BoundsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
+                                                 AggregatorFactory parent,
+                                                 AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        return new BoundsAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

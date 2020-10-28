@@ -35,6 +35,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
@@ -50,6 +51,7 @@ import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
@@ -59,7 +61,10 @@ import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.time.Instant;
+import java.time.LocalTime;
+import java.time.OffsetTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -92,25 +97,6 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
  * on {@link StreamInput}.
  */
 public abstract class StreamInput extends InputStream {
-
-    private static final Map<Byte, TimeUnit> BYTE_TIME_UNIT_MAP;
-
-    static {
-        final Map<Byte, TimeUnit> byteTimeUnitMap = new HashMap<>();
-        byteTimeUnitMap.put((byte)0, TimeUnit.NANOSECONDS);
-        byteTimeUnitMap.put((byte)1, TimeUnit.MICROSECONDS);
-        byteTimeUnitMap.put((byte)2, TimeUnit.MILLISECONDS);
-        byteTimeUnitMap.put((byte)3, TimeUnit.SECONDS);
-        byteTimeUnitMap.put((byte)4, TimeUnit.MINUTES);
-        byteTimeUnitMap.put((byte)5, TimeUnit.HOURS);
-        byteTimeUnitMap.put((byte)6, TimeUnit.DAYS);
-
-        for (TimeUnit value : TimeUnit.values()) {
-            assert byteTimeUnitMap.containsValue(value) : value;
-        }
-
-        BYTE_TIME_UNIT_MAP = Collections.unmodifiableMap(byteTimeUnitMap);
-    }
 
     private Version version = Version.CURRENT;
 
@@ -346,6 +332,11 @@ public abstract class StreamInput extends InputStream {
         }
         return null;
     }
+
+    public BigInteger readBigInteger() throws IOException {
+        return new BigInteger(readString());
+    }
+
 
     @Nullable
     public Text readOptionalText() throws IOException {
@@ -679,6 +670,25 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Read {@link ImmutableOpenMap} using given key and value readers.
+     *
+     * @param keyReader   key reader
+     * @param valueReader value reader
+     */
+    public <K, V> ImmutableOpenMap<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
+            throws IOException {
+        final int size = readVInt();
+        if (size == 0) {
+            return ImmutableOpenMap.of();
+        }
+        final ImmutableOpenMap.Builder<K,V> builder = ImmutableOpenMap.builder(size);
+        for (int i = 0; i < size; i++) {
+            builder.put(keyReader.read(this), valueReader.read(this));
+        }
+        return builder.build();
+    }
+
+    /**
      * Reads a value of unspecified type. If a collection is read then the collection will be mutable if it contains any entry but might
      * be immutable if it is empty.
      */
@@ -740,6 +750,10 @@ public abstract class StreamInput extends InputStream {
                 return readCollection(StreamInput::readGenericValue, LinkedHashSet::new, Collections.emptySet());
             case 25:
                 return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
+            case 26:
+                return readBigInteger();
+            case 27:
+                return readOffsetTime();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -785,6 +799,11 @@ public abstract class StreamInput extends InputStream {
     private ZonedDateTime readZonedDateTime() throws IOException {
         final String timeZoneId = readString();
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
+    }
+
+    private OffsetTime readOffsetTime() throws IOException {
+        final String zoneOffsetId = readString();
+        return OffsetTime.of(LocalTime.ofNanoOfDay(readLong()), ZoneOffset.of(zoneOffsetId));
     }
 
     private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
@@ -1001,6 +1020,7 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    @Nullable
     @SuppressWarnings("unchecked")
     public <T extends Exception> T readException() throws IOException {
         if (readBoolean()) {
@@ -1231,8 +1251,11 @@ public abstract class StreamInput extends InputStream {
      * Reads an enum with type E that was serialized based on the value of its ordinal
      */
     public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
+        return readEnum(enumClass, enumClass.getEnumConstants());
+    }
+
+    private <E extends Enum<E>> E readEnum(Class<E> enumClass, E[] values) throws IOException {
         int ordinal = readVInt();
-        E[] values = enumClass.getEnumConstants();
         if (ordinal < 0 || ordinal >= values.length) {
             throw new IOException("Unknown " + enumClass.getSimpleName() + " ordinal [" + ordinal + "]");
         }
@@ -1244,14 +1267,15 @@ public abstract class StreamInput extends InputStream {
      */
     public <E extends Enum<E>> EnumSet<E> readEnumSet(Class<E> enumClass) throws IOException {
         int size = readVInt();
+        final EnumSet<E> res = EnumSet.noneOf(enumClass);
         if (size == 0) {
-             return EnumSet.noneOf(enumClass);
+            return res;
         }
-        Set<E> enums = new HashSet<>(size);
+        final E[] values = enumClass.getEnumConstants();
         for (int i = 0; i < size; i++) {
-            enums.add(readEnum(enumClass));
+            res.add(readEnum(enumClass, values));
         }
-        return EnumSet.copyOf(enums);
+        return res;
     }
 
     public static StreamInput wrap(byte[] bytes) {
@@ -1287,12 +1311,22 @@ public abstract class StreamInput extends InputStream {
      */
     protected abstract void ensureCanReadBytes(int length) throws EOFException;
 
+    private static final TimeUnit[] TIME_UNITS = TimeUnit.values();
+
+    static {
+        // assert the exact form of the TimeUnit values to ensure we're not silently broken by a JDK change
+        if (Arrays.equals(TIME_UNITS, new TimeUnit[]{TimeUnit.NANOSECONDS, TimeUnit.MICROSECONDS, TimeUnit.MILLISECONDS,
+            TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS}) == false) {
+            throw new AssertionError("Incompatible JDK version used that breaks assumptions on the structure of the TimeUnit enum");
+        }
+    }
+
     /**
      * Read a {@link TimeValue} from the stream
      */
     public TimeValue readTimeValue() throws IOException {
         long duration = readZLong();
-        TimeUnit timeUnit = BYTE_TIME_UNIT_MAP.get(readByte());
+        TimeUnit timeUnit = TIME_UNITS[readByte()];
         return new TimeValue(duration, timeUnit);
     }
 

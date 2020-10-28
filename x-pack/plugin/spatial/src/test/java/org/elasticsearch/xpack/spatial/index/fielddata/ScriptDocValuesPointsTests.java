@@ -64,8 +64,8 @@ public class ScriptDocValuesPointsTests extends ESTestCase {
         assertEquals(new CartesianPoint(x1, y1), script.getValue());
         assertEquals(x1, script.getX(), 0);
         assertEquals(y1, script.getY(), 0);
-        assertTrue(Arrays.equals(new float[] {x1, x2}, script.getXs()));
-        assertTrue(Arrays.equals(new float[] {y1, y2}, script.getYs()));
+        assertTrue(Arrays.equals(new double[] {x1, x2}, script.getXs()));
+        assertTrue(Arrays.equals(new double[] {y1, y2}, script.getYs()));
     }
 
     public void testDistance() throws IOException {

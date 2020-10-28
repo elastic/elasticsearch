@@ -23,19 +23,20 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.bulk.WriteMemoryLimits;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -43,12 +44,14 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
@@ -60,37 +63,58 @@ public abstract class TransportWriteAction<
             Response extends ReplicationResponse & WriteResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
-    private final boolean forceExecutionOnPrimary;
-    private final WriteMemoryLimits writeMemoryLimits;
-    private final String executor;
+    protected final IndexingPressure indexingPressure;
+    protected final SystemIndices systemIndices;
+
+    private final Function<IndexShard, String> executorFunction;
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
                                    ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                    ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
-                                   Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary,
-                                   WriteMemoryLimits writeMemoryLimits) {
+                                   Writeable.Reader<ReplicaRequest> replicaRequest, Function<IndexShard, String> executorFunction,
+                                   boolean forceExecutionOnPrimary, IndexingPressure indexingPressure, SystemIndices systemIndices) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
-        // ThreadPool.Names.WRITE thread pool in this class.
+        // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
-        this.executor = executor;
-        this.forceExecutionOnPrimary = forceExecutionOnPrimary;
-        this.writeMemoryLimits = writeMemoryLimits;
+        this.executorFunction = executorFunction;
+        this.indexingPressure = indexingPressure;
+        this.systemIndices = systemIndices;
+    }
+
+    protected String executor(IndexShard shard) {
+        return executorFunction.apply(shard);
     }
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
+        return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
+    }
+
+    protected boolean force(ReplicatedWriteRequest<?> request) {
+        return forceExecutionOnPrimary || isSystemShard(request.shardId);
+    }
+
+    protected boolean isSystemShard(ShardId shardId) {
+        final IndexAbstraction abstraction = clusterService.state().metadata().getIndicesLookup().get(shardId.getIndexName());
+        return abstraction != null ? abstraction.isSystem() : systemIndices.isSystemIndex(shardId.getIndexName());
     }
 
     @Override
-    protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal) {
-        // If this primary request was submitted by a reroute performed on this local node, we have already
-        // accounted the bytes.
+    protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
         if (rerouteWasLocal) {
-            return () -> {};
+            // If this primary request was received from a local reroute initiated by the node client, we
+            // must mark a new primary operation local to the coordinating node.
+            if (localRerouteInitiatedByNodeClient) {
+                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(primaryOperationSize(request));
+            } else {
+                return () -> {};
+            }
         } else {
-            return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
+            // If this primary request was received directly from the network, we must mark a new primary
+            // operation. This happens if the write action skips the reroute step (ex: rsync) or during
+            // primary delegation, after the primary relocation hand-off.
+            return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), force(request));
         }
     }
 
@@ -100,7 +124,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return writeMemoryLimits.markReplicaWriteStarted(replicaOperationSize(request));
+        return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), force(request));
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {
@@ -148,7 +172,7 @@ public abstract class TransportWriteAction<
     @Override
     protected void shardOperationOnPrimary(
             Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
-        threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
+        threadPool.executor(executorFunction.apply(primary)).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
                 dispatchedShardOperationOnPrimary(request, primary, listener);
@@ -156,7 +180,7 @@ public abstract class TransportWriteAction<
 
             @Override
             public boolean isForceExecution() {
-                return forceExecutionOnPrimary;
+                return force(request);
             }
         });
     }
@@ -173,7 +197,7 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
+        threadPool.executor(executorFunction.apply(replica)).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
                 dispatchedShardOperationOnReplica(request, replica, listener);

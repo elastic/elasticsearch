@@ -34,13 +34,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 /**
  * Open index action
@@ -58,20 +55,9 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                     DestructiveOperations destructiveOperations) {
         super(OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, OpenIndexRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, OpenIndexResponse::new, ThreadPool.Names.SAME);
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away...
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected OpenIndexResponse read(StreamInput in) throws IOException {
-        return new OpenIndexResponse(in);
     }
 
     @Override
@@ -83,13 +69,13 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     @Override
     protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, request, true));
+            indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
     protected void masterOperation(Task task, final OpenIndexRequest request, final ClusterState state,
                                    final ActionListener<OpenIndexResponse> listener) {
-        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request, true);
+        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new OpenIndexResponse(true, true));
             return;

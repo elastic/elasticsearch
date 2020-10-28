@@ -29,13 +29,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
+import org.elasticsearch.client.eql.EqlSearchResponse.Event;
 import org.elasticsearch.client.eql.EqlStatsRequest;
 import org.elasticsearch.client.eql.EqlStatsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -96,14 +96,13 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         assertFalse(response.isTimeout());
         assertNotNull(response.hits());
         assertNull(response.hits().sequences());
-        assertNull(response.hits().counts());
         assertNotNull(response.hits().events());
         assertThat(response.hits().events().size(), equalTo(count));
     }
 
     public void testBasicSearch() throws Exception {
         EqlClient eql = highLevelClient().eql();
-        EqlSearchRequest request = new EqlSearchRequest("index", "process where true");
+        EqlSearchRequest request = new EqlSearchRequest("index", "process where true").size(RECORD_COUNT);
         assertResponse(execute(request, eql::search, eql::searchAsync), RECORD_COUNT);
     }
 
@@ -115,14 +114,14 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         EqlSearchRequest request = new EqlSearchRequest("index", "foo where pid > 0");
 
         // test with non-default event.category mapping
-        request.eventCategoryField("event_type");
+        request.eventCategoryField("event_type").size(RECORD_COUNT);
 
         EqlSearchResponse response = execute(request, eql::search, eql::searchAsync);
         assertResponse(response, RECORD_COUNT / DIVIDER);
 
         // test the content of the hits
-        for (SearchHit hit : response.hits().events()) {
-            final Map<String, Object> source = hit.getSourceAsMap();
+        for (Event hit : response.hits().events()) {
+            final Map<String, Object> source = hit.sourceAsMap();
 
             final Map<String, Object> event = (Map<String, Object>) source.get("event");
             assertThat(event.get("category"), equalTo("process"));
@@ -141,14 +140,14 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         EqlClient eql = highLevelClient().eql();
 
         EqlSearchRequest request = new EqlSearchRequest("index",
-                "process where event_type_full = \"process_event\" and serial_event_id in (1,3,5)");
+                "process where event_type_full == \"process_event\" and serial_event_id in (1,3,5)");
 
         EqlSearchResponse response = execute(request, eql::search, eql::searchAsync);
         assertResponse(response, 3);
 
         // test the content of the hits
-        for (SearchHit hit : response.hits().events()) {
-            final Map<String, Object> source = hit.getSourceAsMap();
+        for (Event hit : response.hits().events()) {
+            final Map<String, Object> source = hit.sourceAsMap();
 
             final Map<String, Object> event = (Map<String, Object>) source.get("event");
             assertThat(event.get("category"), equalTo("process"));

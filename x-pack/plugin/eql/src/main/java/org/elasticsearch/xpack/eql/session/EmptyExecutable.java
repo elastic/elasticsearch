@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.eql.session.Results.Type;
+import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 
 import java.util.List;

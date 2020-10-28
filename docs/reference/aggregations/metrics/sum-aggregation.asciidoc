@@ -12,16 +12,16 @@ the sale price of all hats with:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "query" : {
-        "constant_score" : {
-            "filter" : {
-                "match" : { "type" : "hat" }
-            }
-        }
-    },
-    "aggs" : {
-        "hat_prices" : { "sum" : { "field" : "price" } }
+  "query": {
+    "constant_score": {
+      "filter": {
+        "match": { "type": "hat" }
+      }
     }
+  },
+  "aggs": {
+    "hat_prices": { "sum": { "field": "price" } }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -31,12 +31,12 @@ Resulting in:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "hat_prices" : {
-           "value" : 450.0
-        }
+  ...
+  "aggregations": {
+    "hat_prices": {
+      "value": 450.0
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -51,22 +51,22 @@ We could also use a script to fetch the sales price:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "query" : {
-        "constant_score" : {
-            "filter" : {
-                "match" : { "type" : "hat" }
-            }
-        }
-    },
-    "aggs" : {
-        "hat_prices" : {
-            "sum" : {
-                "script" : {
-                   "source": "doc.price.value"
-                }
-            }
-        }
+  "query": {
+    "constant_score": {
+      "filter": {
+        "match": { "type": "hat" }
+      }
     }
+  },
+  "aggs": {
+    "hat_prices": {
+      "sum": {
+        "script": {
+          "source": "doc.price.value"
+        }
+      }
+    }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -77,25 +77,25 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "query" : {
-        "constant_score" : {
-            "filter" : {
-                "match" : { "type" : "hat" }
-            }
-        }
-    },
-    "aggs" : {
-        "hat_prices" : {
-            "sum" : {
-                "script" : {
-                    "id": "my_script",
-                    "params" : {
-                        "field" : "price"
-                    }
-                }
-            }
-        }
+  "query": {
+    "constant_score": {
+      "filter": {
+        "match": { "type": "hat" }
+      }
     }
+  },
+  "aggs": {
+    "hat_prices": {
+      "sum": {
+        "script": {
+          "id": "my_script",
+          "params": {
+            "field": "price"
+          }
+        }
+      }
+    }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales,stored_example_script]
@@ -109,23 +109,23 @@ For example, this will sum the square of the prices for all hats:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "query" : {
-        "constant_score" : {
-            "filter" : {
-                "match" : { "type" : "hat" }
-            }
-        }
-    },
-    "aggs" : {
-        "square_hats" : {
-            "sum" : {
-                "field" : "price",
-                "script" : {
-                    "source": "_value * _value"
-                }
-            }
-        }
+  "query": {
+    "constant_score": {
+      "filter": {
+        "match": { "type": "hat" }
+      }
     }
+  },
+  "aggs": {
+    "square_hats": {
+      "sum": {
+        "field": "price",
+        "script": {
+          "source": "_value * _value"
+        }
+      }
+    }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -141,21 +141,21 @@ all hat sales without a price as being `100`.
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "query" : {
-        "constant_score" : {
-            "filter" : {
-                "match" : { "type" : "hat" }
-            }
-        }
-    },
-    "aggs" : {
-        "hat_prices" : {
-            "sum" : {
-                "field" : "price",
-                "missing": 100 <1>
-            }
-        }
+  "query": {
+    "constant_score": {
+      "filter": {
+        "match": { "type": "hat" }
+      }
     }
+  },
+  "aggs": {
+    "hat_prices": {
+      "sum": {
+        "field": "price",
+        "missing": 100 <1>
+      }
+    }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -190,9 +190,9 @@ PUT metrics_index/_doc/2
 
 POST /metrics_index/_search?size=0
 {
-    "aggs" : {
-        "total_latency" : { "sum" : { "field" : "latency_histo" } }
-    }
+  "aggs" : {
+    "total_latency" : { "sum" : { "field" : "latency_histo" } }
+  }
 }
 --------------------------------------------------
 
@@ -202,12 +202,12 @@ in the `counts` array <2>. Eventually, it will add all values for all histograms
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "total_latency" : {
-           "value" : 28.8
-        }
+  ...
+  "aggregations": {
+    "total_latency": {
+      "value": 28.8
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:test not setup]

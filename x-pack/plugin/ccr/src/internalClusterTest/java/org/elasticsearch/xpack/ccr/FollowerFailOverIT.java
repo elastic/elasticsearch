@@ -51,7 +51,6 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58534")
     public void testFailOverOnFollower() throws Exception {
         final String leaderIndex = "leader_test_failover";
         final String followerIndex = "follower_test_failover";
@@ -224,7 +223,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         });
         flushingOnFollower.start();
         awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), 50);
-        followerClient().admin().indices().prepareUpdateSettings("follower-index")
+        followerClient().admin().indices().prepareUpdateSettings("follower-index").setMasterNodeTimeout(TimeValue.MAX_VALUE)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas + 1).build()).get();
         ensureFollowerGreen("follower-index");
         awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), 100);

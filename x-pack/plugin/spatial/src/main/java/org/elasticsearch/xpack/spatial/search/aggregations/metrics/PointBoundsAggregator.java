@@ -41,7 +41,7 @@ public final class PointBoundsAggregator extends MetricsAggregator {
         super(name, aggregationContext, parent, metadata);
         this.valuesSource = valuesSourceConfig.hasValues() ? (PointValuesSource) valuesSourceConfig.getValuesSource() : null;
         if (valuesSource != null) {
-            final BigArrays bigArrays = context.bigArrays();
+            final BigArrays bigArrays = bigArrays();
             tops = bigArrays.newFloatArray(1, false);
             tops.fill(0, tops.size(), Float.NEGATIVE_INFINITY);
             bottoms = bigArrays.newFloatArray(1, false);
@@ -59,7 +59,7 @@ public final class PointBoundsAggregator extends MetricsAggregator {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
+        final BigArrays bigArrays = bigArrays();
         final MultiPointValues values = valuesSource.geoPointValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -81,10 +81,10 @@ public final class PointBoundsAggregator extends MetricsAggregator {
 
                     for (int i = 0; i < valuesCount; ++i) {
                         CartesianPoint value = values.nextValue();
-                        float top = Math.max(tops.get(bucket), value.getY());
-                        float bottom = Math.min(bottoms.get(bucket), value.getY());
-                        float posLeft = Math.min(posLefts.get(bucket), value.getX());
-                        float posRight = Math.max(posRights.get(bucket), value.getX());
+                        float top = (float) Math.max(tops.get(bucket), value.getY());
+                        float bottom = (float) Math.min(bottoms.get(bucket), value.getY());
+                        float posLeft = (float) Math.min(posLefts.get(bucket), value.getX());
+                        float posRight = (float) Math.max(posRights.get(bucket), value.getX());
                         tops.set(bucket, top);
                         bottoms.set(bucket, bottom);
                         posLefts.set(bucket, posLeft);

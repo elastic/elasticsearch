@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[preview-transform]]
-=== Preview {transform} API
+= Preview {transform} API
 
 [subs="attributes"]
 ++++
@@ -11,12 +11,12 @@
 Previews a {transform}.
 
 [[preview-transform-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _transform/_preview`
 
 [[preview-transform-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
 privileges:
@@ -30,7 +30,7 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[preview-transform-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This API generates a preview of the results that you will get when you run the
 <<put-transform,create {transforms} API>> with the same
@@ -49,7 +49,7 @@ or an index template with your preferred mappings before you start the
 
 [role="child_attributes"]
 [[preview-transform-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 
 `description`::
@@ -164,7 +164,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max
 
 [role="child_attributes"]
 [[preview-transform-response]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 `preview`::
 (array) An array of documents. In particular, they are the JSON representation 
@@ -190,7 +190,7 @@ of the documents that would be created in the destination index by the
 ====
 //End generated_dest_index
 
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

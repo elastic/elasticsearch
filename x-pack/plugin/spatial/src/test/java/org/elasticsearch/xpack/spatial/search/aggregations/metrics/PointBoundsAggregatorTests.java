@@ -45,12 +45,11 @@ public class PointBoundsAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             BoundsAggregationBuilder aggBuilder = new BoundsAggregationBuilder("my_agg")
                 .field("field");
-
             MappedFieldType fieldType
-                = new PointFieldMapper.PointFieldType("field", true, true, Collections.emptyMap());
+                = new PointFieldMapper.PointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertTrue(bounds.box.isUnbounded());
                 assertFalse((bounds.topLeft() == null && bounds.bottomRight() == null) == false);
             }
@@ -69,10 +68,10 @@ public class PointBoundsAggregatorTests extends AggregatorTestCase {
                 .field("non_existent");
 
             MappedFieldType fieldType
-                = new PointFieldMapper.PointFieldType("field", true, true, Collections.emptyMap());
+                = new PointFieldMapper.PointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertTrue(bounds.box.isUnbounded());
                 assertFalse((bounds.topLeft() == null && bounds.bottomRight() == null) == false);
             }
@@ -86,7 +85,7 @@ public class PointBoundsAggregatorTests extends AggregatorTestCase {
             w.addDocument(doc);
 
             MappedFieldType fieldType
-                = new PointFieldMapper.PointFieldType("field", true, true, Collections.emptyMap());
+                = new PointFieldMapper.PointFieldType("field");
 
             Point point = ShapeTestUtils.randomPoint(false);
             Object missingVal = "POINT(" + point.getX() + " " + point.getY() + ")";
@@ -100,7 +99,7 @@ public class PointBoundsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertFalse(bounds.box.isUnbounded());
                 assertThat(bounds.topLeft().getX(), equalTo(x));
                 assertThat(bounds.topLeft().getY(), equalTo(y));
@@ -117,7 +116,7 @@ public class PointBoundsAggregatorTests extends AggregatorTestCase {
             w.addDocument(doc);
 
             MappedFieldType fieldType
-                = new PointFieldMapper.PointFieldType("field", true, true, Collections.emptyMap());
+                = new PointFieldMapper.PointFieldType("field");
 
             BoundsAggregationBuilder aggBuilder = new BoundsAggregationBuilder("my_agg")
                 .field("field")
@@ -127,7 +126,7 @@ public class PointBoundsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 // it seems we can return different exceptions depending on the implementation
                 ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
-                    () -> search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
+                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
                 assertThat(exception.getMessage(), startsWith("failed to parse [[invalid]]"));
             }
         }
@@ -171,11 +170,11 @@ public class PointBoundsAggregatorTests extends AggregatorTestCase {
                 .field("field");
 
             MappedFieldType fieldType
-                = new PointFieldMapper.PointFieldType("field", true, true, Collections.emptyMap());
+                = new PointFieldMapper.PointFieldType("field");
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertFalse(bounds.box.isUnbounded());
                 assertThat(bounds.topLeft().getX(), equalTo(posLeft));
                 assertThat(bounds.topLeft().getY(), equalTo(top));

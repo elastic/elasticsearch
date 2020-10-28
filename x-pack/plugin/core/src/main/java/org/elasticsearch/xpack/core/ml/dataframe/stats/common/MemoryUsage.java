@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.Fields;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -48,12 +47,7 @@ public class MemoryUsage implements Writeable, ToXContentObject {
             Fields.TIMESTAMP,
             ObjectParser.ValueType.VALUE);
         parser.declareLong(ConstructingObjectParser.constructorArg(), PEAK_USAGE_BYTES);
-        parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Status.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, STATUS, ObjectParser.ValueType.STRING);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), Status::fromString, STATUS);
         parser.declareLong(ConstructingObjectParser.optionalConstructorArg(), MEMORY_REESTIMATE_BYTES);
         return parser;
     }

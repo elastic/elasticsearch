@@ -59,7 +59,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
             }
         }
         if (randomBoolean()) {
-            factory.extendedBounds(ExtendedBoundsTests.randomExtendedBounds());
+            factory.extendedBounds(LongBoundsTests.randomExtendedBounds());
         }
         if (randomBoolean()) {
             factory.format("###.##");

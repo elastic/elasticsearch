@@ -23,8 +23,9 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.search.SearchService.CanMatchResponse;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -77,15 +78,19 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     }
 
     @Override
-    protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
+    public void addReleasable(Releasable releasable) {
+        throw new RuntimeException("cannot add releasable in " + getName() + " phase");
+    }
+
+    @Override
+    protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
                                        SearchActionListener<CanMatchResponse> listener) {
-        getSearchTransport().sendCanMatch(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
+        getSearchTransport().sendCanMatch(getConnection(shard.getClusterAlias(), shard.getNodeId()),
             buildShardSearchRequest(shardIt), getTask(), listener);
     }
 
     @Override
-    protected SearchPhase getNextPhase(SearchPhaseResults<CanMatchResponse> results,
-                                       SearchPhaseContext context) {
+    protected SearchPhase getNextPhase(SearchPhaseResults<CanMatchResponse> results, SearchPhaseContext context) {
 
         return phaseFactory.apply(getIterator((CanMatchSearchPhaseResults) results, shardsIts));
     }
@@ -159,8 +164,12 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         }
 
         @Override
-        void consumeResult(CanMatchResponse result) {
-            consumeResult(result.getShardIndex(), result.canMatch(), result.estimatedMinAndMax());
+        void consumeResult(CanMatchResponse result, Runnable next) {
+            try {
+                consumeResult(result.getShardIndex(), result.canMatch(), result.estimatedMinAndMax());
+            } finally {
+                next.run();
+            }
         }
 
         @Override

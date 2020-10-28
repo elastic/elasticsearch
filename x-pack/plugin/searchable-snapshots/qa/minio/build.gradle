@@ -1,9 +1,9 @@
-import org.elasticsearch.gradle.info.BuildParams
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:minio-fixture')
 final Project repositoryPlugin = project(':plugins:repository-s3')
@@ -28,20 +28,13 @@ def fixtureAddress = {
 }
 
 integTest {
-  dependsOn repositoryPlugin.bundlePlugin
-  runner {
-    systemProperty 'test.minio.bucket', 'bucket'
-    systemProperty 'test.minio.base_path', 'searchable_snapshots_tests'
-  }
+  systemProperty 'test.minio.bucket', 'bucket'
+  systemProperty 'test.minio.base_path', 'searchable_snapshots_tests'
 }
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.bundlePlugin.archiveFile
-
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
+  plugin repositoryPlugin.path
 
   keystore 's3.client.searchable_snapshots.access_key', 'access_key'
   keystore 's3.client.searchable_snapshots.secret_key', 'secret_key'

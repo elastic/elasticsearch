@@ -42,7 +42,7 @@ import java.util.Objects;
  */
 public class GetDatafeedStatsRequest implements Validatable, ToXContentObject {
 
-    public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetDatafeedStatsRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -52,13 +52,13 @@ public class GetDatafeedStatsRequest implements Validatable, ToXContentObject {
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
             p -> Arrays.asList(Strings.commaDelimitedListToStringArray(p.text())),
             DatafeedConfig.ID, ObjectParser.ValueType.STRING_ARRAY);
-        PARSER.declareBoolean(GetDatafeedStatsRequest::setAllowNoDatafeeds, ALLOW_NO_DATAFEEDS);
+        PARSER.declareBoolean(GetDatafeedStatsRequest::setAllowNoMatch, ALLOW_NO_MATCH);
     }
 
     private static final String ALL_DATAFEEDS = "_all";
 
     private final List<String> datafeedIds;
-    private Boolean allowNoDatafeeds;
+    private Boolean allowNoMatch;
 
     /**
      * Explicitly gets all datafeeds statistics
@@ -92,8 +92,8 @@ public class GetDatafeedStatsRequest implements Validatable, ToXContentObject {
         return datafeedIds;
     }
 
-    public Boolean getAllowNoDatafeeds() {
-        return this.allowNoDatafeeds;
+    public Boolean getAllowNoMatch() {
+        return this.allowNoMatch;
     }
 
     /**
@@ -101,15 +101,15 @@ public class GetDatafeedStatsRequest implements Validatable, ToXContentObject {
      *
      * This includes {@code _all} string or when no datafeeds have been specified
      *
-     * @param allowNoDatafeeds When {@code true} ignore if wildcard or {@code _all} matches no datafeeds. Defaults to {@code true}
+     * @param allowNoMatch When {@code true} ignore if wildcard or {@code _all} matches no datafeeds. Defaults to {@code true}
      */
-    public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-        this.allowNoDatafeeds = allowNoDatafeeds;
+    public void setAllowNoMatch(boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(datafeedIds, allowNoDatafeeds);
+        return Objects.hash(datafeedIds, allowNoMatch);
     }
 
     @Override
@@ -124,15 +124,15 @@ public class GetDatafeedStatsRequest implements Validatable, ToXContentObject {
 
         GetDatafeedStatsRequest that = (GetDatafeedStatsRequest) other;
         return Objects.equals(datafeedIds, that.datafeedIds) &&
-            Objects.equals(allowNoDatafeeds, that.allowNoDatafeeds);
+            Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field(DatafeedConfig.ID.getPreferredName(), Strings.collectionToCommaDelimitedString(datafeedIds));
-        if (allowNoDatafeeds != null) {
-            builder.field(ALLOW_NO_DATAFEEDS.getPreferredName(), allowNoDatafeeds);
+        if (allowNoMatch != null) {
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
         }
         builder.endObject();
         return builder;

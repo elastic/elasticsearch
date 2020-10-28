@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.ml.inference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -28,6 +30,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -101,7 +104,12 @@ public class TrainedModelStatsService {
                 stop();
             }
         });
-        clusterService.addListener((event) -> this.clusterState = event.state());
+        clusterService.addListener(this::setClusterState);
+    }
+
+    // visible for testing
+    void setClusterState(ClusterChangedEvent event) {
+        clusterState = event.state();
     }
 
     /**
@@ -145,7 +153,14 @@ public class TrainedModelStatsService {
         if (clusterState == null || statsQueue.isEmpty() || stopped) {
             return;
         }
-        if (verifyIndicesPrimaryShardsAreActive(clusterState, indexNameExpressionResolver) == false) {
+
+        boolean isInUpgradeMode = MlMetadata.getMlMetadata(clusterState).isUpgradeMode();
+        if (isInUpgradeMode) {
+            logger.debug("Model stats not persisted as ml upgrade mode is enabled");
+            return;
+        }
+
+        if (verifyIndicesExistAndPrimaryShardsAreActive(clusterState, indexNameExpressionResolver) == false) {
             try {
                 logger.debug("About to create the stats index as it does not exist yet");
                 createStatsIndexIfNecessary();
@@ -188,10 +203,14 @@ public class TrainedModelStatsService {
             (msg) -> {});
     }
 
-    private static boolean verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver expressionResolver) {
+    static boolean verifyIndicesExistAndPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver expressionResolver) {
         String[] indices = expressionResolver.concreteIndexNames(clusterState,
             IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN,
             MlStatsIndex.writeAlias());
+        // If there are no indices, we need to make sure we attempt to create it properly
+        if (indices.length == 0) {
+            return false;
+        }
         for (String index : indices) {
             if (clusterState.metadata().hasIndex(index) == false) {
                 return false;
@@ -205,16 +224,16 @@ public class TrainedModelStatsService {
     }
 
     private void createStatsIndexIfNecessary() {
-        PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, listener);
-        listener.actionGet();
-        listener = new PlainActionFuture<>();
-        ElasticsearchMappings.addDocMappingIfMissing(
-            MlStatsIndex.writeAlias(),
-            MlStatsIndex::mapping,
-            client,
-            clusterState,
-            listener);
+        final PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, ActionListener.wrap(
+            r -> ElasticsearchMappings.addDocMappingIfMissing(
+                MlStatsIndex.writeAlias(),
+                MlStatsIndex::mapping,
+                client,
+                clusterState,
+                listener),
+            listener::onFailure
+        ));
         listener.actionGet();
         logger.debug("Created stats index");
     }
@@ -235,7 +254,8 @@ public class TrainedModelStatsService {
                 // out of band. If there is MANY more than that, something strange is happening and it should fail.
                 .retryOnConflict(3)
                 .id(InferenceStats.docId(stats.getModelId(), stats.getNodeId()))
-                .script(new Script(ScriptType.INLINE, "painless", STATS_UPDATE_SCRIPT, params));
+                .script(new Script(ScriptType.INLINE, "painless", STATS_UPDATE_SCRIPT, params))
+                .setRequireAlias(true);
             return updateRequest;
         } catch (IOException ex) {
             logger.error(
@@ -246,5 +266,4 @@ public class TrainedModelStatsService {
         }
         return null;
     }
-
 }

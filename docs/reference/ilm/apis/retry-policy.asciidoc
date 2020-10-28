@@ -41,11 +41,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[ilm-retry-policy-example]]
 ==== {api-examples-title}
 
-The following example retries the policy for `my_index`.
+The following example retries the policy for `my-index-000001`.
 
 [source,js]
 --------------------------------------------------
-POST my_index/_ilm/retry
+POST my-index-000001/_ilm/retry
 --------------------------------------------------
 // NOTCONSOLE
 

@@ -7,8 +7,8 @@
 :xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
 :es-repo-dir:           {elasticsearch-root}/docs/reference
 
-
 include::../Versions.asciidoc[]
+include::links.asciidoc[]
 
 include::intro.asciidoc[]
 
@@ -20,29 +20,31 @@ include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
 
-include::data-streams/data-streams.asciidoc[]
-
-include::search/index.asciidoc[]
-
-include::query-dsl.asciidoc[]
-
-ifdef::permanently-unreleased-branch[]
-include::eql/index.asciidoc[]
-endif::[]
-
-include::sql/index.asciidoc[]
-
-include::aggregations.asciidoc[]
-
-include::scripting.asciidoc[]
+include::index-modules.asciidoc[]
 
 include::mapping.asciidoc[]
 
 include::analysis.asciidoc[]
 
-include::index-modules.asciidoc[]
+include::indices/index-templates.asciidoc[]
+
+include::data-streams/data-streams.asciidoc[]
+
+include::datatiers.asciidoc[]
 
 include::ingest.asciidoc[]
+
+include::search/search-your-data/search-your-data.asciidoc[]
+
+include::query-dsl.asciidoc[]
+
+include::aggregations.asciidoc[]
+
+include::eql/eql.asciidoc[]
+
+include::sql/index.asciidoc[]
+
+include::scripting.asciidoc[]
 
 include::ilm/index.asciidoc[]
 

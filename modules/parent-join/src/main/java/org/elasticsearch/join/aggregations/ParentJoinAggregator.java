@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
@@ -68,9 +69,13 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                                     Query outFilter,
                                     ValuesSource.Bytes.WithOrdinals valuesSource,
                                     long maxOrd,
-                                    boolean collectsFromSingleBucket,
+                                    CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+        /*
+         * We have to use MANY to work around
+         * https://github.com/elastic/elasticsearch/issues/59097
+         */
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
 
         if (maxOrd > Integer.MAX_VALUE) {
             throw new IllegalStateException("the number of parent [" + maxOrd + "] + is greater than the allowed limit " +
@@ -82,9 +87,9 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         this.outFilter = context.searcher().createWeight(context.searcher().rewrite(outFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         this.valuesSource = valuesSource;
         boolean singleAggregator = parent == null;
-        collectionStrategy = singleAggregator && collectsFromSingleBucket
+        collectionStrategy = singleAggregator && cardinality == CardinalityUpperBound.ONE
             ? new DenseCollectionStrategy(maxOrd, context.bigArrays())
-            : new SparseCollectionStrategy(context.bigArrays(), collectsFromSingleBucket);
+            : new SparseCollectionStrategy(context.bigArrays(), cardinality);
     }
 
     @Override
@@ -108,8 +113,13 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
+    public void postCollection() throws IOException {
+        // Delaying until beforeBuildingBuckets
+    }
+
+    @Override
     protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {
-        IndexReader indexReader = context().searcher().getIndexReader();
+        IndexReader indexReader = searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
             Scorer childDocsScorer = outFilter.scorer(ctx);
             if (childDocsScorer == null) {
@@ -157,6 +167,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 }
             }
         }
+        super.postCollection(); // Run post collection after collecting the sub-aggs
     }
 
     @Override
@@ -185,7 +196,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         private final BitArray ordsBits;
 
         public DenseCollectionStrategy(long maxOrd, BigArrays bigArrays) {
-            ordsBits = new BitArray((int) maxOrd, context.bigArrays());
+            ordsBits = new BitArray(maxOrd, bigArrays());
         }
 
         @Override
@@ -215,8 +226,8 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     protected class SparseCollectionStrategy implements CollectionStrategy {
         private final LongKeyedBucketOrds ordsHash;
 
-        public SparseCollectionStrategy(BigArrays bigArrays, boolean collectsFromSingleBucket) {
-            ordsHash = LongKeyedBucketOrds.build(bigArrays, collectsFromSingleBucket);
+        public SparseCollectionStrategy(BigArrays bigArrays, CardinalityUpperBound cardinality) {
+            ordsHash = LongKeyedBucketOrds.build(bigArrays, cardinality);
         }
 
         @Override

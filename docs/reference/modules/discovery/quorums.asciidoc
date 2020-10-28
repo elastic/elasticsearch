@@ -38,7 +38,7 @@ cluster-state update that adjusts the voting configuration to match, and this
 can take a short time to complete. It is important to wait for this adjustment
 to complete before removing more nodes from the cluster.
 
-[float]
+[discrete]
 ==== Master elections
 
 Elasticsearch uses an election process to agree on an elected master node, both
@@ -52,7 +52,7 @@ election will succeed (with arbitrarily high probability). The scheduling of
 master elections are controlled by the <<master-election-settings,master
 election settings>>.
 
-[float]
+[discrete]
 ==== Cluster maintenance, rolling restarts and migrations
 
 Many cluster maintenance tasks involve temporarily shutting down one or more

@@ -26,7 +26,7 @@ NOTE: Because pipeline aggregations only add to the output, when chaining pipeli
 will be included in the final output.
 
 [[buckets-path-syntax]]
-[float]
+[discrete]
 === `buckets_path` Syntax
 
 Most pipeline aggregations require another aggregation as their input.  The input aggregation is defined via the `buckets_path`
@@ -54,22 +54,22 @@ metric `"the_sum"`:
 --------------------------------------------------
 POST /_search
 {
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"timestamp",
-                "calendar_interval":"day"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "lemmings" } <1>
-                },
-                "the_deriv":{
-                    "derivative":{ "buckets_path": "the_sum" } <2>
-                }
-            }
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "day"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "lemmings" }              <1>
+        },
+        "the_deriv": {
+          "derivative": { "buckets_path": "the_sum" } <2>
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -84,26 +84,26 @@ a metric embedded inside a sibling aggregation:
 --------------------------------------------------
 POST /_search
 {
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                }
-            }
-        },
-        "max_monthly_sales": {
-            "max_bucket": {
-                "buckets_path": "sales_per_month>sales" <1>
-            }
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
         }
+      }
+    },
+    "max_monthly_sales": {
+      "max_bucket": {
+        "buckets_path": "sales_per_month>sales" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -119,37 +119,37 @@ their bucket keys) to perform the calculation:
 --------------------------------------------------
 POST /_search
 {
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sale_type": {
-                    "terms": {
-                        "field": "type"
-                    },
-                    "aggs": {
-                        "sales": {
-                            "sum": {
-                                "field": "price"
-                            }
-                        }
-                    }
-                },
-                "hat_vs_bag_ratio": {
-                    "bucket_script": {
-                        "buckets_path": {
-                            "hats": "sale_type['hat']>sales", <1>
-                            "bags": "sale_type['bag']>sales"  <1>
-                        },
-                        "script": "params.hats / params.bags"
-                    }
-                }
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sale_type": {
+          "terms": {
+            "field": "type"
+          },
+          "aggs": {
+            "sales": {
+              "sum": {
+                "field": "price"
+              }
             }
+          }
+        },
+        "hat_vs_bag_ratio": {
+          "bucket_script": {
+            "buckets_path": {
+              "hats": "sale_type['hat']>sales",   <1>
+              "bags": "sale_type['bag']>sales"    <1>
+            },
+            "script": "params.hats / params.bags"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -157,7 +157,7 @@ POST /_search
 <1> `buckets_path` selects the hats and bags buckets (via `['hat']`/`['bag']``) to use in the script specifically,
 instead of fetching all the buckets from `sale_type` aggregation
 
-[float]
+[discrete]
 === Special Paths
 
 Instead of pathing to a metric, `buckets_path` can use a special `"_count"` path.  This instructs
@@ -168,19 +168,19 @@ on the document count of each bucket, instead of a specific metric:
 --------------------------------------------------
 POST /_search
 {
-    "aggs": {
-        "my_date_histo": {
-            "date_histogram": {
-                "field":"timestamp",
-                "calendar_interval":"day"
-            },
-            "aggs": {
-                "the_deriv": {
-                    "derivative": { "buckets_path": "_count" } <1>
-                }
-            }
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "day"
+      },
+      "aggs": {
+        "the_deriv": {
+          "derivative": { "buckets_path": "_count" } <1>
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -228,7 +228,7 @@ POST /sales/_search
 for the `categories` aggregation
 
 [[dots-in-agg-names]]
-[float]
+[discrete]
 === Dealing with dots in agg names
 
 An alternate syntax is supported to cope with aggregations or metrics which
@@ -243,7 +243,7 @@ may be referred to as:
 // NOTCONSOLE
 
 [[gap-policy]]
-[float]
+[discrete]
 === Dealing with gaps in the data
 
 Data in the real world is often noisy and sometimes contains *gaps* -- places where data simply doesn't exist.  This can
@@ -288,3 +288,4 @@ include::pipeline/normalize-aggregation.asciidoc[]
 include::pipeline/serial-diff-aggregation.asciidoc[]
 include::pipeline/stats-bucket-aggregation.asciidoc[]
 include::pipeline/extended-stats-bucket-aggregation.asciidoc[]
+include::pipeline/inference-bucket-aggregation.asciidoc[]

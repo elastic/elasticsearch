@@ -28,6 +28,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -61,7 +62,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         Map<String, Object> metadata,
         long maxDocCount,
         double precision,
-        boolean collectsFromSingleBucket
+        CardinalityUpperBound cardinality
     ) throws IOException {
         super(
             name,
@@ -71,12 +72,11 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
             metadata,
             maxDocCount,
             precision,
-            format,
-            collectsFromSingleBucket
+            format
         );
         this.valuesSource = valuesSource;
         this.filter = filter;
-        this.bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        this.bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     @Override
@@ -130,7 +130,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         Arrays.fill(mergeMap, -1);
         long offset = 0;
         for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
-            try (BytesRefHash bucketsInThisOwningBucketToCollect = new BytesRefHash(1, context.bigArrays())) {
+            try (BytesRefHash bucketsInThisOwningBucketToCollect = new BytesRefHash(1, bigArrays())) {
                 filters[owningOrdIdx] = newFilter();
                 List<StringRareTerms.Bucket> builtBuckets = new ArrayList<>();
                 BytesKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds[owningOrdIdx]);

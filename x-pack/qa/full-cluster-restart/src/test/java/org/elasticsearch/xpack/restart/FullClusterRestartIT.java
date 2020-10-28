@@ -5,11 +5,16 @@
  */
 package org.elasticsearch.xpack.restart;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -28,13 +33,14 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,10 +48,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
@@ -94,7 +102,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createRole(true);
         } else {
             waitForYellow(".security");
-            Response settingsResponse = client().performRequest(new Request("GET", "/.security/_settings/index.format"));
+            final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
+            getSettingsRequest.setOptions(expectWarnings("this request accesses system indices: [.security-7], but in a future major " +
+                "version, direct access to system indices will be prevented by default"));
+            Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
             final String concreteSecurityIndex;
@@ -168,7 +179,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             logger.info("checking that the Watches index is the correct version");
 
-            Response settingsResponse = client().performRequest(new Request("GET", "/.watches/_settings/index.format"));
+            final Request getSettingsRequest = new Request("GET", "/.watches/_settings/index.format");
+            getSettingsRequest.setOptions(expectWarnings("this request accesses system indices: [.watches], but in a future major " +
+                "version, direct access to system indices will be prevented by default"));
+            Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
             final String concreteWatchesIndex;
@@ -186,14 +200,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
 
             // Wait for watcher to actually start....
-            Map<String, Object> startWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_start")));
-            assertThat(startWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-            assertBusy(() -> {
-                Map<String, Object> statsWatchResponse = entityAsMap(client().performRequest(new Request("GET", "_watcher/stats")));
-                List<?> states = ((List<?>) statsWatchResponse.get("stats"))
-                    .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
-                assertThat(states, everyItem(is("started")));
-            });
+            startWatcher();
 
             try {
                 assertOldTemplatesAreDeleted();
@@ -203,15 +210,64 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 /* Shut down watcher after every test because watcher can be a bit finicky about shutting down when the node shuts
                  * down. This makes super sure it shuts down *and* causes the test to fail in a sensible spot if it doesn't shut down.
                  */
-                Map<String, Object> stopWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_stop")));
-                assertThat(stopWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+                stopWatcher();
+            }
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63088")
+    @SuppressWarnings("unchecked")
+    public void testWatcherWithApiKey() throws Exception {
+        final Request getWatchStatusRequest = new Request("GET", "/_watcher/watch/watch_with_api_key");
+        getWatchStatusRequest.addParameter("filter_path", "status");
+
+        if (isRunningAgainstOldCluster()) {
+            final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
+            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\",\"role_descriptors\":" +
+                "{\"r\":{\"cluster\":[\"all\"],\"indices\":[{\"names\":[\"*\"],\"privileges\":[\"all\"]}]}}}");
+            final Response response = client().performRequest(createApiKeyRequest);
+            final Map<String, Object> createApiKeyResponse = entityAsMap(response);
+
+            Request createWatchWithApiKeyRequest = new Request("PUT", "/_watcher/watch/watch_with_api_key");
+            createWatchWithApiKeyRequest.setJsonEntity(loadWatch("logging-watch.json"));
+            final byte[] keyBytes =
+                (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(StandardCharsets.UTF_8);
+            final String authHeader = "ApiKey " + Base64.getEncoder().encodeToString(keyBytes);
+            createWatchWithApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+            client().performRequest(createWatchWithApiKeyRequest);
+
+            assertBusy(() -> {
+                final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
+                assertEquals("executed", status.get("execution_state"));
+            });
+
+        } else {
+            logger.info("testing against {}", getOldClusterVersion());
+            try {
+                waitForYellow(".watches,.watcher-history*");
+            } catch (ResponseException e) {
+                String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
+                logger.info("cluster_state_response=\n{}", rsp);
+                throw e;
+            }
+
+            // Wait for watcher to actually start....
+            startWatcher();
+
+            try {
+                final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
+                final int version = (int) status.get("version");
+
                 assertBusy(() -> {
-                    Map<String, Object> statsStoppedWatchResponse = entityAsMap(client().performRequest(
-                        new Request("GET", "_watcher/stats")));
-                    List<?> states = ((List<?>) statsStoppedWatchResponse.get("stats"))
-                        .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
-                    assertThat(states, everyItem(is("stopped")));
+                    final Map<String, Object> newGetWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                    final Map<String, Object> newStatus = (Map<String, Object>) newGetWatchStatusResponse.get("status");
+                    assertThat((int) newStatus.get("version"), greaterThan(version + 2));
+                    assertEquals("executed", newStatus.get("execution_state"));
                 });
+            } finally {
+                stopWatcher();
             }
         }
     }
@@ -321,7 +377,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         if (isRunningAgainstOldCluster() == false) {
             Response response = client().performRequest(new Request("GET", "_slm/stats"));
-            XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+            XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
             try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, response.getEntity().getContent())) {
                 assertEquals(new SnapshotLifecycleStats(), SnapshotLifecycleStats.parse(parser));
@@ -455,6 +511,29 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 throw ioe;
             }
         }, 30, TimeUnit.SECONDS);
+    }
+
+    private void startWatcher() throws Exception {
+        Map<String, Object> startWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_start")));
+        assertThat(startWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertBusy(() -> {
+            Map<String, Object> statsWatchResponse = entityAsMap(client().performRequest(new Request("GET", "_watcher/stats")));
+            List<?> states = ((List<?>) statsWatchResponse.get("stats"))
+                .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
+            assertThat(states, everyItem(is("started")));
+        });
+    }
+
+    private void stopWatcher() throws Exception {
+        Map<String, Object> stopWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_stop")));
+        assertThat(stopWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertBusy(() -> {
+            Map<String, Object> statsStoppedWatchResponse = entityAsMap(client().performRequest(
+                new Request("GET", "_watcher/stats")));
+            List<?> states = ((List<?>) statsStoppedWatchResponse.get("stats"))
+                .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
+            assertThat(states, everyItem(is("stopped")));
+        });
     }
 
     static String toStr(Response response) throws IOException {
@@ -626,5 +705,46 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDataStreams() throws Exception {
+        assumeTrue("no data streams in versions before " + Version.V_7_9_0, getOldClusterVersion().onOrAfter(Version.V_7_9_0));
+        if (isRunningAgainstOldCluster()) {
+            createComposableTemplate(client(), "dst", "ds");
+
+            Request indexRequest = new Request("POST", "/ds/_doc/1?op_type=create&refresh");
+            XContentBuilder builder = JsonXContent.contentBuilder().startObject()
+                .field("f", "v")
+                .field("@timestamp", new Date())
+                .endObject();
+            indexRequest.setJsonEntity(Strings.toString(builder));
+            assertOK(client().performRequest(indexRequest));
+        }
+
+        Request getDataStream = new Request("GET", "/_data_stream/ds");
+        Response response = client().performRequest(getDataStream);
+        assertOK(response);
+        List<Object> dataStreams = (List<Object>) entityAsMap(response).get("data_streams");
+        assertEquals(1, dataStreams.size());
+        Map<String, Object> ds = (Map<String, Object>) dataStreams.get(0);
+        List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
+        assertEquals("ds", ds.get("name"));
+        assertEquals(1, indices.size());
+        assertEquals(DataStream.getDefaultBackingIndexName("ds", 1), indices.get(0).get("index_name"));
+        assertNumHits("ds", 1, 1);
+    }
+
+    private static void createComposableTemplate(RestClient client, String templateName, String indexPattern)
+        throws IOException {
+        StringEntity templateJSON = new StringEntity(
+            String.format(Locale.ROOT, "{\n" +
+                "  \"index_patterns\": \"%s\",\n" +
+                "  \"data_stream\": {}\n" +
+                "}", indexPattern),
+            ContentType.APPLICATION_JSON);
+        Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
+        createIndexTemplateRequest.setEntity(templateJSON);
+        client.performRequest(createIndexTemplateRequest);
     }
 }

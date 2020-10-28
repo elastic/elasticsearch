@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -34,7 +32,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
@@ -42,22 +40,22 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.comparators.LongComparator;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -94,7 +92,7 @@ final class CompositeAggregator extends BucketsAggregator {
     CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
                         Map<String, Object> metadata,
                         int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
-        super(name, factories, context, parent, metadata);
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.size = size;
         this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
@@ -109,7 +107,12 @@ final class CompositeAggregator extends BucketsAggregator {
         }
         this.sourceConfigs = sourceConfigs;
         for (int i = 0; i < sourceConfigs.length; i++) {
-            this.sources[i] = createValuesSource(context.bigArrays(), context.searcher().getIndexReader(), sourceConfigs[i], size);
+            this.sources[i] = sourceConfigs[i].createValuesSource(
+                context.bigArrays(),
+                context.searcher().getIndexReader(),
+                size,
+                this::addRequestCircuitBreakerBytes
+            );
         }
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
@@ -288,40 +291,47 @@ final class CompositeAggregator extends BucketsAggregator {
 
                     @Override
                     public FieldComparator<?> getComparator(int numHits, int sortPos) {
-                        return new FieldComparator.LongComparator(1, delegate.getField(), (Long) missingValue) {
+                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), sortPos) {
                             @Override
-                            protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                                NumericDocValues dvs =  SortedNumericSelector.wrap(DocValues.getSortedNumeric(context.reader(), field),
-                                    delegate.getSelector(), delegate.getNumericType());
-                                return new NumericDocValues() {
+                            public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
+                                return new LongLeafComparator(context) {
                                     @Override
-                                    public long longValue() throws IOException {
-                                        return round.applyAsLong(dvs.longValue());
-                                    }
+                                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field)
+                                            throws IOException {
+                                        NumericDocValues dvs =  SortedNumericSelector.wrap(
+                                                DocValues.getSortedNumeric(context.reader(), field),
+                                            delegate.getSelector(), delegate.getNumericType());
+                                        return new NumericDocValues() {
+                                            @Override
+                                            public long longValue() throws IOException {
+                                                return round.applyAsLong(dvs.longValue());
+                                            }
 
-                                    @Override
-                                    public boolean advanceExact(int target) throws IOException {
-                                        return dvs.advanceExact(target);
-                                    }
+                                            @Override
+                                            public boolean advanceExact(int target) throws IOException {
+                                                return dvs.advanceExact(target);
+                                            }
 
-                                    @Override
-                                    public int docID() {
-                                        return dvs.docID();
-                                    }
+                                            @Override
+                                            public int docID() {
+                                                return dvs.docID();
+                                            }
 
-                                    @Override
-                                    public int nextDoc() throws IOException {
-                                        return dvs.nextDoc();
-                                    }
+                                            @Override
+                                            public int nextDoc() throws IOException {
+                                                return dvs.nextDoc();
+                                            }
 
-                                    @Override
-                                    public int advance(int target) throws IOException {
-                                        return dvs.advance(target);
-                                    }
+                                            @Override
+                                            public int advance(int target) throws IOException {
+                                                return dvs.advance(target);
+                                            }
 
-                                    @Override
-                                    public long cost() {
-                                        return dvs.cost();
+                                            @Override
+                                            public long cost() {
+                                                return dvs.cost();
+                                            }
+                                        };
                                     }
                                 };
                             }
@@ -347,18 +357,21 @@ final class CompositeAggregator extends BucketsAggregator {
             fieldDoc.doc = -1;
         }
         BooleanQuery newQuery = new BooleanQuery.Builder()
-            .add(context.query(), BooleanClause.Occur.MUST)
+            .add(topLevelQuery(), BooleanClause.Occur.MUST)
             .add(new SearchAfterSortedDocQuery(applySortFieldRounding(indexSortPrefix), fieldDoc), BooleanClause.Occur.FILTER)
             .build();
-        Weight weight = context.searcher().createWeight(context.searcher().rewrite(newQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        Weight weight = searcher().createWeight(searcher().rewrite(newQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
         Scorer scorer = weight.scorer(ctx);
         if (scorer != null) {
             DocIdSetIterator docIt = scorer.iterator();
             final LeafBucketCollector inner = queue.getLeafCollector(ctx,
                 getFirstPassCollector(docIdSetBuilder, indexSortPrefix.getSort().length));
             inner.setScorer(scorer);
+            final Bits liveDocs = ctx.reader().getLiveDocs();
             while (docIt.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                inner.collect(docIt.docID());
+                if (liveDocs == null || liveDocs.get(docIt.docID())) {
+                    inner.collect(docIt.docID());
+                }
             }
         }
     }
@@ -373,12 +386,12 @@ final class CompositeAggregator extends BucketsAggregator {
         int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
 
         SortedDocsProducer sortedDocsProducer = sortPrefixLen == 0  ?
-            sources[0].createSortedDocsProducerOrNull(ctx.reader(), context.query()) : null;
+            sources[0].createSortedDocsProducerOrNull(ctx.reader(), topLevelQuery()) : null;
         if (sortedDocsProducer != null) {
             // Visit documents sorted by the leading source of the composite definition and terminates
             // when the leading source value is guaranteed to be greater than the lowest composite bucket
             // in the queue.
-            DocIdSet docIdSet = sortedDocsProducer.processLeaf(context.query(), queue, ctx, fillDocIdSet);
+            DocIdSet docIdSet = sortedDocsProducer.processLeaf(topLevelQuery(), queue, ctx, fillDocIdSet);
             if (fillDocIdSet) {
                 entries.add(new Entry(ctx, docIdSet));
             }
@@ -443,8 +456,7 @@ final class CompositeAggregator extends BucketsAggregator {
         final boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
         if (needsScores) {
-            Query query = context.query();
-            weight = context.searcher().createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
+            weight = searcher().createWeight(searcher().rewrite(topLevelQuery()), ScoreMode.COMPLETE, 1f);
         }
         deferredCollectors.preCollection();
         for (Entry entry : entries) {
@@ -492,81 +504,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 }
             }
         };
-    }
-
-    private SingleDimensionValuesSource<?> createValuesSource(BigArrays bigArrays, IndexReader reader,
-                                                              CompositeValuesSourceConfig config, int size) {
-        final int reverseMul = config.reverseMul();
-        if (config.valuesSource() instanceof ValuesSource.Bytes.WithOrdinals && reader instanceof DirectoryReader) {
-            ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) config.valuesSource();
-            return new GlobalOrdinalValuesSource(
-                bigArrays,
-                config.fieldType(),
-                vs::globalOrdinalsValues,
-                config.format(),
-                config.missingBucket(),
-                size,
-                reverseMul
-            );
-        } else if (config.valuesSource() instanceof ValuesSource.Bytes) {
-            ValuesSource.Bytes vs = (ValuesSource.Bytes) config.valuesSource();
-            return new BinaryValuesSource(
-                bigArrays,
-                this::addRequestCircuitBreakerBytes,
-                config.fieldType(),
-                vs::bytesValues,
-                config.format(),
-                config.missingBucket(),
-                size,
-                reverseMul
-            );
-
-        } else if (config.valuesSource() instanceof CellIdSource) {
-            final CellIdSource cis = (CellIdSource) config.valuesSource();
-            return new GeoTileValuesSource(
-                bigArrays,
-                config.fieldType(),
-                cis::longValues,
-                LongUnaryOperator.identity(),
-                config.format(),
-                config.missingBucket(),
-                size,
-                reverseMul);
-        } else if (config.valuesSource() instanceof ValuesSource.Numeric) {
-            final ValuesSource.Numeric vs = (ValuesSource.Numeric) config.valuesSource();
-            if (vs.isFloatingPoint()) {
-                return new DoubleValuesSource(
-                    bigArrays,
-                    config.fieldType(),
-                    vs::doubleValues,
-                    config.format(),
-                    config.missingBucket(),
-                    size,
-                    reverseMul
-                );
-
-            } else {
-                final LongUnaryOperator rounding;
-                if (vs instanceof RoundingValuesSource) {
-                    rounding = ((RoundingValuesSource) vs)::round;
-                } else {
-                    rounding = LongUnaryOperator.identity();
-                }
-                return new LongValuesSource(
-                    bigArrays,
-                    config.fieldType(),
-                    vs::longValues,
-                    rounding,
-                    config.format(),
-                    config.missingBucket(),
-                    size,
-                    reverseMul
-                );
-            }
-        } else {
-            throw new IllegalArgumentException("Unknown values source type: " + config.valuesSource().getClass().getName() +
-                " for source: " + config.name());
-        }
     }
 
     private static class Entry {

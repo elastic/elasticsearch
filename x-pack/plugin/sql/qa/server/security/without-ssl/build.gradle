@@ -1,4 +1,4 @@
-integTest.runner {
+integTest {
   systemProperty 'tests.ssl.enabled', 'false'
 }
 

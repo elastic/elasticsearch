@@ -16,10 +16,10 @@ A `moving_percentiles` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "moving_percentiles": {
-        "buckets_path": "the_percentile",
-        "window": 10
-    }
+  "moving_percentiles": {
+    "buckets_path": "the_percentile",
+    "window": 10
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -41,29 +41,29 @@ embedded like any other metric aggregation:
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{                <1>
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_percentile":{        <2>
-                    "percentiles":{
-                      "field": "price",
-                      "percents": [ 1.0, 99.0 ]
-                     }
-                },
-                "the_movperc": {
-                    "moving_percentiles": {
-                        "buckets_path": "the_percentile", <3>
-                        "window": 10
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {                          <1>
+        "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_percentile": {                     <2>
+            "percentiles": {
+            "field": "price",
+            "percents": [ 1.0, 99.0 ]
+          }
+        },
+        "the_movperc": {
+          "moving_percentiles": {
+            "buckets_path": "the_percentile",   <3>
+            "window": 10
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

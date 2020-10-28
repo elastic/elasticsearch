@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MissingValues;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.IndexPointFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.MultiPointValues;
 
 import java.io.IOException;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 public class PointValuesSourceType implements ValuesSourceType {
@@ -49,7 +52,7 @@ public class PointValuesSourceType implements ValuesSourceType {
     }
 
     @Override
-    public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+    public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
         if (!(fieldContext.indexFieldData() instanceof IndexPointFieldData)) {
             throw new IllegalArgumentException("Expected point type on field [" + fieldContext.field() +
                 "], but got [" + fieldContext.fieldType().typeName() + "]");
@@ -58,8 +61,7 @@ public class PointValuesSourceType implements ValuesSourceType {
     }
 
     @Override
-    public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                       LongSupplier nowSupplier) {
+    public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, AggregationContext context) {
         final CartesianPoint missing = new CartesianPoint();
         missing.resetFromString((String) rawMissing, true);
         return new PointValuesSource() {
@@ -102,6 +104,11 @@ public class PointValuesSourceType implements ValuesSourceType {
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return MissingValues.replaceMissing(valuesSource.bytesValues(context), new BytesRef(missing.toString()));
+            }
+
+            @Override
+            protected Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
+                throw new AggregationExecutionException("can't round a [POINT]");
             }
         };
     }

@@ -29,7 +29,6 @@ import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 
 public class ClusterSearchShardsResponse extends ActionResponse implements ToXContentObject {
@@ -40,38 +39,16 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
 
     public ClusterSearchShardsResponse(StreamInput in) throws IOException {
         super(in);
-        groups = new ClusterSearchShardsGroup[in.readVInt()];
-        for (int i = 0; i < groups.length; i++) {
-            groups[i] = new ClusterSearchShardsGroup(in);
-        }
-        nodes = new DiscoveryNode[in.readVInt()];
-        for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = new DiscoveryNode(in);
-        }
-        int size = in.readVInt();
-        indicesAndFilters = new HashMap<>();
-        for (int i = 0; i < size; i++) {
-            String index = in.readString();
-            AliasFilter aliasFilter = new AliasFilter(in);
-            indicesAndFilters.put(index, aliasFilter);
-        }
+        groups = in.readArray(ClusterSearchShardsGroup::new, ClusterSearchShardsGroup[]::new);
+        nodes = in.readArray(DiscoveryNode::new, DiscoveryNode[]::new);
+        indicesAndFilters = in.readMap(StreamInput::readString, AliasFilter::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(groups.length);
-        for (ClusterSearchShardsGroup response : groups) {
-            response.writeTo(out);
-        }
-        out.writeVInt(nodes.length);
-        for (DiscoveryNode node : nodes) {
-            node.writeTo(out);
-        }
-        out.writeVInt(indicesAndFilters.size());
-        for (Map.Entry<String, AliasFilter> entry : indicesAndFilters.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
-        }
+        out.writeArray(groups);
+        out.writeArray(nodes);
+        out.writeMap(indicesAndFilters, StreamOutput::writeString, (o, s) -> s.writeTo(o));
     }
 
     public ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes,

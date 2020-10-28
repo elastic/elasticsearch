@@ -25,6 +25,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
@@ -35,6 +36,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.BiConsumer;
+
+import static org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds.getEffectiveMax;
+import static org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds.getEffectiveMin;
 
 /**
  * Base class for functionality shared between aggregators for this
@@ -47,8 +51,8 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
     protected final BucketOrder order;
     protected final boolean keyed;
     protected final long minDocCount;
-    protected final double minBound;
-    protected final double maxBound;
+    protected final DoubleBounds extendedBounds;
+    protected final DoubleBounds hardBounds;
     protected final LongKeyedBucketOrds bucketOrds;
 
     public AbstractHistogramAggregator(
@@ -59,15 +63,15 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         BucketOrder order,
         boolean keyed,
         long minDocCount,
-        double minBound,
-        double maxBound,
+        DoubleBounds extendedBounds,
+        DoubleBounds hardBounds,
         DocValueFormat formatter,
         SearchContext context,
         Aggregator parent,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinalityUpperBound,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, context, parent, metadata);
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         if (interval <= 0) {
             throw new IllegalArgumentException("interval must be positive, got: " + interval);
         }
@@ -77,10 +81,10 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         order.validate(this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
-        this.minBound = minBound;
-        this.maxBound = maxBound;
+        this.extendedBounds = extendedBounds;
+        this.hardBounds = hardBounds;
         this.formatter = formatter;
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinalityUpperBound);
     }
 
     @Override
@@ -96,7 +100,8 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
 
                 EmptyBucketInfo emptyBucketInfo = null;
                 if (minDocCount == 0) {
-                    emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
+                    emptyBucketInfo = new EmptyBucketInfo(interval, offset, getEffectiveMin(extendedBounds),
+                        getEffectiveMax(extendedBounds), buildEmptySubAggregations());
                 }
                 return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
             });
@@ -106,7 +111,8 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
     public InternalAggregation buildEmptyAggregation() {
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = null;
         if (minDocCount == 0) {
-            emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
+            emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, getEffectiveMin(extendedBounds),
+                getEffectiveMax(extendedBounds), buildEmptySubAggregations());
         }
         return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
     }

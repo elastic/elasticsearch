@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
@@ -140,7 +141,7 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         List<Double> expected = Arrays.asList(0.768524783, 0.231475216);
         List<Double> scores   = Arrays.asList(0.230557435, 0.162032651);
         double eps = 0.000001;
-        List<ClassificationInferenceResults.TopClassEntry> probabilities =
+        List<TopClassEntry> probabilities =
             ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
                 .getTopClasses();
         for(int i = 0; i < expected.size(); i++) {

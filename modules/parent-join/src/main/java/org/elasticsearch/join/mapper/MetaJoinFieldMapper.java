@@ -19,22 +19,20 @@
 
 package org.elasticsearch.join.mapper;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Simple field mapper hack to ensure that there is a one and only {@link ParentJoinFieldMapper} per mapping.
@@ -43,52 +41,18 @@ import java.util.List;
  * This class is also used to quickly retrieve the parent-join field defined in a mapping without
  * specifying the name of the field.
  */
-public class MetaJoinFieldMapper extends FieldMapper {
+public class MetaJoinFieldMapper extends MetadataFieldMapper {
+
     static final String NAME = "_parent_join";
     static final String CONTENT_TYPE = "parent_join";
-
-    static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    static class Builder extends FieldMapper.Builder<Builder> {
-
-        final String joinField;
-
-        Builder(String joinField) {
-            super(NAME, Defaults.FIELD_TYPE);
-            builder = this;
-            this.joinField = joinField;
-        }
-
-        @Override
-        public MetaJoinFieldMapper build(BuilderContext context) {
-            return new MetaJoinFieldMapper(name, joinField);
-        }
-    }
 
     public static class MetaJoinFieldType extends StringFieldType {
 
         private final String joinField;
 
-        MetaJoinFieldType(String joinField) {
-            super(NAME, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        private MetaJoinFieldType(String joinField) {
+            super(NAME, false, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.joinField = joinField;
-        }
-
-        protected MetaJoinFieldType(MetaJoinFieldType ref) {
-            super(ref);
-            this.joinField = ref.joinField;
-        }
-
-        public MetaJoinFieldType clone() {
-            return new MetaJoinFieldType(this);
         }
 
         @Override
@@ -97,18 +61,18 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            throw new UnsupportedOperationException("Cannot load field data for metadata field [" + NAME + "]");
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + NAME + "].");
         }
 
         @Override
         public Object valueForDisplay(Object value) {
-            if (value == null) {
-                return null;
-            }
-            BytesRef binaryValue = (BytesRef) value;
-            return binaryValue.utf8ToString();
+            throw new UnsupportedOperationException();
         }
 
         public String getJoinField() {
@@ -121,8 +85,8 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
     }
 
-    MetaJoinFieldMapper(String name, String joinField) {
-        super(name, Defaults.FIELD_TYPE, new MetaJoinFieldType(joinField), MultiFields.empty(), CopyTo.empty());
+    MetaJoinFieldMapper(String joinField) {
+        super(new MetaJoinFieldType(joinField));
     }
 
     @Override
@@ -133,10 +97,6 @@ public class MetaJoinFieldMapper extends FieldMapper {
     @Override
     protected MetaJoinFieldMapper clone() {
         return (MetaJoinFieldMapper) super.clone();
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
     }
 
     @Override

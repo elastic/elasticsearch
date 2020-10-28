@@ -1,5 +1,3 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
@@ -11,8 +9,6 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-ccr'
-
-integTest.enabled = false
 
 // Integration Test classes that cannot run with the security manager
 String[] noSecurityManagerITClasses = ["**/CloseFollowerIndexIT.class"]

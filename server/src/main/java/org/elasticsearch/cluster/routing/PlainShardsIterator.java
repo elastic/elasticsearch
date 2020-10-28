@@ -18,70 +18,26 @@
  */
 package org.elasticsearch.cluster.routing;
 
-import java.util.Collections;
-import java.util.Iterator;
+import org.elasticsearch.common.util.PlainIterator;
+
 import java.util.List;
 
 /**
  * A simple {@link ShardsIterator} that iterates a list or sub-list of
  * {@link ShardRouting shard indexRoutings}.
  */
-public class PlainShardsIterator implements ShardsIterator {
-
-    private final List<ShardRouting> shards;
-
-    // Calls to nextOrNull might be performed on different threads in the transport actions so we need the volatile
-    // keyword in order to ensure visibility. Note that it is fine to use `volatile` for a counter in that case given
-    // that although nextOrNull might be called from different threads, it can never happen concurrently.
-    private volatile int index;
-
+public class PlainShardsIterator extends PlainIterator<ShardRouting> implements ShardsIterator {
     public PlainShardsIterator(List<ShardRouting> shards) {
-        this.shards = shards;
-        reset();
-    }
-
-    @Override
-    public void reset() {
-        index = 0;
-    }
-
-    @Override
-    public int remaining() {
-        return shards.size() - index;
-    }
-
-    @Override
-    public ShardRouting nextOrNull() {
-        if (index == shards.size()) {
-            return null;
-        } else {
-            return shards.get(index++);
-        }
-    }
-
-    @Override
-    public int size() {
-        return shards.size();
+        super(shards);
     }
 
     @Override
     public int sizeActive() {
-        int count = 0;
-        for (ShardRouting shard : shards) {
-            if (shard.active()) {
-                count++;
-            }
-        }
-        return count;
+        return Math.toIntExact(getShardRoutings().stream().filter(ShardRouting::active).count());
     }
 
     @Override
     public List<ShardRouting> getShardRoutings() {
-        return Collections.unmodifiableList(shards);
-    }
-
-    @Override
-    public Iterator<ShardRouting> iterator() {
-        return shards.iterator();
+        return asList();
     }
 }

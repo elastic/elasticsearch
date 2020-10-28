@@ -19,44 +19,101 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 public abstract class IRNode {
 
-    /* begin node data */
+    /* ---- begin decorations ---- */
 
-    protected Location location;
+    public interface IRDecoration {
 
-    public void setLocation(Location location) {
-        this.location = location;
     }
+
+    private final Map<Class<? extends IRDecoration>, IRDecoration> decorations = new HashMap<>();
+
+    @SuppressWarnings("unchecked")
+    public <T extends IRDecoration> T attachDecoration(T decoration) {
+        return (T)decorations.put(decoration.getClass(), decoration);
+    }
+
+    public <T extends IRDecoration> T removeDecoration(Class<T> type) {
+        return type.cast(decorations.remove(type));
+    }
+
+    public <T extends IRDecoration> T getDecoration(Class<T> type) {
+        return type.cast(decorations.get(type));
+    }
+
+    public boolean hasDecoration(Class<? extends IRDecoration> type) {
+        return decorations.containsKey(type);
+    }
+
+    public <T extends IRDecoration> boolean copyDecorationFrom(IRNode copyFromIRNode, Class<T> type) {
+        T decoration = copyFromIRNode.getDecoration(type);
+
+
+        if (decoration != null) {
+            attachDecoration(decoration);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /* ---- end decorations, begin conditions ---- */
+
+    public interface IRCondition {
+
+    }
+
+    private final Set<Class<? extends IRCondition>> conditions = new HashSet<>();
+
+    public boolean attachCondition(Class<? extends IRCondition> type) {
+        return conditions.add(type);
+    }
+
+    public boolean removeCondition(Class<? extends IRCondition> type) {
+        return conditions.remove(type);
+    }
+
+    public boolean hasCondition(Class<? extends IRCondition> type) {
+        return conditions.contains(type);
+    }
+
+    public boolean copyConditionFrom(IRNode copyFromIRNode, Class<? extends IRCondition> type) {
+        if (copyFromIRNode.hasCondition(type)) {
+            attachCondition(type);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /* ---- end conditions, begin node data ---- */
+
+    private final Location location;
 
     public Location getLocation() {
         return location;
     }
 
-    /* end node data */
+    /* ---- end node data, begin visitor ---- */
 
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        throw new UnsupportedOperationException();
+    public abstract <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope);
+    public abstract <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope);
+
+    /* ---- end visitor ---- */
+
+    public IRNode(Location location) {
+        this.location = location;
     }
 
-    protected int accessElementCount() {
-        throw new UnsupportedOperationException();
-    }
-
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        throw new UnsupportedOperationException();
-    }
-
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        throw new UnsupportedOperationException();
-    }
-
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        throw new UnsupportedOperationException();
-    }
 }

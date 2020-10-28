@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.dataframe.process.results.ModelMetadata;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-
 
 public class AnalyticsResultProcessor {
 
@@ -57,6 +57,9 @@ public class AnalyticsResultProcessor {
     private final ChunkedTrainedModelPersister chunkedTrainedModelPersister;
     private volatile String failure;
     private volatile boolean isCancelled;
+    private long processedRows;
+
+    private volatile String latestModelId;
 
     public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
                                     StatsHolder statsHolder, TrainedModelProvider trainedModelProvider,
@@ -91,31 +94,17 @@ public class AnalyticsResultProcessor {
 
     public void cancel() {
         dataFrameRowsJoiner.cancel();
-        statsPersister.cancel();
         isCancelled = true;
     }
 
     public void process(AnalyticsProcess<AnalyticsResult> process) {
         long totalRows = process.getConfig().rows();
-        long processedRows = 0;
 
         // TODO When java 9 features can be used, we will not need the local variable here
         try (DataFrameRowsJoiner resultsJoiner = dataFrameRowsJoiner) {
             Iterator<AnalyticsResult> iterator = process.readAnalyticsResults();
             while (iterator.hasNext()) {
-                if (isCancelled) {
-                    break;
-                }
-                AnalyticsResult result = iterator.next();
-                processResult(result, resultsJoiner);
-                if (result.getRowResults() != null) {
-                    if (processedRows == 0) {
-                        LOGGER.info("[{}] Started writing results", analytics.getId());
-                        auditor.info(analytics.getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_WRITING_RESULTS));
-                    }
-                    processedRows++;
-                    updateResultsProgress(processedRows >= totalRows ? 100 : (int) (processedRows * 100.0 / totalRows));
-                }
+                processResult(iterator.next(), resultsJoiner, totalRows);
             }
         } catch (Exception e) {
             if (isCancelled) {
@@ -140,10 +129,10 @@ public class AnalyticsResultProcessor {
         statsHolder.getProgressTracker().updateWritingResultsProgress(100);
     }
 
-    private void processResult(AnalyticsResult result, DataFrameRowsJoiner resultsJoiner) {
+    private void processResult(AnalyticsResult result, DataFrameRowsJoiner resultsJoiner, long totalRows) {
         RowResults rowResults = result.getRowResults();
-        if (rowResults != null) {
-            resultsJoiner.processRowResults(rowResults);
+        if (rowResults != null && isCancelled == false) {
+            processRowResult(resultsJoiner, totalRows, rowResults);
         }
         PhaseProgress phaseProgress = result.getPhaseProgress();
         if (phaseProgress != null) {
@@ -153,11 +142,15 @@ public class AnalyticsResultProcessor {
         }
         ModelSizeInfo modelSize = result.getModelSizeInfo();
         if (modelSize != null) {
-            chunkedTrainedModelPersister.createAndIndexInferenceModelMetadata(modelSize);
+            latestModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelConfig(modelSize);
         }
         TrainedModelDefinitionChunk trainedModelDefinitionChunk = result.getTrainedModelDefinitionChunk();
-        if (trainedModelDefinitionChunk != null) {
+        if (trainedModelDefinitionChunk != null && isCancelled == false) {
             chunkedTrainedModelPersister.createAndIndexInferenceModelDoc(trainedModelDefinitionChunk);
+        }
+        ModelMetadata modelMetadata = result.getModelMetadata();
+        if (modelMetadata != null) {
+            chunkedTrainedModelPersister.createAndIndexInferenceModelMetadata(modelMetadata);
         }
         MemoryUsage memoryUsage = result.getMemoryUsage();
         if (memoryUsage != null) {
@@ -180,6 +173,16 @@ public class AnalyticsResultProcessor {
         }
     }
 
+    private void processRowResult(DataFrameRowsJoiner rowsJoiner, long totalRows, RowResults rowResults) {
+        rowsJoiner.processRowResults(rowResults);
+        if (processedRows == 0) {
+            LOGGER.info("[{}] Started writing results", analytics.getId());
+            auditor.info(analytics.getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_WRITING_RESULTS));
+        }
+        processedRows++;
+        updateResultsProgress(processedRows >= totalRows ? 100 : (int) (processedRows * 100.0 / totalRows));
+    }
+
     private void setAndReportFailure(Exception e) {
         LOGGER.error(new ParameterizedMessage("[{}] Error processing results; ", analytics.getId()), e);
         failure = "error processing results; " + e.getMessage();
@@ -189,5 +192,10 @@ public class AnalyticsResultProcessor {
     private void processMemoryUsage(MemoryUsage memoryUsage) {
         statsHolder.setMemoryUsage(memoryUsage);
         statsPersister.persistWithRetry(memoryUsage, memoryUsage::documentId);
+    }
+
+    @Nullable
+    public String getLatestModelId() {
+        return latestModelId;
     }
 }

@@ -36,6 +36,7 @@ public class GrammarTests extends ESTestCase {
             parser.createStatement(q);
         }
     }
+
     public void testUnsupportedQueries() throws Exception {
         EqlParser parser = new EqlParser();
         List<Tuple<String, Integer>> lines = readQueries("/queries-unsupported.eql");

@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.Collections;
 
@@ -39,7 +38,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
 
     public void testTermQuery() {
 
-        FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldMapper.FieldNamesFieldType();
+        FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldMapper.FieldNamesFieldType(true);
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field_name");
 
         Settings settings = settings(Version.CURRENT).build();
@@ -53,22 +52,12 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
         QueryShardContext queryShardContext = new QueryShardContext(0,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, mapperService,
                 null, null, null, null, null, null, () -> 0L, null, null, () -> true, null);
-        fieldNamesFieldType.setEnabled(true);
-        Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
+                Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
         assertWarnings("terms query on the _field_names field is deprecated and will be removed, use exists query instead");
-        fieldNamesFieldType.setEnabled(false);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> fieldNamesFieldType.termQuery("field_name", null));
-        assertEquals("Cannot run [exists] queries if the [_field_names] field is disabled", e.getMessage());
-    }
 
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(new FieldNamesFieldMapper.FieldNamesFieldType(),
-            FieldNamesFieldMapper.FieldNamesFieldType::clone,
-            t -> {
-                FieldNamesFieldMapper.FieldNamesFieldType m = t.clone();
-                m.setEnabled(false);
-                return m;
-            });
+        FieldNamesFieldMapper.FieldNamesFieldType unsearchable = new FieldNamesFieldMapper.FieldNamesFieldType(false);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> unsearchable.termQuery("field_name", null));
+        assertEquals("Cannot run [exists] queries if the [_field_names] field is disabled", e.getMessage());
     }
 }

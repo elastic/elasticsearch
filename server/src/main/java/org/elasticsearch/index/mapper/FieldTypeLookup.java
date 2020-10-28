@@ -23,7 +23,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -33,19 +32,23 @@ import java.util.Set;
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
-class FieldTypeLookup implements Iterable<MappedFieldType> {
+final class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
     private final Map<String, String> aliasToConcreteName = new HashMap<>();
-    private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
-    FieldTypeLookup() {
-        this(Collections.emptyList(), Collections.emptyList());
-    }
+    /**
+     * A map from field name to all fields whose content has been copied into it
+     * through copy_to. A field only be present in the map if some other field
+     * has listed it as a target of copy_to.
+     *
+     * For convenience, the set of copied fields includes the field itself.
+     */
+    private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
+    private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
     FieldTypeLookup(Collection<FieldMapper> fieldMappers,
                     Collection<FieldAliasMapper> fieldAliasMappers) {
-
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
@@ -54,6 +57,16 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             fullNameToFieldType.put(fieldType.name(), fieldType);
             if (fieldMapper instanceof DynamicKeyFieldMapper) {
                 dynamicKeyMappers.put(fieldName, (DynamicKeyFieldMapper) fieldMapper);
+            }
+
+            for (String targetField : fieldMapper.copyTo().copyToFields()) {
+                Set<String> sourcePath = fieldToCopiedFields.get(targetField);
+                if (sourcePath == null) {
+                    Set<String> copiedFields = new HashSet<>();
+                    copiedFields.add(targetField);
+                    fieldToCopiedFields.put(targetField, copiedFields);
+                }
+                fieldToCopiedFields.get(targetField).add(fieldName);
             }
         }
 
@@ -69,7 +82,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     /**
      * Returns the mapped field type for the given field name.
      */
-    public MappedFieldType get(String field) {
+    MappedFieldType get(String field) {
         String concreteField = aliasToConcreteName.getOrDefault(field, field);
         MappedFieldType fieldType = fullNameToFieldType.get(concreteField);
         if (fieldType != null) {
@@ -84,7 +97,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     /**
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
-    public Set<String> simpleMatchToFullName(String pattern) {
+    Set<String> simpleMatchToFullName(String pattern) {
         Set<String> fields = new HashSet<>();
         for (MappedFieldType fieldType : this) {
             if (Regex.simpleMatch(pattern, fieldType.name())) {
@@ -97,6 +110,33 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
         return fields;
+    }
+
+    /**
+     * Given a concrete field name, return its paths in the _source.
+     *
+     * For most fields, the source path is the same as the field itself. However
+     * there are cases where a field's values are found elsewhere in the _source:
+     *   - For a multi-field, the source path is the parent field.
+     *   - One field's content could have been copied to another through copy_to.
+     *
+     * @param field The field for which to look up the _source path. Note that the field
+     *              should be a concrete field and *not* an alias.
+     * @return A set of paths in the _source that contain the field's values.
+     */
+    Set<String> sourcePaths(String field) {
+        String resolvedField = field;
+        int lastDotIndex = field.lastIndexOf('.');
+        if (lastDotIndex > 0) {
+            String parentField = field.substring(0, lastDotIndex);
+            if (fullNameToFieldType.containsKey(parentField)) {
+                resolvedField = parentField;
+            }
+        }
+
+        return fieldToCopiedFields.containsKey(resolvedField)
+            ? fieldToCopiedFields.get(resolvedField)
+            : Set.of(resolvedField);
     }
 
     @Override

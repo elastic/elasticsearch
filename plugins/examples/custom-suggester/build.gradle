@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   name 'custom-suggester'
@@ -27,7 +27,7 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
-testClusters.integTest {
+testClusters.all {
   numberOfNodes = 2
 }
 

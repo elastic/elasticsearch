@@ -6,32 +6,27 @@
 <titleabbrev>Pipe reference</titleabbrev>
 ++++
 
-dev::[]
+beta::[]
 
-{es} supports the following EQL pipes:
-
-* <<eql-pipe-head>>
-* <<eql-pipe-tail>>
+{es} supports the following <<eql-pipes,EQL pipes>>.
 
 [discrete]
 [[eql-pipe-head]]
 === `head`
 
-Returns up to a specified number of events, starting with the earliest matching
-events. Works similarly to the
-https://en.wikipedia.org/wiki/Head_(Unix)[Unix head command].
+Returns up to a specified number of events or sequences, starting with the
+earliest matches. Works similarly to the
+{wikipedia}/Head_(Unix)[Unix head command].
 
-[%collapsible]
-====
 *Example*
 
-The following EQL query returns up to fifty of the earliest powershell
+The following EQL query returns up to three of the earliest powershell
 commands.
 
 [source,eql]
 ----
 process where process.name == "powershell.exe"
-| head 50
+| head 3
 ----
 
 *Syntax*
@@ -44,28 +39,25 @@ head <max>
 
 `<max>`::
 (Required, integer)
-Maximum number of matching events to return.
-====
+Maximum number of matching events or sequences to return.
 
 [discrete]
 [[eql-pipe-tail]]
 === `tail`
 
-Returns up to a specified number of events, starting with the most recent
-matching events. Works similarly to the
-https://en.wikipedia.org/wiki/Tail_(Unix)[Unix tail command].
+Returns up to a specified number of events or sequences, starting with the most
+recent matches. Works similarly to the
+{wikipedia}/Tail_(Unix)[Unix tail command].
 
-[%collapsible]
-====
 *Example*
 
-The following EQL query returns up to thirty of the most recent `svchost.exe`
+The following EQL query returns up to five of the most recent `svchost.exe`
 processes.
 
 [source,eql]
 ----
 process where process.name == "svchost.exe"
-| tail 30
+| tail 5
 ----
 
 *Syntax*
@@ -78,5 +70,4 @@ tail <max>
 
 `<max>`::
 (Required, integer)
-Maximum number of matching events to return.
-====
+Maximum number of matching events or sequences to return.

@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -51,10 +50,6 @@ public class LeafFieldsLookupTests extends ESTestCase {
         when(fieldType.valueForDisplay(anyObject())).then(invocation ->
                 (Double) invocation.getArguments()[0] + 10);
 
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType("field")).thenReturn(fieldType);
-        when(mapperService.fieldType("alias")).thenReturn(fieldType);
-
         FieldInfo mockFieldInfo = new FieldInfo("field", 1, false, false, true,
             IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
 
@@ -66,7 +61,7 @@ public class LeafFieldsLookupTests extends ESTestCase {
             return null;
         }).when(leafReader).document(anyInt(), any(StoredFieldVisitor.class));
 
-        fieldsLookup = new LeafFieldsLookup(mapperService, leafReader);
+        fieldsLookup = new LeafFieldsLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null, leafReader);
     }
 
     public void testBasicLookup() {

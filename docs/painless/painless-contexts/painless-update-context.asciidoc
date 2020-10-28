@@ -63,13 +63,13 @@ to the actual price paid after discounts:
 --------------------------------------------------
 POST /seats/_update/3
 {
-    "script": {
-        "source": "ctx._source.sold = true; ctx._source.cost = params.sold_cost",
-        "lang": "painless",
-        "params": {
-            "sold_cost": 26
-        }
+  "script": {
+    "source": "ctx._source.sold = true; ctx._source.cost = params.sold_cost",
+    "lang": "painless",
+    "params": {
+      "sold_cost": 26
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:seats]

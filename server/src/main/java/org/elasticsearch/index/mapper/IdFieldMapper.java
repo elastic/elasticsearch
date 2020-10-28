@@ -31,9 +31,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -49,6 +46,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -56,7 +54,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * A mapper for the _id field. It does nothing since _id is neither indexed nor
@@ -79,7 +78,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         public static final FieldType FIELD_TYPE = new FieldType();
         public static final FieldType NESTED_FIELD_TYPE;
-        public static final MappedFieldType MAPPED_FIELD_TYPE = new IdFieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
@@ -98,35 +96,16 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                                                 ParserContext parserContext) throws MapperParsingException {
-            throw new MapperParsingException(NAME + " is not configurable");
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return new IdFieldMapper(Defaults.FIELD_TYPE);
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(c.isIdFieldDataEnabled()));
 
     static final class IdFieldType extends TermBasedFieldType {
 
-        public static final IdFieldType INSTANCE = new IdFieldType();
+        private final BooleanSupplier fieldDataEnabled;
 
-        private IdFieldType() {
-            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        IdFieldType(BooleanSupplier fieldDataEnabled) {
+            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            this.fieldDataEnabled = fieldDataEnabled;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-
-        protected IdFieldType(IdFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new IdFieldType(this);
         }
 
         @Override
@@ -138,6 +117,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public boolean isSearchable() {
             // The _id field is always searchable.
             return true;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
@@ -165,31 +149,28 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            if (fieldDataEnabled.getAsBoolean() == false) {
+                throw new IllegalArgumentException("Fielddata access on the _id field is disallowed, "
+                    + "you can re-enable it by updating the dynamic cluster setting: "
+                    + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
+            }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
+                    name(),
                     TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                     TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                     TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
                     CoreValuesSourceType.BYTES);
             return new IndexFieldData.Builder() {
                 @Override
-                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                        CircuitBreakerService breakerService, MapperService mapperService) {
-                    if (mapperService.isIdFieldDataEnabled() == false) {
-                        throw new IllegalArgumentException("Fielddata access on the _id field is disallowed, "
-                            + "you can re-enable it by updating the dynamic cluster setting: "
-                            + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
-                    }
+                public IndexFieldData<?> build(
+                    IndexFieldDataCache cache,
+                    CircuitBreakerService breakerService
+                ) {
                     deprecationLogger.deprecate("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
-                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache,
-                        breakerService, mapperService);
-                    return new IndexFieldData<LeafFieldData>() {
-
-                        @Override
-                        public Index index() {
-                            return fieldData.index();
-                        }
-
+                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache,
+                        breakerService);
+                    return new IndexFieldData<>() {
                         @Override
                         public String getFieldName() {
                             return fieldData.getFieldName();
@@ -222,12 +203,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
                                 Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
                             throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
-
-                        @Override
-                        public void clear() {
-                            fieldData.clear();
-                        }
-
                     };
                 }
             };
@@ -282,30 +257,18 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    private IdFieldMapper(FieldType fieldType) {
-        super(fieldType, new IdFieldType());
+    private IdFieldMapper(BooleanSupplier fieldDataEnabled) {
+        super(new IdFieldType(fieldDataEnabled));
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            BytesRef id = Uid.encodeId(context.sourceToParse().id());
-            context.doc().add(new Field(NAME, id, fieldType));
-        }
+    public void preParse(ParseContext context) {
+        BytesRef id = Uid.encodeId(context.sourceToParse().id());
+        context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
     }
 }

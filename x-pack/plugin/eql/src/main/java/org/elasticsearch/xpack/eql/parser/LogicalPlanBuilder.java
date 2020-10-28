@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SubqueryContext;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
+import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
@@ -40,7 +42,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equal
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -52,27 +53,31 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private static final Set<String> SUPPORTED_PIPES = Sets.newHashSet("count", "filter", "head", "sort", "tail", "unique", "unique_count");
+    private static final String FILTER_PIPE = "filter", HEAD_PIPE = "head", TAIL_PIPE = "tail";
 
-    private final UnresolvedRelation RELATION = new UnresolvedRelation(Source.EMPTY, null, "", false, "");
-    private final EmptyAttribute UNSPECIFIED_FIELD = new EmptyAttribute(Source.EMPTY);
+    private static final Set<String> SUPPORTED_PIPES = Sets.newHashSet("count", FILTER_PIPE, HEAD_PIPE, "sort", TAIL_PIPE, "unique",
+            "unique_count");
+
+    private final UnresolvedRelation RELATION = new UnresolvedRelation(synthetic("<relation>"), null, "", false, "");
+    private final EmptyAttribute UNSPECIFIED_FIELD = new EmptyAttribute(synthetic("<unspecified>"));
 
     public LogicalPlanBuilder(ParserParams params) {
         super(params);
     }
 
     private Attribute fieldTimestamp() {
-        return new UnresolvedAttribute(Source.EMPTY, params.fieldTimestamp());
+        return new UnresolvedAttribute(synthetic("<timestamp>"), params.fieldTimestamp());
     }
 
     private Attribute fieldTiebreaker() {
-        return params.fieldTiebreaker() != null ? new UnresolvedAttribute(Source.EMPTY, params.fieldTiebreaker()) : UNSPECIFIED_FIELD;
+        return params.fieldTiebreaker() != null ?
+                new UnresolvedAttribute(synthetic("<tiebreaker>"), params.fieldTiebreaker()) : UNSPECIFIED_FIELD;
     }
 
     private OrderDirection defaultDirection() {
@@ -83,26 +88,61 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public Object visitStatement(StatementContext ctx) {
         LogicalPlan plan = plan(ctx.query());
 
+        //
+        // Add implicit blocks
+        //
+
         // the first pipe will be the implicit order
+        // declared here for resolving any possible tie-breakers
+        boolean asc = defaultDirection() == OrderDirection.ASC;
+        NullsPosition position = asc ? NullsPosition.FIRST : NullsPosition.LAST;
+
         List<Order> orders = new ArrayList<>(2);
-        Source source = plan.source();
-        orders.add(new Order(source, fieldTimestamp(), defaultDirection(), Order.NullsPosition.FIRST));
+        Source defaultOrderSource = synthetic("<default-order>");
+        orders.add(new Order(defaultOrderSource, fieldTimestamp(), defaultDirection(), position));
         // make sure to add the tiebreaker as well
         Attribute tiebreaker = fieldTiebreaker();
         if (Expressions.isPresent(tiebreaker)) {
-            orders.add(new Order(source, tiebreaker, defaultDirection(), Order.NullsPosition.FIRST));
+            orders.add(new Order(defaultOrderSource, tiebreaker, defaultDirection(), position));
         }
-        plan = new OrderBy(source, plan, orders);
-        // add the actual declared pipes
+        plan = new OrderBy(defaultOrderSource, plan, orders);
+
+        // add the default limit only if specified
+        Literal defaultSize = new Literal(synthetic("<default-size>"), params.size(), DataTypes.INTEGER);
+        Source defaultLimitSource = synthetic("<default-limit>");
+
+        LogicalPlan previous = plan;
+        boolean missingLimit = true;
+
         for (PipeContext pipeCtx : ctx.pipe()) {
-            plan = pipe(pipeCtx, plan);
+            plan = pipe(pipeCtx, previous);
+            if (missingLimit && plan instanceof LimitWithOffset) {
+                missingLimit = false;
+                if (plan instanceof Head) {
+                    previous = new Head(defaultLimitSource, defaultSize, previous);
+                } else {
+                    previous = new Tail(defaultLimitSource, defaultSize, previous);
+                }
+                plan = plan.replaceChildren(singletonList(previous));
+            }
+            previous = plan;
         }
+
+        // add limit based on the default order if no tail/head was specified
+        if (missingLimit) {
+            if (asc) {
+                plan = new Head(defaultLimitSource, defaultSize, plan);
+            } else {
+                plan = new Tail(defaultLimitSource, defaultSize, plan);
+            }
+        }
+
         return plan;
     }
 
     @Override
     public LogicalPlan visitEventQuery(EqlBaseParser.EventQueryContext ctx) {
-        return new Project(source(ctx), visitEventFilter(ctx.eventFilter()), defaultProjection());
+        return visitEventFilter(ctx.eventFilter());
     }
 
     @Override
@@ -112,7 +152,10 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         if (ctx.event != null) {
             Source eventSource = source(ctx.event);
-            String eventName = visitIdentifier(ctx.event);
+            String eventName = ctx.event.getText();
+            if (eventName.startsWith("\"") || eventName.startsWith("'") || eventName.startsWith("?")) {
+                eventName = unquoteString(source(ctx.event));
+            }
             Literal eventValue = new Literal(eventSource, eventName, DataTypes.KEYWORD);
 
             UnresolvedAttribute eventField = new UnresolvedAttribute(eventSource, params.fieldEventCategory());
@@ -174,17 +217,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     private KeyedFilter keyedFilter(List<Attribute> joinKeys, ParseTree ctx, JoinKeysContext joinCtx, SubqueryContext subqueryCtx) {
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(joinCtx));
         LogicalPlan eventQuery = visitEventFilter(subqueryCtx.eventFilter());
-
-        LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, defaultProjection()));
-        return new KeyedFilter(source(ctx), child, keys, fieldTimestamp(), fieldTiebreaker());
-    }
-
-    private List<Attribute> defaultProjection() {
-        Attribute fieldTieBreaker = fieldTiebreaker();
-        if (Expressions.isPresent(fieldTieBreaker)) {
-            return asList(fieldTimestamp(), fieldTiebreaker());
-        }
-        return singletonList(fieldTimestamp());
+        return new KeyedFilter(source(ctx), eventQuery, keys, fieldTimestamp(), fieldTiebreaker());
     }
 
     @Override
@@ -231,10 +264,6 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     public KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Attribute> joinKeys) {
-        if (ctx.FORK() != null) {
-            throw new ParsingException(source(ctx.FORK()), "sequence fork is unsupported");
-        }
-
         return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery());
     }
 
@@ -308,11 +337,11 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         switch (name) {
-            case "head":
+            case HEAD_PIPE:
                 Expression headLimit = pipeIntArgument(source(ctx), name, ctx.booleanExpression());
                 return new Head(source(ctx), headLimit, plan);
 
-            case "tail":
+            case TAIL_PIPE:
                 Expression tailLimit = pipeIntArgument(source(ctx), name, ctx.booleanExpression());
                 // negate the limit
                 return new Tail(source(ctx), tailLimit, plan);
@@ -322,16 +351,19 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         }
     }
 
-    private Expression pipeIntArgument(Source source, String pipeName, List<BooleanExpressionContext> exps) {
+    private Expression onlyOnePipeArgument(Source source, String pipeName, List<BooleanExpressionContext> exps) {
         int size = CollectionUtils.isEmpty(exps) ? 0 : exps.size();
         if (size != 1) {
             throw new ParsingException(source, "Pipe [{}] expects exactly one argument but found [{}]", pipeName, size);
         }
-        BooleanExpressionContext limitCtx = exps.get(0);
-        Expression expression = expression(limitCtx);
+        return expression(exps.get(0));
+    }
+
+    private Expression pipeIntArgument(Source source, String pipeName, List<BooleanExpressionContext> exps) {
+        Expression expression = onlyOnePipeArgument(source, pipeName, exps);
 
         if (expression.dataType().isInteger() == false || expression.foldable() == false || (int) expression.fold() < 0) {
-            throw new ParsingException(source(limitCtx), "Pipe [{}] expects a positive integer but found [{}]", pipeName, expression
+            throw new ParsingException(expression.source(), "Pipe [{}] expects a positive integer but found [{}]", pipeName, expression
                     .sourceText());
         }
 

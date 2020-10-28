@@ -42,7 +42,7 @@ public class HotThreads {
 
     private static final Object mutex = new Object();
 
-    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("dateOptionalTime");
+    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time");
 
     private int busiestThreads = 3;
     private TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);

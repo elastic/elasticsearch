@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ public abstract class AggregatorFactory {
     protected final AggregatorFactories factories;
     protected final Map<String, Object> metadata;
 
-    protected final QueryShardContext queryShardContext;
+    protected final AggregationContext context;
 
     /**
      * Constructs a new aggregator factory.
@@ -43,12 +43,12 @@ public abstract class AggregatorFactory {
      * @throws IOException
      *             if an error occurs creating the factory
      */
-    public AggregatorFactory(String name, QueryShardContext queryShardContext, AggregatorFactory parent,
+    public AggregatorFactory(String name, AggregationContext context, AggregatorFactory parent,
                              AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
         this.name = name;
-        this.queryShardContext = queryShardContext;
+        this.context = context;
         this.parent = parent;
-        this.factories = subFactoriesBuilder.build(queryShardContext, this);
+        this.factories = subFactoriesBuilder.build(context, this);
         this.metadata = metadata;
     }
 
@@ -59,30 +59,24 @@ public abstract class AggregatorFactory {
     public void doValidate() {
     }
 
-    protected abstract Aggregator createInternal(SearchContext searchContext,
-                                                    Aggregator parent,
-                                                    boolean collectsFromSingleBucket,
-                                                    Map<String, Object> metadata) throws IOException;
+    protected abstract Aggregator createInternal(
+        SearchContext context,   // TODO remove this in favor of using AggregationContext in the ctor
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException;
 
     /**
-     * Creates the aggregator
+     * Creates the aggregator.
      *
-     *
-     * @param searchContext
-     *            The search context
-     * @param parent
-     *            The parent aggregator (if this is a top level factory, the
-     *            parent will be {@code null})
-     * @param collectsFromSingleBucket
-     *            If true then the created aggregator will only be collected
-     *            with {@code 0} as a bucket ordinal. Some factories can take
-     *            advantage of this in order to return more optimized
-     *            implementations.
-     *
-     * @return The created aggregator
+     * @param parent The parent aggregator (if this is a top level factory, the
+     *               parent will be {@code null})
+     * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
+     *                    that the {@link Aggregator} created by this method
+     *                    will be asked to collect.
      */
-    public final Aggregator create(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(searchContext, parent, collectsFromSingleBucket, this.metadata);
+    public final Aggregator create(SearchContext context, Aggregator parent, CardinalityUpperBound cardinality) throws IOException {
+        return createInternal(context, parent, cardinality, this.metadata);
     }
 
     public AggregatorFactory getParent() {

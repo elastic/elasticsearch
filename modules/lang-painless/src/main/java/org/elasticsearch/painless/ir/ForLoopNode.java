@@ -19,12 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class ForLoopNode extends LoopNode {
 
@@ -49,58 +45,36 @@ public class ForLoopNode extends LoopNode {
         return afterthoughtNode;
     }
 
+    /* ---- end tree structure, begin visitor ---- */
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeStatementOffset(location);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitForLoop(this, scope);
+    }
 
-        writeScope = writeScope.newScope();
-
-        Label start = new Label();
-        Label begin = afterthoughtNode == null ? start : new Label();
-        Label end = new Label();
-
-        if (initializerNode instanceof DeclarationBlockNode) {
-            initializerNode.write(classWriter, methodWriter, writeScope);
-        } else if (initializerNode instanceof ExpressionNode) {
-            ExpressionNode initializer = (ExpressionNode)this.initializerNode;
-
-            initializer.write(classWriter, methodWriter, writeScope);
-            methodWriter.writePop(MethodWriter.getType(initializer.getExpressionType()).getSize());
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        if (initializerNode != null) {
+            initializerNode.visit(irTreeVisitor, scope);
         }
 
-        methodWriter.mark(start);
-
-        if (getConditionNode() != null && isContinuous() == false) {
-            getConditionNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        Variable loop = writeScope.getInternalVariable("loop");
-
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), location);
-        }
-
-        boolean allEscape = false;
-
-        if (getBlockNode() != null) {
-            allEscape = getBlockNode().doAllEscape();
-
-            getBlockNode().continueLabel = begin;
-            getBlockNode().breakLabel = end;
-            getBlockNode().write(classWriter, methodWriter, writeScope);
+        if (getConditionNode() != null) {
+            getConditionNode().visit(irTreeVisitor, scope);
         }
 
         if (afterthoughtNode != null) {
-            methodWriter.mark(begin);
-            afterthoughtNode.write(classWriter, methodWriter, writeScope);
-            methodWriter.writePop(MethodWriter.getType(afterthoughtNode.getExpressionType()).getSize());
+            afterthoughtNode.visit(irTreeVisitor, scope);
         }
 
-        if (afterthoughtNode != null || allEscape == false) {
-            methodWriter.goTo(start);
+        if (getBlockNode() != null) {
+            getBlockNode().visit(irTreeVisitor, scope);
         }
-
-        methodWriter.mark(end);
     }
+
+    /* ---- end visitor ---- */
+
+    public ForLoopNode(Location location) {
+        super(location);
+    }
+
 }

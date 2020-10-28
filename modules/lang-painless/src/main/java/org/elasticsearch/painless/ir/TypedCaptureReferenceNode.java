@@ -19,13 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class TypedCaptureReferenceNode extends ReferenceNode {
 
@@ -41,15 +36,22 @@ public class TypedCaptureReferenceNode extends ReferenceNode {
         return methodName;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-        Variable captured = writeScope.getVariable(getCaptures().get(0));
-
-        methodWriter.visitVarInsn(captured.getAsmType().getOpcode(Opcodes.ILOAD), captured.getSlot());
-        Type methodType = Type.getMethodType(MethodWriter.getType(getExpressionType()), captured.getAsmType());
-        methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.REFERENCE, getExpressionCanonicalTypeName());
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitTypeCaptureReference(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        // do nothing; terminal node
+    }
+
+    /* ---- end visitor ---- */
+
+    public TypedCaptureReferenceNode(Location location) {
+        super(location);
+    }
+
 }

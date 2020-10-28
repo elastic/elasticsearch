@@ -19,17 +19,18 @@ import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -42,9 +43,6 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @SuiteScopeTestCase
-@TestIssueLogging(
-    value = "org.elasticsearch.index:TRACE,org.elasticsearch.env:TRACE",
-    issueUrl = "https://github.com/elastic/elasticsearch/issues/56765")
 public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     private static String indexName;
     private static int numShards;
@@ -184,6 +182,9 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         try (SearchResponseIterator it =
                  assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), 0, 2)) {
             initial = it.next();
+            while (it.hasNext()) {
+                it.next();
+            }
         }
         ensureTaskCompletion(initial.getId());
         restartTaskNode(initial.getId(), indexName);
@@ -197,23 +198,25 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
 
     public void testDeleteCancelRunningTask() throws Exception {
         final AsyncSearchResponse initial;
-        SearchResponseIterator it =
-            assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
-        initial = it.next();
-        deleteAsyncSearch(initial.getId());
-        it.close();
-        ensureTaskCompletion(initial.getId());
-        ensureTaskRemoval(initial.getId());
+        try (SearchResponseIterator it =
+                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+            initial = it.next();
+            deleteAsyncSearch(initial.getId());
+            it.close();
+            ensureTaskCompletion(initial.getId());
+            ensureTaskRemoval(initial.getId());
+        }
     }
 
     public void testDeleteCleanupIndex() throws Exception {
-        SearchResponseIterator it =
-            assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
-        AsyncSearchResponse response = it.next();
-        deleteAsyncSearch(response.getId());
-        it.close();
-        ensureTaskCompletion(response.getId());
-        ensureTaskRemoval(response.getId());
+        try (SearchResponseIterator it =
+                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+            AsyncSearchResponse response = it.next();
+            deleteAsyncSearch(response.getId());
+            it.close();
+            ensureTaskCompletion(response.getId());
+            ensureTaskRemoval(response.getId());
+        }
     }
 
     public void testCleanupOnFailure() throws Exception {
@@ -234,16 +237,17 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     }
 
     public void testInvalidId() throws Exception {
-        SearchResponseIterator it =
-            assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
-        AsyncSearchResponse response = it.next();
-        ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch("invalid"));
-        assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(exc.getMessage(), containsString("invalid id"));
-        while (it.hasNext()) {
-            response = it.next();
+        try (SearchResponseIterator it =
+                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+            AsyncSearchResponse response = it.next();
+            ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch("invalid"));
+            assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(exc.getMessage(), containsString("invalid id"));
+            while (it.hasNext()) {
+                response = it.next();
+            }
+            assertFalse(response.isRunning());
         }
-        assertFalse(response.isRunning());
     }
 
     public void testNoIndex() throws Exception {
@@ -261,7 +265,8 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertNotNull(response.getFailure());
         assertFalse(response.isRunning());
         Exception exc = response.getFailure();
-        assertThat(exc.getMessage(), containsString("no such index"));
+        assertThat(exc.getMessage(), containsString("error while executing search"));
+        assertThat(exc.getCause().getMessage(), containsString("no such index"));
     }
 
     public void testCancellation() throws Exception {
@@ -412,8 +417,41 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertFalse(response.isRunning());
         assertTrue(response.isPartial());
-        assertThat(response.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(response.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         assertNotNull(response.getFailure());
         ensureTaskNotRunning(response.getId());
+    }
+
+    public void testRetryVersionConflict() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
+        request.setKeepOnCompletion(true);
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertNotNull(response.getSearchResponse());
+        assertFalse(response.isRunning());
+
+        List<Thread> threads = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        List<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
+        for (int i = 0; i < 2; i++) {
+            Runnable runnable = () -> {
+                for (int j = 0; j < 10; j++) {
+                    try {
+                        latch.await();
+                        getAsyncSearch(response.getId(), TimeValue.timeValueMinutes(10));
+                    } catch (Exception exc) {
+                        exceptions.add(exc);
+                    }
+                }
+            };
+            Thread thread = new Thread(runnable);
+            thread.start();
+            threads.add(thread);
+        }
+        latch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        assertTrue(exceptions.toString(), exceptions.isEmpty());
     }
 }

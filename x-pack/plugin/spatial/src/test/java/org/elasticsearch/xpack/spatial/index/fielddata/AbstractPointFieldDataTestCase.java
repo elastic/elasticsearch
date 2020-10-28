@@ -78,8 +78,8 @@ public abstract class AbstractPointFieldDataTestCase extends AbstractFieldDataIm
             final int docCount = values.docValueCount();
             for (int i = 0; i < docCount; ++i) {
                 final CartesianPoint point = values.nextValue();
-                assertThat(point.getX(), allOf(greaterThanOrEqualTo(-Float.MAX_VALUE), lessThanOrEqualTo(Float.MAX_VALUE)));
-                assertThat(point.getY(), allOf(greaterThanOrEqualTo(-Float.MAX_VALUE), lessThanOrEqualTo(Float.MAX_VALUE)));
+                assertThat((float)point.getX(), allOf(greaterThanOrEqualTo(-Float.MAX_VALUE), lessThanOrEqualTo(Float.MAX_VALUE)));
+                assertThat((float)point.getY(), allOf(greaterThanOrEqualTo(-Float.MAX_VALUE), lessThanOrEqualTo(Float.MAX_VALUE)));
             }
         }
     }
@@ -89,7 +89,8 @@ public abstract class AbstractPointFieldDataTestCase extends AbstractFieldDataIm
         final MappedFieldType fieldType;
         final Mapper.BuilderContext context = new Mapper.BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         if (type.equals("point")) {
-            fieldType = new PointFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+            // .docValues(docValues)?
+            fieldType = new PointFieldMapper.Builder(fieldName, randomBoolean()).build(context).fieldType();
         } else {
             throw new UnsupportedOperationException(type);
         }

@@ -19,45 +19,31 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class DoWhileLoopNode extends LoopNode {
 
+    /* ---- begin visitor ---- */
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeStatementOffset(location);
-
-        writeScope = writeScope.newScope();
-
-        Label start = new Label();
-        Label begin = new Label();
-        Label end = new Label();
-
-        methodWriter.mark(start);
-
-        getBlockNode().continueLabel = begin;
-        getBlockNode().breakLabel = end;
-        getBlockNode().write(classWriter, methodWriter, writeScope);
-
-        methodWriter.mark(begin);
-
-        if (isContinuous() == false) {
-            getConditionNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        Variable loop = writeScope.getInternalVariable("loop");
-
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), location);
-        }
-
-        methodWriter.goTo(start);
-        methodWriter.mark(end);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitDoWhileLoop(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getBlockNode().visit(irTreeVisitor, scope);
+
+        if (getConditionNode() != null) {
+            getConditionNode().visit(irTreeVisitor, scope);
+        }
+    }
+
+    /* ---- end visitor ---- */
+
+    public DoWhileLoopNode(Location location) {
+        super(location);
+    }
+
 }

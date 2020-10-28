@@ -20,7 +20,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -172,13 +171,13 @@ public class JobManager {
      * Note that when the {@code jobId} is {@link Metadata#ALL} all jobs are returned.
      *
      * @param expression   the jobId or an expression matching jobIds
-     * @param allowNoJobs  if {@code false}, an error is thrown when no job matches the {@code jobId}
+     * @param allowNoMatch if {@code false}, an error is thrown when no job matches the {@code jobId}
      * @param jobsListener The jobs listener
      */
-    public void expandJobs(String expression, boolean allowNoJobs, ActionListener<QueryPage<Job>> jobsListener) {
-        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoJobs, clusterService.state());
+    public void expandJobs(String expression, boolean allowNoMatch, ActionListener<QueryPage<Job>> jobsListener) {
+        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoMatch, clusterService.state());
 
-        jobConfigProvider.expandJobs(expression, allowNoJobs, false, ActionListener.wrap(
+        jobConfigProvider.expandJobs(expression, allowNoMatch, false, ActionListener.wrap(
                 jobBuilders -> {
                     // Check for duplicate jobs
                     for (Job.Builder jb : jobBuilders) {
@@ -203,10 +202,10 @@ public class JobManager {
         ));
     }
 
-    private Map<String, Job> expandJobsFromClusterState(String expression, boolean allowNoJobs, ClusterState clusterState) {
+    private Map<String, Job> expandJobsFromClusterState(String expression, boolean allowNoMatch, ClusterState clusterState) {
         Map<String, Job> jobIdToJob = new HashMap<>();
         try {
-            Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
+            Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoMatch);
             MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
             for (String expandedJobId : expandedJobIds) {
                 jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));
@@ -349,19 +348,25 @@ public class JobManager {
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
 
-        Runnable doUpdate = () -> {
-                jobConfigProvider.updateJobWithValidation(request.getJobId(), request.getJobUpdate(), maxModelMemoryLimit,
-                        this::validate, ActionListener.wrap(
-                                updatedJob -> postJobUpdate(request, updatedJob, actionListener),
-                                actionListener::onFailure
-                        ));
-        };
-
         ClusterState clusterState = clusterService.state();
         if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), clusterState)) {
             actionListener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("update job", request.getJobId()));
             return;
         }
+
+        Runnable doUpdate = () ->
+            jobConfigProvider.updateJobWithValidation(request.getJobId(), request.getJobUpdate(), maxModelMemoryLimit,
+                this::validate, ActionListener.wrap(
+                    updatedJob -> postJobUpdate(request, updatedJob, actionListener),
+                    actionListener::onFailure
+                ));
+
+        // Obviously if we're updating a job it's impossible that the config index has no mappings at
+        // all, but if we rewrite the job config we may add new fields that require the latest mappings
+        Runnable checkMappingsAreUpToDate = () ->
+            ElasticsearchMappings.addDocMappingIfMissing(
+                MlConfigIndex.indexName(), MlConfigIndex::mapping, client, clusterState,
+                ActionListener.wrap(bool -> doUpdate.run(), actionListener::onFailure));
 
         if (request.getJobUpdate().getGroups() != null && request.getJobUpdate().getGroups().isEmpty() == false) {
 
@@ -369,7 +374,7 @@ public class JobManager {
             jobConfigProvider.jobIdMatches(request.getJobUpdate().getGroups(), ActionListener.wrap(
                     matchingIds -> {
                         if (matchingIds.isEmpty()) {
-                            doUpdate.run();
+                            checkMappingsAreUpToDate.run();
                         } else {
                             actionListener.onFailure(new ResourceAlreadyExistsException(
                                     Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, matchingIds.get(0))));
@@ -378,7 +383,7 @@ public class JobManager {
                     actionListener::onFailure
             ));
         } else {
-            doUpdate.run();
+            checkMappingsAreUpToDate.run();
         }
     }
 
@@ -459,12 +464,12 @@ public class JobManager {
             }
             jobResultsProvider.modelSizeStats(job.getId(), modelSizeStats -> {
                 if (modelSizeStats != null) {
-                    ByteSizeValue modelSize = new ByteSizeValue(modelSizeStats.getModelBytes(), ByteSizeUnit.BYTES);
+                    ByteSizeValue modelSize = ByteSizeValue.ofBytes(modelSizeStats.getModelBytes());
                     if (newModelMemoryLimit < modelSize.getMb()) {
                         listener.onFailure(ExceptionsHelper.badRequestException(
                                 Messages.getMessage(Messages.JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED,
-                                        new ByteSizeValue(modelSize.getMb(), ByteSizeUnit.MB),
-                                        new ByteSizeValue(newModelMemoryLimit, ByteSizeUnit.MB))));
+                                        ByteSizeValue.ofMb(modelSize.getMb()),
+                                        ByteSizeValue.ofMb(newModelMemoryLimit))));
                         return;
                     }
                 }

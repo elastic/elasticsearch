@@ -1,14 +1,17 @@
 [[date]]
-=== Date datatype
+=== Date field type
 ++++
 <titleabbrev>Date</titleabbrev>
 ++++
 
-JSON doesn't have a date datatype, so dates in Elasticsearch can either be:
+JSON doesn't have a date data type, so dates in Elasticsearch can either be:
 
 * strings containing formatted dates, e.g. `"2015-01-01"` or `"2015/01/01 12:10:30"`.
 * a long number representing _milliseconds-since-the-epoch_.
 * an integer representing _seconds-since-the-epoch_.
+
+NOTE: Values for _milliseconds-since-the-epoch_ and _seconds-since-the-epoch_
+must be non-negative. Use a formatted date to represent dates before 1970.
 
 Internally, dates are converted to UTC (if the time-zone is specified) and
 stored as a long number representing milliseconds-since-the-epoch.
@@ -33,7 +36,7 @@ For instance:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -44,16 +47,16 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 { "date": "2015-01-01" } <2>
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 { "date": "2015-01-01T12:10:30Z" } <3>
 
-PUT my_index/_doc/3
+PUT my-index-000001/_doc/3
 { "date": 1420070400001 } <4>
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "sort": { "date": "asc"} <5>
 }
@@ -75,7 +78,7 @@ into a string.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {

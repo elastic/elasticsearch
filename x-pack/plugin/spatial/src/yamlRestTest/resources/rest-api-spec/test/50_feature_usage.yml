@@ -1,0 +1,14 @@
+---
+"Basic test of xpack info of spatial features":
+  - do:
+      xpack.info: {}
+  - match: { features.spatial.available: true }
+  - match: { features.spatial.enabled: true }
+
+---
+"Basic test of xpack usage of spatial features":
+  - do:
+      xpack.usage: {}
+  - match: { spatial.available: true }
+  - match: { spatial.available: true }
+  - match: { spatial.stats: null }

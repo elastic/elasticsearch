@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -55,18 +54,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                                        ThreadPool threadPool, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ClusterStateAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
-              ClusterStateRequest::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        // very lightweight operation in memory, no need to fork to a thread
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ClusterStateResponse read(StreamInput in) throws IOException {
-        return new ClusterStateResponse(in);
+              ClusterStateRequest::new, indexNameExpressionResolver, ClusterStateResponse::new, ThreadPool.Names.SAME);
     }
 
     @Override
@@ -137,7 +125,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         if (request.routingTable()) {
             if (request.indices().length > 0) {
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-                String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request, true);
+                String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
                     if (currentState.routingTable().getIndicesRouting().containsKey(filteredIndex)) {
                         routingTableBuilder.add(currentState.routingTable().getIndicesRouting().get(filteredIndex));
@@ -159,7 +147,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         if (request.metadata()) {
             if (request.indices().length > 0) {
                 mdBuilder.version(currentState.metadata().version());
-                String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request, true);
+                String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
                     IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
                     if (indexMetadata != null) {

@@ -8,7 +8,7 @@ dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-integTest.runner {
+integTest {
   nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
   systemProperty 'tests.security.manager', 'false'
 }

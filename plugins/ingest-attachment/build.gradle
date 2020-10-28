@@ -18,6 +18,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'Ingest processor that uses Apache Tika to extract contents'
@@ -103,6 +104,6 @@ if (BuildParams.inFipsJvm) {
   // rather than provide a long list of exclusions, disable the check on FIPS.
   jarHell.enabled = false
   test.enabled = false
-  integTest.enabled = false;
+  yamlRestTest.enabled = false;
   testingConventions.enabled = false;
 }

@@ -2,7 +2,7 @@
 "Verify data stream resolvability for xpack apis":
   - skip:
       version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -17,8 +17,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -55,7 +54,7 @@
 "Verify data stream resolvability in ilm explain api":
   - skip:
       version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -88,8 +87,7 @@
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
           template:
             settings:
               index.lifecycle.name: "my_lifecycle"
@@ -120,7 +118,7 @@
 "Verify data stream resolvability rollup":
   - skip:
       version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -135,8 +133,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -155,8 +152,8 @@
 ---
 "Verify data stream resolvability in ILM remove policy API":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -196,8 +193,7 @@
                   type: date
             settings:
               index.lifecycle.name: "my_moveable_timeseries_lifecycle"
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -245,8 +241,8 @@
 ---
 "Verify data stream resolvability for graph explore API":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -261,8 +257,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -302,8 +297,8 @@
 ---
 "Verify data stream resolvability in migrations API":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -318,8 +313,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -338,3 +332,396 @@
       indices.delete_data_stream:
         name: simple-data-stream1
   - is_true: acknowledged
+
+---
+"Verify data stream resolvability in async search":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index:  simple-data-stream1
+        body:   { max: 2, '@timestamp': '2020-12-12' }
+
+  - do:
+      index:
+        index:  simple-data-stream1
+        body:   { max: 1, '@timestamp': '2020-12-12' }
+
+  - do:
+      index:
+        index:  simple-data-stream1
+        body:   { max: 3, '@timestamp': '2020-12-12' }
+
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  - do:
+      async_search.submit:
+        index: simple-data-stream1
+        batched_reduce_size: 2
+        wait_for_completion_timeout: 10s
+        body:
+          query:
+            match_all: {}
+          aggs:
+            max:
+              max:
+                field: max
+          sort: max
+
+  - is_false: id
+  - match:  { is_partial:                   false }
+  - length: { response.hits.hits:               3 }
+  - match:  { response.hits.hits.0._source.max: 1 }
+  - match:  { response.aggregations.max.value:  3.0 }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Verify data stream resolvability in rollup search":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                partition:
+                  type: keyword
+                price:
+                  type: integer
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index:  simple-data-stream1
+        body:   { partition: a, price: 1, '@timestamp': '2020-12-12T00:00:00.000Z' }
+
+  - do:
+      index:
+        index:  simple-data-stream1
+        body:   { partition: a, price: 2, '@timestamp': '2020-12-12T01:00:00.000Z' }
+
+  - do:
+      index:
+        index:  simple-data-stream1
+        body:   { partition: b, price: 3, '@timestamp': '2020-12-12T01:00:00.000Z' }
+
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  - do:
+      rollup.rollup_search:
+        index: "simple-data-stream1"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "@timestamp"
+                calendar_interval: "1h"
+                time_zone: "UTC"
+
+  - length: { aggregations.histo.buckets: 2 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2020-12-12T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2020-12-12T01:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Verify data stream resolvability in EQL search API with no sequences":
+  - skip:
+      version: " - 7.9.1"
+      reason: "EQL data stream resolution only properly works from 7.9.2"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - create:
+              _index: simple-data-stream1
+              _id:    1
+          - event:
+              - category: process
+            "@timestamp": 2020-02-03T12:34:56Z
+            user: SYSTEM
+
+  - do:
+      eql.search:
+        index: simple-data-stream1
+        body:
+          query: 'process where user == "SYSTEM"'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+
+  - do:
+      eql.search:
+        index: simple-data-s*
+        body:
+          query: 'process where user == "SYSTEM"'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Verify data stream resolvability in EQL search API with sequences":
+  - skip:
+      version: " - 7.9.99"
+      reason: "EQL data stream resolution with queries using sequences only properly works from 7.10.0 (when point-in-time is introduced)"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"create":{"_index":"simple-data-stream1","_id": "1"}}'
+          - '{"@timestamp":"2020-02-03T12:34:56Z","event":{"category":"process"},"user":"SYSTEM"}'
+          - '{"create":{"_index":"simple-data-stream1", "_id": "2"}}'
+          - '{"@timestamp":"2020-02-03T12:35:00Z","event":{"category":"file"},"user":"SYSTEM","file":{"name":"sample.exe"}}'
+
+  - do:
+      eql.search:
+        index: simple-data-stream1
+        body:
+          query: 'sequence by user [process where user == "SYSTEM"] [file where file.name == "sample.exe"]'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.1._id: "2"}
+
+  - do:
+      eql.search:
+        index: simple-data-s*
+        body:
+          query: 'sequence by user [process where user == "SYSTEM"] [file where file.name == "sample.exe"]'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.1._id: "2"}
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Verify data stream resolvability in PIT searches":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Point-In-Time was introduced in 7.10.0"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"create":{"_index":"simple-data-stream1","_id": "1"}}'
+          - '{"id": 1, "foo": "bar", "age": 18, "@timestamp":"2020-02-03T12:34:56Z"}'
+          - '{"create":{"_index":"simple-data-stream1", "_id": "5"}}'
+          - '{"id": 5, "foo": "bar", "age": 18, "@timestamp":"2020-02-04T12:34:56Z"}'
+          - '{"create":{"_index":"simple-data-stream1", "_id": "123"}}'
+          - '{"id": 123, "foo": "bar", "age": 22, "@timestamp":"2020-02-05T12:34:56Z"}'
+
+  - do:
+      open_point_in_time:
+        index: simple-data-s*
+        keep_alive: 5m
+  - set: {id: point_in_time_id}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [{ age: desc }, { id: desc }]
+          pit:
+            id: "$point_in_time_id"
+            keep_alive: 1m
+
+  - match: {hits.total: 3 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: .ds-simple-data-stream1-000001 }
+  - match: {hits.hits.0._id: "123" }
+  - match: {hits.hits.0.sort: [22, 123] }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [ { age: desc }, { id: desc } ]
+          search_after: [22, 123]
+          pit:
+            id: "$point_in_time_id"
+
+  - match: {hits.total: 3}
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: .ds-simple-data-stream1-000001 }
+  - match: {hits.hits.0._id: "5" }
+  - match: {hits.hits.0.sort: [18, 5] }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [{ age: desc }, { id: desc } ]
+          search_after: [18, 5]
+          pit:
+            id: "$point_in_time_id"
+            keep_alive: 1m
+
+  - match: {hits.total: 3}
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: .ds-simple-data-stream1-000001 }
+  - match: {hits.hits.0._id: "1" }
+  - match: {hits.hits.0.sort: [18, 1] }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [{ age: desc }, { id: desc } ]
+          search_after: [18, 1]
+          pit:
+            id: "$point_in_time_id"
+            keep_alive: 1m
+
+  - match: {hits.total: 3}
+  - length: {hits.hits: 0 }
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$point_in_time_id"

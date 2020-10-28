@@ -220,13 +220,20 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      */
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
 
+    /**
+     * Resolves a list of concrete index names. Override this if index names should be resolved differently than normal.
+     *
+     * @param clusterState the cluster state
+     * @param request the underlying request
+     * @return a list of concrete index names that this action should operate on
+     */
+    protected String[] resolveConcreteIndexNames(ClusterState clusterState, Request request) {
+        return indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+    }
+
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncAction(task, request, listener).start();
-    }
-
-    protected boolean shouldIncludeDataStreams() {
-        return true;
     }
 
     protected class AsyncAction {
@@ -253,7 +260,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 throw globalBlockException;
             }
 
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request, shouldIncludeDataStreams());
+            String[] concreteIndices = resolveConcreteIndexNames(clusterState, request);
             ClusterBlockException requestBlockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (requestBlockException != null) {
                 throw requestBlockException;

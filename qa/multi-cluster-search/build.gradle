@@ -21,6 +21,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(":client:rest-high-level")
@@ -28,9 +29,7 @@ dependencies {
 
 task 'remote-cluster'(type: RestIntegTestTask) {
   mustRunAfter(precommit)
-  runner {
-    systemProperty 'tests.rest.suite', 'remote_cluster'
-  }
+  systemProperty 'tests.rest.suite', 'remote_cluster'
 }
 
 testClusters.'remote-cluster' {
@@ -39,11 +38,9 @@ testClusters.'remote-cluster' {
 }
 
 task mixedClusterTest(type: RestIntegTestTask) {
-  runner {
     useCluster testClusters.'remote-cluster'
     dependsOn 'remote-cluster'
     systemProperty 'tests.rest.suite', 'multi_cluster'
-  }
 }
 
 testClusters.mixedClusterTest {
@@ -52,11 +49,10 @@ testClusters.mixedClusterTest {
   setting 'cluster.remote.connections_per_cluster', '1'
 }
 
-
-task integTest {
-  dependsOn mixedClusterTest
+tasks.register("integTest") {
+  dependsOn "mixedClusterTest"
 }
 
-test.enabled = false // no unit tests for multi-cluster-search, only integration tests
+tasks.named("test").configure { enabled = false }// no unit tests for multi-cluster-search, only integration tests
 
-check.dependsOn(integTest)
+tasks.named("check").configure { dependsOn("integTest") }

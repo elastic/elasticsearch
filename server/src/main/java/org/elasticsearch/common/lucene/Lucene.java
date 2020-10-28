@@ -95,6 +95,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -104,7 +105,7 @@ import java.util.List;
 import java.util.Map;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene86";
+    public static final String LATEST_CODEC = "Lucene87";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -303,9 +304,15 @@ public class Lucene {
             TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
 
-            ScoreDoc[] scoreDocs = new ScoreDoc[in.readVInt()];
-            for (int i = 0; i < scoreDocs.length; i++) {
-                scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
+            final int scoreDocCount = in.readVInt();
+            final ScoreDoc[] scoreDocs;
+            if (scoreDocCount == 0) {
+                scoreDocs = EMPTY_SCORE_DOCS;
+            } else {
+                scoreDocs = new ScoreDoc[scoreDocCount];
+                for (int i = 0; i < scoreDocs.length; i++) {
+                    scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
+                }
             }
             return new TopDocsAndMaxScore(new TopDocs(totalHits, scoreDocs), maxScore);
         } else if (type == 1) {
@@ -360,6 +367,8 @@ public class Lucene {
                 cFields[j] = in.readBoolean();
             } else if (type == 9) {
                 cFields[j] = in.readBytesRef();
+            } else if (type == 10) {
+                cFields[j] = new BigInteger(in.readString());
             } else {
                 throw new IOException("Can't match type [" + type + "]");
             }
@@ -389,6 +398,8 @@ public class Lucene {
             return in.readBoolean();
         } else if (type == 9) {
             return in.readBytesRef();
+        } else if (type == 10) {
+            return new BigInteger(in.readString());
         } else {
             throw new IOException("Can't match type [" + type + "]");
         }
@@ -504,6 +515,10 @@ public class Lucene {
             } else if (type == BytesRef.class) {
                 out.writeByte((byte) 9);
                 out.writeBytesRef((BytesRef) field);
+            } else if (type == BigInteger.class) {
+                //TODO: improve serialization of BigInteger
+                out.writeByte((byte) 10);
+                out.writeString(field.toString());
             } else {
                 throw new IOException("Can't handle sort field value of type [" + type + "]");
             }

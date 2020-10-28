@@ -111,7 +111,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         os.put("full", "Mac OS X 10.9.2");
         assertThat(target.get("os"), is(os));
         Map<String, String> device = new HashMap<>();
-        device.put("name", "Other");
+        device.put("name", "Mac");
         assertThat(target.get("device"), is(device));
     }
 

@@ -138,24 +138,24 @@ public abstract class AbstractLeafPointFieldData implements LeafPointFieldData {
             return get(0);
         }
 
-        public float getX() {
+        public double getX() {
             return getValue().getX();
         }
 
-        public float[] getXs() {
-            float[] xs = new float[size()];
+        public double[] getXs() {
+            double[] xs = new double[size()];
             for (int i = 0; i < size(); i++) {
                 xs[i] = get(i).getX();
             }
             return xs;
         }
 
-        public float getY() {
+        public double getY() {
             return getValue().getY();
         }
 
-        public float[] getYs() {
-            float[] ys = new float[size()];
+        public double[] getYs() {
+            double[] ys = new double[size()];
             for (int i = 0; i < size(); i++) {
                 ys[i] = get(i).getY();
             }

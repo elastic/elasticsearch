@@ -19,12 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class CatchNode extends StatementNode {
 
@@ -58,33 +54,24 @@ public class CatchNode extends StatementNode {
         return blockNode;
     }
 
-    /* ---- end tree structure ---- */
-
-    Label begin = null;
-    Label end = null;
-    Label exception = null;
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeStatementOffset(location);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitCatch(this, scope);
+    }
 
-        Variable variable = writeScope.defineVariable(exceptionType, symbol);
-
-        Label jump = new Label();
-
-        methodWriter.mark(jump);
-        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
-
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
         if (blockNode != null) {
-            blockNode.continueLabel = continueLabel;
-            blockNode.breakLabel = breakLabel;
-            blockNode.write(classWriter, methodWriter, writeScope);
-        }
-
-        methodWriter.visitTryCatchBlock(begin, end, jump, variable.getAsmType().getInternalName());
-
-        if (exception != null && (blockNode == null || blockNode.doAllEscape() == false)) {
-            methodWriter.goTo(exception);
+            blockNode.visit(irTreeVisitor, scope);
         }
     }
+
+    /* ---- end visitor ---- */
+
+    public CatchNode(Location location) {
+        super(location);
+    }
+
 }

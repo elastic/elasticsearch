@@ -55,6 +55,9 @@ public class FrequencyEncodingTests extends AbstractXContentTestCase<FrequencyEn
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new FrequencyEncoding(randomAlphaOfLength(10), randomAlphaOfLength(10), valueMap);
+        return new FrequencyEncoding(randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            valueMap,
+            randomBoolean() ? null : randomBoolean());
     }
 }

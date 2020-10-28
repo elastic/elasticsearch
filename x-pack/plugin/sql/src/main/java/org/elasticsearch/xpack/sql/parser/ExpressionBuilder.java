@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Booleans;
@@ -139,10 +140,10 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.dateTimeOfEscapedLitera
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
 
-    private final Map<Token, Tuple<Integer, SqlTypedParamValue>> params;
+    private final Map<Token, SqlParser.SqlParameter> params;
     private final ZoneId zoneId;
 
-    ExpressionBuilder(Map<Token, Tuple<Integer, SqlTypedParamValue>> params, ZoneId zoneId) {
+    ExpressionBuilder(Map<Token, SqlParser.SqlParameter> params, ZoneId zoneId) {
         this.params = params;
         this.zoneId = zoneId;
     }
@@ -169,11 +170,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             return new Alias(source, alias, exp);
         }
         if (exp instanceof Literal && "?".equals(exp.source().text())) {
-            // we are talking about a parameter literal here
-            assert ctx.getStart().equals(ctx.getStop()) : "not a single token param literal";
-            int paramIndex = params.get(ctx.getStart()).v1();
+            int paramIndex = param(ctx).getIndex();
             // all indexes related to JDBC or databases usually start with 1
-            return new Alias(source, "?" + (paramIndex+1), exp);
+            return new Alias(source, "?" + paramIndex, exp);
         }
         return new UnresolvedAlias(source, exp);
     }
@@ -710,7 +709,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitParamLiteral(ParamLiteralContext ctx) {
-        SqlTypedParamValue param = param(ctx.PARAM()).v2();
+        SqlTypedParamValue param = param(ctx.PARAM()).getValue();
         DataType dataType = SqlDataTypes.fromTypeName(param.type);
         Source source = source(ctx);
         if (dataType == null) {
@@ -755,9 +754,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx == null) {
             return null;
         }
-        Tuple<Integer, SqlTypedParamValue> paramIndexAndValue = param(ctx.PARAM());
-        if (paramIndexAndValue != null) {
-            SqlTypedParamValue param = paramIndexAndValue.v2();
+        SqlParser.SqlParameter sqlParam = param(ctx.PARAM());
+        if (sqlParam != null) {
+            SqlTypedParamValue param = sqlParam.getValue();
             if (param != null) {
                 return param.value != null ? param.value.toString() : null;
             }
@@ -765,7 +764,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         return unquoteString(ctx.getText());
     }
 
-    private Tuple<Integer, SqlTypedParamValue> param(TerminalNode node) {
+    private SqlParser.SqlParameter param(TerminalNode node) {
         if (node == null) {
             return null;
         }
@@ -777,6 +776,38 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         return params.get(token);
+    }
+
+    private SqlParser.SqlParameter paramFast(ParserRuleContext ctx) {
+        if (!ctx.getStart().equals(ctx.getStop())) {
+            throw new ParsingException(source(ctx), "Single PARAM literal expected");
+        }
+        SqlParser.SqlParameter sqlParam = params.get(ctx.getStart());
+        if (sqlParam == null) {
+            throw new ParsingException(source(ctx), "Unexpected parameter");
+        }
+        return sqlParam;
+    }
+
+    private SqlParser.SqlParameter param(ParserRuleContext ctx) {
+        TerminalNode paramNode = ctx.accept(new AbstractParseTreeVisitor<>() {
+            @Override
+            public TerminalNode visitTerminal(TerminalNode node) {
+                return node.getSymbol().getType() == SqlBaseParser.PARAM ? node : null;
+            }
+
+            @Override
+            protected TerminalNode aggregateResult(TerminalNode aggregate, TerminalNode nextResult) {
+                if (nextResult != null) {
+                    if (aggregate != null) {
+                        throw new ParsingException(source(ctx), "Expression contains more than one PARAM literals");
+                    }
+                    return nextResult;
+                }
+                return aggregate;
+            }
+        });
+        return param(paramNode);
     }
 
     @Override

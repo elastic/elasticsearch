@@ -63,7 +63,10 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     // enables caching on all segments instead of only the larger ones, for testing only
     public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING = 
             Setting.boolSetting("indices.queries.cache.all_segments", false, Property.NodeScope);
-
+    // add tuning skip_cache_factor when caching is enabled on all segments
+    public static final Setting<Float> INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR_SETTING =
+        Setting.floatSetting("indices.queries.cache.skip_cache_factor", 250f, 1f, Property.NodeScope);
+    
     private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
@@ -77,10 +80,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     public IndicesQueryCache(Settings settings) {
         final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);
         final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
-        logger.debug("using [node] query cache with size [{}] max filter count [{}]",
-                size, count);
+        final float skipCacheFactor = INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR_SETTING.get(settings);
+        logger.debug("using [node] query cache with size [{}] max filter count [{}], skipCacheFactor [{}]",
+                size, count, skipCacheFactor);
         if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
-            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true, 1f);
+            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true, skipCacheFactor);
         } else {
             cache = new ElasticsearchLRUQueryCache(count, size.getBytes());
         }

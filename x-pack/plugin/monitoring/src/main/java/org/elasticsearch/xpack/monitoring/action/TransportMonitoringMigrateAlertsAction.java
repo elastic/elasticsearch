@@ -61,19 +61,9 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
                                                   ClusterService clusterService, ThreadPool threadPool,
                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(MonitoringMigrateAlertsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            MonitoringMigrateAlertsRequest::new, indexNameExpressionResolver);
+            MonitoringMigrateAlertsRequest::new, indexNameExpressionResolver, MonitoringMigrateAlertsResponse::new, ThreadPool.Names.MANAGEMENT);
         this.client = client;
         this.exporters = exporters;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected MonitoringMigrateAlertsResponse read(StreamInput in) throws IOException {
-        return new MonitoringMigrateAlertsResponse(in);
     }
 
     @Override

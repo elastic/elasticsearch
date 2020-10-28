@@ -14,8 +14,7 @@ import java.io.IOException;
 
 public class MonitoringMigrateAlertsRequest extends MasterNodeRequest<MonitoringMigrateAlertsRequest> {
 
-    public MonitoringMigrateAlertsRequest() {
-    }
+    public MonitoringMigrateAlertsRequest() {}
 
     public MonitoringMigrateAlertsRequest(StreamInput in) throws IOException {
         super(in);

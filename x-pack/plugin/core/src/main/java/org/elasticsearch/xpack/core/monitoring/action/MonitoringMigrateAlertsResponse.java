@@ -12,6 +12,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -19,7 +20,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class MonitoringMigrateAlertsResponse extends ActionResponse {
+public class MonitoringMigrateAlertsResponse extends ActionResponse implements ToXContentObject {
 
     private final List<ExporterMigrationResult> exporters;
 
@@ -35,6 +36,13 @@ public class MonitoringMigrateAlertsResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(exporters);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        return builder.startObject()
+            .array("exporters", exporters)
+            .endObject();
     }
 
     public List<ExporterMigrationResult> getExporters() {

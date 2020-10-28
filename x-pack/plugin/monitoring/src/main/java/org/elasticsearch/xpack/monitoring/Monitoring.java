@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringBulkAction;
+import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringMigrateAlertsAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -144,7 +145,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        return singletonList(new RestMonitoringBulkAction());
+        return List.of(new RestMonitoringBulkAction(), new RestMonitoringMigrateAlertsAction());
     }
 
     @Override

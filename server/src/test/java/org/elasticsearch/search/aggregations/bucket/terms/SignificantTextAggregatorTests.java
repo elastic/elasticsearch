@@ -79,11 +79,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        // TODO it is likely accidental that SigText supports anything other than Bytes, and then only text fields
-        return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BYTES,
-            CoreValuesSourceType.RANGE,
-            CoreValuesSourceType.GEOPOINT);
+        return List.of(CoreValuesSourceType.BYTES);
     }
 
     @Override

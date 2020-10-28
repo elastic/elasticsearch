@@ -41,6 +41,10 @@ integTestCluster.dependsOn(copyKeyCerts)
 
 ext.pluginsCount = 0
 project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+  if (pluginName == 'quota-aware-fs') {
+    // This plugin has to be configured to work via system properties
+    return
+  }
   // need to get a non-decorated project object, so must re-lookup the project by path
   integTestCluster.plugin(pluginProject.path)
   pluginsCount += 1

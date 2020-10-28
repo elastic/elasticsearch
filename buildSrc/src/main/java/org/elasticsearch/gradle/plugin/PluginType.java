@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,29 +17,21 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.MavenFilteringHack
+package org.elasticsearch.gradle.plugin;
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+import java.util.Locale;
 
-ext.pluginsCount = 0
-project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-  if (pluginName == 'quota-aware-fs') {
-    // This plugin has to be configured to work via system properties
-    return
-  }
-  integTestCluster {
-    plugin pluginProject.path
-  }
-  pluginsCount += 1
-}
-assert pluginsCount > 0
+/**
+ * This mirrors org.elasticsearch.plugins.PluginType, which is not
+ * available to the Gradle plugin that actually builds plugins. See that
+ * class for further information.
+ */
+public enum PluginType {
+    ISOLATED,
+    BOOTSTRAP;
 
-ext.expansions = [
-  'expected.plugins.count': pluginsCount
-]
-
-processTestResources {
-  inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+    @Override
+    public String toString() {
+        return this.name().toLowerCase(Locale.ROOT);
+    }
 }

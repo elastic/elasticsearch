@@ -55,6 +55,12 @@ class PluginPropertiesExtension {
     @Input
     boolean requiresKeystore = false
 
+    @Input
+    PluginType type = PluginType.ISOLATED
+
+    @Input
+    String javaOpts = ""
+
     /** A license file that should be included in the built plugin zip. */
     private File licenseFile = null
 

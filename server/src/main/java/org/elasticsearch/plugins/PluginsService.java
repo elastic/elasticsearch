@@ -118,7 +118,7 @@ public class PluginsService {
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", Version.CURRENT, "1.8",
-                                                   pluginClass.getName(), Collections.emptyList(), false);
+                                                   pluginClass.getName(), Collections.emptyList(), false, PluginType.ISOLATED, "");
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
@@ -383,16 +383,28 @@ public class PluginsService {
     private static Set<Bundle> findBundles(final Path directory, String type) throws IOException {
         final Set<Bundle> bundles = new HashSet<>();
         for (final Path plugin : findPluginDirs(directory)) {
-            final Bundle bundle = readPluginBundle(bundles, plugin, type);
-            bundles.add(bundle);
+            final Bundle bundle = readPluginBundle(plugin, type);
+            if (bundle.plugin.getType() == PluginType.BOOTSTRAP) {
+                logger.trace("--- skipping bootstrap plugin [{}] [{}]", type, plugin.toAbsolutePath());
+            } else {
+                if (bundles.add(bundle) == false) {
+                    throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
+                }
+            }
         }
+
+        logger.trace(
+            () -> "findBundles("
+                + type
+                + ") returning: "
+                + bundles.stream().map(b -> b.plugin.getName()).sorted().collect(Collectors.toList())
+        );
 
         return bundles;
     }
 
     // get a bundle for a single plugin dir
-    private static Bundle readPluginBundle(final Set<Bundle> bundles, final Path plugin, String type) throws IOException {
-        LogManager.getLogger(PluginsService.class).trace("--- adding [{}] [{}]", type, plugin.toAbsolutePath());
+    private static Bundle readPluginBundle(final Path plugin, String type) throws IOException {
         final PluginInfo info;
         try {
             info = PluginInfo.readFromProperties(plugin);
@@ -400,11 +412,7 @@ public class PluginsService {
             throw new IllegalStateException("Could not load plugin descriptor for " + type +
                                             " directory [" + plugin.getFileName() + "]", e);
         }
-        final Bundle bundle = new Bundle(info, plugin);
-        if (bundles.add(bundle) == false) {
-            throw new IllegalStateException("duplicate " + type + ": " + info);
-        }
-        return bundle;
+        return new Bundle(info, plugin);
     }
 
     /**

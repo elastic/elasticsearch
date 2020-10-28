@@ -271,8 +271,8 @@ This is an example of the output:
       ]
     },
     "user": "test_admin", <4>
-    ""@timestamp": "2015-06-02T23:17:55.124Z"
-  }
+  },
+  "@timestamp": "2015-06-02T23:17:55.124Z"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/my_watch_0-2015-06-02T23:17:55.124Z/$body._id/]

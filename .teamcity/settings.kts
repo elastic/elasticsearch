@@ -72,6 +72,12 @@ project {
             onDependencyCancel = FailureAction.ADD_PROBLEM
         }
 
+        triggers {
+            vcs {
+                branchFilter = "+:*"
+            }
+        }
+
         features {
             pullRequests {
                 vcsRootExtId = "${DefaultRoot.id}"

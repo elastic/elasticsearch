@@ -193,7 +193,7 @@ public class CacheFile {
 
     private void decrementRefCount() {
         final boolean released = refCounter.decRef();
-        assert released == false || Files.notExists(file);
+        assert released == false || (evicted.get() && Files.notExists(file));
     }
 
     /**

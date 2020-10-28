@@ -273,7 +273,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     }
 
     public void test80JavaOptsInEnvVar() throws Exception {
-        sh.getEnv().put("ES_JAVA_OPTS", "-Xmx=2g -Xms=2g");
+        sh.getEnv().put("ES_JAVA_OPTS", "-Xmx2g -Xms2g");
         sh.run(serviceScript + " install");
         assertCommand(serviceScript + " start");
         assertStartedAndStop();
@@ -282,8 +282,8 @@ public class WindowsServiceTests extends PackagingTestCase {
 
     public void test81JavaOptsInJvmOptions() throws Exception {
         withCustomConfig(tempConf -> {
-            append(tempConf.resolve("jvm.options"), "-Xmx=2g");
-            append(tempConf.resolve("jvm.options"), "-Xms=2g");
+            append(tempConf.resolve("jvm.options"), "-Xmx2g");
+            append(tempConf.resolve("jvm.options"), "-Xms2g");
             sh.run(serviceScript + " install");
             assertCommand(serviceScript + " start");
             assertStartedAndStop();

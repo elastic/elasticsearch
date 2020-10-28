@@ -194,18 +194,12 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     /** Get the current minimum bound that is set on this builder. */
     public double minBound() {
-        if (extendedBounds.getMin() == null) {
-            return Double.NEGATIVE_INFINITY;
-        }
-        return extendedBounds.getMin();
+        return DoubleBounds.getEffectiveMin(extendedBounds);
     }
 
     /** Get the current maximum bound that is set on this builder. */
     public double maxBound() {
-        if (extendedBounds.getMax() == null) {
-            return Double.POSITIVE_INFINITY;
-        }
-        return extendedBounds.getMax();
+        return DoubleBounds.getEffectiveMax(extendedBounds);
     }
 
     protected DoubleBounds extendedBounds() {

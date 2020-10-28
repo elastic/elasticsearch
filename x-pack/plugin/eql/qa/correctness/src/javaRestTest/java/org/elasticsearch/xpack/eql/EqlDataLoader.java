@@ -1,0 +1,80 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+package org.elasticsearch.xpack.eql;
+
+import org.apache.http.HttpHost;
+import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+import java.util.Properties;
+
+public class EqlDataLoader {
+
+    private static final String PROPERTIES_FILENAME = "config.properties";
+
+    public static void main(String[] args) throws IOException {
+        // Need to setup the log configuration properly to avoid messages when creating a new RestClient
+        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
+
+        Properties configuration = loadConfiguration();
+        try (
+            RestClient client = RestClient.builder(new HttpHost("localhost", 9200))
+                .setRequestConfigCallback(
+                    requestConfigBuilder -> requestConfigBuilder.setConnectTimeout(30000000)
+                        .setConnectionRequestTimeout(30000000)
+                        .setSocketTimeout(30000000)
+                )
+                .setStrictDeprecationMode(true)
+                .build()
+        ) {
+            restoreSnapshot(client, new RestHighLevelClient(client, ignore -> {}, List.of()) {
+            }, configuration);
+        }
+    }
+
+    static Properties loadConfiguration() throws IOException {
+        try (InputStream is = EsEQLCorrectnessIT.class.getClassLoader().getResourceAsStream(PROPERTIES_FILENAME)) {
+            Properties props = new Properties();
+            props.load(is);
+            return props;
+        }
+    }
+
+    static void restoreSnapshot(RestClient client, RestHighLevelClient restHighLevelClient, Properties cfg) throws IOException {
+        if (client.performRequest(new Request("HEAD", "/" + cfg.getProperty("index_name"))).getStatusLine().getStatusCode() == 404) {
+            restHighLevelClient.snapshot()
+                .createRepository(
+                    new PutRepositoryRequest(cfg.getProperty("gcs_repo_name")).type("gcs")
+                        .settings(
+                            Settings.builder()
+                                .put("bucket", cfg.getProperty("gcs_bucket_name"))
+                                .put("base_path", cfg.getProperty("gcs_base_path"))
+                                .put("client", cfg.getProperty("gcs_client_name"))
+                                .build()
+                        ),
+                    RequestOptions.DEFAULT
+                );
+            restHighLevelClient.snapshot()
+                .restore(
+                    new RestoreSnapshotRequest(cfg.getProperty("gcs_repo_name"), cfg.getProperty("gcs_snapshot_name")).waitForCompletion(
+                        true
+                    ),
+                    RequestOptions.DEFAULT
+                );
+        }
+    }
+}

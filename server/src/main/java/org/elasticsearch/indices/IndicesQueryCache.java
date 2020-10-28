@@ -65,7 +65,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             Setting.boolSetting("indices.queries.cache.all_segments", false, Property.NodeScope);
     // add tuning skip_cache_factor when caching is enabled on all segments
     public static final Setting<Float> INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR_SETTING =
-        Setting.floatSetting("indices.queries.cache.skip_cache_factor", 250f, 1f, Property.NodeScope);
+        Setting.floatSetting("indices.queries.cache.skip_cache_factor", 1f, 1f, Property.NodeScope);
     
     private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();

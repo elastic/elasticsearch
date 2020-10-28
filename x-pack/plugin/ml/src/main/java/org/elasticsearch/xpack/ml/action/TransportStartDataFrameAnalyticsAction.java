@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -24,7 +23,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -40,7 +38,6 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -51,7 +48,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
@@ -82,20 +78,18 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
-import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
-import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
 /**
  * Starts the persistent task for running data frame analytics.
@@ -573,59 +567,30 @@ public class TransportStartDataFrameAnalyticsAction
         );
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState,
-                                                            IndexNameExpressionResolver resolver,
-                                                            String... indexNames) {
-        String[] concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexNames);
-        List<String> unavailableIndices = new ArrayList<>(concreteIndices.length);
-        for (String index : concreteIndices) {
-            // This is OK as indices are created on demand
-            if (clusterState.metadata().hasIndex(index) == false) {
-                continue;
-            }
-            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
-                unavailableIndices.add(index);
-            }
-        }
-        return unavailableIndices;
-    }
-
-    public static class TaskExecutor extends PersistentTasksExecutor<TaskParams> {
+    public static class TaskExecutor extends AbstractJobPersistentTasksExecutor<TaskParams> {
 
         private final Client client;
         private final ClusterService clusterService;
         private final DataFrameAnalyticsManager manager;
         private final DataFrameAnalyticsAuditor auditor;
-        private final MlMemoryTracker memoryTracker;
-        private final IndexNameExpressionResolver resolver;
         private final IndexTemplateConfig inferenceIndexTemplate;
-        private final boolean useAutoMemoryPercentage;
 
-        private volatile int maxMachineMemoryPercent;
-        private volatile int maxLazyMLNodes;
-        private volatile int maxOpenJobs;
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
                             DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver,
                             IndexTemplateConfig inferenceIndexTemplate) {
-            super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+            super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+                MachineLearning.UTILITY_THREAD_POOL_NAME,
+                settings,
+                clusterService,
+                memoryTracker,
+                resolver);
             this.client = Objects.requireNonNull(client);
             this.clusterService = Objects.requireNonNull(clusterService);
             this.manager = Objects.requireNonNull(manager);
             this.auditor = Objects.requireNonNull(auditor);
-            this.memoryTracker = Objects.requireNonNull(memoryTracker);
-            this.resolver = Objects.requireNonNull(resolver);
             this.inferenceIndexTemplate = Objects.requireNonNull(inferenceIndexTemplate);
-            this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
-            this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
-            this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
-            this.useAutoMemoryPercentage = USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
             clusterService.addListener(event -> clusterState = event.state());
         }
 
@@ -640,46 +605,15 @@ public class TransportStartDataFrameAnalyticsAction
 
         @Override
         public PersistentTasksCustomMetadata.Assignment getAssignment(TaskParams params, ClusterState clusterState) {
-
-            // If we are waiting for an upgrade to complete, we should not assign to a node
-            if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
-                return AWAITING_UPGRADE;
-            }
-
-            String id = params.getId();
-
-            List<String> unavailableIndices =
-                verifyIndicesPrimaryShardsAreActive(clusterState,
-                    resolver,
-                    MlConfigIndex.indexName(),
-                    MlStatsIndex.indexPattern(),
-                    AnomalyDetectorsIndex.jobStateIndexPattern());
-            if (unavailableIndices.size() != 0) {
-                String reason = "Not opening data frame analytics job ["
-                    + id
-                    + "], because "
-                    + PRIMARY_SHARDS_INACTIVE
-                    + " for the following indices ["
-                    + String.join(",", unavailableIndices) + "]";
-                logger.debug(reason);
-                return new PersistentTasksCustomMetadata.Assignment(null, reason);
-            }
-
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-            if (isMemoryTrackerRecentlyRefreshed == false) {
-                boolean scheduledRefresh = memoryTracker.asyncRefresh();
-                if (scheduledRefresh) {
-                    String reason = "Not opening data frame analytics job [" + id +
-                        "] because job memory requirements are stale - refresh requested";
-                    logger.debug(reason);
-                    return new PersistentTasksCustomMetadata.Assignment(null, reason);
-                }
+            Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(params, clusterState);
+            if (optionalAssignment.isPresent()) {
+                return optionalAssignment.get();
             }
-
             JobNodeSelector jobNodeSelector =
                 new JobNodeSelector(
                     clusterState,
-                    id,
+                    params.getId(),
                     MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                     memoryTracker,
                     params.isAllowLazyStart() ? Integer.MAX_VALUE : maxLazyMLNodes,
@@ -755,16 +689,16 @@ public class TransportStartDataFrameAnalyticsAction
             return null;
         }
 
-        void setMaxMachineMemoryPercent(int maxMachineMemoryPercent) {
-            this.maxMachineMemoryPercent = maxMachineMemoryPercent;
+        @Override
+        protected String[] indicesOfInterest(TaskParams params) {
+            return new String[]{MlConfigIndex.indexName(),
+                MlStatsIndex.indexPattern(),
+                AnomalyDetectorsIndex.jobStateIndexPattern()};
         }
 
-        void setMaxLazyMLNodes(int maxLazyMLNodes) {
-            this.maxLazyMLNodes = maxLazyMLNodes;
-        }
-
-        void setMaxOpenJobs(int maxOpenJobs) {
-            this.maxOpenJobs = maxOpenJobs;
+        @Override
+        protected String getJobId(TaskParams params) {
+            return params.getId();
         }
 
     }

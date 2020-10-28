@@ -24,24 +24,17 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-
-import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
 
 public class BucketsAggregatorTests extends AggregatorTestCase{
 
@@ -58,12 +51,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
 
                 SearchContext searchContext = createSearchContext(
                     indexSearcher,
-                    createIndexSettings(),
                     null,
-                    new MultiBucketConsumerService.MultiBucketConsumer(
-                        DEFAULT_MAX_BUCKETS,
-                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-                    ),
                     new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
                 );
 

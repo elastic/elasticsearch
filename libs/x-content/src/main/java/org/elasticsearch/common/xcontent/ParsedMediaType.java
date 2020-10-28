@@ -59,7 +59,7 @@ public class ParsedMediaType {
      * @throws IllegalArgumentException if the header is malformed
      */
     public static ParsedMediaType parseMediaType(String headerValue) {
-        if (DEFAULT_ACCEPT_STRING.equals(headerValue)) {
+        if (DEFAULT_ACCEPT_STRING.equals(headerValue) || "*/*".equals(headerValue)) {
             return null;
         }
         if (headerValue != null) {

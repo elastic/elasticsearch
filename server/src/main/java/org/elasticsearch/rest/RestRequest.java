@@ -120,8 +120,7 @@ public class RestRequest implements ToXContent.Params {
         if (Strings.hasText(rawContentType)) {
             return ParsedMediaType.parseMediaType(rawContentType);
         } else {
-            throw new IllegalArgumentException("header cannot be empty"+headerName);
-
+            throw new IllegalArgumentException("Header [" + headerName + "] cannot be empty.");
         }
     }
     protected RestRequest(RestRequest restRequest) {

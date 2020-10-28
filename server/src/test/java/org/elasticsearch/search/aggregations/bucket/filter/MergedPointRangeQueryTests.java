@@ -1,5 +1,6 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
@@ -11,28 +12,18 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MergedPointRangeQueryTests extends ESTestCase {
-    private Query merge(Query lhs, Query rhs) {
-        assertThat("error in test assumptions", lhs, instanceOf(PointRangeQuery.class));
-        assertThat("error in test assumptions", rhs, instanceOf(PointRangeQuery.class));
-        return MergedPointRangeQuery.merge((PointRangeQuery) lhs, (PointRangeQuery) rhs);
-    }
-
-    private MergedPointRangeQuery mergeToMergedQuery(Query lhs, Query rhs) {
-        Query merged = merge(lhs, rhs);
-        assertThat(merged, instanceOf(MergedPointRangeQuery.class));
-        return (MergedPointRangeQuery) merged;
-    }
-
     public void testDifferentField() {
         assertThat(merge(LongPoint.newExactQuery("a", 0), LongPoint.newExactQuery("b", 0)), nullValue());
     }
@@ -130,7 +121,65 @@ public class MergedPointRangeQueryTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
+        String field = randomAlphaOfLength(5);
+        int dims = randomBoolean() ? 1 : between(2, 16);
+        Supplier<Query> supplier = randomFrom(
+            List.of(
+                () -> randomIntPointRangequery(field, dims),
+                () -> randomLongPointRangequery(field, dims),
+                () -> randomDoublePointRangequery(field, dims)
+            )
+        );
+        Query lhs = supplier.get();
+        Query rhs = randomValueOtherThan(lhs, supplier);
+        MergedPointRangeQuery query = mergeToMergedQuery(lhs, rhs);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            query,
+            ignored -> mergeToMergedQuery(lhs, rhs),
+            ignored -> mergeToMergedQuery(lhs, randomValueOtherThan(lhs, () -> randomValueOtherThan(rhs, supplier))));
+    }
 
+
+    private Query randomIntPointRangequery(String field, int dims) {
+        int[] lower = new int[dims];
+        int[] upper = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            lower[i] = randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE - 1);
+            upper[i] = randomIntBetween(lower[i], Integer.MAX_VALUE);
+        }
+        return IntPoint.newRangeQuery(field, lower, upper);
+    }
+
+    private Query randomLongPointRangequery(String field, int dims) {
+        long[] lower = new long[dims];
+        long[] upper = new long[dims];
+        for (int i = 0; i < dims; i++) {
+            lower[i] = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 1);
+            upper[i] = randomLongBetween(lower[i], Long.MAX_VALUE);
+        }
+        return LongPoint.newRangeQuery(field, lower, upper);
+    }
+
+    private Query randomDoublePointRangequery(String field, int dims) {
+        double[] lower = new double[dims];
+        double[] upper = new double[dims];
+        for (int i = 0; i < dims; i++) {
+            lower[i] = randomDoubleBetween(Double.MIN_VALUE, 0, true);
+            upper[i] = randomDoubleBetween(lower[i], Double.MAX_VALUE, true);
+        }
+        return DoublePoint.newRangeQuery(field, lower, upper);
+    }
+
+    private Query merge(Query lhs, Query rhs) {
+        assertThat("error in test assumptions", lhs, instanceOf(PointRangeQuery.class));
+        assertThat("error in test assumptions", rhs, instanceOf(PointRangeQuery.class));
+        return MergedPointRangeQuery.merge((PointRangeQuery) lhs, (PointRangeQuery) rhs);
+    }
+
+    private MergedPointRangeQuery mergeToMergedQuery(Query lhs, Query rhs) {
+        Query merged = merge(lhs, rhs);
+        assertThat(merged, instanceOf(MergedPointRangeQuery.class));
+        return (MergedPointRangeQuery) merged;
     }
 
     private boolean matches1d(Query query, long... values) throws IOException {

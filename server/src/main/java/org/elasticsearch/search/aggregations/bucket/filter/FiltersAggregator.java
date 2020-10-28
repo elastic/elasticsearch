@@ -58,8 +58,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
-import static java.util.Arrays.compareUnsigned;
-
 /**
  * Aggregator for {@code filters}. There are two known subclasses,
  * {@link FilterByFilter} which is fast but only works in some cases and

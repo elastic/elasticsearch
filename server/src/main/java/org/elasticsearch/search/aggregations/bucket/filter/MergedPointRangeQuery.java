@@ -37,21 +37,36 @@ public class MergedPointRangeQuery extends Query {
         if (lhs.getField() != rhs.getField() || lhs.getNumDims() != rhs.getNumDims() || lhs.getBytesPerDim() != rhs.getBytesPerDim()) {
             return null;
         }
+        return new MergedPointRangeQuery(lhs, rhs);
+    }
+
+    private final String field;
+    private final Query delegateForMultiValuedSegments;
+    private final Query delegateForSingleValuedSegments;
+
+    private MergedPointRangeQuery(PointRangeQuery lhs, PointRangeQuery rhs) {
+        field = lhs.getField();
+        delegateForMultiValuedSegments = new BooleanQuery.Builder().add(lhs, Occur.MUST).add(rhs, Occur.MUST).build();
         int numDims = lhs.getNumDims();
         int bytesPerDim = lhs.getBytesPerDim();
-        byte[] lower = mergeBound(lhs.getLowerPoint(), rhs.getLowerPoint(), numDims, bytesPerDim, true);
-        byte[] upper = mergeBound(lhs.getUpperPoint(), rhs.getUpperPoint(), numDims, bytesPerDim, false);
+        this.delegateForSingleValuedSegments = pickDelegateForSingleValuedSegments(
+            mergeBound(lhs.getLowerPoint(), rhs.getLowerPoint(), numDims, bytesPerDim, true),
+            mergeBound(lhs.getUpperPoint(), rhs.getUpperPoint(), numDims, bytesPerDim, false),
+            numDims,
+            bytesPerDim
+        );
+    }
 
+    private Query pickDelegateForSingleValuedSegments(byte[] lower, byte[] upper, int numDims, int bytesPerDim) {
         // If we ended up with disjoint ranges in any dimension then on single valued segments we can't match any docs.
         for (int dim = 0; dim < numDims; dim++) {
             int offset = dim * bytesPerDim;
             if (compareUnsigned(lower, offset, offset + bytesPerDim, upper, offset, offset + bytesPerDim) > 0) {
-                return new MergedPointRangeQuery(lhs, rhs, new MatchNoDocsQuery("disjoint ranges"));
+                return new MatchNoDocsQuery("disjoint ranges");
             }
         }
-
         // Otherwise on single valued segments we can only match docs the match the UNION of the two ranges.
-        PointRangeQuery delegateForSingleValuedSegments = new PointRangeQuery(lhs.getField(), lower, upper, lhs.getNumDims()) {
+        return new PointRangeQuery(field, lower, upper, numDims) {
             @Override
             protected String toString(int dimension, byte[] value) {
                 // Stolen from Lucene's Binary range query. It'd be best to delegate, but the method isn't visible.
@@ -67,17 +82,6 @@ public class MergedPointRangeQuery extends Query {
                 return sb.toString();
             }
         };
-        return new MergedPointRangeQuery(lhs, rhs, delegateForSingleValuedSegments);
-    }
-
-    private final String field;
-    private final BooleanQuery delegateForMultiValuedSegments;
-    private final Query delegateForSingleValuedSegments;
-
-    private MergedPointRangeQuery(PointRangeQuery lhs, PointRangeQuery rhs, Query delegateForSingleValuedSegments) {
-        field = lhs.getField();
-        delegateForMultiValuedSegments = new BooleanQuery.Builder().add(lhs, Occur.MUST).add(rhs, Occur.MUST).build();
-        this.delegateForSingleValuedSegments = delegateForSingleValuedSegments;
     }
 
     @Override
@@ -148,7 +152,7 @@ public class MergedPointRangeQuery extends Query {
 
     @Override
     public String toString(String field) {
-         return "MergedPointRange[" + delegateForMultiValuedSegments.toString(field) + "]";
+        return "MergedPointRange[" + delegateForMultiValuedSegments.toString(field) + "]";
     }
 
     @Override
@@ -174,37 +178,5 @@ public class MergedPointRangeQuery extends Query {
             System.arraycopy(from, offset, merged, offset, bytesPerDim);
         }
         return merged;
-    }
-
-    /**
-     * Figure out if lhs point is closer to the origin in all dimensions than
-     * the rhs point or if it is further. Return null if it is closer
-     * in some dimensions and further in others.
-     */
-    private static Integer compareAllDims(byte[] lhs, byte[] rhs, int numDims, int bytesPerDim) {
-        int runningCmp = 0;
-        for (int dim = 0; dim < numDims; dim++) {
-            int cmp = cmpDim(lhs, rhs, dim, bytesPerDim);
-            if (runningCmp == 0) {
-                // Previous dimensions were all equal
-                runningCmp = cmp;
-                continue;
-            }
-            if (cmp == 0) {
-                // This dimension has the same value.
-                continue;
-            }
-            // TODO can't we merge these here instead of give up?
-            if ((runningCmp ^ cmp) < 0) {
-                // Signs differ so this dimension doesn't compare the same way as the previous ones so we can't merge.
-                return null;
-            }
-        }
-        return runningCmp;
-    }
-
-    private static int cmpDim(byte[] lhs, byte[] rhs, int dim, int bytesPerDim) {
-        int offset = dim * bytesPerDim;
-        return compareUnsigned(lhs, offset, offset + bytesPerDim, rhs, offset, offset + bytesPerDim);
     }
 }

@@ -253,8 +253,12 @@ public class Node implements Closeable {
     private final Lifecycle lifecycle = new Lifecycle();
 
     /**
-     * Logger initialized in the ctor because if it were initialized statically
-     * then it wouldn't get the node name.
+     * This logger instance is an instance field as opposed to a static field. This ensures that the field is not
+     * initialized until an instance of Node is constructed, which is sure to happen after the logging infrastructure
+     * has been initialized to include the hostname. If this field were static, then it would be initialized when the
+     * class initializer runs. Alas, this happens too early, before logging is initialized as this class is referred to
+     * in InternalSettingsPreparer#finalizeSettings, which runs when creating the Environment, before logging is
+     * initialized.
      */
     private final Logger logger = LogManager.getLogger(Node.class);
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Node.class);

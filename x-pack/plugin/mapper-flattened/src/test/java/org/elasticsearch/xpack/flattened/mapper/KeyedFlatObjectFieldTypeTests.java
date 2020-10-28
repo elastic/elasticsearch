@@ -53,9 +53,9 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
         expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "key\0value"));
         assertEquals(expected, ft.termQueryCaseInsensitive("value", null));
- 
-        
-        
+
+
+
         KeyedFlatObjectFieldType unsearchable = new KeyedFlatObjectFieldType("field", false, true, "key",
             false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -93,8 +93,8 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
 
         expected = AutomatonQueries.caseInsensitivePrefixQuery(new Term("field", "key\0vAl"));
         assertEquals(expected, ft.prefixQuery("vAl", MultiTermQuery.CONSTANT_SCORE_REWRITE, true, MOCK_QSC));
-        
-        
+
+
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
@@ -155,10 +155,10 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchIsEmpty() throws IOException {
-        Map<String, Object> sourceValue = Map.of("key", "value");
-        KeyedFlattenedFieldType ft = createFieldType();
+        Map<String, Object> sourceValue = Collections.singletonMap("key", "value");
+        KeyedFlatObjectFieldType ft = createFieldType();
 
-        assertEquals(List.of(), fetchSourceValue(ft, sourceValue));
-        assertEquals(List.of(), fetchSourceValue(ft, null));
+        assertEquals(Collections.emptyList(), fetchSourceValue(ft, sourceValue));
+        assertEquals(Collections.emptyList(), fetchSourceValue(ft, null));
     }
 }

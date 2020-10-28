@@ -272,7 +272,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 @Override
                 public void execute(ExecSpec javaExecSpec) {
                     boolean isWindows = OS.current() == OS.WINDOWS;
-                    String compilerExec = isWindows ? "bin/javac.bat" : "bin/javac";
+                    String compilerExec = isWindows ? "bin/javac.exe" : "bin/javac";
                     javaExecSpec.setExecutable(new File(javaHomeDirectory, compilerExec));
                     javaExecSpec.setStandardOutput(System.out);
                     javaExecSpec.workingDir(sourceFile.getParentFile());
@@ -284,7 +284,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 @Override
                 public void execute(ExecSpec javaExecSpec) {
                     boolean isWindows = OS.current() == OS.WINDOWS;
-                    String execFile = isWindows ? "bin/java.bat" : "bin/java";
+                    String execFile = isWindows ? "bin/java.exe" : "bin/java";
                     javaExecSpec.setExecutable(new File(javaHomeDirectory, execFile));
                     javaExecSpec.setStandardOutput(System.out);
                     javaExecSpec.workingDir(sourceFile.getParentFile());

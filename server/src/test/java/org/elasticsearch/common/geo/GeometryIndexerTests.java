@@ -430,6 +430,19 @@ public class GeometryIndexerTests extends ESTestCase {
         assertThat(e.getMessage(), not(containsString("NaN")));
     }
 
+    public void testCrossingDateline() {
+        Polygon polygon = new Polygon(new LinearRing(
+            new double[]{170, -170, -170, 170, 170}, new double[]{-10, -10, 10, 10, -10}
+        ));
+        Geometry geometry = indexer.prepareForIndexing(polygon);
+        assertTrue(geometry instanceof MultiPolygon);
+        polygon = new Polygon(new LinearRing(
+            new double[]{180, -170, -170, 170, 180}, new double[]{-10, -5, 15, -15, -10}
+        ));
+        geometry = indexer.prepareForIndexing(polygon);
+        assertTrue(geometry instanceof MultiPolygon);
+    }
+
     private XContentBuilder polygon(Boolean orientation, double... val) throws IOException {
         XContentBuilder pointGeoJson = XContentFactory.jsonBuilder().startObject();
         {

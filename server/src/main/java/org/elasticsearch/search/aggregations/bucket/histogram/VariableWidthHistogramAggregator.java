@@ -98,7 +98,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         private MergeBucketsPhase mergeBucketsPhase;
 
         BufferValuesPhase(int bufferLimit){
-            this.buffer = bigArrays.newDoubleArray(1);
+            this.buffer = bigArrays().newDoubleArray(1);
             this.bufferSize = 0;
             this.bufferLimit = bufferLimit;
             this.mergeBucketsPhase = null;
@@ -108,7 +108,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         public CollectionPhase collectValue(LeafBucketCollector sub, int doc, double val) throws IOException{
             if (bufferSize < bufferLimit) {
                 // Add to the buffer i.e store the doc in a new bucket
-                buffer = bigArrays.grow(buffer, bufferSize + 1);
+                buffer = bigArrays().grow(buffer, bufferSize + 1);
                 buffer.set((long) bufferSize, val);
                 collectBucket(sub, doc, bufferSize);
                 bufferSize += 1;
@@ -234,10 +234,10 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
          */
         private void bucketBufferedDocs(final DoubleArray buffer, final int bufferSize, final int numBuckets) {
             // Allocate space for the clusters about to be created
-            clusterMins = bigArrays.newDoubleArray(1);
-            clusterMaxes = bigArrays.newDoubleArray(1);
-            clusterCentroids = bigArrays.newDoubleArray(1);
-            clusterSizes = bigArrays.newDoubleArray(1);
+            clusterMins = bigArrays().newDoubleArray(1);
+            clusterMaxes = bigArrays().newDoubleArray(1);
+            clusterCentroids = bigArrays().newDoubleArray(1);
+            clusterSizes = bigArrays().newDoubleArray(1);
             numClusters = 0;
 
             ClusterSorter sorter = new ClusterSorter(buffer, bufferSize);
@@ -313,10 +313,10 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
          */
         private void createAndAppendNewCluster(double value){
             // Ensure there is space for the cluster
-            clusterMaxes = bigArrays.grow(clusterMaxes, numClusters + 1); //  + 1 because indexing starts at 0
-            clusterMins = bigArrays.grow(clusterMins, numClusters + 1);
-            clusterCentroids = bigArrays.grow(clusterCentroids, numClusters + 1);
-            clusterSizes = bigArrays.grow(clusterSizes, numClusters + 1);
+            clusterMaxes = bigArrays().grow(clusterMaxes, numClusters + 1); //  + 1 because indexing starts at 0
+            clusterMins = bigArrays().grow(clusterMins, numClusters + 1);
+            clusterCentroids = bigArrays().grow(clusterCentroids, numClusters + 1);
+            clusterSizes = bigArrays().grow(clusterSizes, numClusters + 1);
 
             // Initialize the cluster at the end of the array
             clusterMaxes.set(numClusters, value);
@@ -438,7 +438,6 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     private final int shardSize;
     private final int bufferLimit;
 
-    final BigArrays bigArrays;
     private CollectionPhase collector;
 
     private MergingBucketsDeferringCollector deferringCollector;
@@ -455,7 +454,6 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         this.shardSize = shardSize;
         this.bufferLimit = initialBuffer;
 
-        bigArrays = context.bigArrays();
         collector = new BufferValuesPhase(this.bufferLimit);
 
         String scoringAgg = subAggsNeedScore();
@@ -509,7 +507,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
     @Override
     public DeferringBucketCollector getDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(context, descendsFromGlobalAggregator(parent()));
+        deferringCollector = new MergingBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
         return deferringCollector;
     }
 

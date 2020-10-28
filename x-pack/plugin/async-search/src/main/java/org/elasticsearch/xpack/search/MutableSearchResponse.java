@@ -42,7 +42,7 @@ class MutableSearchResponse {
     private final ThreadContext threadContext;
 
     private boolean isPartial;
-    private volatile int successfulShards;
+    private int successfulShards;
     private TotalHits totalHits;
     /**
      * How we get the reduced aggs when {@link #finalResponse} isn't populated.
@@ -56,8 +56,8 @@ class MutableSearchResponse {
      * building our own {@linkplain SearchResponse}s when get async search
      * is called, and instead return this.
      */
-    private volatile SearchResponse finalResponse;
-    private volatile ElasticsearchException failure;
+    private SearchResponse finalResponse;
+    private ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
 
     private boolean frozen;
@@ -196,8 +196,8 @@ class MutableSearchResponse {
      * @param expirationTime – expiration time of async search request
      * @return response representing the status of async search
      */
-     AsyncStatusResponse toStatusResponse(String asyncExecutionId, long startTime, long expirationTime) {
-        if (finalResponse != null) { // no need to synchronize this, as finalResponse is set only once
+    synchronized AsyncStatusResponse toStatusResponse(String asyncExecutionId, long startTime, long expirationTime) {
+        if (finalResponse != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
                 false,
@@ -211,7 +211,7 @@ class MutableSearchResponse {
                 finalResponse.status()
             );
         }
-        if (failure != null) { // no need to synchronize this, as failure is set only once
+        if (failure != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
                 false,

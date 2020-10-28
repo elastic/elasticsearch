@@ -292,9 +292,9 @@ code of the completed async search.
   "expiration_time_in_millis" : 1584377890986,
   "_shards" : {
       "total" : 562,
-      "successful" : 188,
+      "successful" : 450,
       "skipped" : 0,
-      "failed" : 1
+      "failed" : 112
   },
  "completion_status" : 503 <1>
 }

@@ -70,12 +70,8 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
         try {
             AsyncTask task = (AsyncTask) taskManager.getTask(searchId.getTaskId().getId());
             if ((task instanceof AsyncSearchTask) && (task.getExecutionId().equals(searchId))) {
-                if (task.isCancelled()) {
-                    listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
-                } else {
-                    AsyncStatusResponse response = ((AsyncSearchTask) task).getStatusResponse();
-                    sendFinalResponse(request, response, nowInMillis, listener);
-                }
+                AsyncStatusResponse response = ((AsyncSearchTask) task).getStatusResponse();
+                sendFinalResponse(request, response, nowInMillis, listener);
             } else {
                 getStatusResponseFromIndex(searchId, request, nowInMillis, listener);
             }

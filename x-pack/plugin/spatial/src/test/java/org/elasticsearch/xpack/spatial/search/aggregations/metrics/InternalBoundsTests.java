@@ -44,23 +44,23 @@ public class InternalBoundsTests extends InternalAggregationTestCase<InternalBou
 
     @Override
     protected void assertReduced(InternalBounds reduced, List<InternalBounds> inputs) {
-        float top = Float.NEGATIVE_INFINITY;
-        float bottom = Float.POSITIVE_INFINITY;
-        float posLeft = Float.POSITIVE_INFINITY;
-        float posRight = Float.NEGATIVE_INFINITY;
+        double top = Float.NEGATIVE_INFINITY;
+        double bottom = Float.POSITIVE_INFINITY;
+        double posLeft = Float.POSITIVE_INFINITY;
+        double posRight = Float.NEGATIVE_INFINITY;
 
         for (InternalBounds bounds : inputs) {
             if (bounds.topLeft().getY() > top) {
-                top = (float) bounds.topLeft().getY() ;
+                top = bounds.topLeft().getY() ;
             }
             if (bounds.bottomRight().getY()  < bottom) {
-                bottom = (float) bounds.bottomRight().getY();
+                bottom = bounds.bottomRight().getY();
             }
             if (bounds.topLeft().getX() < posLeft) {
-                posLeft = (float) bounds.topLeft().getX();
+                posLeft = bounds.topLeft().getX();
             }
             if (bounds.bottomRight().getX() > posRight) {
-                posRight = (float) bounds.bottomRight().getX() ;
+                posRight = bounds.bottomRight().getX() ;
             }
         }
         assertThat(reduced.topLeft().getY(), equalTo(top));

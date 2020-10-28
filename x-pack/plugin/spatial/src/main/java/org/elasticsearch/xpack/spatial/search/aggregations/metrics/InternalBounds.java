@@ -22,7 +22,7 @@ public class InternalBounds extends InternalAggregation implements Bounds {
 
     public final CartesianBoundingBox box;
 
-    public InternalBounds(String name, float top, float bottom, float posLeft, float posRight, Map<String, Object> metadata) {
+    public InternalBounds(String name, double top, double bottom, double posLeft, double posRight, Map<String, Object> metadata) {
         super(name, metadata);
         CartesianPoint topLeft = new CartesianPoint(posLeft, top);
         CartesianPoint bottomRight = new CartesianPoint(posRight, bottom);
@@ -49,10 +49,10 @@ public class InternalBounds extends InternalAggregation implements Bounds {
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        float top = Float.NEGATIVE_INFINITY;
-        float bottom = Float.POSITIVE_INFINITY;
-        float posLeft = Float.POSITIVE_INFINITY;
-        float posRight = Float.NEGATIVE_INFINITY;
+        double top = Double.NEGATIVE_INFINITY;
+        double bottom = Double.POSITIVE_INFINITY;
+        double posLeft = Double.POSITIVE_INFINITY;
+        double posRight = Double.NEGATIVE_INFINITY;
 
         for (InternalAggregation aggregation : aggregations) {
             InternalBounds bounds = (InternalBounds) aggregation;
@@ -61,16 +61,16 @@ public class InternalBounds extends InternalAggregation implements Bounds {
                 continue;
             }
             if (bounds.box.top() > top) {
-                top = (float) bounds.box.top();
+                top = bounds.box.top();
             }
             if (bounds.box.bottom() < bottom) {
-                bottom = (float) bounds.box.bottom();
+                bottom = bounds.box.bottom();
             }
             if (bounds.box.left() < posLeft) {
-                posLeft = (float) bounds.box.left();
+                posLeft = bounds.box.left();
             }
             if (bounds.box.right() > posRight) {
-                posRight = (float) bounds.box.right();
+                posRight = bounds.box.right();
             }
         }
         return new InternalBounds(name, top, bottom, posLeft, posRight, getMetadata());

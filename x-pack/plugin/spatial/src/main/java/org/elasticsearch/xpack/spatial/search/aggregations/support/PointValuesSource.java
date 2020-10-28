@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.DocValueBits;

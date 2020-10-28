@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
-import org.elasticsearch.xpack.spatial.index.fielddata.AbstractLatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractPointDVIndexFieldData;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper.ParsedCartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;

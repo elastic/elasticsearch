@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.spatial.index.fielddata.MultiPointValues;
 
 import java.io.IOException;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 
 public class PointValuesSourceType implements ValuesSourceType {
 
@@ -61,7 +60,12 @@ public class PointValuesSourceType implements ValuesSourceType {
     }
 
     @Override
-    public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, AggregationContext context) {
+    public ValuesSource replaceMissing(
+        ValuesSource valuesSource,
+        Object rawMissing,
+        DocValueFormat docValueFormat,
+        AggregationContext context)
+    {
         final CartesianPoint missing = new CartesianPoint();
         missing.resetFromString((String) rawMissing, true);
         return new PointValuesSource() {
@@ -107,7 +111,7 @@ public class PointValuesSourceType implements ValuesSourceType {
             }
 
             @Override
-            protected Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
+            protected Function<Rounding, Rounding.Prepared> roundingPreparer() {
                 throw new AggregationExecutionException("can't round a [POINT]");
             }
         };

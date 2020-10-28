@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.PointValuesSo
 import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
@@ -101,10 +100,10 @@ public class PointBoundsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertFalse(bounds.box.isUnbounded());
-                assertThat(bounds.topLeft().getX(), equalTo(x));
-                assertThat(bounds.topLeft().getY(), equalTo(y));
-                assertThat(bounds.bottomRight().getX(), equalTo(x));
-                assertThat(bounds.bottomRight().getY(), equalTo(y));
+                assertThat(bounds.topLeft().getX(), equalTo((double) x));
+                assertThat(bounds.topLeft().getY(), equalTo((double) y));
+                assertThat(bounds.bottomRight().getX(), equalTo((double) x));
+                assertThat(bounds.bottomRight().getY(), equalTo((double) y));
             }
         }
     }
@@ -176,10 +175,10 @@ public class PointBoundsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertFalse(bounds.box.isUnbounded());
-                assertThat(bounds.topLeft().getX(), equalTo(posLeft));
-                assertThat(bounds.topLeft().getY(), equalTo(top));
-                assertThat(bounds.bottomRight().getX(), equalTo(posRight));
-                assertThat(bounds.bottomRight().getY(), equalTo(bottom));
+                assertThat(bounds.topLeft().getX(), equalTo((double) posLeft));
+                assertThat(bounds.topLeft().getY(), equalTo((double) top));
+                assertThat(bounds.bottomRight().getX(), equalTo((double) posRight));
+                assertThat(bounds.bottomRight().getY(), equalTo((double) bottom));
                 assertTrue((bounds.topLeft() == null && bounds.bottomRight() == null) == false);
             }
         }

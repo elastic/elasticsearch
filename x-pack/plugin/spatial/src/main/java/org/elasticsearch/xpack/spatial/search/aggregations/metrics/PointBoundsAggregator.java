@@ -110,8 +110,8 @@ public final class PointBoundsAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalBounds(name, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
-            Float.NEGATIVE_INFINITY, metadata());
+        return new InternalBounds(name, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY, metadata());
     }
 
     @Override

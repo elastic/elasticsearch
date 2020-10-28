@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -75,12 +74,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
     ) throws Exception {
         clusterService.submitStateUpdateTask(
             "remove-data-stream [" + Strings.arrayToCommaDelimitedString(request.getNames()) + "]",
-            new ClusterStateUpdateTask(Priority.HIGH) {
-
-                @Override
-                public TimeValue timeout() {
-                    return request.masterNodeTimeout();
-                }
+            new ClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout()) {
 
                 @Override
                 public void onFailure(String source, Exception e) {

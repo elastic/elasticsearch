@@ -138,13 +138,13 @@ include::types/date_nanos.asciidoc[]
 
 include::types/dense-vector.asciidoc[]
 
-include::types/histogram.asciidoc[]
-
 include::types/flattened.asciidoc[]
 
 include::types/geo-point.asciidoc[]
 
 include::types/geo-shape.asciidoc[]
+
+include::types/histogram.asciidoc[]
 
 include::types/ip.asciidoc[]
 
@@ -170,10 +170,10 @@ include::types/rank-features.asciidoc[]
 
 include::types/search-as-you-type.asciidoc[]
 
+include::types/shape.asciidoc[]
+
 include::types/sparse-vector.asciidoc[]
 
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
-
-include::types/shape.asciidoc[]

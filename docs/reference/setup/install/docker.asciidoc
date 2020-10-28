@@ -222,7 +222,8 @@ which runs containers using an arbitrarily assigned user ID.
 Openshift presents persistent volumes with the gid set to `0`, which works without any adjustments.
 
 If you are bind-mounting a local directory or file, it must be readable by the `elasticsearch` user.
-In addition, this user must have write access to the <<path-settings,data and log dirs>>.
+In addition, this user must have write access to the <<path-settings,config, data and log dirs>>
+({es} needs write access to the `config` directory so that it can generate a keystore).
 A good strategy is to grant group access to gid `0` for the local directory.
 
 For example, to prepare a local directory for storing data through a bind-mount:
@@ -234,38 +235,11 @@ chmod g+rwx esdatadir
 chgrp 0 esdatadir
 --------------------------------------------
 
-If you want to run the container using a custom UID and GID, then you must
-ensure that the {es} process is still a member of the `root` group inside
-the container using the `--group-add` Docker command-line option. If you
-are using bind-mounted volumes, any files written by the container will
-still be owned by the user and group that you specified, not the `root`
-group.
-
-[source,sh]
---------------------------------------------
-ES_USER=myuser
-ES_ID=1001
-
-# Create the user and group
-groupadd --gid $ES_ID $ES_USER
-adduser --uid $ES_ID --gid $ES_ID --home-dir /home/$ES_USER $ES_USER
-
-# Prepare directories
-mkdir -p /home/$ES_USER/{data,logs,config}
-chown -R $ES_ID:$ES_ID /home/$ES_USER
-
-# Before continuing, you need to put the correct configuration files
-# under /home/$ES_USER/config
-
-# Run {es}
-docker run \
-  --user $ES_ID:$ES_ID --group-add 0 \
-  --volume /home/$ES_USER/config:/usr/share/elasticsearch/config \
-  --volume /home/$ES_USER/data:/usr/share/elasticsearch/data \
-  --volume /home/$ES_USER/logs:/usr/share/elasticsearch/logs \
-  {docker-image}
---------------------------------------------
-
+You can also run an {es} container using both a custom UID and GID. Unless you
+bind-mount each of the `config`, data` and `logs` directories, you must pass
+the command line option `--group-add 0` to `docker run`. This ensures that the user
+under which {es} is running is also a member of the `root` (GID 0) group inside the
+container.
 
 ===== Increase ulimits for nofile and nproc
 

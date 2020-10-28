@@ -27,19 +27,22 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.S
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Test case for `terms` on a date type field
+ *
+ * Note: dates are currently written as long (epoch_ms) into the transform dest index.
+ */
 public class TermsOnDateGroupByIT extends ContinuousTestCase {
 
-    private static final String NAME = "continuous-terms-pivot-test";
-    private static final String MISSING_BUCKET_KEY = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
-        .format(Instant.ofEpochMilli(1262304000000L)); // 01/01/2010 should end up last when sorting
+    private static final String NAME = "continuous-terms-on-date-pivot-test";
+    private static final long MISSING_BUCKET_KEY = 1262304000000L; // 01/01/2010 should end up last when sorting
+
     private final boolean missing;
 
     public TermsOnDateGroupByIT() {
@@ -123,15 +126,15 @@ public class TermsOnDateGroupByIT extends ContinuousTestCase {
             SearchHit searchHit = destIterator.next();
             Map<String, Object> source = searchHit.getSourceAsMap();
 
-            String transformBucketKey = (String) XContentMapValues.extractValue("some-timestamp", source);
+            Long transformBucketKey = (Long) XContentMapValues.extractValue("some-timestamp", source);
             if (transformBucketKey == null) {
                 transformBucketKey = MISSING_BUCKET_KEY;
             }
             // test correctness, the results from the aggregation and the results from the transform should be the same
             assertThat(
-                "Buckets did not match, source: " + source + ", expected: " + bucket.getKeyAsString() + ", iteration: " + iteration,
+                "Buckets did not match, source: " + source + ", expected: " + bucket.getKey() + ", iteration: " + iteration,
                 transformBucketKey,
-                equalTo(bucket.getKeyAsString())
+                equalTo(bucket.getKey())
             );
             assertThat(
                 "Doc count did not match, source: " + source + ", expected: " + bucket.getDocCount() + ", iteration: " + iteration,

@@ -282,8 +282,8 @@ public class WindowsServiceTests extends PackagingTestCase {
 
     public void test81JavaOptsInJvmOptions() throws Exception {
         withCustomConfig(tempConf -> {
-            append(tempConf.resolve("jvm.options"), "-Xmx2g");
-            append(tempConf.resolve("jvm.options"), "-Xms2g");
+            append(tempConf.resolve("jvm.options"), "-Xmx2g" + System.lineSeparator());
+            append(tempConf.resolve("jvm.options"), "-Xms2g" + System.lineSeparator());
             sh.run(serviceScript + " install");
             assertCommand(serviceScript + " start");
             assertStartedAndStop();

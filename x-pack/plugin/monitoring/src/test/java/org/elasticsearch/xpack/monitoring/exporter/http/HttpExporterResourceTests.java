@@ -488,7 +488,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyNoMoreInteractions(client);
     }
 
-    public void testWatchRemovalOnDecomissionAlerts() {
+    public void testDeployClusterAlerts() {
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
         final int successfulGetPipelines = randomIntBetween(0, EXPECTED_PIPELINES);

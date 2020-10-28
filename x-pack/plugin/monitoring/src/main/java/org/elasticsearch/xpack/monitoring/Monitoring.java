@@ -149,6 +149,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         List<Setting<?>> settings = new ArrayList<>();
         settings.add(MonitoringField.HISTORY_DURATION);
         settings.add(CLEAN_WATCHER_HISTORY);
+        settings.add(MIGRATION_DECOMMISSION_ALERTS);
         settings.add(MonitoringService.ENABLED);
         settings.add(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED);
         settings.add(MonitoringService.INTERVAL);

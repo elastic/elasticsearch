@@ -55,7 +55,6 @@ public enum XContentType implements MediaType {
         public XContent xContent() {
             return JsonXContent.jsonXContent;
         }
-
     },
     /**
      * The jackson based smile binary format. Fast and compact binary format.

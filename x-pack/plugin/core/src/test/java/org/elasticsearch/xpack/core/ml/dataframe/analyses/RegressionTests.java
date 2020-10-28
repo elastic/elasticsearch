@@ -322,7 +322,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
     }
 
     public void testGetExplicitlyMappedFields() {
-        Map<String, Object> explicitlyMappedFields = new Regression("foo").getExplicitlyMappedFields(null, "results");
+        Map<String, Object> explicitlyMappedFields = new Regression("foo").getExplicitlyMappedFields("results", null);
         assertThat(explicitlyMappedFields, hasEntry("results.foo_prediction", Collections.singletonMap("type", "double")));
         assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", Regression.FEATURE_IMPORTANCE_MAPPING));
     }

@@ -19,12 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Label;
 
 public class NullSafeSubNode extends UnaryNode {
 
@@ -46,14 +42,4 @@ public class NullSafeSubNode extends UnaryNode {
         super(location);
     }
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(getLocation());
-
-        Label end = new Label();
-        methodWriter.dup();
-        methodWriter.ifNull(end);
-        getChildNode().write(classWriter, methodWriter, writeScope);
-        methodWriter.mark(end);
-    }
 }

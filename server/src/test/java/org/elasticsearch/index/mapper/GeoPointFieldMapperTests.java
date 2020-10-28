@@ -20,13 +20,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -39,12 +37,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointFieldMapper.Builder> {
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "doc_values");
-    }
+public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
@@ -55,22 +48,20 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
             GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
-            assertTrue(gpfm.ignoreMalformed.value());
+            assertTrue(gpfm.ignoreMalformed());
         });
         checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
             GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
-            assertFalse(gpfm.ignoreZValue.value());
+            assertFalse(gpfm.ignoreZValue());
         });
-        GeoPoint point = GeoUtils.parseFromString("41.12,-71.34");
-        // TODO this should not be updateable!
-        checker.registerUpdateCheck(b -> b.field("null_value", "41.12,-71.34"), m -> {
-            GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
-            assertEquals(gpfm.nullValue, point);
-        });
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "41.12,-71.34"));
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
     }
 
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(stringEncode(1.3, 1.2));
+    @Override
+    protected Object getSampleValueForDocument() {
+        return stringEncode(1.3, 1.2);
     }
 
     public final void testExistsQueryDocValuesDisabled() throws IOException {
@@ -201,14 +192,14 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", true)));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-        boolean ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
+        boolean ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", false)));
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-        ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
+        ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(false));
     }
 
@@ -325,8 +316,8 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
         );
     }
 
-    @Override
-    protected GeoPointFieldMapper.Builder newBuilder() {
-        return new GeoPointFieldMapper.Builder("geo");
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
     }
 }

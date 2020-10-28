@@ -138,17 +138,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                     threadPool,
                     actionFilters,
                     UpdateInternalOrPrivateAction.Request::new,
-                    indexNameExpressionResolver);
-        }
-
-        @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        protected UpdateInternalOrPrivateAction.Response read(StreamInput in) throws IOException {
-            return new UpdateInternalOrPrivateAction.Response(in);
+                    indexNameExpressionResolver, UpdateInternalOrPrivateAction.Response::new, ThreadPool.Names.SAME);
         }
 
         @Override

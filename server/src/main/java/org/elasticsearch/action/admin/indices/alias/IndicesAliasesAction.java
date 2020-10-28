@@ -28,7 +28,7 @@ public class IndicesAliasesAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/aliases";
 
     private IndicesAliasesAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

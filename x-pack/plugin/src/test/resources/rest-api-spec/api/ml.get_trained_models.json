@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-trained-models.html",
       "description":"Retrieves configuration information for a trained inference model."
     },
-    "stability":"experimental",
+    "stability":"beta",
     "url":{
       "paths":[
         {
@@ -69,7 +69,7 @@
         "type":"list",
         "description":"A comma-separated list of tags that the model must have."
       },
-      "for_export": {
+      "exclude_generated": {
         "required": false,
         "type": "boolean",
         "default": false,

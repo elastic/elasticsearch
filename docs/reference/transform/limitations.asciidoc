@@ -56,11 +56,18 @@ or <<search-aggregations-pipeline-bucket-script-aggregation,`bucket_scripts`>>,
 <<dynamic-mapping,dynamic mappings>> will be used. In some instances the 
 deduced mappings may be incompatible with the actual data. For example, numeric 
 overflows might occur or dynamically mapped fields might contain both numbers 
-and strings. Please check {es} logs if you think this may have occurred. As a 
-workaround, you may define custom mappings prior to starting the 
-{transform}. For example, 
-<<indices-create-index,create a custom destination index>> or 
-<<indices-templates,define an index template>>.
+and strings. Please check {es} logs if you think this may have occurred. 
+
+You can view the deduced mappings by using the 
+https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html[Preview transform API].
+See the `generated_dest_index` object in the API response.
+
+If it's required, you may define custom mappings prior to starting the 
+{transform} by creating a custom destination index using the 
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API].
+As deduced mappings cannot be overwritten by an index template, use the Create 
+index API to define custom mappings. The index templates only apply to fields 
+derived from scripts that use dynamic mappings. 
 
 [discrete]
 [[transform-batch-limitations]]

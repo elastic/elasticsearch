@@ -31,11 +31,11 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -152,16 +152,16 @@ public class LongBounds implements ToXContentFragment, Writeable {
     /**
      * Parse the bounds and perform any delayed validation. Returns the result of the parsing.
      */
-    LongBounds parseAndValidate(String aggName, String boundsName, QueryShardContext queryShardContext, DocValueFormat format) {
+    LongBounds parseAndValidate(String aggName, String boundsName, LongSupplier nowInMillis, DocValueFormat format) {
         Long min = this.min;
         Long max = this.max;
         assert format != null;
         if (minAsStr != null) {
-            min = format.parseLong(minAsStr, false, queryShardContext::nowInMillis);
+            min = format.parseLong(minAsStr, false, nowInMillis);
         }
         if (maxAsStr != null) {
             // TODO: Should we rather pass roundUp=true?
-            max = format.parseLong(maxAsStr, false, queryShardContext::nowInMillis);
+            max = format.parseLong(maxAsStr, false, nowInMillis);
         }
         if (min != null && max != null && min.compareTo(max) > 0) {
             throw new IllegalArgumentException("[" + boundsName + ".min][" + min + "] cannot be greater than " +

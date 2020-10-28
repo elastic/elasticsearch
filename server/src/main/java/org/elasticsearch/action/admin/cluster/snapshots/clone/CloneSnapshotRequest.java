@@ -23,14 +23,17 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest> implements IndicesRequest.Replaceable{
+public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest> implements IndicesRequest.Replaceable, ToXContentObject {
 
     private final String repository;
 
@@ -138,5 +141,30 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
 
     public String source() {
         return this.source;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("repository", repository);
+        builder.field("source", source);
+        builder.field("target", target);
+        if (indices != null) {
+            builder.startArray("indices");
+            for (String index : indices) {
+                builder.value(index);
+            }
+            builder.endArray();
+        }
+        if (indicesOptions != null) {
+            indicesOptions.toXContent(builder, params);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

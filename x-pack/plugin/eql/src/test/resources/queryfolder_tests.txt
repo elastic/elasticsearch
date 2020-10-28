@@ -145,6 +145,49 @@ process where endsWith(user_name, "c")
 {"wildcard":{"user_name":{"wildcard":"*c","boost":1.0}}}],"boost":1.0}}
 ;
 
+fieldNoEquals
+process where bool
+;
+{"bool":{"must":[
+{"term":{"bool":{"value":true,
+;
+
+fieldNoEqualsInExpression
+process where length(file_name) > 0 and bool
+;
+{"bool":{"must":[
+{"term":{"bool":{"value":true,
+;
+
+
+fieldEqualsTrue
+process where bool == true
+;
+{"bool":{"must":[
+{"term":{"bool":{"value":true,
+;
+
+fieldEqualsFalse
+process where bool == false
+;
+{"bool":{"must":[
+{"term":{"bool":{"value":false
+;
+
+fieldNotEqualsTrue
+process where bool != true
+;
+{"bool":{"must_not":[
+{"term":{"bool":{"value":true
+;
+
+fieldNotEqualsFalse
+process where bool != false
+;
+{"bool":{"must_not":[
+{"term":{"bool":{"value":false
+;
+
 lengthFunctionWithExactSubField
 process where length(file_name) > 0
 ;

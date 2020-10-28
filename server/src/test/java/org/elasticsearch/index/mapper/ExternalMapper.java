@@ -54,9 +54,9 @@ public class ExternalMapper extends ParametrizedFieldMapper {
 
         private final BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private final BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
-        private final GeoPointFieldMapper.Builder latLonPointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
-        private final GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
-        private final Mapper.Builder<?> stringBuilder;
+        private final GeoPointFieldMapper.Builder latLonPointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT, false);
+        private final GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE, false, true);
+        private final Mapper.Builder stringBuilder;
         private final String generatedValue;
         private final String mapperName;
 
@@ -104,12 +104,7 @@ public class ExternalMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return new SourceValueFetcher(name(), mapperService) {
-                @Override
-                protected Object parseSourceValue(Object value) {
-                    return value;
-                }
-            };
+            return SourceValueFetcher.identity(name(), mapperService, format);
         }
     }
 

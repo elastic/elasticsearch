@@ -202,7 +202,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         doAnswer(
             invocationOnMock -> {
                 ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
                 return null;
             })
             .when(client).execute(eq(PutMappingAction.INSTANCE), any(), any(ActionListener.class));

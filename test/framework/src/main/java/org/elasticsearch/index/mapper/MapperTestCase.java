@@ -72,13 +72,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected void writeField(XContentBuilder builder) throws IOException {
         builder.field("field");
-        writeFieldValue(builder);
+        builder.value(getSampleValueForDocument());
     }
 
     /**
-     * Writes a sample value for the field to the provided {@link XContentBuilder}.
+     * Returns a sample value for the field, to be used in a document
      */
-    protected abstract void writeFieldValue(XContentBuilder builder) throws IOException;
+    protected abstract Object getSampleValueForDocument();
+
+    /**
+     * Returns a sample value for the field, to be used when querying the field. Normally this is the same format as
+     * what is indexed as part of a document, and returned by {@link #getSampleValueForDocument()}, but there
+     * are cases where fields are queried differently frow how they are indexed e.g. token_count or runtime fields
+     */
+    protected Object getSampleValueForQuery() {
+        return getSampleValueForDocument();
+    }
 
     /**
      * This test verifies that the exists query created is the appropriate one, and aligns with the data structures
@@ -196,12 +205,28 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
-    protected void assertParseMinimalWarnings() {
-        // Most mappers don't emit any warnings
+    protected final void assertParseMinimalWarnings() {
+        String[] warnings = getParseMinimalWarnings();
+        if (warnings.length > 0) {
+            assertWarnings(warnings);
+        }
     }
 
-    protected void assertParseMaximalWarnings() {
+    protected final void assertParseMaximalWarnings() {
+        String[] warnings = getParseMaximalWarnings();
+        if (warnings.length > 0) {
+            assertWarnings(warnings);
+        }
+    }
+
+    protected String[] getParseMinimalWarnings() {
         // Most mappers don't emit any warnings
+        return Strings.EMPTY_ARRAY;
+    }
+
+    protected String[] getParseMaximalWarnings() {
+        // Most mappers don't emit any warnings
+        return Strings.EMPTY_ARRAY;
     }
 
     /**
@@ -253,7 +278,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 minimalMapping(b);
                 b.field("boost", 2.0);
             }));
-            assertWarnings("Parameter [boost] on field [field] is deprecated and has no effect");
+            String[] warnings = Strings.concatStringArrays(getParseMinimalWarnings(),
+                new String[]{"Parameter [boost] on field [field] is deprecated and has no effect"});
+            assertWarnings(warnings);
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), anyOf(
                 containsString("Unknown parameter [boost]"),
@@ -287,7 +314,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
         }, iw -> {
-            SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup);
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup);
             ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
@@ -420,4 +447,20 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
+    public final void testTextSearchInfoConsistency() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
+            expectThrows(IllegalArgumentException.class, () -> fieldType.termQuery(null, null));
+        } else {
+            QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+            assertNotNull(fieldType.termQuery(getSampleValueForQuery(), queryShardContext));
+        }
+        assertSearchable(fieldType);
+        assertParseMinimalWarnings();
+    }
+
+    protected void assertSearchable(MappedFieldType fieldType) {
+        assertEquals(fieldType.isSearchable(), fieldType.getTextSearchInfo() != TextSearchInfo.NONE);
+    }
 }

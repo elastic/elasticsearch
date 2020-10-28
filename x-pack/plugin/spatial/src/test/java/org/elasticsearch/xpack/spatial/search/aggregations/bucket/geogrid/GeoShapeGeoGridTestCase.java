@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -189,7 +189,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
             Rectangle pointTile = getTile(x, y, precision);
 
             GeometryDocValueReader reader = GeometryDocValueReader(p, CoordinateEncoder.GEO);
-            MultiGeoShapeValues.GeoShapeValue value = new MultiGeoShapeValues.GeoShapeValue(reader);
+            GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue(reader);
             GeoRelation tileRelation =  value.relate(pointTile);
             boolean intersectsBounds = boundsTop >= pointTile.getMinY() && boundsBottom <= pointTile.getMaxY()
                 && (boundsEastLeft <= pointTile.getMaxX() && boundsEastRight >= pointTile.getMinX()

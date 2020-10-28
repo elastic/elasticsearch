@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.io.IOException;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.ioException;
 

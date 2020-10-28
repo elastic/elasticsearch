@@ -686,8 +686,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                     adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
                 }
             } catch (ResponseException ee) {
-                // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field or
-                // that doesn't support data streams so it's safe to ignore
+                // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field
+                // or that doesn't support data streams so it's safe to ignore
                 int statusCode = ee.getResponse().getStatusLine().getStatusCode();
                 if (statusCode < 404 || statusCode > 405) {
                     throw ee;

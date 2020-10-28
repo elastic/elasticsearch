@@ -55,10 +55,10 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -264,16 +264,11 @@ public class TransportFieldCapabilitiesIndexAction
                     );
                 }
                 transportService.sendRequest(node, ACTION_SHARD_NAME, request,
-                    new TransportResponseHandler<FieldCapabilitiesIndexResponse>() {
+                    new DirectTransportResponseHandler<FieldCapabilitiesIndexResponse>() {
 
                         @Override
                         public FieldCapabilitiesIndexResponse read(StreamInput in) throws IOException {
                             return new FieldCapabilitiesIndexResponse(in);
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
                         }
 
                         @Override

@@ -60,7 +60,7 @@ public final class TransportActionProxy {
         }
     }
 
-    private static class ProxyResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+    private static class ProxyResponseHandler<T extends TransportResponse> extends DirectTransportResponseHandler<T> {
 
         private final Writeable.Reader<T> reader;
         private final TransportChannel channel;
@@ -91,11 +91,6 @@ public final class TransportActionProxy {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

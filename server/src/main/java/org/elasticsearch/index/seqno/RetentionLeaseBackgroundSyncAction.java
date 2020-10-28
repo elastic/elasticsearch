@@ -47,8 +47,8 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -112,15 +112,10 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                 new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
                 task,
                 transportOptions,
-                new TransportResponseHandler<ReplicationResponse>() {
+                new DirectTransportResponseHandler<ReplicationResponse>() {
                     @Override
                     public ReplicationResponse read(StreamInput in) throws IOException {
                         return newResponseInstance(in);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
                     }
 
                     @Override

@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -21,6 +20,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transport.Connection;
 import org.elasticsearch.transport.TransportException;
@@ -369,15 +369,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadContext.putTransient("foo", "different_bar");
             threadContext.putHeader("key", "value2");
             TransportResponseHandler<Empty> handler = new TransportService.ContextRestoreResponseHandler<>(
-                    threadContext.wrapRestorable(storedContext), new TransportResponseHandler<Empty>() {
-
+                    threadContext.wrapRestorable(storedContext), new DirectTransportResponseHandler.Empty() {
                 @Override
-                public Empty read(StreamInput in) {
-                    return Empty.INSTANCE;
-                }
-
-                @Override
-                public void handleResponse(Empty response) {
+                public void handleResponse(TransportResponse.Empty response) {
                     assertEquals("bar", threadContext.getTransient("foo"));
                     assertEquals("value", threadContext.getHeader("key"));
                 }
@@ -386,11 +380,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 public void handleException(TransportException exp) {
                     assertEquals("bar", threadContext.getTransient("foo"));
                     assertEquals("value", threadContext.getHeader("key"));
-                }
-
-                @Override
-                public String executor() {
-                    return null;
                 }
             });
 
@@ -408,15 +397,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadContext.putTransient("foo", "different_bar");
             threadContext.putHeader("key", "value2");
             handler = new TransportService.ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true),
-                    new TransportResponseHandler<Empty>() {
-
+                    new DirectTransportResponseHandler.Empty() {
                         @Override
-                        public Empty read(StreamInput in) {
-                            return Empty.INSTANCE;
-                        }
-
-                        @Override
-                        public void handleResponse(Empty response) {
+                        public void handleResponse(TransportResponse.Empty response) {
                             assertEquals("different_bar", threadContext.getTransient("foo"));
                             assertEquals("value2", threadContext.getHeader("key"));
                         }
@@ -425,11 +408,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                         public void handleException(TransportException exp) {
                             assertEquals("different_bar", threadContext.getTransient("foo"));
                             assertEquals("value2", threadContext.getHeader("key"));
-                        }
-
-                        @Override
-                        public String executor() {
-                            return null;
                         }
                     });
         }

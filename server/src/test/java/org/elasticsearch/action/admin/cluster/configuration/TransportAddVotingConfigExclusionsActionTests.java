@@ -46,7 +46,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -429,7 +429,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
 
     private TransportResponseHandler<AddVotingConfigExclusionsResponse> responseHandler(
         Consumer<AddVotingConfigExclusionsResponse> onResponse, Consumer<TransportException> onException) {
-        return new TransportResponseHandler<AddVotingConfigExclusionsResponse>() {
+        return new DirectTransportResponseHandler<>() {
             @Override
             public void handleResponse(AddVotingConfigExclusionsResponse response) {
                 onResponse.accept(response);
@@ -438,11 +438,6 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             @Override
             public void handleException(TransportException exp) {
                 onException.accept(exp);
-            }
-
-            @Override
-            public String executor() {
-                return Names.SAME;
             }
 
             @Override

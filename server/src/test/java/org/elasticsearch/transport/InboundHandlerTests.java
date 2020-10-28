@@ -112,7 +112,7 @@ public class InboundHandlerTests extends ESTestCase {
         AtomicReference<Exception> exceptionCaptor = new AtomicReference<>();
         AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
 
-        long requestId = responseHandlers.add(new Transport.ResponseContext<>(new TransportResponseHandler<TestResponse>() {
+        long requestId = responseHandlers.add(new Transport.ResponseContext<>(new DirectTransportResponseHandler<TestResponse>() {
             @Override
             public void handleResponse(TestResponse response) {
                 responseCaptor.set(response);
@@ -121,11 +121,6 @@ public class InboundHandlerTests extends ESTestCase {
             @Override
             public void handleException(TransportException exp) {
                 exceptionCaptor.set(exp);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
             }
 
             @Override

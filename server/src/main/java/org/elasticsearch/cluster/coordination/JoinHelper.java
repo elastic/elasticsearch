@@ -36,18 +36,17 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -240,15 +239,9 @@ public class JoinHelper {
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         if (pendingOutgoingJoins.add(dedupKey)) {
             logger.debug("attempting to join {} with {}", destination, joinRequest);
-            transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest,
-                new TransportResponseHandler<Empty>() {
+            transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest, new DirectTransportResponseHandler.Empty() {
                     @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
-
-                    @Override
-                    public void handleResponse(Empty response) {
+                    public void handleResponse(TransportResponse.Empty response) {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.debug("successfully joined {} with {}", destination, joinRequest);
                         lastFailedJoinAttempt.set(null);
@@ -261,11 +254,6 @@ public class JoinHelper {
                         attempt.logNow();
                         lastFailedJoinAttempt.set(attempt);
                     }
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
-                    }
                 });
         } else {
             logger.debug("already attempting to join {} with request {}, not sending request", destination, joinRequest);
@@ -275,26 +263,15 @@ public class JoinHelper {
     void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
         assert startJoinRequest.getSourceNode().isMasterNode()
             : "sending start-join request for master-ineligible " + startJoinRequest.getSourceNode();
-        transportService.sendRequest(destination, START_JOIN_ACTION_NAME,
-            startJoinRequest, new TransportResponseHandler<Empty>() {
+        transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new DirectTransportResponseHandler.Empty() {
                 @Override
-                public Empty read(StreamInput in) {
-                    return Empty.INSTANCE;
-                }
-
-                @Override
-                public void handleResponse(Empty response) {
+                public void handleResponse(TransportResponse.Empty response) {
                     logger.debug("successful response to {} from {}", startJoinRequest, destination);
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
                     logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
                 }
             });
     }

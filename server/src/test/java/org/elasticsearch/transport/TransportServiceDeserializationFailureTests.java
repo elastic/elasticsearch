@@ -80,7 +80,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
             // requests without a parent task are recorded directly in the response context
 
             transportService.sendRequest(otherNode, testActionName, TransportRequest.Empty.INSTANCE,
-                    TransportRequestOptions.EMPTY, new TransportResponseHandler<TransportResponse.Empty>() {
+                    TransportRequestOptions.EMPTY, new DirectTransportResponseHandler<TransportResponse.Empty>() {
                         @Override
                         public void handleResponse(TransportResponse.Empty response) {
                             fail("should not be called");
@@ -89,11 +89,6 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                         @Override
                         public void handleException(TransportException exp) {
                             fail("should not be called");
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
                         }
 
                         @Override
@@ -130,7 +125,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
             });
 
             transportService.sendChildRequest(otherNode, testActionName, TransportRequest.Empty.INSTANCE, parentTask,
-                    TransportRequestOptions.EMPTY, new TransportResponseHandler<TransportResponse.Empty>() {
+                    TransportRequestOptions.EMPTY, new DirectTransportResponseHandler<TransportResponse.Empty>() {
                         @Override
                         public void handleResponse(TransportResponse.Empty response) {
                             fail("should not be called");
@@ -139,11 +134,6 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                         @Override
                         public void handleException(TransportException exp) {
                             fail("should not be called");
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
                         }
 
                         @Override

@@ -108,7 +108,7 @@ final class TransportHandshaker {
         return numHandshakes.count();
     }
 
-    private class HandshakeResponseHandler implements TransportResponseHandler<HandshakeResponse> {
+    private class HandshakeResponseHandler extends DirectTransportResponseHandler<HandshakeResponse> {
 
         private final long requestId;
         private final Version currentVersion;
@@ -150,11 +150,6 @@ final class TransportHandshaker {
             if (removeHandlerForHandshake(requestId) != null && isDone.compareAndSet(false, true)) {
                 listener.onFailure(e);
             }
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

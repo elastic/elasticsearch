@@ -45,11 +45,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -191,16 +191,12 @@ public abstract class TransportInstanceSingleOperationAction<
 
             request.shardId = shardIt.shardId();
             DiscoveryNode node = clusterState.nodes().get(shard.currentNodeId());
-            transportService.sendRequest(node, shardActionName, request, transportOptions(), new TransportResponseHandler<Response>() {
+            transportService.sendRequest(node, shardActionName, request, transportOptions(),
+                    new DirectTransportResponseHandler<Response>() {
 
                 @Override
                 public Response read(StreamInput in) throws IOException {
                     return newResponse(in);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
                 }
 
                 @Override

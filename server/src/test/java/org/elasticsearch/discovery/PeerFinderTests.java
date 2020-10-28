@@ -35,11 +35,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.test.transport.StubbableConnectionManager;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionManager;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -489,7 +488,7 @@ public class PeerFinderTests extends ESTestCase {
         final AtomicBoolean responseReceived = new AtomicBoolean();
 
         transportService.sendRequest(localNode, REQUEST_PEERS_ACTION_NAME, new PeersRequest(sourceNode, Collections.emptyList()),
-            new TransportResponseHandler<PeersResponse>() {
+            new DirectTransportResponseHandler<PeersResponse>() {
                 @Override
                 public PeersResponse read(StreamInput in) throws IOException {
                     return new PeersResponse(in);
@@ -506,11 +505,6 @@ public class PeerFinderTests extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     throw new AssertionError("unexpected", exp);
-                }
-
-                @Override
-                public String executor() {
-                    return Names.SAME;
                 }
             });
 

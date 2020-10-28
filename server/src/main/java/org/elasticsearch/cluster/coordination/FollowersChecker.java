@@ -35,6 +35,7 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportConnectionListener;
@@ -42,8 +43,8 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -299,14 +300,10 @@ public class FollowersChecker {
 
             transportService.sendRequest(discoveryNode, FOLLOWER_CHECK_ACTION_NAME, request,
                 TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
-                new TransportResponseHandler<Empty>() {
-                    @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
+                new DirectTransportResponseHandler.Empty() {
 
                     @Override
-                    public void handleResponse(Empty response) {
+                    public void handleResponse(TransportResponse.Empty response) {
                         if (running() == false) {
                             logger.trace("{} no longer running", FollowerChecker.this);
                             return;
@@ -344,12 +341,6 @@ public class FollowersChecker {
                         }
 
                         failNode(reason);
-                    }
-
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
                     }
                 });
         }

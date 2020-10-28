@@ -30,10 +30,10 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
@@ -50,7 +50,6 @@ import static org.elasticsearch.cluster.coordination.PreVoteCollector.REQUEST_PR
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.elasticsearch.threadpool.ThreadPool.Names.SAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -282,7 +281,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         final AtomicReference<TransportException> exceptionRef = new AtomicReference<>();
 
         transportService.sendRequest(localNode, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
-            new TransportResponseHandler<PreVoteResponse>() {
+            new DirectTransportResponseHandler<PreVoteResponse>() {
                 @Override
                 public PreVoteResponse read(StreamInput in) throws IOException {
                     return new PreVoteResponse(in);
@@ -296,11 +295,6 @@ public class PreVoteCollectorTests extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     exceptionRef.set(exp);
-                }
-
-                @Override
-                public String executor() {
-                    return SAME;
                 }
             });
 

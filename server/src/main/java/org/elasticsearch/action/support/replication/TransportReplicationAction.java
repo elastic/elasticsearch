@@ -71,11 +71,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -794,16 +794,11 @@ public abstract class TransportReplicationAction<
 
         private void performAction(final DiscoveryNode node, final String action, final boolean isPrimaryAction,
                                    final TransportRequest requestToPerform) {
-            transportService.sendRequest(node, action, requestToPerform, transportOptions, new TransportResponseHandler<Response>() {
+            transportService.sendRequest(node, action, requestToPerform, transportOptions, new DirectTransportResponseHandler<Response>() {
 
                 @Override
                 public Response read(StreamInput in) throws IOException {
                     return newResponseInstance(in);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
                 }
 
                 @Override

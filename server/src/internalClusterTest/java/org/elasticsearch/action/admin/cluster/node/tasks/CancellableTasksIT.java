@@ -54,8 +54,8 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
@@ -473,7 +473,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                         }
                     } else {
                         transportService.sendRequest(subRequest.node, ACTION.name(), subRequest,
-                            new TransportResponseHandler<TestResponse>() {
+                            new DirectTransportResponseHandler<TestResponse>() {
                                 @Override
                                 public void handleResponse(TestResponse response) {
                                     latchedListener.onResponse(response);
@@ -482,11 +482,6 @@ public class CancellableTasksIT extends ESIntegTestCase {
                                 @Override
                                 public void handleException(TransportException exp) {
                                     latchedListener.onFailure(exp);
-                                }
-
-                                @Override
-                                public String executor() {
-                                    return ThreadPool.Names.SAME;
                                 }
 
                                 @Override

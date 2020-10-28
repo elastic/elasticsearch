@@ -36,6 +36,7 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
@@ -45,7 +46,6 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -218,16 +218,10 @@ public class LeaderChecker {
 
             transportService.sendRequest(leader, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(transportService.getLocalNode()),
                 TransportRequestOptions.builder().withTimeout(leaderCheckTimeout).withType(Type.PING).build(),
-
-                new TransportResponseHandler<TransportResponse.Empty>() {
-
-                    @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
+                new DirectTransportResponseHandler.Empty() {
 
                     @Override
-                    public void handleResponse(Empty response) {
+                    public void handleResponse(TransportResponse.Empty response) {
                         if (isClosed.get()) {
                             logger.debug("closed check scheduler received a response, doing nothing");
                             return;
@@ -268,11 +262,6 @@ public class LeaderChecker {
                         logger.debug(new ParameterizedMessage("{} consecutive failures (limit [{}] is {}) with leader [{}]",
                             failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount, leader), exp);
                         scheduleNextWakeUp();
-                    }
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
                     }
                 });
         }

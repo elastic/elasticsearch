@@ -40,10 +40,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -177,15 +177,10 @@ public abstract class TransportBroadcastAction<
                         onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
                     } else {
                         transportService.sendRequest(node, transportShardAction, shardRequest,
-                            new TransportResponseHandler<ShardResponse>() {
+                            new DirectTransportResponseHandler<ShardResponse>() {
                                 @Override
                                 public ShardResponse read(StreamInput in) throws IOException {
                                     return readShardResponse(in);
-                                }
-
-                                @Override
-                                public String executor() {
-                                    return ThreadPool.Names.SAME;
                                 }
 
                                 @Override

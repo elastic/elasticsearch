@@ -19,8 +19,8 @@ You can configure <<index-lifecycle-management, {ilm}>> ({ilm-init}) policies
 to automatically transition your time series data through the hot, warm, and cold tiers 
 according to your performance, resiliency and data retention requirements. 
 
-You assign a node to one or more data tiers by setting its <<data-node, data role>> in `elasticsearch.yml`. 
-For example, you might assign your highest-performance nodes to both the hot and content tiers:
+A node's <<data-node, data role>> is configured in `elasticsearch.yml`. 
+For example, the highest-performance nodes in a cluster might be assigned to both the hot and content tiers:
 
 [source,yaml]
 --------------------------------------------------

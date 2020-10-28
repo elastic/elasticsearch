@@ -53,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
@@ -207,11 +208,11 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(Supplier<Set<String>> soucePaths, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService) {
+            return new SourceValueFetcher(soucePaths.get()) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;

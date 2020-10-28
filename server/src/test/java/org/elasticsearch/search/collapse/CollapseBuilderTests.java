@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -49,6 +48,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
@@ -209,7 +210,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 }
 
                 @Override
-                public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+                public ValueFetcher valueFetcher(Supplier<Set<String>> soucePaths, SearchLookup searchLookup, String format) {
                     throw new UnsupportedOperationException();
                 }
 

@@ -28,6 +28,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
+import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * A field mapper that records fields that have been ignored because they were malformed.
@@ -77,7 +79,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(Supplier<Set<String>> soucePaths, SearchLookup lookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
     }

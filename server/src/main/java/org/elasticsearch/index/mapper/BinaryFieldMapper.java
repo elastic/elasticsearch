@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteArrayDataOutput;
@@ -42,6 +43,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public class BinaryFieldMapper extends ParametrizedFieldMapper {
@@ -97,8 +99,8 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(Supplier<Set<String>> soucePaths, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), soucePaths.get(), format);
         }
 
         @Override

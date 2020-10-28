@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -24,6 +23,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * A {@link FieldMapper} for indexing a sparse vector of floats.
@@ -88,7 +89,7 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(Supplier<Set<String>> soucePaths, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
 
@@ -97,6 +98,7 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
 
+        
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);

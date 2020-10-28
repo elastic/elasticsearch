@@ -61,6 +61,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType.hasGaps;
@@ -264,8 +265,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.toString(name(), mapperService, format);
+        public ValueFetcher valueFetcher(Supplier<Set<String>> soucePaths, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.toString(name(), soucePaths.get(), format);
         }
 
         @Override
@@ -375,10 +376,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
-            // parent field in _source. So we don't need to use the parent field name here.
-            return SourceValueFetcher.toString(name(), mapperService, format);
+        public ValueFetcher valueFetcher(Supplier<Set<String>> soucePaths, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.toString(name(), soucePaths.get(), format);
         }
 
         @Override
@@ -481,10 +480,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
-            // parent field in _source. So we don't need to use the parent field name here.
-            return SourceValueFetcher.toString(name(), mapperService, format);
+        public ValueFetcher valueFetcher(Supplier<Set<String>> soucePaths, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.toString(name(), soucePaths.get(), format);
         }
 
         @Override

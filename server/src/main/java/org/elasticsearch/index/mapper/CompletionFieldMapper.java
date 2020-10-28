@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Mapper for completion field. The field values are indexed as a weighted FST for
@@ -306,12 +307,12 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(Supplier<Set<String>> soucePaths, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new ArraySourceValueFetcher(name(), mapperService) {
+            return new ArraySourceValueFetcher(soucePaths.get()) {
                 @Override
                 protected List<?> parseSourceValue(Object value) {
                     if (value instanceof List) {

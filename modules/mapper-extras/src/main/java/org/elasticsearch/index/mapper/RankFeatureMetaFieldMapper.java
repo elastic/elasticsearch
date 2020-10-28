@@ -24,6 +24,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
+import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * This meta field only exists because rank feature fields index everything into a
@@ -52,7 +54,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(Supplier<Set<String>> soucePaths, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
         }
 

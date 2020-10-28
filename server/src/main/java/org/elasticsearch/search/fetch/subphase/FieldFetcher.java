@@ -56,7 +56,7 @@ public class FieldFetcher {
                 if (ft == null || mapperService.isMetadataField(field)) {
                     continue;
                 }
-                ValueFetcher valueFetcher = ft.valueFetcher(mapperService, searchLookup, format);
+                ValueFetcher valueFetcher = ft.valueFetcher(() -> mapperService.sourcePath(ft.name()), searchLookup, format);
                 fieldContexts.add(new FieldContext(field, valueFetcher));
             }
         }

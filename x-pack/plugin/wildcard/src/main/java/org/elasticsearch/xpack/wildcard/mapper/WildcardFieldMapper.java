@@ -56,7 +56,6 @@ import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesFie
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -906,12 +905,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         }
 
          @Override
-         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+         public ValueFetcher valueFetcher(Supplier<Set<String>> soucePaths, SearchLookup searchLookup, String format) {
              if (format != null) {
                  throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
              }
 
-             return new SourceValueFetcher(name(), mapperService, nullValue) {
+             return new SourceValueFetcher(soucePaths.get(), nullValue) {
                  @Override
                  protected String parseSourceValue(Object value) {
                      String keywordValue = value.toString();

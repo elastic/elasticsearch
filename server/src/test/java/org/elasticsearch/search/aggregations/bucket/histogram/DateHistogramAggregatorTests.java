@@ -36,7 +36,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -55,7 +54,6 @@ import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.mock;
 
 public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
     /**
@@ -1212,13 +1210,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 );
             }
             try (IndexReader reader = indexWriter.getReader()) {
-                SearchContext context = createSearchContext(
-                    new IndexSearcher(reader),
-                    createIndexSettings(),
-                    new MatchAllDocsQuery(),
-                    mock(MultiBucketConsumer.class),
-                    ft
-                );
+                SearchContext context = createSearchContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft);
                 Aggregator agg = createAggregator(builder, context);
                 Matcher<Aggregator> matcher = instanceOf(DateHistogramAggregator.FromDateRange.class);
                 if (usesFromRange == false) {

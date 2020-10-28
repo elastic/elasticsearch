@@ -8,6 +8,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -29,31 +30,33 @@ public class MergedPointRangeQuery extends Query {
      * that matches points that match both filters.
      */
     public static Query merge(PointRangeQuery lhs, PointRangeQuery rhs) {
+        if (lhs.equals(rhs)) {
+            // Lucky case! The queries were the same so their UNION is just the query itself.
+            return lhs;
+        }
         if (lhs.getField() != rhs.getField() || lhs.getNumDims() != rhs.getNumDims() || lhs.getBytesPerDim() != rhs.getBytesPerDim()) {
             return null;
         }
-        Integer lowerCmp = compareAllDims(lhs.getLowerPoint(), rhs.getLowerPoint(), lhs.getNumDims(), lhs.getBytesPerDim());
-        if (lowerCmp == null) {
-            // Not all dimensions compared the same way.
-            return null;
+        int numDims = lhs.getNumDims();
+        int bytesPerDim = lhs.getBytesPerDim();
+        byte[] lower = mergeBound(lhs.getLowerPoint(), rhs.getLowerPoint(), numDims, bytesPerDim, true);
+        byte[] upper = mergeBound(lhs.getUpperPoint(), rhs.getUpperPoint(), numDims, bytesPerDim, false);
+
+        // If we ended up with disjoint ranges in any dimension then on single valued segments we can't match any docs.
+        for (int dim = 0; dim < numDims; dim++) {
+            int offset = dim * bytesPerDim;
+            if (compareUnsigned(lower, offset, offset + bytesPerDim, upper, offset, offset + bytesPerDim) > 0) {
+                return new MergedPointRangeQuery(lhs, rhs, new MatchNoDocsQuery("disjoint ranges"));
+            }
         }
-        Integer upperCmp = compareAllDims(lhs.getUpperPoint(), rhs.getUpperPoint(), lhs.getNumDims(), lhs.getBytesPerDim());
-        if (upperCmp == null) {
-            // Not all dimensions compared the same way.
-            return null;   // NOCOMMIT it shouldn't matter - we can just merge them anyway
-        }
-        if (lowerCmp == 1 && upperCmp == 1) {
-            // The points are the same.
-            return lhs;
-        }
-        byte[] lower = lowerCmp < 0 ? rhs.getLowerPoint() : lhs.getLowerPoint();
-        byte[] upper = upperCmp < 0 ? lhs.getUpperPoint() : rhs.getUpperPoint();
-        PointRangeQuery mostCompact = new PointRangeQuery(lhs.getField(), lower, upper, lhs.getNumDims()) {
+
+        // Otherwise on single valued segments we can only match docs the match the UNION of the two ranges.
+        PointRangeQuery delegateForSingleValuedSegments = new PointRangeQuery(lhs.getField(), lower, upper, lhs.getNumDims()) {
             @Override
             protected String toString(int dimension, byte[] value) {
                 // Stolen from Lucene's Binary range query. It'd be best to delegate, but the method isn't visible.
                 StringBuilder sb = new StringBuilder();
-                sb.append("binary(");
+                sb.append("(");
                 for (int i = 0; i < value.length; i++) {
                     if (i > 0) {
                         sb.append(' ');
@@ -64,17 +67,17 @@ public class MergedPointRangeQuery extends Query {
                 return sb.toString();
             }
         };
-        return new MergedPointRangeQuery(lhs, rhs, mostCompact);
+        return new MergedPointRangeQuery(lhs, rhs, delegateForSingleValuedSegments);
     }
 
     private final String field;
     private final BooleanQuery delegateForMultiValuedSegments;
-    private final PointRangeQuery mostCompactQuery;
+    private final Query delegateForSingleValuedSegments;
 
-    private MergedPointRangeQuery(PointRangeQuery lhs, PointRangeQuery rhs, PointRangeQuery mostCompactQuery) {
+    private MergedPointRangeQuery(PointRangeQuery lhs, PointRangeQuery rhs, Query delegateForSingleValuedSegments) {
         field = lhs.getField();
         delegateForMultiValuedSegments = new BooleanQuery.Builder().add(lhs, Occur.MUST).add(rhs, Occur.MUST).build();
-        this.mostCompactQuery = mostCompactQuery;
+        this.delegateForSingleValuedSegments = delegateForSingleValuedSegments;
     }
 
     @Override
@@ -111,7 +114,7 @@ public class MergedPointRangeQuery extends Query {
                 if (points.size() == points.getDocCount()) {
                     // Each doc that has points has exactly one point.
                     if (mostCompactWeight == null) {
-                        mostCompactWeight = mostCompactQuery.createWeight(searcher, scoreMode, boost);
+                        mostCompactWeight = delegateForSingleValuedSegments.createWeight(searcher, scoreMode, boost);
                     }
                     return mostCompactWeight.scorerSupplier(context);
                 }
@@ -136,9 +139,16 @@ public class MergedPointRangeQuery extends Query {
         };
     }
 
+    /**
+     * The query used when we have single valued segments.
+     */
+    Query delegateForSingleValuedSegments() {
+        return delegateForSingleValuedSegments;
+    }
+
     @Override
     public String toString(String field) {
-        return delegateForMultiValuedSegments.toString(field);
+         return "MergedPointRange[" + delegateForMultiValuedSegments.toString(field) + "]";
     }
 
     @Override
@@ -153,6 +163,17 @@ public class MergedPointRangeQuery extends Query {
     @Override
     public int hashCode() {
         return classHash() * 31 + delegateForMultiValuedSegments.hashCode();
+    }
+
+    private static byte[] mergeBound(byte[] lhs, byte[] rhs, int numDims, int bytesPerDim, boolean lower) {
+        byte[] merged = new byte[lhs.length];
+        for (int dim = 0; dim < numDims; dim++) {
+            int offset = dim * bytesPerDim;
+            boolean cmp = compareUnsigned(lhs, offset, offset + bytesPerDim, rhs, offset, offset + bytesPerDim) <= 0;
+            byte[] from = (cmp ^ lower) ? lhs : rhs;
+            System.arraycopy(from, offset, merged, offset, bytesPerDim);
+        }
+        return merged;
     }
 
     /**

@@ -300,7 +300,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         @Override
         protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
             if (filterWeights == null) {
-                filterWeights = buildWeights(context.query(), filters);
+                filterWeights = buildWeights(topLevelQuery(), filters);
             }
             Bits live = ctx.reader().getLiveDocs();
             for (int filterOrd = 0; filterOrd < filters.length; filterOrd++) {
@@ -402,7 +402,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         Weight[] weights = new Weight[filters.length];
         for (int i = 0; i < filters.length; ++i) {
             Query filter = filterMatchingBoth(topLevelQuery, filters[i]);
-            weights[i] = context.searcher().createWeight(context.searcher().rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1);
+            weights[i] = searcher().createWeight(searcher().rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1);
         }
         return weights;
     }

@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.aggregation.InternalAggregationProfileTree;
 
 import java.io.IOException;
@@ -74,11 +73,6 @@ public abstract class AdaptingAggregator extends Aggregator {
     @Override
     public final String name() {
         return delegate.name();
-    }
-
-    @Override
-    public final SearchContext context() {
-        return delegate.context();
     }
 
     @Override

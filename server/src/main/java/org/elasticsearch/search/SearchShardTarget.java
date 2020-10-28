@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,6 +43,8 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
     //no need to serialize them as part of SearchShardTarget.
     private final transient OriginalIndices originalIndices;
     private final String clusterAlias;
+    //shard routing is only needed in the coordinating node
+    private final ShardRouting shardRouting;
 
     public SearchShardTarget(StreamInput in) throws IOException {
         if (in.readBoolean()) {
@@ -52,13 +55,23 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         shardId = new ShardId(in);
         this.originalIndices = null;
         clusterAlias = in.readOptionalString();
+        this.shardRouting = null;
     }
 
     public SearchShardTarget(String nodeId, ShardId shardId, @Nullable String clusterAlias, OriginalIndices originalIndices) {
+        this(nodeId, shardId, clusterAlias, originalIndices, null);
+    }
+
+    public SearchShardTarget(String nodeId,
+                             ShardId shardId,
+                             @Nullable String clusterAlias,
+                             OriginalIndices originalIndices,
+                             @Nullable org.elasticsearch.cluster.routing.ShardRouting shardRouting) {
         this.nodeId = nodeId == null ? null : new Text(nodeId);
         this.shardId = shardId;
         this.originalIndices = originalIndices;
         this.clusterAlias = clusterAlias;
+        this.shardRouting = shardRouting;
     }
 
     @Nullable
@@ -76,6 +89,11 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     public ShardId getShardId() {
         return shardId;
+    }
+
+    @Nullable
+    public ShardRouting getShardRouting() {
+        return shardRouting;
     }
 
     public OriginalIndices getOriginalIndices() {

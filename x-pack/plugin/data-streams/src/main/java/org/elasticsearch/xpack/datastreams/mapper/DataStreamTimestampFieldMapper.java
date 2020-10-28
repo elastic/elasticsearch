@@ -76,7 +76,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder {
 
         private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, m -> toType(m).enabled, false)
-            // this field mapper may enabled but once enabled, may not be disabled
+            // this field mapper may be enabled but once enabled, may not be disabled
             .setMergeValidator((previous, current, conflicts) -> (previous == current) || (previous == false && current));
 
         public Builder() {

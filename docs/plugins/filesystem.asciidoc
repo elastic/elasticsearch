@@ -1,0 +1,16 @@
+[[filesystem]]
+== Filesystem Plugins
+
+Filesystem plugins modify how {es} interacts with the host filesystem.
+
+[discrete]
+=== Core filesystem plugins
+
+The core filesystem plugins are:
+
+<<quota-aware-fs,Quota-aware Filesystem>>::
+
+The Quota-aware Filesystem plugin adds an interface for telling Elasticsearch the disk-quota limits under which it is operating.
+
+include::quota-aware-fs.asciidoc[]
+

@@ -165,7 +165,7 @@ public class DestinationIndexTests extends ESTestCase {
         FieldCapabilitiesResponse fieldCapabilitiesResponse =
             new FieldCapabilitiesResponse(
                 new String[0],
-                new HashMap<>() {{
+                new HashMap<String, Map<String, FieldCapabilities>>() {{
                     put(NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
                     put(OUTER_FIELD + "." + INNER_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
                     put(ALIAS_TO_NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
@@ -311,7 +311,7 @@ public class DestinationIndexTests extends ESTestCase {
         FieldCapabilitiesResponse fieldCapabilitiesResponse =
             new FieldCapabilitiesResponse(
                 new String[0],
-                new HashMap<>() {{
+                new HashMap<String, Map<String, FieldCapabilities>>() {{
                     put(NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
                     put(OUTER_FIELD + "." + INNER_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
                     put(ALIAS_TO_NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));

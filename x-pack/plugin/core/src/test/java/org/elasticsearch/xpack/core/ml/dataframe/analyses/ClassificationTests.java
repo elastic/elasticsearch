@@ -380,9 +380,9 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testGetExplicitlyMappedFields_DependentVariableMappingIsPresent() {
-        Map<String, Object> expectedTopClassesMapping = new HashMap<>() {{
+        Map<String, Object> expectedTopClassesMapping = new HashMap<String, Object>() {{
             put("type", "nested");
-            put("properties", new HashMap<>() {{
+            put("properties", new HashMap<String, Object>() {{
                 put("class_name", singletonMap("type", "dummy"));
                 put("class_probability", singletonMap("type", "double"));
             }});

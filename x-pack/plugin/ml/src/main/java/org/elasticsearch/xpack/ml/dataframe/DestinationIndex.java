@@ -180,7 +180,7 @@ public final class DestinationIndex {
         Map<String, Object> mappingsAsMap = mappings.valuesIt().next().sourceAsMap();
         Map<String, Object> properties = getOrPutDefault(mappingsAsMap, PROPERTIES, HashMap::new);
         checkResultsFieldIsNotPresentInProperties(config, properties);
-        properties.putAll(createAdditionalMappings(config, Collections.unmodifiableMap(properties), fieldCapabilitiesResponse));
+        properties.putAll(createAdditionalMappings(config, fieldCapabilitiesResponse));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
         metadata.putAll(createMetadata(config.getId(), clock, Version.CURRENT));
         return new CreateIndexRequest(destinationIndex, settings).mapping(type, mappingsAsMap);
@@ -292,7 +292,6 @@ public final class DestinationIndex {
             new FieldCapabilitiesRequest()
                 .indices(config.getSource().getIndex())
                 .fields(requiredFields.stream().map(RequiredField::getName).toArray(String[]::new));
->>>>>>> 8f4a2025361... [ML] Extract dependent variable's mapping correctly in case of a multi-field (#63813)
         ClientHelper.executeWithHeadersAsync(
             config.getHeaders(),
             ML_ORIGIN,

@@ -212,7 +212,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             assertThat(authnRealm.getType(), is("pki"));
             assertThat(resp.getAuthenticationType(), is("token"));
             // invalidate
-            InvalidateTokenRequest invalidateRequest = new InvalidateTokenRequest(token, null, null, null);
+            InvalidateTokenRequest invalidateRequest = InvalidateTokenRequest.accessToken(token);
             optionsBuilder = RequestOptions.DEFAULT.toBuilder();
             optionsBuilder.addHeader("Authorization",
                     basicAuthHeaderValue(delegateeUsername, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));

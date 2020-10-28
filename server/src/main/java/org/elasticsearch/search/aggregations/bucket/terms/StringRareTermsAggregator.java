@@ -76,7 +76,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         );
         this.valuesSource = valuesSource;
         this.filter = filter;
-        this.bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        this.bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     @Override
@@ -130,7 +130,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         Arrays.fill(mergeMap, -1);
         long offset = 0;
         for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
-            try (BytesRefHash bucketsInThisOwningBucketToCollect = new BytesRefHash(1, context.bigArrays())) {
+            try (BytesRefHash bucketsInThisOwningBucketToCollect = new BytesRefHash(1, bigArrays())) {
                 filters[owningOrdIdx] = newFilter();
                 List<StringRareTerms.Bucket> builtBuckets = new ArrayList<>();
                 BytesKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds[owningOrdIdx]);

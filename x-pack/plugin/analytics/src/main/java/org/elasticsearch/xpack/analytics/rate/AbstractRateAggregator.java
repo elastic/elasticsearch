@@ -45,8 +45,8 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         this.valuesSource = valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
         if (valuesSource != null) {
-            sums = context.bigArrays().newDoubleArray(1, true);
-            compensations = context.bigArrays().newDoubleArray(1, true);
+            sums = bigArrays().newDoubleArray(1, true);
+            compensations = bigArrays().newDoubleArray(1, true);
             if (rateMode == null) {
                 rateMode = RateMode.SUM;
             }

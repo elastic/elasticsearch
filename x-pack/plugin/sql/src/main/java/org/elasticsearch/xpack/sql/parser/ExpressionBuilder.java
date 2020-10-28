@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Booleans;
@@ -778,36 +777,14 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         return params.get(token);
     }
 
-    private SqlParser.SqlParameter paramFast(ParserRuleContext ctx) {
+    private SqlParser.SqlParameter param(ParserRuleContext ctx) {
         if (!ctx.getStart().equals(ctx.getStop())) {
             throw new ParsingException(source(ctx), "Single PARAM literal expected");
         }
-        SqlParser.SqlParameter sqlParam = params.get(ctx.getStart());
-        if (sqlParam == null) {
+        if (params.containsKey(ctx.getStart()) == false) {
             throw new ParsingException(source(ctx), "Unexpected parameter");
         }
-        return sqlParam;
-    }
-
-    private SqlParser.SqlParameter param(ParserRuleContext ctx) {
-        TerminalNode paramNode = ctx.accept(new AbstractParseTreeVisitor<>() {
-            @Override
-            public TerminalNode visitTerminal(TerminalNode node) {
-                return node.getSymbol().getType() == SqlBaseParser.PARAM ? node : null;
-            }
-
-            @Override
-            protected TerminalNode aggregateResult(TerminalNode aggregate, TerminalNode nextResult) {
-                if (nextResult != null) {
-                    if (aggregate != null) {
-                        throw new ParsingException(source(ctx), "Expression contains more than one PARAM literals");
-                    }
-                    return nextResult;
-                }
-                return aggregate;
-            }
-        });
-        return param(paramNode);
+        return params.get(ctx.getStart());
     }
 
     @Override

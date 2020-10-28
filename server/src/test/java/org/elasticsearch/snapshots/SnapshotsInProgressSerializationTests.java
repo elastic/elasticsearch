@@ -86,7 +86,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         List<SnapshotFeatureInfo> featureStates = randomList(5, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo);
         ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
         return new Entry(snapshot, includeGlobalState, partial, randomState(shards), indices, dataStreams, featureStates,
-                repositoryStateId, shards, null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()), startTime);
+            startTime, repositoryStateId, shards, null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
     }
 
     @Override
@@ -153,38 +153,40 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
     }
 
     private Entry mutateEntry(Entry entry) {
-        switch (randomInt(7)) {
+        switch (randomInt(8)) {
             case 0:
                 boolean includeGlobalState = !entry.includeGlobalState();
                 return new Entry(entry.snapshot(), includeGlobalState, entry.partial(), entry.state(), entry.indices(), entry.dataStreams(),
-                    entry.startTime(), entry.repositoryStateId(), entry.shards(), entry.failure(), entry.userMetadata(), entry.version());
+                    entry.featureStates(), entry.repositoryStateId(), entry.startTime(), entry.shards(), entry.failure(),
+                    entry.userMetadata(), entry.version());
             case 1:
                 boolean partial = !entry.partial();
                 return new Entry(entry.snapshot(), entry.includeGlobalState(), partial, entry.state(), entry.indices(), entry.dataStreams(),
-                    entry.startTime(), entry.repositoryStateId(), entry.shards(), entry.failure(), entry.userMetadata(), entry.version());
+                    entry.featureStates(), entry.startTime(), entry.repositoryStateId(), entry.shards(), entry.failure(),
+                    entry.userMetadata(), entry.version());
             case 2:
                 List<String> dataStreams = Stream.concat(
                     entry.dataStreams().stream(),
                     Stream.of(randomAlphaOfLength(10)))
                     .collect(Collectors.toList());
                 return new Entry(entry.snapshot(), entry.includeGlobalState(), entry.partial(), entry.state(), entry.indices(),
-                    dataStreams, entry.startTime(), entry.repositoryStateId(), entry.shards(), entry.failure(), entry.userMetadata(),
-                    entry.version());
+                    dataStreams, entry.featureStates(), entry.startTime(), entry.repositoryStateId(), entry.shards(), entry.failure(),
+                    entry.userMetadata(), entry.version());
             case 3:
                 long startTime = randomValueOtherThan(entry.startTime(), ESTestCase::randomLong);
                 return new Entry(entry.snapshot(), entry.includeGlobalState(), entry.partial(), entry.state(), entry.indices(),
-                    entry.dataStreams(), startTime, entry.repositoryStateId(), entry.shards(), entry.failure(), entry.userMetadata(),
-                    entry.version());
+                    entry.dataStreams(), entry.featureStates(), startTime, entry.repositoryStateId(), entry.shards(), entry.failure(),
+                    entry.userMetadata(), entry.version());
             case 4:
                 long repositoryStateId = randomValueOtherThan(entry.startTime(), ESTestCase::randomLong);
                 return new Entry(entry.snapshot(), entry.includeGlobalState(), entry.partial(), entry.state(), entry.indices(),
-                    entry.dataStreams(), entry.startTime(), repositoryStateId, entry.shards(), entry.failure(), entry.userMetadata(),
-                    entry.version());
+                    entry.dataStreams(), entry.featureStates(), entry.startTime(), repositoryStateId, entry.shards(), entry.failure(),
+                    entry.userMetadata(), entry.version());
             case 5:
                 String failure = randomValueOtherThan(entry.failure(), () -> randomAlphaOfLengthBetween(2, 10));
                 return new Entry(entry.snapshot(), entry.includeGlobalState(), entry.partial(), entry.state(), entry.indices(),
-                    entry.dataStreams(), entry.startTime(), entry.repositoryStateId(), entry.shards(), failure, entry.userMetadata(),
-                    entry.version());
+                    entry.dataStreams(), entry.featureStates(), entry.startTime(), entry.repositoryStateId(), entry.shards(), failure,
+                    entry.userMetadata(), entry.version());
             case 6:
                 List<IndexId> indices = entry.indices();
                 ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = entry.shards();
@@ -204,8 +206,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                 }
                 shards = builder.build();
                 return new Entry(entry.snapshot(), entry.includeGlobalState(), entry.partial(), randomState(shards), indices,
-                    entry.dataStreams(), entry.startTime(), entry.repositoryStateId(), shards, entry.failure(), entry.userMetadata(),
-                    entry.version());
+                    entry.dataStreams(), entry.featureStates(), entry.startTime(), entry.repositoryStateId(), shards, entry.failure(),
+                    entry.userMetadata(), entry.version());
             case 7:
                 Map<String, Object> userMetadata = entry.userMetadata() != null ? new HashMap<>(entry.userMetadata()) : new HashMap<>();
                 String key = randomAlphaOfLengthBetween(2, 10);
@@ -215,8 +217,17 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     userMetadata.put(key, randomAlphaOfLengthBetween(2, 10));
                 }
                 return new Entry(entry.snapshot(), entry.includeGlobalState(), entry.partial(), entry.state(), entry.indices(),
-                    entry.dataStreams(), entry.startTime(), entry.repositoryStateId(), entry.shards(), entry.failure(), userMetadata,
-                    entry.version());
+                    entry.dataStreams(), entry.featureStates(), entry.startTime(), entry.repositoryStateId(), entry.shards(),
+                    entry.failure(), userMetadata, entry.version());
+            case 8:
+                logger.error("randomizing feature states");
+                List<SnapshotFeatureInfo> featureStates = randomList(1, 5,
+                    () -> randomValueOtherThanMany(entry.featureStates()::contains, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo));
+                final Entry newEntry = new Entry(entry.snapshot(), entry.includeGlobalState(), entry.partial(), entry.state(),
+                    entry.indices(),
+                    entry.dataStreams(), featureStates, entry.startTime(), entry.repositoryStateId(), entry.shards(), entry.failure(),
+                    entry.userMetadata(), entry.version());
+                return newEntry;
             default:
                 throw new IllegalArgumentException("invalid randomization case");
         }

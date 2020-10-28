@@ -116,12 +116,12 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             Collections.emptyList(),
             List.of(dataStreamName),
             Collections.emptyList(),
+            0,
             1,
             ImmutableOpenMap.of(),
             null,
             null,
-            null,
-            0
+            null
         );
     }
 

@@ -251,7 +251,7 @@ public final class TransportPutFollowAction
             // The data stream and the backing indices have been created and validated in the remote cluster,
             // just copying the data stream is in this case safe.
             return new DataStream(remoteDataStream.getName(), remoteDataStream.getTimeStampField(),
-                List.of(backingIndexToFollow), remoteDataStream.getGeneration());
+                List.of(backingIndexToFollow), remoteDataStream.getGeneration(), remoteDataStream.getMetadata());
         } else {
             List<Index> backingIndices = new ArrayList<>(localDataStream.getIndices());
             backingIndices.add(backingIndexToFollow);
@@ -263,7 +263,7 @@ public final class TransportPutFollowAction
             backingIndices.sort(Comparator.comparing(Index::getName));
 
             return new DataStream(localDataStream.getName(), localDataStream.getTimeStampField(), backingIndices,
-                remoteDataStream.getGeneration());
+                remoteDataStream.getGeneration(), remoteDataStream.getMetadata());
         }
     }
 

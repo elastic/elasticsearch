@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -83,7 +84,7 @@ public class TransportPutFollowActionTests extends ESTestCase {
         List<Index> backingIndices = Arrays.stream(backingIndexNames)
             .map(value -> new Index(value, "uuid"))
             .collect(Collectors.toList());
-        return new DataStream(name, new TimestampField("@timestamp"), backingIndices, generation);
+        return new DataStream(name, new TimestampField("@timestamp"), backingIndices, generation, Map.of());
     }
 
 }

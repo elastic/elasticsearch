@@ -74,7 +74,7 @@ project {
 
         triggers {
             vcs {
-                branchFilter = "+:*"
+                branchFilter = "+:pull/*"
             }
         }
 

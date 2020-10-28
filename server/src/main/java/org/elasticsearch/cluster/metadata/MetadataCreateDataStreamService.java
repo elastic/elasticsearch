@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -191,7 +192,9 @@ public class MetadataCreateDataStreamService {
         DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1L,
                                                   template.metadata() != null ? Map.copyOf(template.metadata()) : null);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
-        logger.info("adding data stream [{}]", dataStreamName);
+        logger.info("adding data stream [{}] with write index [{}] and backing indices [{}]", dataStreamName,
+            writeIndex.getIndex().getName(),
+            Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()));
         return ClusterState.builder(currentState).metadata(builder).build();
     }
 

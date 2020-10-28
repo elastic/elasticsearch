@@ -15,8 +15,8 @@ import java.util.Map;
 class AstBuilder extends CommandBuilder {
     /**
      * Create AST Builder
-     * @param params a map between '?' tokens that represent parameters and the
-     *               zero-based index of the parameter and the value
+     * @param params a map between '?' tokens that represent parameters
+     *               and the parameter indexes and values
      * @param zoneId user specified timezone in the session
      */
     AstBuilder(Map<Token, SqlParser.SqlParameter> params, ZoneId zoneId) {

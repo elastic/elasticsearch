@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.main.MainAction;

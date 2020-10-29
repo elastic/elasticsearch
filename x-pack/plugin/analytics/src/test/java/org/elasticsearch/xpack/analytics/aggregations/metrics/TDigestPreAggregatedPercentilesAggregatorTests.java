@@ -128,7 +128,6 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
                 Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
                 verify.accept((InternalTDigestPercentiles) aggregator.buildTopLevel());
 
             }

@@ -219,7 +219,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 // on the underlying transport. It's unclear if we need this here at all after moving to async execution but
                 // the issues that a missing call to this could cause are sneaky and hard to debug. If we don't need it on this
                 // call we can potentially remove it altogether which we should do it in a major release only with enough
-                // time to test. This shoudl be done for 7.0 if possible
+                // time to test. This should be done for 7.0 if possible
                 transportService.sendRequest(startRequest.sourceNode(), actionName, requestToSend, responseHandler)
             );
         } catch (CancellableThreads.ExecutionCancelledException e) {
@@ -485,6 +485,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         return createOrFinishListener(recoveryRef, channel, action, request, nullVal -> TransportResponse.Empty.INSTANCE);
     }
 
+    @Nullable
     private ActionListener<Void> createOrFinishListener(final RecoveryRef recoveryRef, final TransportChannel channel,
                                                         final String action, final RecoveryTransportRequest request,
                                                         final CheckedFunction<Void, TransportResponse, Exception> responseFn) {

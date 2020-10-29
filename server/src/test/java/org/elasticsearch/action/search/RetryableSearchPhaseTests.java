@@ -912,8 +912,8 @@ public class RetryableSearchPhaseTests extends ESTestCase {
         }
 
         private NetworkRequest<Response> waitForRequestForNode(String nodeId) throws Exception {
-            NetworkRequest<Response> networkRequest = pendingRequests.poll(10, TimeUnit.SECONDS);
-            assertNotNull("Unable to get a request to " + nodeId + " after 10 seconds", networkRequest);
+            NetworkRequest<Response> networkRequest = pendingRequests.poll(15, TimeUnit.SECONDS);
+            assertNotNull("Unable to get a request to " + nodeId + " after 15 seconds", networkRequest);
             assertThat(networkRequest.getSenderNodeId(), equalTo(nodeId));
             return networkRequest;
         }

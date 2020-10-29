@@ -17,7 +17,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 
 import java.io.IOException;
@@ -66,12 +66,26 @@ public final class GeoShapeBoundsAggregator extends MetricsAggregator {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final MultiGeoShapeValues values = valuesSource.geoShapeValues(ctx);
+        final GeoShapeValues values = valuesSource.geoShapeValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
+                if (values.advanceExact(doc)) {
+                    maybeResize(bucket);
+                    final GeoShapeValues.GeoShapeValue value = values.value();
+                    final GeoShapeValues.BoundingBox bounds = value.boundingBox();
+                    tops.set(bucket, Math.max(tops.get(bucket), bounds.top));
+                    bottoms.set(bucket, Math.min(bottoms.get(bucket), bounds.bottom));
+                    posLefts.set(bucket, Math.min(posLefts.get(bucket), bounds.posLeft));
+                    posRights.set(bucket, Math.max(posRights.get(bucket), bounds.posRight));
+                    negLefts.set(bucket, Math.min(negLefts.get(bucket), bounds.negLeft));
+                    negRights.set(bucket, Math.max(negRights.get(bucket), bounds.negRight));
+                }
+            }
+
+            private void maybeResize(long bucket) {
                 if (bucket >= tops.size()) {
-                    long from = tops.size();
+                    final long from = tops.size();
                     tops = bigArrays().grow(tops, bucket + 1);
                     tops.fill(from, tops.size(), Double.NEGATIVE_INFINITY);
                     bottoms = bigArrays().resize(bottoms, tops.size());
@@ -85,31 +99,9 @@ public final class GeoShapeBoundsAggregator extends MetricsAggregator {
                     negRights = bigArrays().resize(negRights, tops.size());
                     negRights.fill(from, negRights.size(), Double.NEGATIVE_INFINITY);
                 }
-
-                if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
-
-                    for (int i = 0; i < valuesCount; ++i) {
-                        MultiGeoShapeValues.GeoShapeValue value = values.nextValue();
-                        MultiGeoShapeValues.BoundingBox bounds = value.boundingBox();
-                        double top = Math.max(tops.get(bucket), bounds.top);
-                        double bottom = Math.min(bottoms.get(bucket), bounds.bottom);
-                        double posLeft = Math.min(posLefts.get(bucket), bounds.posLeft);
-                        double posRight = Math.max(posRights.get(bucket), bounds.posRight);
-                        double negLeft = Math.min(negLefts.get(bucket), bounds.negLeft);
-                        double negRight = Math.max(negRights.get(bucket), bounds.negRight);
-                        tops.set(bucket, top);
-                        bottoms.set(bucket, bottom);
-                        posLefts.set(bucket, posLeft);
-                        posRights.set(bucket, posRight);
-                        negLefts.set(bucket, negLeft);
-                        negRights.set(bucket, negRight);
-                    }
-                }
             }
         };
     }
-
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {

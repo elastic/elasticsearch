@@ -302,6 +302,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             }
             Bits live = ctx.reader().getLiveDocs();
             for (int filterOrd = 0; filterOrd < filters.length; filterOrd++) {
+                int count = 0;
                 Scorer scorer = filterWeights[filterOrd].scorer(ctx);
                 if (scorer == null) {
                     // the filter doesn't match any docs
@@ -310,16 +311,19 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                 DocIdSetIterator itr = scorer.iterator();
                 if (live == null) {
                     while (itr.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        collectBucket(sub, itr.docID(), filterOrd);
+                        // There aren't any children so we don't have to call `collectBucket` and we can just count instead
+                        count++;
                     }
                 } else {
                     segmentsWithDeletedDocs++;
                     while (itr.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         if (live.get(itr.docID())) {
-                            collectBucket(sub, itr.docID(), filterOrd);
+                            // There aren't any children so we don't have to call `collectBucket` and we can just count instead
+                            count++;
                         }
                     }
                 }
+                incrementBucketDocCount(filterOrd, count);
             }
             // Throwing this exception is how we communicate to the collection mechanism that we don't need the segment.
             throw new CollectionTerminatedException();

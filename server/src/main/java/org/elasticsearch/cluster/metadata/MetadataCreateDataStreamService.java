@@ -33,10 +33,12 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.rest.RestStatus;
@@ -46,7 +48,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 public class MetadataCreateDataStreamService {
 
@@ -120,49 +124,77 @@ public class MetadataCreateDataStreamService {
 
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                          ClusterState currentState,
-                                         CreateDataStreamClusterStateUpdateRequest request)
-        throws Exception {
-        if (currentState.metadata().dataStreams().containsKey(request.name)) {
-            throw new ResourceAlreadyExistsException("data_stream [" + request.name + "] already exists");
+                                         CreateDataStreamClusterStateUpdateRequest request) throws Exception {
+        return createDataStream(metadataCreateIndexService, currentState, request.name, List.of(), null);
+    }
+
+    /**
+     * Creates a data stream with the specified properties.
+     *
+     * @param metadataCreateIndexService Used if a new write index must be created
+     * @param currentState               Cluster state
+     * @param dataStreamName             Name of the data stream
+     * @param backingIndices             List of backing indices. May be empty
+     * @param writeIndex                 Write index for the data stream. If null, a new write index will be created.
+     * @return                           Cluster state containing the new data stream
+     */
+    static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
+                                         ClusterState currentState,
+                                         String dataStreamName,
+                                         List<IndexMetadata> backingIndices,
+                                         IndexMetadata writeIndex) throws Exception
+    {
+        if (writeIndex == null) {
+            Objects.requireNonNull(metadataCreateIndexService);
+        }
+        Objects.requireNonNull(currentState);
+        Objects.requireNonNull(backingIndices);
+        if (currentState.metadata().dataStreams().containsKey(dataStreamName)) {
+            throw new ResourceAlreadyExistsException("data_stream [" + dataStreamName + "] already exists");
         }
 
-        MetadataCreateIndexService.validateIndexOrAliasName(request.name,
+        MetadataCreateIndexService.validateIndexOrAliasName(dataStreamName,
             (s1, s2) -> new IllegalArgumentException("data_stream [" + s1 + "] " + s2));
 
-        if (request.name.toLowerCase(Locale.ROOT).equals(request.name) == false) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] must be lowercase");
+        if (dataStreamName.toLowerCase(Locale.ROOT).equals(dataStreamName) == false) {
+            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must be lowercase");
         }
-        if (request.name.startsWith(".")) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
+        if (dataStreamName.startsWith(".")) {
+            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must not start with '.'");
         }
 
-        ComposableIndexTemplate template = lookupTemplateForDataStream(request.name, currentState.metadata());
+        ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
-        String firstBackingIndexName = DataStream.getDefaultBackingIndexName(request.name, 1);
-        CreateIndexClusterStateUpdateRequest createIndexRequest =
-            new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
-                .dataStreamName(request.name)
-                .settings(Settings.builder().put("index.hidden", true).build());
-        try {
-            currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
-        } catch (ResourceAlreadyExistsException e) {
-            // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
-            // auto index/data stream creation.
-            // (otherwise bulk execution fails later, because data stream will also not have been created)
-            throw new ElasticsearchStatusException("data stream could not be created because backing index [{}] already exists",
-                RestStatus.BAD_REQUEST, e, firstBackingIndexName);
+        if (writeIndex == null) {
+            String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            CreateIndexClusterStateUpdateRequest createIndexRequest =
+                new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
+                    .dataStreamName(dataStreamName)
+                    .settings(Settings.builder().put("index.hidden", true).build());
+            try {
+                currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
+            } catch (ResourceAlreadyExistsException e) {
+                // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
+                // auto index/data stream creation.
+                // (otherwise bulk execution fails later, because data stream will also not have been created)
+                throw new ElasticsearchStatusException("data stream could not be created because backing index [{}] already exists",
+                    RestStatus.BAD_REQUEST, e, firstBackingIndexName);
+            }
+            writeIndex = currentState.metadata().index(firstBackingIndexName);
         }
-        IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
-        assert firstBackingIndex != null;
-        assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";
+        assert writeIndex != null;
+        assert writeIndex.mapping() != null : "no mapping found for backing index [" + writeIndex.getIndex().getName() + "]";
 
         String fieldName = template.getDataStreamTemplate().getTimestampField();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
-        DataStream newDataStream =
-            new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()), 1L,
-                template.metadata() != null ? Map.copyOf(template.metadata()) : null);
+        List<Index> dsBackingIndices = backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList());
+        dsBackingIndices.add(writeIndex.getIndex());
+        DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1L,
+                                                  template.metadata() != null ? Map.copyOf(template.metadata()) : null);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
-        logger.info("adding data stream [{}]", request.name);
+        logger.info("adding data stream [{}] with write index [{}] and backing indices [{}]", dataStreamName,
+            writeIndex.getIndex().getName(),
+            Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()));
         return ClusterState.builder(currentState).metadata(builder).build();
     }
 

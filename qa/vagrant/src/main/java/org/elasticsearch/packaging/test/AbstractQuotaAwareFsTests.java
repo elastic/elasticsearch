@@ -22,9 +22,13 @@ package org.elasticsearch.packaging.test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Archives;
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.nio.file.Files;
@@ -32,14 +36,19 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Locale;
 
+import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
+import static org.elasticsearch.packaging.util.Archives.installArchive;
+import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
+import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assume.assumeTrue;
 
 /**
  * Check that the quota-aware filesystem plugin can be installed, and that it operates as expected.
  */
-public class QuotaAwareFsTests extends PackagingTestCase {
+public abstract class AbstractQuotaAwareFsTests extends PackagingTestCase {
 
     // private static final String QUOTA_AWARE_FS_PLUGIN_NAME = "quota-aware-fs";
     private static final Path QUOTA_AWARE_FS_PLUGIN;
@@ -49,28 +58,39 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         QUOTA_AWARE_FS_PLUGIN = Paths.get(System.getProperty("tests.quota-aware-fs-plugin"));
     }
 
+    private Shell sh;
+
     @BeforeClass
-    public static void filterDistros() {
-        assumeTrue("only archives", distribution.isArchive());
+    public static void setupSuite() throws Exception {
+        cleanEverything();
+    }
+
+    @Before
+    public void setupTest() {
+        assumeTrue("only compatible distributions", distribution().packaging.compatible);
+        sh = new Shell();
     }
 
     @After
     public void teardown() throws Exception {
-        super.teardown();
-        cleanup();
+        cleanEverything();
     }
+
+    /** The {@link Distribution} that should be tested in this case */
+    protected abstract Distribution distribution();
 
     /**
      * Check that when the plugin is installed but the system property for passing the location of the related
      * properties file is omitted, then Elasticsearch exits with the expected error message.
      */
     public void test10ElasticsearchRequiresSystemPropertyToBeSet() throws Exception {
-        install();
+        Installation installation = installArchive(distribution());
+        final Installation.Executables bin = installation.executables();
 
-        installation.executables().pluginTool.run("install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
+        sh.run(bin.elasticsearchPlugin + " install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
 
         // Without setting the `es.fs.quota.file` property, ES should exit with a failure code.
-        final Shell.Result result = runElasticsearchStartCommand(null, false, false);
+        final Shell.Result result = sh.run("sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch);
 
         assertThat("Elasticsearch should have terminated unsuccessfully", result.isSuccess(), equalTo(false));
         assertThat(
@@ -84,16 +104,17 @@ public class QuotaAwareFsTests extends PackagingTestCase {
      * properties file contains a non-existent URI, then Elasticsearch exits with the expected error message.
      */
     public void test20ElasticsearchRejectsNonExistentPropertiesLocation() throws Exception {
-        install();
+        Installation installation = installArchive(distribution());
+        final Installation.Executables bin = installation.executables();
 
-        installation.executables().pluginTool.run("install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
+        sh.run(bin.elasticsearchPlugin + " install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
 
         sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=file:///this/does/not/exist.properties");
 
-        final Shell.Result result = runElasticsearchStartCommand(null, false, false);
+        final Shell.Result result = sh.run("sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch);
 
         // Generate a Path for this location so that the platform-specific line-endings will be used.
-        final String platformPath = Path.of("/this/does/not/exist.properties").toString();
+        final String platformPath = Paths.get("/this/does/not/exist.properties").toString();
 
         assertThat("Elasticsearch should have terminated unsuccessfully", result.isSuccess(), equalTo(false));
         assertThat(result.stderr, containsString("NoSuchFileException: " + platformPath));
@@ -104,20 +125,21 @@ public class QuotaAwareFsTests extends PackagingTestCase {
      * Elasticsearch polls the file for changes.
      */
     public void test30ElasticsearchStartsWhenSystemPropertySet() throws Exception {
-        install();
+        Installation installation = installArchive(distribution());
+        final Installation.Executables bin = installation.executables();
+
+        sh.run(bin.elasticsearchPlugin + " install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
 
         int total = 20 * 1024 * 1024;
         int available = 10 * 1024 * 1024;
 
-        installation.executables().pluginTool.run("install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
-
-        final Path quotaPath = getRootTempDir().resolve("quota.properties");
+        final Path quotaPath = getTempDir().resolve("quota.properties");
         Files.writeString(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", total, available));
 
         sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=" + quotaPath.toUri());
 
         try {
-            startElasticsearch();
+            Archives.runElasticsearch(installation);
 
             final Totals actualTotals = fetchFilesystemTotals();
 
@@ -139,7 +161,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
             assertThat(updatedActualTotals.totalInBytes, equalTo(updatedTotal));
             assertThat(updatedActualTotals.availableInBytes, equalTo(updatedAvailable));
         } finally {
-            stopElasticsearch();
+            Archives.stopElasticsearch(installation);
             Files.deleteIfExists(quotaPath);
         }
     }

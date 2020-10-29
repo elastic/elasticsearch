@@ -444,7 +444,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
-    public void testForceMergeAction() throws Exception {
+    public void forceMergeActionWithCodec(String codec) throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
@@ -455,7 +455,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         assertThat(getNumberOfSegments(client(), index), greaterThan(1));
-        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null));
+        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, codec));
         updatePolicy(index, policy);
 
         assertBusy(() -> {
@@ -465,6 +465,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
+    }
+
+    public void testForceMergeAction() throws Exception {
+        forceMergeActionWithCodec(null);
     }
 
     public void testShrinkAction() throws Exception {

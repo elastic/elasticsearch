@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -44,6 +46,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -359,56 +362,38 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(constraints.get(0).getUpperBound(), equalTo(30L));
     }
 
-    public void testGetExplicitlyMappedFields() {
-        assertThat(new Classification("foo").getExplicitlyMappedFields(null, "results"),
-            equalTo(Collections.singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
-        assertThat(new Classification("foo").getExplicitlyMappedFields(Collections.emptyMap(), "results"),
-            equalTo(Collections.singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
-        assertThat(
-            new Classification("foo").getExplicitlyMappedFields(Collections.singletonMap("foo", "not_a_map"), "results"),
-            equalTo(Collections.singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
+    public void testGetExplicitlyMappedFields_DependentVariableMappingIsAbsent() {
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(new String[0], Collections.emptyMap());
+        Map<String, Object> explicitlyMappedFields =
+            new Classification("foo").getExplicitlyMappedFields("results", fieldCapabilitiesResponse);
+        assertThat(explicitlyMappedFields, equalTo(singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
+    }
+
+    public void testGetExplicitlyMappedFields_DependentVariableMappingHasNoTypes() {
+        FieldCapabilitiesResponse fieldCapabilitiesResponse =
+            new FieldCapabilitiesResponse(new String[0], Collections.singletonMap("foo", Collections.emptyMap()));
+        Map<String, Object> explicitlyMappedFields =
+            new Classification("foo").getExplicitlyMappedFields("results", fieldCapabilitiesResponse);
+        assertThat(explicitlyMappedFields, equalTo(singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
+    }
+
+    public void testGetExplicitlyMappedFields_DependentVariableMappingIsPresent() {
         Map<String, Object> expectedTopClassesMapping = new HashMap<>() {{
             put("type", "nested");
             put("properties", new HashMap<>() {{
-                put("class_name", Collections.singletonMap("bar", "baz"));
-                put("class_probability", Collections.singletonMap("type", "double"));
+                put("class_name", singletonMap("type", "dummy"));
+                put("class_probability", singletonMap("type", "double"));
             }});
         }};
-        Map<String, Object> explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
-            Collections.singletonMap("foo", Collections.singletonMap("bar", "baz")),
-            "results");
-        assertThat(explicitlyMappedFields, hasEntry("results.foo_prediction", Collections.singletonMap("bar", "baz")));
+        FieldCapabilitiesResponse fieldCapabilitiesResponse =
+            new FieldCapabilitiesResponse(
+                new String[0],
+                Collections.singletonMap("foo", Collections.singletonMap("dummy", createFieldCapabilities("foo", "dummy"))));
+        Map<String, Object> explicitlyMappedFields =
+            new Classification("foo").getExplicitlyMappedFields("results", fieldCapabilitiesResponse);
+        assertThat(explicitlyMappedFields, hasEntry("results.foo_prediction", singletonMap("type", "dummy")));
         assertThat(explicitlyMappedFields, hasEntry("results.top_classes", expectedTopClassesMapping));
         assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING));
-
-        expectedTopClassesMapping = new HashMap<>() {{
-            put("type", "nested");
-            put("properties", new HashMap<>() {{
-                put("class_name", Collections.singletonMap("type", "long"));
-                put("class_probability", Collections.singletonMap("type", "double"));
-            }});
-        }};
-        explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
-            new HashMap<>() {{
-                put("foo", new HashMap<>() {{
-                    put("type", "alias");
-                    put("path", "bar");
-                }});
-                put("bar", Collections.singletonMap("type", "long"));
-            }},
-            "results");
-        assertThat(explicitlyMappedFields, hasEntry("results.foo_prediction", Collections.singletonMap("type", "long")));
-        assertThat(explicitlyMappedFields, hasEntry("results.top_classes", expectedTopClassesMapping));
-        assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING));
-
-        assertThat(
-            new Classification("foo").getExplicitlyMappedFields(
-                Collections.singletonMap("foo", new HashMap<>() {{
-                    put("type", "alias");
-                    put("path", "missing");
-                }}),
-                "results"),
-            equalTo(Collections.singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
     }
 
     public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {
@@ -416,7 +401,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(classification.getRandomizeSeed(), is(notNullValue()));
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            classification.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("version", "7.5.0")));
+            classification.toXContent(builder, new ToXContent.MapParams(singletonMap("version", "7.5.0")));
             String json = Strings.toString(builder);
             assertThat(json, not(containsString("randomize_seed")));
         }
@@ -427,7 +412,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(classification.getRandomizeSeed(), is(notNullValue()));
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            classification.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("version", Version.CURRENT.toString())));
+            classification.toXContent(builder, new ToXContent.MapParams(singletonMap("version", Version.CURRENT.toString())));
             String json = Strings.toString(builder);
             assertThat(json, containsString("randomize_seed"));
         }
@@ -438,7 +423,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(classification.getRandomizeSeed(), is(notNullValue()));
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            classification.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("version", null)));
+            classification.toXContent(builder, new ToXContent.MapParams(singletonMap("version", null)));
             String json = Strings.toString(builder);
             assertThat(json, containsString("randomize_seed"));
         }
@@ -516,5 +501,9 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         public Long getCardinality(String field) {
             return fieldCardinalities.get(field);
         }
+    }
+
+    private static FieldCapabilities createFieldCapabilities(String field, String type) {
+        return new FieldCapabilities(field, type, true, true, null, null, null, Collections.emptyMap());
     }
 }

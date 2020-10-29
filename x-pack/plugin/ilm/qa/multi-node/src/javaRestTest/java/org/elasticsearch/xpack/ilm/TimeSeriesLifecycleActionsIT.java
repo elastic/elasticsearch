@@ -570,7 +570,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
         createPolicyRequest.setJsonEntity("{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}");
-        assertOK(client().performRequest(createPolicyRequest));
+        client().performRequest(createPolicyRequest);
 
         // and a template
         Request createTemplateRequest = new Request("PUT", "_template/" + index);

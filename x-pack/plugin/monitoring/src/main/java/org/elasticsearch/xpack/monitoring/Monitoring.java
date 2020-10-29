@@ -68,7 +68,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin {

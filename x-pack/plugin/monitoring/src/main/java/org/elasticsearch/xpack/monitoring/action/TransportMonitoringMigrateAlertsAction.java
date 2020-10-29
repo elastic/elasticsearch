@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter.ExporterResourceStatus;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -61,7 +59,8 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
                                                   ClusterService clusterService, ThreadPool threadPool,
                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(MonitoringMigrateAlertsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            MonitoringMigrateAlertsRequest::new, indexNameExpressionResolver, MonitoringMigrateAlertsResponse::new, ThreadPool.Names.MANAGEMENT);
+            MonitoringMigrateAlertsRequest::new, indexNameExpressionResolver, MonitoringMigrateAlertsResponse::new,
+            ThreadPool.Names.MANAGEMENT);
         this.client = client;
         this.exporters = exporters;
     }

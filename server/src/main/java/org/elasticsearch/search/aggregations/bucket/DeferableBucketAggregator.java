@@ -80,7 +80,8 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
 
     /**
      * Build the {@link DeferringBucketCollector}. The default implementation
-     * selects the best buckets but some aggs want to do something else.
+     * replays all hits against the buckets selected by
+     * {#link {@link DeferringBucketCollector#prepareSelectedBuckets(long...)}.
      */
     protected DeferringBucketCollector buildDeferringCollector() {
         return new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));

@@ -18,9 +18,17 @@ more about the Painless scripting language in the
 * <<painless-compare>>
 * <<painless-web-session>>
 
-NOTE: While the context of the following examples is the {transform} use case, 
+[NOTE] 
+--
+* While the context of the following examples is the {transform} use case, 
 the Painless scripts in the snippets below can be used in other {es} search 
 aggregations, too.
+* All the following examples use scripts, {transforms} cannot deduce mappings of 
+output fields when the fields are created by a script. {transforms-cap} don't 
+create any mappings in the the destination index for these fields, which means 
+they get dynamically mapped. Create the destination index prior to starting the 
+{transform} in case you want explicit mappings.
+--
 
 [[painless-top-hits]]
 == Getting top hits by using scripted metric aggregation

@@ -25,6 +25,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
@@ -94,14 +95,14 @@ public class BootstrapJvmOptions {
                 // but we don't attempt to split them up as all JVM options are concatenated together
                 // anyway
                 final String javaOpts = info.properties.getProperty("java.opts", "");
-                if (javaOpts.isBlank() == false) {
+                if (javaOpts != null && javaOpts.trim().isEmpty() == false) {
                     bootstrapOptions.add(javaOpts);
                 }
             }
         }
 
         if (bootstrapJars.isEmpty()) {
-            return List.of();
+            return Collections.emptyList();
         }
 
         bootstrapOptions.add("-Xbootclasspath/a:" + String.join(":", bootstrapJars));

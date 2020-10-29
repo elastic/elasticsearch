@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -214,11 +215,13 @@ class S3Repository extends MeteredBlobStoreRepository {
             final NamedXContentRegistry namedXContentRegistry,
             final S3Service service,
             final ClusterService clusterService,
+            final BigArrays bigArrays,
             final RecoverySettings recoverySettings) {
         super(metadata,
             COMPRESS_SETTING.get(metadata.settings()),
             namedXContentRegistry,
             clusterService,
+            bigArrays,
             recoverySettings,
             buildLocation(metadata));
         this.service = service;

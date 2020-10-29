@@ -30,6 +30,7 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -76,7 +77,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
         final RecoverySettings recoverySettings,
         final Context context,
         final Random random) {
-        super(metadata, false, namedXContentRegistry, clusterService, recoverySettings);
+        super(metadata, false, namedXContentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings);
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
         this.random = random;

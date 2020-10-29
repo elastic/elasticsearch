@@ -85,7 +85,6 @@ RUN curl --retry 8 -S -L \\
     'source_elasticsearch': sourceElasticsearch,
     'docker_base'         : base.name().toLowerCase(),
     'version'             : VersionProperties.elasticsearch,
-    'version_hash'        : base == DockerBase.IRON_BANK ? '<insert hash here>' : '',
   ]
 }
 

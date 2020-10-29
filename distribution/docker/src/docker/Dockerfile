@@ -256,7 +256,7 @@ RUN for iter in {1..10}; do \\
 %> } else { %>
 
 <%
-/* Reviews of the Iron Bank Dockerfile said that they preferred simpler, */
+/* Reviews of the Iron Bank Dockerfile said that they preferred simpler */
 /* scripting so this version doesn't have the retry loop featured above. */
 %>
 RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\

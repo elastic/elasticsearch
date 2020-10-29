@@ -5,7 +5,7 @@
       "filename": "elasticsearch-${version}-linux-x86_64.tar.gz",
       "validation": {
         "type": "sha512",
-        "value": "${version_hash}"
+        "value": "<insert hash here>"
       }
     },
     {

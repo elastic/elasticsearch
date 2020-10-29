@@ -141,7 +141,7 @@ GET /my-index-000001/_search
 Bucket aggregations support bucket or metric sub-aggregations. For example, a
 terms aggregation with an <<search-aggregations-metrics-avg-aggregation,avg>>
 sub-aggregation calculates an average value for each bucket of documents. There
-is no depth limit for sub-aggregations.
+is no level or depth limit for nesting sub-aggregations.
 
 [source,console]
 ----

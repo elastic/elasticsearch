@@ -127,15 +127,11 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
                     public void preCollection() throws IOException {}
 
                     @Override
-                    public void postCollection() throws IOException {}
-
-                    @Override
                     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
                         LeafBucketCollector delegate = deferringCollector.getLeafCollector(ctx);
                         return leafCollector.apply(deferringCollector, delegate);
                     }
                 });
-                deferringCollector.postCollection();
                 verify.accept(deferringCollector, finalCollector);
             }
         }
@@ -161,8 +157,5 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
 
         @Override
         public void preCollection() throws IOException {}
-
-        @Override
-        public void postCollection() throws IOException {}
     }
 }

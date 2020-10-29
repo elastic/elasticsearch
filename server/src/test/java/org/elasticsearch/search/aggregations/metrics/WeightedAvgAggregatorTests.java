@@ -475,7 +475,6 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
             WeightedAvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType, fieldType2);
             aggregator.preCollection();
             indexSearcher.search(query, aggregator);
-            aggregator.postCollection();
             verify.accept((InternalWeightedAvg) aggregator.buildAggregation(0L));
         } finally {
             indexReader.close();

@@ -885,11 +885,11 @@ The full version number includes a plus sign (`+`) followed by the build number.
 Vendor of the JVM.
 
 `bundled_jdk`::
-(boolean)
+(Boolean)
 If `true`, the JVM includes a bundled Java Development Kit (JDK).
 
 `using_bundled_jdk`::
-(boolean)
+(Boolean)
 If `true`, a bundled JDK is in use by JVM.
 
 `count`::
@@ -1019,7 +1019,7 @@ Provider Interface (SPI).
 If this plugin extends no other plugins, this array is empty.
 
 `has_native_controller`:::
-(boolean)
+(Boolean)
 If `true`, the plugin has a native controller process.
 ======
 =====

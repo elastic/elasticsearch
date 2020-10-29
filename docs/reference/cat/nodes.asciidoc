@@ -19,7 +19,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 `full_id`::
-(Optional, boolean) If `true`, return the full node ID.  If `false`, return the
+(Optional, Boolean) If `true`, return the full node ID.  If `false`, return the
 shortened node ID. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
@@ -286,7 +286,7 @@ Number of suggest operations, such as `0`.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
 `local`::
-(Optional, boolean) 
+(Optional, Boolean) 
 deprecated:[7.6.0,This parameter does not cause this API to act locally. It will be removed in version 8.0.]
 If `true`, the request computes the list of selected nodes from the local
 cluster state. Defaults to `false`, which means the list of selected nodes is

@@ -69,7 +69,7 @@ in a cluster, omit this parameter or use `_all` or `*`.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
 `ccs_minimize_roundtrips`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, network roundtrips between the coordinating node and remote clusters
 are minimized for {ccs} requests. Defaults to `true`. See
 <<ccs-network-delays>>.
@@ -79,7 +79,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `open`.
 
 `ignore_throttled`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, concrete, expanded or aliased indices are ignored when frozen.
 Defaults to `true`.
 
@@ -122,7 +122,7 @@ conditions is met:
   - The primary sort of the query targets an indexed field.
 
 `rest_total_hits_as_int`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, `hits.total` are returned as an integer in the
 response. Defaults to `false`, which returns an object.
 
@@ -151,7 +151,7 @@ shards. This is usually slower but more accurate.
 --
 
 `typed_keys`::
-(Optional, boolean)
+(Optional, Boolean)
 Specifies whether aggregation and suggester names should be prefixed by their
 respective types in the response.
 
@@ -172,7 +172,7 @@ line.
 --
 
 `allow_no_indices`:::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the request does *not* return an error if a wildcard expression or
 `_all` value retrieves only missing or closed indices.
 +
@@ -184,7 +184,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `open`.
 
 `ignore_unavailable`:::
-(Optional, boolean) If `true`, documents from missing or closed indices are not
+(Optional, Boolean) If `true`, documents from missing or closed indices are not
 included in the response. Defaults to `false`.
 
 `index`:::
@@ -200,7 +200,7 @@ is used as a fallback.
 Node or shard used to perform the search. Random by default.
 
 `request_cache`:::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the request cache can be used for this search. Defaults to
 index-level settings. See <<shard-request-cache>>.
 

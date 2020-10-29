@@ -88,7 +88,7 @@ Name of the component template to create.
 ==== {api-query-parms-title}
 
 `create`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, this request cannot replace or update existing component templates.
 Defaults to `false`.
 

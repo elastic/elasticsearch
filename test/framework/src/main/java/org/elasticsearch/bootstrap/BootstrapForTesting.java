@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.junit.Assert;
@@ -55,6 +56,7 @@ import java.util.Properties;
 import java.util.Set;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
+import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 
 /**
  * Initializes natives and installs test security manager
@@ -149,7 +151,11 @@ public class BootstrapForTesting {
                     addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
-                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());
+                // this mimicks the recursive data path permission added in Security.java
+                Permissions fastPathPermissions = new Permissions();
+                addDirectoryPath(fastPathPermissions, "java.io.tmpdir-fastpath", javaTmpDir, "read,readlink,write,delete", true);
+
+                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, fastPathPermissions);
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {

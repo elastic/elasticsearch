@@ -7,7 +7,7 @@
 ++++
 
 IMPORTANT: Use this API to check for deprecated configuration before performing
-a major version upgrade. You should run it on the the last minor version of the
+a major version upgrade. You should run it on the last minor version of the
 major version you are upgrading from, as earlier minor versions may not include
 all deprecations.
 

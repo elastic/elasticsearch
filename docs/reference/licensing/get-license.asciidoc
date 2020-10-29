@@ -27,7 +27,7 @@ https://www.elastic.co/subscriptions.
 ==== Query Parameters
 
 `local`::
-  (boolean) Specifies whether to retrieve local information. The default value
+  (Boolean) Specifies whether to retrieve local information. The default value
   is `false`, which means the information is retrieved from the master node.
 
 

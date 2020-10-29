@@ -102,7 +102,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     }
 
     @Override
-    protected void doPostCollection() throws IOException {
+    protected void beforeBuildingResults(long[] ordsToCollect) throws IOException {
         counts = new HyperLogLogPlusPlusSparse(precision, bigArrays, visitedOrds.size());
         try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
             try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {

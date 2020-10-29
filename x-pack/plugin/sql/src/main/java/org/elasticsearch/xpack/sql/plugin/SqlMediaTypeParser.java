@@ -13,20 +13,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
-import java.util.Map;
 
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
 
 public class SqlMediaTypeParser {
     public static final MediaTypeRegistry<? extends MediaType> mediaTypeRegistry = new MediaTypeRegistry<>()
-        .register(XContentType.mediaTypeRegistry)
-        .register(TextFormat.PLAIN_TEXT.typeWithSubtype(), TextFormat.PLAIN_TEXT,
-            Map.of("header", "present|absent", "charset", "utf-8"))
-        .register(TextFormat.CSV.typeWithSubtype(), TextFormat.CSV,
-            Map.of("header", "present|absent", "charset", "utf-8",
-                "delimiter", ".+"))// more detailed parsing is in TextFormat.CSV#delimiter
-        .register(TextFormat.TSV.typeWithSubtype(), TextFormat.TSV,
-            Map.of("header", "present|absent", "charset", "utf-8"));
+        .register(XContentType.values())
+        .register(TextFormat.values());
 
     /*
      * Since we support {@link TextFormat} <strong>and</strong>

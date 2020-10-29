@@ -29,9 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ParsedMediaTypeTests extends ESTestCase {
 
     MediaTypeRegistry<XContentType> mediaTypeRegistry = new MediaTypeRegistry<XContentType>()
-    .register("application/vnd.elasticsearch+json",
-            XContentType.JSON, Map.of("compatible-with", "\\d+",
-            "charset", "UTF-8"));
+        .register(XContentType.values());
 
     public void testJsonWithParameters() throws Exception {
         String mediaType = "application/vnd.elasticsearch+json";

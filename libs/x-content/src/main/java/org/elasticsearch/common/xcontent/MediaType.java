@@ -19,23 +19,20 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.collect.Tuple;
+
+import java.util.Map;
+import java.util.Set;
+
 /**
  * Abstracts a <a href="http://en.wikipedia.org/wiki/Internet_media_type">Media Type</a> and a format parameter.
  * Media types are used as values on Content-Type and Accept headers
  * format is an URL parameter, specifies response media type.
  */
 public interface MediaType {
-    /**
-     * Returns a type part of a MediaType
-     * i.e. application for application/json
-     */
-    String type();
 
-    /**
-     * Returns a subtype part of a MediaType.
-     * i.e. json for application/json
-     */
-    String subtype();
+    String COMPATIBLE_WITH_PARAMETER_NAME = "compatible-with";
+    String VERSION_PATTERN = "\\d+";
 
     /**
      * Returns a corresponding format for a MediaType. i.e. json for application/json media type
@@ -44,9 +41,10 @@ public interface MediaType {
     String format();
 
     /**
-     * returns a string representation of a media type.
+     * returns a set of Tuples where a key is a sting - MediaType's type with subtype i.e application/json
+     * and a value is a map of parameters to be validated.
+     * Map's key is a parameter name, value is a parameter regex which is used for validation
      */
-    default String typeWithSubtype(){
-        return type() + "/" + subtype();
-    }
+    Set<Tuple<String, Map<String,String>>> mediaTypeMappings();
+
 }

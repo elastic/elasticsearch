@@ -19,10 +19,12 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.util.Collection;
+import org.elasticsearch.common.collect.Tuple;
+
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 public class MediaTypeRegistry<T extends MediaType> {
@@ -30,31 +32,6 @@ public class MediaTypeRegistry<T extends MediaType> {
     private Map<String, T> formatToMediaType = new HashMap<>();
     private Map<String, T> typeWithSubtypeToMediaType = new HashMap<>();
     private Map<String, Map<String, Pattern>> parametersMap = new HashMap<>();
-
-    public  MediaTypeRegistry<T> register(Map<String, T> formatToMediaType,
-                                       Map<String, T> typeWithSubtypeToMediaType,
-                                       Map<String, Map<String, Pattern>> parametersMap) {
-        this.formatToMediaType.putAll(formatToMediaType);
-        this.typeWithSubtypeToMediaType.putAll(typeWithSubtypeToMediaType);
-        this.parametersMap.putAll(parametersMap);
-        return this;
-    }
-
-    public MediaTypeRegistry<T> register(String typeWithSubtype, T mediaType, String format, Map<String, String> parametersMap) {
-        if (format != null) {
-            this.formatToMediaType.put(format, mediaType);
-        }
-        this.typeWithSubtypeToMediaType.put(typeWithSubtype,mediaType);
-        Map<String, Pattern> parametersForMediaType = new HashMap<>(parametersMap.size());
-        for (Map.Entry<String, String> params : parametersMap.entrySet()) {
-            String parameterName = params.getKey().toLowerCase(Locale.ROOT);
-            String parameterRegex = params.getValue();
-            Pattern pattern = Pattern.compile(parameterRegex, Pattern.CASE_INSENSITIVE);
-            parametersForMediaType.put(parameterName, pattern);
-        }
-        this.parametersMap.put(typeWithSubtype,parametersForMediaType);
-        return this;
-    }
 
     public T formatToMediaType(String format) {
         if(format == null) {
@@ -71,10 +48,19 @@ public class MediaTypeRegistry<T extends MediaType> {
         return parametersMap.get(typeWithSubtype);
     }
 
-    public MediaTypeRegistry<T> register(String alternativeMediaType, T mediaType, Map<String, String> paramNameAndValueRegex) {
-        typeWithSubtypeToMediaType.put(alternativeMediaType.toLowerCase(Locale.ROOT), mediaType);
-        formatToMediaType.put(mediaType.format(), mediaType);
+    public MediaTypeRegistry<T> register(T[] mediaTypes ) {
+        for (T mediaType : mediaTypes) {
+            Set<Tuple<String, Map<String, String>>> tuples = mediaType.mediaTypeMappings();
+            for (Tuple<String, Map<String, String>> tuple : tuples) {
+                formatToMediaType.put(mediaType.format(),mediaType);
+                typeWithSubtypeToMediaType.put(tuple.v1(), mediaType);
+                parametersMap.put(tuple.v1(), convertPatterns(tuple.v2()));
+            }
+        }
+        return this;
+    }
 
+    private Map<String,Pattern> convertPatterns(Map<String,String> paramNameAndValueRegex){
         Map<String, Pattern> parametersForMediaType = new HashMap<>(paramNameAndValueRegex.size());
         for (Map.Entry<String, String> params : paramNameAndValueRegex.entrySet()) {
             String parameterName = params.getKey().toLowerCase(Locale.ROOT);
@@ -82,21 +68,6 @@ public class MediaTypeRegistry<T extends MediaType> {
             Pattern pattern = Pattern.compile(parameterRegex, Pattern.CASE_INSENSITIVE);
             parametersForMediaType.put(parameterName, pattern);
         }
-        parametersMap.put(alternativeMediaType, parametersForMediaType);
-        return this;
+        return parametersForMediaType;
     }
-
-    public MediaTypeRegistry<T> register(MediaTypeRegistry<? extends T> xContentTypeRegistry) {
-        formatToMediaType.putAll(xContentTypeRegistry.formatToMediaType);
-        typeWithSubtypeToMediaType.putAll(xContentTypeRegistry.typeWithSubtypeToMediaType);
-        parametersMap.putAll(xContentTypeRegistry.parametersMap);
-        return this;
-    }
-    public MediaTypeRegistry<T> register(Collection<MediaTypeRegistry<T>> mediaTypeRegistries ) {
-        for (MediaTypeRegistry<T> mediaTypeRegistry : mediaTypeRegistries) {
-            register(mediaTypeRegistry);
-        }
-        return this;
-    }
-
 }

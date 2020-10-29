@@ -24,7 +24,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
@@ -103,10 +105,11 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String subtype() {
-            return "plain";
+        public Set<Tuple<String, Map<String,String>>> mediaTypeMappings() {
+            return Set.of(
+             Tuple.tuple(CONTENT_TYPE_TXT,
+                Map.of("header", "present|absent", "charset", "utf-8")));
         }
-
 
     },
 
@@ -224,10 +227,14 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String subtype() {
-            return "csv";
+        public  Set<Tuple<String, Map<String,String>>> mediaTypeMappings() {
+            return Set.of(
+                Tuple.tuple(CONTENT_TYPE_CSV,
+                Map.of("header", "present|absent", "charset", "utf-8",
+                    "delimiter", ".+")));// more detailed parsing is in TextFormat.CSV#delimiter
         }
     },
+
 
     TSV() {
         @Override
@@ -278,8 +285,10 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String subtype() {
-            return "tab-separated-values";
+        public  Set<Tuple<String, Map<String,String>>> mediaTypeMappings() {
+            return Set.of(
+                Tuple.tuple(CONTENT_TYPE_TSV,
+                    Map.of("header", "present|absent", "charset", "utf-8")));
         }
     };
 
@@ -357,16 +366,5 @@ enum TextFormat implements MediaType {
      */
     String maybeEscape(String value, Character delimiter) {
         return value;
-    }
-
-
-    @Override
-    public String type() {
-        return "text";
-    }
-
-    @Override
-    public String typeWithSubtype() {
-        return contentType();
     }
 }

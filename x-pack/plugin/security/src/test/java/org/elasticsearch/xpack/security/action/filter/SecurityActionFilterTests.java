@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
@@ -60,6 +61,8 @@ import static org.mockito.Mockito.when;
 public class SecurityActionFilterTests extends ESTestCase {
     private AuthenticationService authcService;
     private AuthorizationService authzService;
+    private AuditTrailService auditTrailService;
+    private ActionFilterChain chain;
     private XPackLicenseState licenseState;
     private SecurityActionFilter filter;
     private ThreadContext threadContext;
@@ -69,6 +72,8 @@ public class SecurityActionFilterTests extends ESTestCase {
     public void init() throws Exception {
         authcService = mock(AuthenticationService.class);
         authzService = mock(AuthorizationService.class);
+        auditTrailService = mock(AuditTrailService.class);
+        chain = mock(ActionFilterChain.class);
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH)).thenReturn(true);
@@ -88,14 +93,13 @@ public class SecurityActionFilterTests extends ESTestCase {
         when(state.nodes()).thenReturn(nodes);
 
         SecurityContext securityContext = new SecurityContext(settings, threadContext);
-        filter = new SecurityActionFilter(authcService, authzService, mock(AuditTrailService.class), licenseState, threadPool,
+        filter = new SecurityActionFilter(authcService, authzService, auditTrailService, licenseState, threadPool,
                 securityContext, destructiveOperations);
     }
 
     public void testApply() throws Exception {
         ActionRequest request = mock(ActionRequest.class);
         ActionListener listener = mock(ActionListener.class);
-        ActionFilterChain chain = mock(ActionFilterChain.class);
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
@@ -142,6 +146,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         final boolean hasExistingAccessControl = randomBoolean();
         final String action = "internal:foo";
         if (hasExistingAuthentication) {
+            AuditUtil.generateRequestId(threadContext);
             threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
             threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "foo");
             threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
@@ -149,12 +154,14 @@ public class SecurityActionFilterTests extends ESTestCase {
                 threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_NO_INDICES);
             }
         } else {
+            assertNull(AuditUtil.extractRequestId(threadContext));
             assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
         }
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
+            AuditUtil.generateRequestId(threadContext);
             callback.onResponse(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
             return Void.TYPE;
         }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
@@ -191,6 +198,9 @@ public class SecurityActionFilterTests extends ESTestCase {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
+            AuditUtil.generateRequestId(threadContext);
+            threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+            threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, authentication.encode());
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
@@ -222,6 +232,10 @@ public class SecurityActionFilterTests extends ESTestCase {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
+            assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
+            threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+            threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, authentication.encode());
+            AuditUtil.generateRequestId(threadContext);
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
@@ -250,6 +264,8 @@ public class SecurityActionFilterTests extends ESTestCase {
             ActionListener callback = (ActionListener) args[args.length - 1];
             assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
             threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+            threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, authentication.encode());
+            AuditUtil.generateRequestId(threadContext);
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));

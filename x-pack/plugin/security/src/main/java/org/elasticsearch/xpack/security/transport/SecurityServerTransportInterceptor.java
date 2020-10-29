@@ -219,7 +219,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             this.forceExecution = forceExecution;
         }
 
-        AbstractRunnable getReceiveRunnable(T request, TransportChannel channel, Task task) {
+        private AbstractRunnable getReceiveRunnable(T request, TransportChannel channel, Task task, boolean securityEnabled) {
             return new AbstractRunnable() {
                 @Override
                 public boolean isForceExecution() {
@@ -238,48 +238,49 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 @Override
                 protected void doRun() throws Exception {
-                    // extract the requestId and the authentication from the threadContext before executing the action
-                    final String requestId = AuditUtil.extractRequestId(threadContext);
-                    final boolean securityEnabled = licenseState.isSecurityEnabled();
-                    if (securityEnabled && requestId == null) {
-                        channel.sendResponse(new ElasticsearchSecurityException("requestId is unexpectedly missing"));
-                        return;
-                    }
-                    final Authentication authentication = securityContext.getAuthentication();
-                    if (securityEnabled && authentication == null) {
-                        channel.sendResponse(new ElasticsearchSecurityException("authn is unexpectedly missing"));
-                        return;
-                    }
-                    handler.messageReceived(request, new TransportChannel() {
-
-                        @Override
-                        public String getProfileName() {
-                            return channel.getProfileName();
+                    if (securityEnabled) {
+                        // extract the requestId and the authentication from the threadContext before executing the action
+                        final String requestId = AuditUtil.extractRequestId(threadContext);
+                        if (requestId == null) {
+                            channel.sendResponse(new ElasticsearchSecurityException("requestId is unexpectedly missing"));
+                            return;
                         }
-
-                        @Override
-                        public String getChannelType() {
-                            return channel.getChannelType();
+                        final Authentication authentication = securityContext.getAuthentication();
+                        if (authentication == null) {
+                            channel.sendResponse(new ElasticsearchSecurityException("authn is unexpectedly missing"));
+                            return;
                         }
+                        handler.messageReceived(request, new TransportChannel() {
 
-                        @Override
-                        public Version getVersion() {
-                            return channel.getVersion();
-                        }
-
-                        @Override
-                        public void sendResponse(TransportResponse response) throws IOException {
-                            if (securityEnabled) {
-                                auditTrailService.get().actionResponse(requestId, authentication, action, request, response);
+                            @Override
+                            public String getProfileName() {
+                                return channel.getProfileName();
                             }
-                            channel.sendResponse(response);
-                        }
 
-                        @Override
-                        public void sendResponse(Exception exception) throws IOException {
-                            channel.sendResponse(exception);
-                        }
-                    }, task);
+                            @Override
+                            public String getChannelType() {
+                                return channel.getChannelType();
+                            }
+
+                            @Override
+                            public Version getVersion() {
+                                return channel.getVersion();
+                            }
+
+                            @Override
+                            public void sendResponse(TransportResponse response) throws IOException {
+                                auditTrailService.get().actionResponse(requestId, authentication, action, request, response);
+                                channel.sendResponse(response);
+                            }
+
+                            @Override
+                            public void sendResponse(Exception exception) throws IOException {
+                                channel.sendResponse(exception);
+                            }
+                        }, task);
+                    } else {
+                        handler.messageReceived(request, channel, task);
+                    }
                 }
             };
         }
@@ -295,9 +296,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
-            final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
+            final boolean securityEnabled = licenseState.isSecurityEnabled();
+            final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task, securityEnabled);
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
-                if (licenseState.isSecurityEnabled()) {
+                if (securityEnabled) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
 

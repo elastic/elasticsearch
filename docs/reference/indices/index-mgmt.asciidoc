@@ -110,8 +110,8 @@ wizard.
 [float]
 ==== Try it: Create an index template
 
-In this tutorial, you’ll create an index template to configure two new indices
-containing log files.
+In this tutorial, you’ll create an index template and use it to configure two
+new indices.
 
 *Step 1. Add a name and index pattern*
 
@@ -188,9 +188,10 @@ mappings.
 
 *Step 3. Create new indices*
 
-You’re now ready to  create new indices using your index template.
+You’re now ready to create new indices using your index template.
 
-. Index the following documents:
+. Index the following documents to create two indices:
+`my-index-000001` and `my-index-000002`.
 +
 [source,console]
 ----
@@ -225,11 +226,10 @@ POST /my-index-000002/_doc
   "url": "https://theacademyofperformingartsandscience.org/people/type:astronauts/name:laurel-b-clark/profile"
 }
 ----
-+
-These requests create two indices: `my-index-000001` and `my-index-000002`.
 
 . Use the <<indices-get-index,get index API>> to view the configurations for the
-new indices:
+new indices. The indices were configured using the index template you created
+earlier.
 +
 [source,console]
 --------------------------------------------------

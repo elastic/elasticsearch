@@ -54,7 +54,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
 
 `from`::
@@ -66,7 +66,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 
 `exclude_generated`::
-(Optional, boolean)
+(Optional, Boolean)
 Excludes fields that were automatically added when creating the transform.
 This allows the configuration to be in an acceptable format to be retrieved
 and then added to another cluster. Default is false.

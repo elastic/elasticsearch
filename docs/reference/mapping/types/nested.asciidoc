@@ -202,12 +202,12 @@ The fields within the nested object, which can be of any
 may be added to an existing nested object.
 
 `include_in_parent`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, all fields in the nested object are also added to the parent document
 as standard (flat) fields. Defaults to `false`.
 
 `include_in_root`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, all fields in the nested object are also added to the root
 document as standard (flat) fields. Defaults to `false`.
 

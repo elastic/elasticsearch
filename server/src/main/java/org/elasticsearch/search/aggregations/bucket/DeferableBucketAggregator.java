@@ -91,9 +91,9 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {
+    protected final void prepareSubAggs(long[] bucketOrdsToCollect) throws IOException {
         if (recordingWrapper != null) {
-            recordingWrapper.prepareSelectedBuckets(ordsToCollect);
+            recordingWrapper.prepareSelectedBuckets(bucketOrdsToCollect);
         }
     }
 

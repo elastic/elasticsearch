@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateDoubleMetr
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -232,7 +231,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         public AggregateDoubleMetricFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+            super(name, true, false, false, TextSearchInfo.NONE, meta);
         }
 
         /**
@@ -476,8 +475,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
-        List<Mapper> mappers = new ArrayList<>(metricFieldMappers.values());
-        return mappers.iterator();
+        return Collections.emptyIterator();
     }
 
     @Override

@@ -163,7 +163,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     @Override
     public Iterator<Mapper> iterator() {
-        return multiFields.iterator();
+        // do not return metric mappers as mapped fields
+        return Collections.emptyIterator();
     }
 
     @Override

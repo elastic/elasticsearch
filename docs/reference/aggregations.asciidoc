@@ -11,17 +11,14 @@ Aggregations help you answer questions like:
 * What would be considered a large file on my network?
 * How many products are in each product category?
 
-{es} organizes aggregations into four categories:
+{es} organizes aggregations into three categories:
+
+* <<search-aggregations-metrics,Metric>> aggregations that calculate metrics,
+such as a sum or average, from field values.
 
 * <<search-aggregations-bucket,Bucket>> aggregations that
 group documents into buckets, also called bins, based on field values, ranges,
 or other criteria.
-
-* <<search-aggregations-matrix,Matrix>> aggregations experimental:[] that output
-a matrix based on multiple fields.
-
-* <<search-aggregations-metrics,Metric>> aggregations that calculate metrics,
-such as a sum or average, from field values.
 
 * <<search-aggregations-pipeline,Pipeline>> aggregations that take input from
 other aggregations instead of documents or fields.
@@ -361,8 +358,6 @@ greater than +2^53^+ are approximate.
 --
 
 include::aggregations/bucket.asciidoc[]
-
-include::aggregations/matrix.asciidoc[]
 
 include::aggregations/metrics.asciidoc[]
 

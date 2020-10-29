@@ -1256,3 +1256,8 @@ See <<return-agg-type>>.
 === Indexing aggregation results with transforms
 
 See <<transforms>>.
+
+[role="exclude",id="search-aggregations-matrix"]
+=== Matrix aggregations
+
+See <<search-aggregations-matrix-stats-aggregation>>.

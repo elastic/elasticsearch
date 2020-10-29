@@ -233,6 +233,6 @@ configurations.
 
 [source,console]
 --------------------------------------------------
-GET /my-index-000001
+GET /my-index-000001,my-index-000002
 --------------------------------------------------
-// TEST[setup:my_index]
+// TEST[continued]

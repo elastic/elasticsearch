@@ -23,7 +23,6 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.IndexableBinaryStringTools;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -436,7 +436,7 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public Map<String, Analyzer> indexAnalyzers() {
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Collections.singletonMap(name(), Lucene.KEYWORD_ANALYZER);
     }
 

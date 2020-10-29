@@ -19,13 +19,13 @@
 
 package org.elasticsearch.join.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.MapperService;
@@ -118,7 +118,7 @@ public final class ParentIdFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public Map<String, Analyzer> indexAnalyzers() {
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Collections.singletonMap(name(), Lucene.KEYWORD_ANALYZER);
     }
 

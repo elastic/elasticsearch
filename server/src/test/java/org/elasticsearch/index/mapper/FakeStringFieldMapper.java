@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -88,7 +88,7 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public Map<String, Analyzer> indexAnalyzers() {
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Collections.singletonMap(name(), Lucene.STANDARD_ANALYZER);
     }
 

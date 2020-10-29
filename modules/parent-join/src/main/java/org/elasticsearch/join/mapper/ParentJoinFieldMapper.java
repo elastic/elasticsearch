@@ -19,7 +19,6 @@
 
 package org.elasticsearch.join.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -208,7 +208,7 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public Map<String, Analyzer> indexAnalyzers() {
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Collections.singletonMap(name(), Lucene.KEYWORD_ANALYZER);
     }
 

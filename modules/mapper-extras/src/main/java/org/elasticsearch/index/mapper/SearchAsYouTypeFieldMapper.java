@@ -47,6 +47,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -176,7 +177,9 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
             TextSearchInfo prefixSearchInfo = new TextSearchInfo(prefixft, similarity.getValue(), prefixSearchWrapper, searchAnalyzer);
             final PrefixFieldType prefixFieldType
                 = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
-            final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType, prefixIndexWrapper);
+            final NamedAnalyzer prefixAnalyzer
+                = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper);
+            final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType, prefixAnalyzer);
 
             // set up the shingle fields
             final ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[maxShingleSize.getValue() - 1];
@@ -198,7 +201,9 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
                 final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldName, shingleSize, textSearchInfo);
                 shingleFieldType.setPrefixFieldType(prefixFieldType);
                 shingleFieldTypes[i] = shingleFieldType;
-                shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType, shingleIndexWrapper);
+                NamedAnalyzer shingleAnalyzer
+                    = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper);
+                shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType, shingleAnalyzer);
             }
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
@@ -391,9 +396,9 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
     static final class PrefixFieldMapper extends FieldMapper {
 
-        final Analyzer analyzer;
+        final NamedAnalyzer analyzer;
 
-        PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType, Analyzer analyzer) {
+        PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType, NamedAnalyzer analyzer) {
             super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
             this.analyzer = analyzer;
         }
@@ -418,7 +423,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Map<String, Analyzer> indexAnalyzers() {
+        public Map<String, NamedAnalyzer> indexAnalyzers() {
             return Collections.singletonMap(name(), analyzer);
         }
 
@@ -435,9 +440,9 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
     static final class ShingleFieldMapper extends FieldMapper {
 
-        final Analyzer analyzer;
+        final NamedAnalyzer analyzer;
 
-        ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype, Analyzer analyzer) {
+        ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype, NamedAnalyzer analyzer) {
             super(mappedFieldtype.name(), fieldType, mappedFieldtype, MultiFields.empty(), CopyTo.empty());
             this.analyzer = analyzer;
         }
@@ -452,7 +457,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Map<String, Analyzer> indexAnalyzers() {
+        public Map<String, NamedAnalyzer> indexAnalyzers() {
             return Collections.singletonMap(name(), analyzer);
         }
 
@@ -551,7 +556,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
     private final int maxShingleSize;
     private final PrefixFieldMapper prefixField;
     private final ShingleFieldMapper[] shingleFields;
-    private final Analyzer analyzer;
+    private final NamedAnalyzer analyzer;
     private final Builder builder;
 
     public SearchAsYouTypeFieldMapper(String simpleName,
@@ -591,7 +596,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public Map<String, Analyzer> indexAnalyzers() {
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Collections.singletonMap(name(), analyzer);
     }
 

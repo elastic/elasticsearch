@@ -64,6 +64,7 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
@@ -919,14 +920,19 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public Map<String, Analyzer> indexAnalyzers() {
-        Map<String, Analyzer> analyzers = new HashMap<>();
-        analyzers.put(name(), builder.analyzers.getIndexAnalyzer());
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        Map<String, NamedAnalyzer> analyzers = new HashMap<>();
+        NamedAnalyzer main = builder.analyzers.getIndexAnalyzer();
+        analyzers.put(name(), main);
         if (phraseFieldMapper != null) {
-            analyzers.put(phraseFieldMapper.name(), phraseFieldMapper.analyzer);
+            analyzers.put(
+                phraseFieldMapper.name(),
+                new NamedAnalyzer(main.name() + "_phrase", AnalyzerScope.INDEX, phraseFieldMapper.analyzer));
         }
         if (prefixFieldMapper != null) {
-            analyzers.put(prefixFieldMapper.name(), prefixFieldMapper.analyzer);
+            analyzers.put(
+                prefixFieldMapper.name(),
+                new NamedAnalyzer(main.name() + "_prefix", AnalyzerScope.INDEX, prefixFieldMapper.analyzer));
         }
         return analyzers;
     }

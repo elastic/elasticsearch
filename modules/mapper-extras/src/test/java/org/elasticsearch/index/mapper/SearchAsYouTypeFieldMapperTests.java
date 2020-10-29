@@ -178,12 +178,12 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assertRootFieldMapper(rootMapper, 3, "default");
 
         PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(defaultMapper, "field._index_prefix");
-        assertPrefixFieldType(prefixFieldMapper.fieldType(), 3, "default");
+        assertPrefixFieldType(prefixFieldMapper, 3, "default");
 
         assertShingleFieldType(
-            getShingleFieldMapper(defaultMapper, "field._2gram").fieldType(), 2, "default", prefixFieldMapper.fieldType());
+            getShingleFieldMapper(defaultMapper, "field._2gram"), 2, "default", prefixFieldMapper.fieldType());
         assertShingleFieldType(
-            getShingleFieldMapper(defaultMapper, "field._3gram").fieldType(), 3, "default", prefixFieldMapper.fieldType());
+            getShingleFieldMapper(defaultMapper, "field._3gram"), 3, "default", prefixFieldMapper.fieldType());
    }
 
     public void testConfiguration() throws IOException {
@@ -199,14 +199,14 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assertRootFieldMapper(rootMapper, maxShingleSize, analyzerName);
 
         PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(defaultMapper, "field._index_prefix");
-        assertPrefixFieldType(prefixFieldMapper.fieldType(), maxShingleSize, analyzerName);
+        assertPrefixFieldType(prefixFieldMapper, maxShingleSize, analyzerName);
 
         assertShingleFieldType(
-            getShingleFieldMapper(defaultMapper, "field._2gram").fieldType(), 2, analyzerName, prefixFieldMapper.fieldType());
+            getShingleFieldMapper(defaultMapper, "field._2gram"), 2, analyzerName, prefixFieldMapper.fieldType());
         assertShingleFieldType(
-            getShingleFieldMapper(defaultMapper, "field._3gram").fieldType(), 3, analyzerName, prefixFieldMapper.fieldType());
+            getShingleFieldMapper(defaultMapper, "field._3gram"), 3, analyzerName, prefixFieldMapper.fieldType());
         assertShingleFieldType(
-            getShingleFieldMapper(defaultMapper, "field._4gram").fieldType(), 4, analyzerName, prefixFieldMapper.fieldType());
+            getShingleFieldMapper(defaultMapper, "field._4gram"), 4, analyzerName, prefixFieldMapper.fieldType());
     }
 
     public void testSimpleMerge() throws IOException {
@@ -580,61 +580,78 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         assertThat(mapper.maxShingleSize(), equalTo(maxShingleSize));
         assertThat(mapper.fieldType(), notNullValue());
-        assertSearchAsYouTypeFieldType(mapper.fieldType(), maxShingleSize, analyzerName, mapper.prefixField().fieldType());
+        assertSearchAsYouTypeFieldType(mapper, mapper.fieldType(), maxShingleSize, analyzerName, mapper.prefixField().fieldType());
 
         assertThat(mapper.prefixField(), notNullValue());
         assertThat(mapper.prefixField().fieldType().parentField, equalTo(mapper.name()));
-        assertPrefixFieldType(mapper.prefixField().fieldType(), maxShingleSize, analyzerName);
+        assertPrefixFieldType(mapper.prefixField(), maxShingleSize, analyzerName);
 
 
         for (int shingleSize = 2; shingleSize <= maxShingleSize; shingleSize++) {
             final ShingleFieldMapper shingleFieldMapper = mapper.shingleFields()[shingleSize - 2];
             assertThat(shingleFieldMapper, notNullValue());
-            assertShingleFieldType(shingleFieldMapper.fieldType(), shingleSize, analyzerName, mapper.prefixField().fieldType());
+            assertShingleFieldType(shingleFieldMapper, shingleSize, analyzerName, mapper.prefixField().fieldType());
         }
 
         final int numberOfShingleSubfields = (maxShingleSize - 2) + 1;
         assertThat(mapper.shingleFields().length, equalTo(numberOfShingleSubfields));
     }
 
-    private static void assertSearchAsYouTypeFieldType(SearchAsYouTypeFieldType fieldType, int maxShingleSize,
+    private static void assertSearchAsYouTypeFieldType(SearchAsYouTypeFieldMapper mapper,
+                                                       SearchAsYouTypeFieldType fieldType,
+                                                       int maxShingleSize,
                                                        String analyzerName,
                                                        PrefixFieldType prefixFieldType) {
 
         assertThat(fieldType.shingleFields.length, equalTo(maxShingleSize - 1));
-        assertThat(fieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo(analyzerName));
+        NamedAnalyzer indexAnalyzer = (NamedAnalyzer) mapper.indexAnalyzers().values().iterator().next();
+        for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().getSearchAnalyzer())) {
+            assertThat(analyzer.name(), equalTo(analyzerName));
+        }
         int shingleSize = 2;
-        for (ShingleFieldType shingleField : fieldType.shingleFields) {
+        for (ShingleFieldMapper shingleField : mapper.shingleFields()) {
             assertShingleFieldType(shingleField, shingleSize++, analyzerName, prefixFieldType);
         }
 
         assertThat(fieldType.prefixField, equalTo(prefixFieldType));
     }
 
-    private static void assertShingleFieldType(ShingleFieldType fieldType,
+    private static void assertShingleFieldType(ShingleFieldMapper mapper,
                                                int shingleSize,
                                                String analyzerName,
                                                PrefixFieldType prefixFieldType) {
 
+        ShingleFieldType fieldType = mapper.fieldType();
         assertThat(fieldType.shingleSize, equalTo(shingleSize));
 
-        NamedAnalyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
-        assertThat(analyzer.name(), equalTo(analyzerName));
-        if (shingleSize > 1) {
-            final SearchAsYouTypeAnalyzer wrappedAnalyzer = (SearchAsYouTypeAnalyzer) analyzer.analyzer();
-            assertThat(wrappedAnalyzer.shingleSize(), equalTo(shingleSize));
-            assertThat(wrappedAnalyzer.indexPrefixes(), equalTo(false));
+        NamedAnalyzer indexAnalyer = mapper.indexAnalyzers().values().iterator().next();
+        for (NamedAnalyzer analyzer : asList(indexAnalyer, fieldType.getTextSearchInfo().getSearchAnalyzer())) {
+            assertThat(analyzer.name(), equalTo(analyzerName));
+            if (shingleSize > 1) {
+                final SearchAsYouTypeAnalyzer wrappedAnalyzer = (SearchAsYouTypeAnalyzer) analyzer.analyzer();
+                assertThat(wrappedAnalyzer.shingleSize(), equalTo(shingleSize));
+                assertThat(wrappedAnalyzer.indexPrefixes(), equalTo(false));
+            }
         }
 
         assertThat(fieldType.prefixFieldType, equalTo(prefixFieldType));
 
     }
 
-    private static void assertPrefixFieldType(PrefixFieldType fieldType, int shingleSize, String analyzerName) {
-        assertThat(fieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo(analyzerName));
+    private static void assertPrefixFieldType(PrefixFieldMapper mapper, int shingleSize, String analyzerName) {
+        PrefixFieldType fieldType = mapper.fieldType();
+        NamedAnalyzer indexAnalyzer = (NamedAnalyzer) mapper.indexAnalyzers().values().iterator().next();
+        for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().getSearchAnalyzer())) {
+            assertThat(analyzer.name(), equalTo(analyzerName));
+        }
+
+        final SearchAsYouTypeAnalyzer wrappedIndexAnalyzer = (SearchAsYouTypeAnalyzer) indexAnalyzer.analyzer();
         final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer
             = (SearchAsYouTypeAnalyzer) fieldType.getTextSearchInfo().getSearchAnalyzer().analyzer();
-        assertThat(wrappedSearchAnalyzer.shingleSize(), equalTo(shingleSize));
+        for (SearchAsYouTypeAnalyzer analyzer : asList(wrappedIndexAnalyzer, wrappedSearchAnalyzer)) {
+            assertThat(analyzer.shingleSize(), equalTo(shingleSize));
+        }
+        assertThat(wrappedIndexAnalyzer.indexPrefixes(), equalTo(true));
         assertThat(wrappedSearchAnalyzer.indexPrefixes(), equalTo(false));
     }
 

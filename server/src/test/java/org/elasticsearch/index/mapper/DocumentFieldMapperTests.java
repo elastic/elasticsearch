@@ -24,6 +24,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -94,8 +96,10 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
-        public Map<String, Analyzer> indexAnalyzers() {
-            return Collections.singletonMap(name(), new FakeAnalyzer(indexedValue));
+        public Map<String, NamedAnalyzer> indexAnalyzers() {
+            return Collections.singletonMap(
+                name(),
+                new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)));
         }
 
         @Override

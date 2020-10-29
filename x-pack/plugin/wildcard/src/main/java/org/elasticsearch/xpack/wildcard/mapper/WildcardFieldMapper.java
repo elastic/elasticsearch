@@ -251,7 +251,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
         private final String nullValue;
         private final int ignoreAbove;
-        private final Analyzer analyzer;
+        private final NamedAnalyzer analyzer;
 
         private WildcardFieldType(String name, String nullValue, int ignoreAbove,
                                   Version version, Map<String, String> meta) {
@@ -1010,7 +1010,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public Map<String, Analyzer> indexAnalyzers() {
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Collections.singletonMap(name(), fieldType().analyzer);
     }
 

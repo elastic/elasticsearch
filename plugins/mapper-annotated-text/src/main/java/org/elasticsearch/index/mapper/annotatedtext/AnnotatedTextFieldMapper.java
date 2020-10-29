@@ -508,7 +508,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
     }
 
     private final FieldType fieldType;
-    private final Analyzer analyzer;
+    private final NamedAnalyzer analyzer;
     private final Builder builder;
 
     protected AnnotatedTextFieldMapper(String simpleName, FieldType fieldType, AnnotatedTextFieldType mappedFieldType,
@@ -521,7 +521,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public Map<String, Analyzer> indexAnalyzers() {
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Collections.singletonMap(name(), analyzer);
     }
 

@@ -49,7 +49,7 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String format() {
+        public String formatPathParameter() {
             return "json";
         }
 
@@ -63,22 +63,12 @@ public enum XContentType implements MediaType {
             return Set.of(
                 Tuple.tuple("application/json", Map.of("charset", "UTF-8")),
                 Tuple.tuple("application/x-ndjson", Map.of("charset", "UTF-8")),
+                Tuple.tuple("application/*", Collections.emptyMap()),
                 Tuple.tuple("application/vnd.elasticsearch+json",
                     Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8")),
                 Tuple.tuple("application/vnd.elasticsearch+x-ndjson",
                     Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8")));
         }
-//        @Override
-//        public MediaTypeRegistry<XContentType> mediaTypeRegistry() {
-//            return new MediaTypeRegistry<XContentType>()
-//                Tuple.tuple(("application/json", JSON, Map.of("charset", "UTF-8"))
-//                Tuple.tuple(("application/x-ndjson", JSON, Map.of("charset", "UTF-8"))
-//                Tuple.tuple(("application/vnd.elasticsearch+json", JSON,
-//                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8"))
-//                Tuple.tuple(("application/vnd.elasticsearch+x-ndjson", JSON,
-//                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8"));
-//
-//        }
     },
     /**
      * The jackson based smile binary format. Fast and compact binary format.
@@ -90,7 +80,7 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String format() {
+        public String formatPathParameter() {
             return "smile";
         }
 
@@ -117,7 +107,7 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String format() {
+        public String formatPathParameter() {
             return "yaml";
         }
 
@@ -144,7 +134,7 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String format() {
+        public String formatPathParameter() {
             return "cbor";
         }
 

@@ -38,7 +38,7 @@ public interface MediaType {
      * Returns a corresponding format for a MediaType. i.e. json for application/json media type
      * Can differ from the MediaType's subtype i.e plain/text has a subtype of text but format is txt
      */
-    String format();
+    String formatPathParameter();
 
     /**
      * returns a set of Tuples where a key is a sting - MediaType's type with subtype i.e application/json

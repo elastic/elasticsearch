@@ -41,7 +41,7 @@ public class MediaTypeRegistry<T extends MediaType> {
     }
 
     public T typeWithSubtypeToMediaType(String typeWithSubtype) {
-        return typeWithSubtypeToMediaType.get(typeWithSubtype);
+        return typeWithSubtypeToMediaType.get(typeWithSubtype.toLowerCase(Locale.ROOT));
     }
 
     public Map<String, Pattern> parametersFor(String typeWithSubtype) {
@@ -52,7 +52,7 @@ public class MediaTypeRegistry<T extends MediaType> {
         for (T mediaType : mediaTypes) {
             Set<Tuple<String, Map<String, String>>> tuples = mediaType.mediaTypeMappings();
             for (Tuple<String, Map<String, String>> tuple : tuples) {
-                formatToMediaType.put(mediaType.format(),mediaType);
+                formatToMediaType.put(mediaType.formatPathParameter(),mediaType);
                 typeWithSubtypeToMediaType.put(tuple.v1(), mediaType);
                 parametersMap.put(tuple.v1(), convertPatterns(tuple.v2()));
             }

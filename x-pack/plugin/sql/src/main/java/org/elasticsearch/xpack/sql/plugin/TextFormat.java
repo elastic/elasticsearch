@@ -85,7 +85,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String format() {
+        public String formatPathParameter() {
             return FORMAT_TEXT;
         }
 
@@ -135,7 +135,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String format() {
+        public String formatPathParameter() {
             return FORMAT_CSV;
         }
 
@@ -249,7 +249,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String format() {
+        public String formatPathParameter() {
             return FORMAT_TSV;
         }
 

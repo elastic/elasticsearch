@@ -313,12 +313,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         });
     }
 
+
     @Override
     public final void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
         /* This is the main search phase transition where we move to the next phase. At this point we check if there is
          * at least one successful operation left and if so we move to the next phase. If not we immediately fail the
-         * search phase as "all shards failed"*/
-        if (successfulOps.get() == 0) { // we have 0 successful results that means we shortcut stuff and return a failure
+         * search phase as "all shards failed". Note that if we cancelled the rest of the search request because of a
+         * partial failure, we don't count this as if "all shards failed".
+         */
+        if (successfulOps.get() == 0 && requestCancelled.get() == false) {
             final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
             Throwable cause = shardSearchFailures.length == 0 ? null :
                 ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];

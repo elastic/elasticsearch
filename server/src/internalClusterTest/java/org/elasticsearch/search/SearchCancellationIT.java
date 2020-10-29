@@ -67,6 +67,7 @@ import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.search.SearchCancellationIT.ScriptedBlockPlugin.SCRIPT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -311,12 +312,12 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .build());
         indexTestData();
         Thread searchThread = new Thread(() -> {
-            expectThrows(Exception.class, () -> {
+            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
                 client().prepareSearch("test")
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
-                    .setAllowPartialSearchResults(false).setSize(1000).get();
-            });
+                    .setAllowPartialSearchResults(false).setSize(1000).get());
+            assertThat(e.getMessage(), containsString("Partial shards failure"));
         });
         searchThread.start();
         try {

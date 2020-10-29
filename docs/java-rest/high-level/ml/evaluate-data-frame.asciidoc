@@ -7,7 +7,7 @@
 [id="{upid}-{api}"]
 === Evaluate {dfanalytics} API
 
-experimental::[]
+beta::[]
 
 Evaluates the {dfanalytics} for an annotated index.
 The API accepts an +{request}+ object and returns an +{response}+.

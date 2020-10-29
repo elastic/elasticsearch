@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -50,7 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-public class TransportGetJobsStatsAction extends TransportTasksAction<TransportOpenJobAction.JobTask, GetJobsStatsAction.Request,
+public class TransportGetJobsStatsAction extends TransportTasksAction<JobTask, GetJobsStatsAction.Request,
         GetJobsStatsAction.Response, QueryPage<JobStats>> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetJobsStatsAction.class);
@@ -107,8 +108,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     }
 
     @Override
-    protected void taskOperation(GetJobsStatsAction.Request request, TransportOpenJobAction.JobTask task,
-                                 ActionListener<QueryPage<JobStats>> listener) {
+    protected void taskOperation(GetJobsStatsAction.Request request, JobTask task, ActionListener<QueryPage<JobStats>> listener) {
         String jobId = task.getJobId();
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);

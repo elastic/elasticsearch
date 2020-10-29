@@ -108,7 +108,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                 + "]");
         }
 
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     @Override

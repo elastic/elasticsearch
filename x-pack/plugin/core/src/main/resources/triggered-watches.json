@@ -37,6 +37,7 @@
       }
     }
   },
+  "allow_auto_create": true,
   "_meta": {
     "description": "index template for triggered watches indices",
     "managed": true

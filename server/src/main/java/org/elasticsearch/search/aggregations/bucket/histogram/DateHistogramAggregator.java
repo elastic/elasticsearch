@@ -97,7 +97,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
         this.formatter = valuesSourceConfig.format();
 
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     @Override

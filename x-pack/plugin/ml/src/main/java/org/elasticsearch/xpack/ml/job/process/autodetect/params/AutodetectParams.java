@@ -110,14 +110,13 @@ public class AutodetectParams {
         private TimingStats timingStats;
         private ModelSnapshot modelSnapshot;
         private Quantiles quantiles;
-        private Set<MlFilter> filters;
+        private final Set<MlFilter> filters = new HashSet<>();
         private List<ScheduledEvent> scheduledEvents;
 
         public Builder(String jobId) {
             dataCounts = new DataCounts(jobId);
             modelSizeStats = new ModelSizeStats.Builder(jobId).build();
             timingStats = new TimingStats(jobId);
-            filters = new HashSet<>();
             scheduledEvents = new ArrayList<>();
         }
 
@@ -157,11 +156,6 @@ public class AutodetectParams {
 
         public Builder addFilter(MlFilter filter) {
             filters.add(filter);
-            return this;
-        }
-
-        public Builder setFilters(Set<MlFilter> filters) {
-            filters = Objects.requireNonNull(filters);
             return this;
         }
 

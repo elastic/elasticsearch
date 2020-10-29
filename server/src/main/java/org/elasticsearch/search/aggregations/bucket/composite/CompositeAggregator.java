@@ -33,7 +33,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafFieldComparator;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
@@ -42,6 +41,7 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.comparators.LongComparator;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexSortConfig;
@@ -135,14 +135,10 @@ final class CompositeAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected void doPostCollection() throws IOException {
-        finishLeaf();
-    }
-
-    @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         // Composite aggregator must be at the top of the aggregation tree
         assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0L;
+        finishLeaf();
         if (deferredCollectors != NO_OP_COLLECTOR) {
             // Replay all documents that contain at least one top bucket (collected during the first pass).
             runDeferredCollections();
@@ -357,18 +353,21 @@ final class CompositeAggregator extends BucketsAggregator {
             fieldDoc.doc = -1;
         }
         BooleanQuery newQuery = new BooleanQuery.Builder()
-            .add(context.query(), BooleanClause.Occur.MUST)
+            .add(topLevelQuery(), BooleanClause.Occur.MUST)
             .add(new SearchAfterSortedDocQuery(applySortFieldRounding(indexSortPrefix), fieldDoc), BooleanClause.Occur.FILTER)
             .build();
-        Weight weight = context.searcher().createWeight(context.searcher().rewrite(newQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        Weight weight = searcher().createWeight(searcher().rewrite(newQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
         Scorer scorer = weight.scorer(ctx);
         if (scorer != null) {
             DocIdSetIterator docIt = scorer.iterator();
             final LeafBucketCollector inner = queue.getLeafCollector(ctx,
                 getFirstPassCollector(docIdSetBuilder, indexSortPrefix.getSort().length));
             inner.setScorer(scorer);
+            final Bits liveDocs = ctx.reader().getLiveDocs();
             while (docIt.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                inner.collect(docIt.docID());
+                if (liveDocs == null || liveDocs.get(docIt.docID())) {
+                    inner.collect(docIt.docID());
+                }
             }
         }
     }
@@ -383,12 +382,12 @@ final class CompositeAggregator extends BucketsAggregator {
         int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
 
         SortedDocsProducer sortedDocsProducer = sortPrefixLen == 0  ?
-            sources[0].createSortedDocsProducerOrNull(ctx.reader(), context.query()) : null;
+            sources[0].createSortedDocsProducerOrNull(ctx.reader(), topLevelQuery()) : null;
         if (sortedDocsProducer != null) {
             // Visit documents sorted by the leading source of the composite definition and terminates
             // when the leading source value is guaranteed to be greater than the lowest composite bucket
             // in the queue.
-            DocIdSet docIdSet = sortedDocsProducer.processLeaf(context.query(), queue, ctx, fillDocIdSet);
+            DocIdSet docIdSet = sortedDocsProducer.processLeaf(topLevelQuery(), queue, ctx, fillDocIdSet);
             if (fillDocIdSet) {
                 entries.add(new Entry(ctx, docIdSet));
             }
@@ -453,8 +452,7 @@ final class CompositeAggregator extends BucketsAggregator {
         final boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
         if (needsScores) {
-            Query query = context.query();
-            weight = context.searcher().createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
+            weight = searcher().createWeight(searcher().rewrite(topLevelQuery()), ScoreMode.COMPLETE, 1f);
         }
         deferredCollectors.preCollection();
         for (Entry entry : entries) {
@@ -483,7 +481,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 collector.collect(docID);
             }
         }
-        deferredCollectors.postCollection();
     }
 
     /**

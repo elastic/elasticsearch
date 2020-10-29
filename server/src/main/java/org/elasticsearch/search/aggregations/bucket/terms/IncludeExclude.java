@@ -36,6 +36,7 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -78,17 +79,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (include.isPartitionBased()) {
             throw new IllegalArgumentException("Cannot specify any excludes when using a partition-based include");
         }
-        String includeMethod = include.isRegexBased() ? "regex" : "set";
-        String excludeMethod = exclude.isRegexBased() ? "regex" : "set";
-        if (includeMethod.equals(excludeMethod) == false) {
-            throw new IllegalArgumentException("Cannot mix a " + includeMethod + "-based include with a "
-                    + excludeMethod + "-based method");
-        }
-        if (include.isRegexBased()) {
-            return new IncludeExclude(include.include, exclude.exclude);
-        } else {
-            return new IncludeExclude(include.includeValues, exclude.excludeValues);
-        }
+
+        return new IncludeExclude(include.include, exclude.exclude, include.includeValues, exclude.excludeValues);
     }
 
     public static IncludeExclude parseInclude(XContentParser parser) throws IOException {
@@ -196,46 +188,39 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
-    static class AutomatonBackedStringFilter extends StringFilter {
+    class SetAndRegexStringFilter extends StringFilter {
 
         private final ByteRunAutomaton runAutomaton;
-
-        private AutomatonBackedStringFilter(Automaton automaton) {
-            this.runAutomaton = new ByteRunAutomaton(automaton);
-        }
-
-        /**
-         * Returns whether the given value is accepted based on the {@code include} &amp; {@code exclude} patterns.
-         */
-        @Override
-        public boolean accept(BytesRef value) {
-            return runAutomaton.run(value.bytes, value.offset, value.length);
-        }
-    }
-
-    static class TermListBackedStringFilter extends StringFilter {
-
         private final Set<BytesRef> valids;
         private final Set<BytesRef> invalids;
 
-        TermListBackedStringFilter(Set<BytesRef> includeValues, Set<BytesRef> excludeValues) {
-            this.valids = includeValues;
-            this.invalids = excludeValues;
+        private SetAndRegexStringFilter(DocValueFormat format) {
+            Automaton automaton = toAutomaton();
+            this.runAutomaton = automaton == null ?  null : new ByteRunAutomaton(automaton);
+            this.valids = parseForDocValues(includeValues, format);
+            this.invalids = parseForDocValues(excludeValues, format);
         }
 
         /**
-         * Returns whether the given value is accepted based on the
-         * {@code include} &amp; {@code exclude} sets.
+         * Returns whether the given value is accepted based on the {@code includeValues} &amp; {@code excludeValues}
+         * sets, as well as the {@code include} &amp; {@code exclude} patterns.
          */
         @Override
         public boolean accept(BytesRef value) {
-            return ((valids == null) || (valids.contains(value))) && ((invalids == null) || (!invalids.contains(value)));
+            if (valids != null && valids.contains(value) == false) {
+                return false;
+            }
+
+            if (runAutomaton != null && runAutomaton.run(value.bytes, value.offset, value.length) == false) {
+                return false;
+            }
+
+            return invalids == null || invalids.contains(value) == false;
         }
     }
 
     public abstract static class OrdinalsFilter extends Filter {
         public abstract LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException;
-
     }
 
     class PartitionedOrdinalsFilter extends OrdinalsFilter {
@@ -258,59 +243,64 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
-    static class AutomatonBackedOrdinalsFilter extends OrdinalsFilter {
+    class SetAndRegexOrdinalsFilter extends OrdinalsFilter {
 
         private final CompiledAutomaton compiled;
+        private final SortedSet<BytesRef> valids;
+        private final SortedSet<BytesRef> invalids;
 
-        private AutomatonBackedOrdinalsFilter(Automaton automaton) {
-            this.compiled = new CompiledAutomaton(automaton);
+        private SetAndRegexOrdinalsFilter(DocValueFormat format) {
+            Automaton automaton = toAutomaton();
+            this.compiled = automaton == null ?  null : new CompiledAutomaton(automaton);
+            this.valids = parseForDocValues(includeValues, format);
+            this.invalids = parseForDocValues(excludeValues, format);
         }
 
         /**
-         * Computes which global ordinals are accepted by this IncludeExclude instance.
-         *
+         * Computes which global ordinals are accepted by this IncludeExclude instance, based on the combination of
+         * the {@code includeValues} &amp; {@code excludeValues} sets, as well as the {@code include} &amp;
+         * {@code exclude} patterns.
          */
         @Override
         public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException {
-            LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
-            TermsEnum globalTermsEnum;
-            Terms globalTerms = new DocValuesTerms(globalOrdinals);
-            // TODO: specialize based on compiled.type: for ALL and prefixes (sinkState >= 0 ) we can avoid i/o and just set bits.
-            globalTermsEnum = compiled.getTermsEnum(globalTerms);
-            for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
-                acceptedGlobalOrdinals.set(globalTermsEnum.ord());
-            }
-            return acceptedGlobalOrdinals;
-        }
-
-    }
-
-    static class TermListBackedOrdinalsFilter extends OrdinalsFilter {
-
-        private final SortedSet<BytesRef> includeValues;
-        private final SortedSet<BytesRef> excludeValues;
-
-        TermListBackedOrdinalsFilter(SortedSet<BytesRef> includeValues, SortedSet<BytesRef> excludeValues) {
-            this.includeValues = includeValues;
-            this.excludeValues = excludeValues;
-        }
-
-        @Override
-        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException {
-            LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
-            if (includeValues != null) {
-                for (BytesRef term : includeValues) {
+            LongBitSet acceptedGlobalOrdinals = null;
+            if (valids != null) {
+                acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
+                for (BytesRef term : valids) {
                     long ord = globalOrdinals.lookupTerm(term);
                     if (ord >= 0) {
                         acceptedGlobalOrdinals.set(ord);
                     }
                 }
-            } else if (acceptedGlobalOrdinals.length() > 0) {
-                // default to all terms being acceptable
-                acceptedGlobalOrdinals.set(0, acceptedGlobalOrdinals.length());
             }
-            if (excludeValues != null) {
-                for (BytesRef term : excludeValues) {
+
+            if (compiled != null) {
+                LongBitSet automatonGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
+                TermsEnum globalTermsEnum;
+                Terms globalTerms = new DocValuesTerms(globalOrdinals);
+                // TODO: specialize based on compiled.type: for ALL and prefixes (sinkState >= 0 ) we can avoid i/o and just set bits.
+                globalTermsEnum = compiled.getTermsEnum(globalTerms);
+                for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
+                    automatonGlobalOrdinals.set(globalTermsEnum.ord());
+                }
+
+                if (acceptedGlobalOrdinals == null) {
+                    acceptedGlobalOrdinals = automatonGlobalOrdinals;
+                } else {
+                    acceptedGlobalOrdinals.and(automatonGlobalOrdinals);
+                }
+            }
+
+            if (acceptedGlobalOrdinals == null) {
+                acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
+                if (acceptedGlobalOrdinals.length() > 0) {
+                    // default to all terms being acceptable
+                    acceptedGlobalOrdinals.set(0, acceptedGlobalOrdinals.length());
+                }
+            }
+
+            if (invalids != null) {
+                for (BytesRef term : invalids) {
                     long ord = globalOrdinals.lookupTerm(term);
                     if (ord >= 0) {
                         acceptedGlobalOrdinals.clear(ord);
@@ -319,8 +309,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             }
             return acceptedGlobalOrdinals;
         }
-
     }
+
 
     private final RegExp include, exclude;
     private final SortedSet<BytesRef> includeValues, excludeValues;
@@ -332,15 +322,34 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
      * @param exclude   The regular expression pattern for the terms to be excluded
      */
     public IncludeExclude(RegExp include, RegExp exclude) {
-        if (include == null && exclude == null) {
+        this(include, exclude, null, null);
+    }
+
+    public IncludeExclude(RegExp include, RegExp exclude, SortedSet<BytesRef> includeValues, SortedSet<BytesRef> excludeValues) {
+        if (include == null && exclude == null && includeValues == null && excludeValues == null) {
+            throw new IllegalArgumentException();
+        }
+        if (include != null && includeValues != null) {
+            throw new IllegalArgumentException();
+        }
+        if (exclude != null && excludeValues != null) {
             throw new IllegalArgumentException();
         }
         this.include = include;
         this.exclude = exclude;
-        this.includeValues = null;
-        this.excludeValues = null;
+        this.includeValues = includeValues;
+        this.excludeValues = excludeValues;
         this.incZeroBasedPartition = 0;
         this.incNumPartitions = 0;
+    }
+
+    public IncludeExclude(String include, String exclude, String[] includeValues, String[] excludeValues) {
+        this(
+            include == null ? null : new RegExp(include),
+            exclude == null ? null : new RegExp(exclude),
+            convertToBytesRefSet(includeValues),
+            convertToBytesRefSet(excludeValues)
+        );
     }
 
     public IncludeExclude(String include, String exclude) {
@@ -352,15 +361,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
      * @param excludeValues   The terms to be excluded
      */
     public IncludeExclude(SortedSet<BytesRef> includeValues, SortedSet<BytesRef> excludeValues) {
-        if (includeValues == null && excludeValues == null) {
-            throw new IllegalArgumentException();
-        }
-        this.include = null;
-        this.exclude = null;
-        this.incZeroBasedPartition = 0;
-        this.incNumPartitions = 0;
-        this.includeValues = includeValues;
-        this.excludeValues = excludeValues;
+        this(null, null, includeValues, excludeValues);
     }
 
     public IncludeExclude(String[] includeValues, String[] excludeValues) {
@@ -395,18 +396,21 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
      */
     public IncludeExclude(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            includeValues = null;
-            excludeValues = null;
-            incZeroBasedPartition = 0;
-            incNumPartitions = 0;
             String includeString = in.readOptionalString();
             include = includeString == null ? null : new RegExp(includeString);
             String excludeString = in.readOptionalString();
             exclude = excludeString == null ? null : new RegExp(excludeString);
-            return;
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                incZeroBasedPartition = 0;
+                incNumPartitions = 0;
+                includeValues = null;
+                excludeValues = null;
+                return;
+            }
+        } else {
+            include = null;
+            exclude = null;
         }
-        include = null;
-        exclude = null;
         if (in.readBoolean()) {
             int size = in.readVInt();
             includeValues = new TreeSet<>();
@@ -436,26 +440,28 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (regexBased) {
             out.writeOptionalString(include == null ? null : include.getOriginalString());
             out.writeOptionalString(exclude == null ? null : exclude.getOriginalString());
-        } else {
-            boolean hasIncludes = includeValues != null;
-            out.writeBoolean(hasIncludes);
-            if (hasIncludes) {
-                out.writeVInt(includeValues.size());
-                for (BytesRef value : includeValues) {
-                    out.writeBytesRef(value);
-                }
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                return;
             }
-            boolean hasExcludes = excludeValues != null;
-            out.writeBoolean(hasExcludes);
-            if (hasExcludes) {
-                out.writeVInt(excludeValues.size());
-                for (BytesRef value : excludeValues) {
-                    out.writeBytesRef(value);
-                }
-            }
-            out.writeVInt(incNumPartitions);
-            out.writeVInt(incZeroBasedPartition);
         }
+        boolean hasIncludes = includeValues != null;
+        out.writeBoolean(hasIncludes);
+        if (hasIncludes) {
+            out.writeVInt(includeValues.size());
+            for (BytesRef value : includeValues) {
+                out.writeBytesRef(value);
+            }
+        }
+        boolean hasExcludes = excludeValues != null;
+        out.writeBoolean(hasExcludes);
+        if (hasExcludes) {
+            out.writeVInt(excludeValues.size());
+            for (BytesRef value : excludeValues) {
+                out.writeBytesRef(value);
+            }
+        }
+        out.writeVInt(incNumPartitions);
+        out.writeVInt(incZeroBasedPartition);
     }
 
     private static SortedSet<BytesRef> convertToBytesRefSet(String[] values) {
@@ -573,29 +579,25 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     private Automaton toAutomaton() {
         Automaton a = null;
+        if (include == null && exclude == null) {
+            return a;
+        }
         if (include != null) {
             a = include.toAutomaton();
-        } else if (includeValues != null) {
-            a = Automata.makeStringUnion(includeValues);
         } else {
             a = Automata.makeAnyString();
         }
         if (exclude != null) {
             a = Operations.minus(a, exclude.toAutomaton(), Operations.DEFAULT_MAX_DETERMINIZED_STATES);
-        } else if (excludeValues != null) {
-            a = Operations.minus(a, Automata.makeStringUnion(excludeValues), Operations.DEFAULT_MAX_DETERMINIZED_STATES);
         }
         return a;
     }
 
     public StringFilter convertToStringFilter(DocValueFormat format) {
-        if (isRegexBased()) {
-            return new AutomatonBackedStringFilter(toAutomaton());
-        }
         if (isPartitionBased()){
             return new PartitionedStringFilter();
         }
-        return new TermListBackedStringFilter(parseForDocValues(includeValues, format), parseForDocValues(excludeValues, format));
+        return new SetAndRegexStringFilter(format);
     }
 
     private static SortedSet<BytesRef> parseForDocValues(SortedSet<BytesRef> endUserFormattedValues, DocValueFormat format) {
@@ -612,15 +614,11 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     public OrdinalsFilter convertToOrdinalsFilter(DocValueFormat format) {
-
-        if (isRegexBased()) {
-            return new AutomatonBackedOrdinalsFilter(toAutomaton());
-        }
         if (isPartitionBased()){
             return new PartitionedOrdinalsFilter();
         }
 
-        return new TermListBackedOrdinalsFilter(parseForDocValues(includeValues, format), parseForDocValues(excludeValues, format));
+        return new SetAndRegexOrdinalsFilter(format);
     }
 
     public LongFilter convertToLongFilter(DocValueFormat format) {

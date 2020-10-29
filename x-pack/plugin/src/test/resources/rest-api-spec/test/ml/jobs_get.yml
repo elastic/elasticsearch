@@ -92,9 +92,8 @@ setup:
   - do:
       ml.get_jobs:
         job_id: jobs-get-1
-        for_export: true
+        exclude_generated: true
   - match: { jobs.0.description: "Job 1"}
-  - is_false: job_id
   - is_false: job_type
   - is_false: job_version
   - is_false: create_time

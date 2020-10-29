@@ -133,7 +133,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
         public IpFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
                            InetAddress nullValue, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.nullValue = nullValue;
         }
 

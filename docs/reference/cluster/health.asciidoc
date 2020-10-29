@@ -70,12 +70,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
     priority are processed.
 
 `wait_for_no_initializing_shards`::
-    (Optional, boolean) A boolean value which controls whether to wait (until 
+    (Optional, Boolean) A boolean value which controls whether to wait (until 
     the timeout provided) for the cluster to have no shard initializations. 
     Defaults to false, which means it will not wait for initializing shards.
 
 `wait_for_no_relocating_shards`::
-    (Optional, boolean) A boolean value which controls whether to wait (until 
+    (Optional, Boolean) A boolean value which controls whether to wait (until 
     the timeout provided) for the cluster to have no shard relocations. Defaults 
     to false, which means it will not wait for relocating shards.
 
@@ -101,7 +101,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 
 `timed_out`::
-    (boolean) If `false` the response returned within the period of 
+    (Boolean) If `false` the response returned within the period of 
     time that is specified by the `timeout` parameter (`30s` by default).
 
 `number_of_nodes`::

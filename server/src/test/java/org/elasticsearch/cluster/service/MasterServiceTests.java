@@ -24,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -190,7 +191,7 @@ public class MasterServiceTests extends ESTestCase {
             final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
             final TimeValue masterTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
 
-            master.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(ackedRequest(ackTimeout, masterTimeout), null) {
+            master.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<>(ackedRequest(ackTimeout, masterTimeout), null) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     assertTrue(threadPool.getThreadContext().isSystemContext());
@@ -221,11 +222,6 @@ public class MasterServiceTests extends ESTestCase {
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
                     assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
                     latch.countDown();
-                }
-
-                @Override
-                protected Void newResponse(boolean acknowledged) {
-                    return null;
                 }
 
                 @Override
@@ -919,7 +915,7 @@ public class MasterServiceTests extends ESTestCase {
                 publisherRef.set((clusterChangedEvent, publishListener, ackListener) ->
                     publishListener.onFailure(new FailedToCommitClusterStateException("mock exception")));
 
-                masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(
+                masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<>(
                         ackedRequest(TimeValue.ZERO, null), null) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
@@ -932,7 +928,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    protected Void newResponse(boolean acknowledged) {
+                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
                         fail();
                         return null;
                     }
@@ -966,7 +962,7 @@ public class MasterServiceTests extends ESTestCase {
                 });
 
                 masterService.submitStateUpdateTask(
-                        "test2", new AckedClusterStateUpdateTask<Void>(ackedRequest(ackTimeout, null), null) {
+                        "test2", new AckedClusterStateUpdateTask<>(ackedRequest(ackTimeout, null), null) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         return ClusterState.builder(currentState).build();
@@ -978,7 +974,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    protected Void newResponse(boolean acknowledged) {
+                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
                         fail();
                         return null;
                     }

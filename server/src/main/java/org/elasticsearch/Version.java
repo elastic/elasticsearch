@@ -55,7 +55,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * The unreleased last minor is the current major with a upped minor: 7._4_.0
      * The unreleased revision is the very release with a upped revision 7.3._1_
      */
-    public static final int V_EMPTY_ID = 0;
+    public static final int V_EMPTY_ID = 0
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
     public static final Version V_7_0_0 = new Version(7000099, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final Version V_7_0_1 = new Version(7000199, org.apache.lucene.util.Version.LUCENE_8_0_0);

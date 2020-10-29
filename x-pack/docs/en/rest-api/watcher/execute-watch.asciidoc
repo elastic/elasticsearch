@@ -271,7 +271,7 @@ This is an example of the output:
         }
       ]
     },
-    "user": "test_admin", <4>
+    "user": "test_admin" <4>
   }
 }
 --------------------------------------------------

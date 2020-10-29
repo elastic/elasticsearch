@@ -78,4 +78,8 @@ public class HistoryStore {
         return indexMetadata == null || (indexMetadata.getState() == IndexMetadata.State.OPEN &&
             state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
     }
+
+    public void flush() {
+        bulkProcessor.flush();
+    }
 }

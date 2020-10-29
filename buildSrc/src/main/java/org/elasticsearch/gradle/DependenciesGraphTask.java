@@ -29,17 +29,13 @@ import org.gradle.api.GradleException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.DependencySet;
-import org.gradle.api.artifacts.ModuleVersionIdentifier;
 import org.gradle.api.artifacts.ProjectDependency;
-import org.gradle.api.tasks.options.Option;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A task to generate a dependency graph of our runtime dependencies and push that via
@@ -56,8 +52,6 @@ public class DependenciesGraphTask extends DefaultTask {
 
     private Configuration runtimeConfiguration;
     private Configuration compileOnlyConfiguration;
-    private String url;
-    private String token;
 
     @InputFiles
     public Configuration getRuntimeConfiguration() {
@@ -77,48 +71,23 @@ public class DependenciesGraphTask extends DefaultTask {
         this.compileOnlyConfiguration = compileOnlyConfiguration;
     }
 
-    @Option(option = "url", description = "The API endpoint to call with the dependency graph")
-    public void setUrl(String url) {
-        this.url = url;
-    }
-
-    @Input
-    public String getUrl() {
-        return this.url;
-    }
-
-    @Option(option = "token", description = "The API KEY used to authenticate to the API")
-    public void setToken(String token) {
-        this.token = token;
-    }
-
-    @Input
-    public String getToken() {
-        return this.token;
-    }
-
     @TaskAction
     void generateDependenciesGraph() {
+
+        final String url = System.getenv("SCA_URL");
+        final String token = System.getenv("SCA_TOKEN");
+        if (null == url || null == token) {
+            throw new GradleException("The environment variables SCA_URL and SCA_TOKEN need to be set before this task is run");
+        }
         final DependencySet runtimeDependencies = runtimeConfiguration.getAllDependencies();
         final Set<String> packages = new HashSet<>();
         final Set<String> nodes = new HashSet<>();
         final Set<String> nodeIds = new HashSet<>();
-        final Set<String> compileOnlyArtifacts = compileOnlyConfiguration.getResolvedConfiguration()
-            .getResolvedArtifacts()
-            .stream()
-            .map(a -> {
-                ModuleVersionIdentifier id = a.getModuleVersion().getId();
-                return id.getGroup() + ":" + id.getName() + "@" + id.getVersion();
-            })
-            .collect(Collectors.toSet());
         for (final Dependency dependency : runtimeDependencies) {
             final String id = dependency.getGroup() + ":" + dependency.getName();
             final String versionedId = id + "@" + dependency.getVersion();
             final StringBuilder packageString = new StringBuilder();
             final StringBuilder nodeString = new StringBuilder();
-            if (compileOnlyArtifacts.contains(versionedId)) {
-                continue;
-            }
             if (dependency instanceof ProjectDependency) {
                 continue;
             }
@@ -167,7 +136,7 @@ public class DependenciesGraphTask extends DefaultTask {
                 .append("]}}}");
             getLogger().debug("Dependency Graph: " + output.toString());
             try (CloseableHttpClient client = HttpClients.createDefault()) {
-                HttpPost postRequest = new HttpPost(this.url);
+                HttpPost postRequest = new HttpPost(url);
                 postRequest.addHeader("Authorization", "token " + token);
                 postRequest.addHeader("Content-Type", "application/json");
                 postRequest.setEntity(new StringEntity(output.toString()));

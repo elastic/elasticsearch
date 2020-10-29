@@ -31,7 +31,7 @@ The information provided by this API includes:
   include in the response. For example, `build,license,features`.
 
 `human`::
-  (Optional, boolean) Defines whether additional human-readable information is
+  (Optional, Boolean) Defines whether additional human-readable information is
   included in the response. In particular, it adds descriptions and a tag line.
   The default value is `true`.
 

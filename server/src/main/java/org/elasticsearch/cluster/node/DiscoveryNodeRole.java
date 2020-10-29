@@ -132,6 +132,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         return "DiscoveryNodeRole{" +
                 "roleName='" + roleName + '\'' +
                 ", roleNameAbbreviation='" + roleNameAbbreviation + '\'' +
+                ", canContainData=" + canContainData +
                 (isKnownRole ? "" : ", isKnownRole=false") +
                 '}';
     }

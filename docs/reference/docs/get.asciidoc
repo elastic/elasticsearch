@@ -161,7 +161,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
 
 `refresh`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, {es} refreshes the affected shards to make this operation visible to
 search. If `false`, do nothing with refreshes. Defaults to `false`.
 

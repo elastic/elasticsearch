@@ -3,3 +3,5 @@ esplugin {
   type = 'bootstrap'
   javaOpts = '-Djava.nio.file.spi.DefaultFileSystemProvider=org.elasticsearch.fs.quotaaware.QuotaAwareFileSystemProvider'
 }
+
+integTest.enabled = false

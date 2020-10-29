@@ -63,6 +63,7 @@ public class QuotaAwareFileSystemProviderTests extends LuceneTestCase {
         assertThat(exception.getMessage(), startsWith("Property " + QUOTA_PATH_KEY + " must be set to a URI"));
     }
 
+    @SuppressWarnings("try")
     public void testInitiallyNoQuotaFile() throws Exception {
         Path quotaFile = createTempDir().resolve("quota.properties");
         FileSystemProvider systemProvider = FileSystems.getDefault().provider();

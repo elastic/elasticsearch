@@ -51,6 +51,7 @@ public class CacheFile {
     private final AbstractRefCounted refCounter = new AbstractRefCounted("CacheFile") {
         @Override
         protected void closeInternal() {
+            assert evicted.get();
             assert assertNoPendingListeners();
             try {
                 Files.deleteIfExists(file);
@@ -95,7 +96,7 @@ public class CacheFile {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } finally {
-                refCounter.decRef();
+                decrementRefCount();
             }
         }
     }
@@ -128,7 +129,7 @@ public class CacheFile {
         return reference == null ? null : reference.fileChannel;
     }
 
-    public boolean acquire(final EvictionListener listener) throws IOException {
+    public void acquire(final EvictionListener listener) throws IOException {
         assert listener != null;
 
         ensureOpen();
@@ -147,15 +148,17 @@ public class CacheFile {
                 success = true;
             } finally {
                 if (success == false) {
-                    refCounter.decRef();
+                    decrementRefCount();
                 }
             }
+        } else {
+            assert evicted.get();
+            throwAlreadyEvicted();
         }
         assert invariant();
-        return success;
     }
 
-    public boolean release(final EvictionListener listener) {
+    public void release(final EvictionListener listener) {
         assert listener != null;
 
         boolean success = false;
@@ -175,11 +178,10 @@ public class CacheFile {
             success = true;
         } finally {
             if (success) {
-                refCounter.decRef();
+                decrementRefCount();
             }
         }
         assert invariant();
-        return success;
     }
 
     private boolean assertNoPendingListeners() {
@@ -188,6 +190,11 @@ public class CacheFile {
             assert channelRef == null;
         }
         return true;
+    }
+
+    private void decrementRefCount() {
+        final boolean released = refCounter.decRef();
+        assert released == false || (evicted.get() && Files.notExists(file));
     }
 
     /**
@@ -199,7 +206,7 @@ public class CacheFile {
             synchronized (listeners) {
                 evictionListeners = new HashSet<>(listeners);
             }
-            refCounter.decRef();
+            decrementRefCount();
             evictionListeners.forEach(listener -> listener.onEviction(this));
         }
         assert invariant();
@@ -209,7 +216,6 @@ public class CacheFile {
         synchronized (listeners) {
             if (listeners.isEmpty()) {
                 assert channelRef == null;
-                assert evicted.get() == false || refCounter.refCount() != 0 || Files.notExists(file);
             } else {
                 assert channelRef != null;
                 assert refCounter.refCount() > 0;
@@ -244,8 +250,12 @@ public class CacheFile {
 
     private void ensureOpen() {
         if (evicted.get()) {
-            throw new AlreadyClosedException("Cache file is evicted");
+            throwAlreadyEvicted();
         }
+    }
+
+    private static void throwAlreadyEvicted() {
+        throw new AlreadyClosedException("Cache file is evicted");
     }
 
     @FunctionalInterface

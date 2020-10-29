@@ -84,6 +84,9 @@ setup:
 
 ---
 "IP test":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "Skip until #64014 is merged (include exclude wire format change)"
   - do:
       index:
         index: test_1
@@ -291,6 +294,9 @@ setup:
 
 ---
 "Date test":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "Skip until #64014 is merged (include exclude wire format change)"
   - do:
       index:
         index: test_1
@@ -362,6 +368,9 @@ setup:
 ---
 "Partitioned string test":
 
+  - skip:
+      version: " - 7.99.99"
+      reason:  "Skip until #64014 is merged (include exclude wire format change)"
   - do:
       index:
         index: test_1
@@ -416,6 +425,9 @@ setup:
 ---
 "Partitioned integer test":
 
+  - skip:
+      version: " - 7.99.99"
+      reason:  "Skip until #64014 is merged (include exclude wire format change)"
   - do:
       index:
         index: test_1

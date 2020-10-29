@@ -93,7 +93,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         final Shell.Result result = runElasticsearchStartCommand(null, false, false);
 
         // Generate a Path for this location so that the platform-specific line-endings will be used.
-        final String platformPath = Path.of("/this/does/not/exist.properties").toString();
+        final String platformPath = Paths.get("/this/does/not/exist.properties").toString();
 
         assertThat("Elasticsearch should have terminated unsuccessfully", result.isSuccess(), equalTo(false));
         assertThat(result.stderr, containsString("NoSuchFileException: " + platformPath));
@@ -112,7 +112,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         installation.executables().pluginTool.run("install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
 
         final Path quotaPath = getRootTempDir().resolve("quota.properties");
-        Files.writeString(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", total, available));
+        Files.write(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", total, available).getBytes());
 
         sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=" + quotaPath.toUri());
 
@@ -129,7 +129,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
             // Check that ES is polling the properties file for changes by modifying the properties file
             // and waiting for ES to pick up the changes.
-            Files.writeString(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", updatedTotal, updatedAvailable));
+            Files.write(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", updatedTotal, updatedAvailable).getBytes());
 
             // The check interval is 1000ms, but give ourselves some leeway.
             Thread.sleep(2000);

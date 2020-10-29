@@ -15,7 +15,9 @@ import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -79,6 +81,31 @@ abstract class KeyConfig extends TrustConfig {
     };
 
     abstract X509ExtendedKeyManager createKeyManager(@Nullable Environment environment);
+
+    /**
+     * generate a new exception caused by a missing file, that is required for this key config
+     */
+    static ElasticsearchException missingKeyConfigFile(IOException cause, String fileType, Path path) {
+        return new ElasticsearchException(
+            "failed to initialize SSL KeyManager - " + fileType + " file [{}] does not exist", cause, path.toAbsolutePath());
+    }
+
+    /**
+     * generate a new exception caused by an unreadable file (i.e. file-system access denied), that is required for this key config
+     */
+    static ElasticsearchException unreadableKeyConfigFile(AccessDeniedException cause, String fileType, Path path) {
+        return new ElasticsearchException(
+            "failed to initialize SSL KeyManager - not permitted to read " + fileType + " file [{}]", cause, path.toAbsolutePath());
+    }
+
+    /**
+     * generate a new exception caused by a blocked file (i.e. security-manager access denied), that is required for this key config
+     */
+    static ElasticsearchException blockedKeyConfigFile(AccessControlException cause, Environment environment, String fileType, Path path) {
+        return new ElasticsearchException(
+            "failed to initialize SSL KeyManager - access to read {} file [{}] is blocked;" +
+                " SSL resources should be placed in the [{}] directory", cause, fileType, path, environment.configFile());
+    }
 
     abstract List<PrivateKey> privateKeys(@Nullable Environment environment);
 

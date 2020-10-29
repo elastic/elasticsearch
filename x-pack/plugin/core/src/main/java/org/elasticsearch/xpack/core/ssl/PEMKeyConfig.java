@@ -14,9 +14,13 @@ import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -72,9 +76,15 @@ class PEMKeyConfig extends KeyConfig {
 
     private Certificate[] getCertificateChain(@Nullable Environment environment) throws CertificateException, IOException {
         final Path certificate = CertParsingUtils.resolvePath(certPath, environment);
-        
-        return CertParsingUtils.readCertificates(Collections.singletonList(certificate));
-        
+        try {
+            return CertParsingUtils.readCertificates(Collections.singletonList(certificate));
+        } catch (FileNotFoundException | NoSuchFileException fileException) {
+            throw missingKeyConfigFile(fileException, CERTIFICATE_FILE, certificate);
+        } catch (AccessDeniedException accessException) {
+            throw unreadableKeyConfigFile(accessException, CERTIFICATE_FILE, certificate);
+        } catch (AccessControlException securityException) {
+            throw blockedKeyConfigFile(securityException, environment, CERTIFICATE_FILE, certificate);
+        }
     }
 
     @Override
@@ -101,8 +111,15 @@ class PEMKeyConfig extends KeyConfig {
 
     private static PrivateKey readPrivateKey(String keyPath, SecureString keyPassword, Environment environment) throws IOException {
         final Path key = CertParsingUtils.resolvePath(keyPath, environment);
-        
-        return PemUtils.readPrivateKey(key, keyPassword::getChars);
+        try {
+            return PemUtils.readPrivateKey(key, keyPassword::getChars);
+        } catch (FileNotFoundException | NoSuchFileException fileException) {
+            throw missingKeyConfigFile(fileException, KEY_FILE, key);
+        } catch (AccessDeniedException accessException) {
+            throw unreadableKeyConfigFile(accessException, KEY_FILE, key);
+        } catch (AccessControlException securityException) {
+            throw blockedKeyConfigFile(securityException, environment, KEY_FILE, key);
+        }
     }
 
     @Override

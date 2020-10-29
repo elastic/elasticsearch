@@ -49,6 +49,43 @@ GET /my-index-000001/_search
 // TEST[setup:my_index]
 // TEST[s/my-field/http.request.method/]
 
+Aggregation results are in the response's `aggregations` property:
+
+[source,console-result]
+----
+{
+  "took": 78,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 5,
+      "relation": "eq"
+    },
+    "max_score": 1.0,
+    "hits": [...]
+  },
+  "aggregations": {
+    "my-agg-name": {                           <1>
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": []
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"took": 78/"took": "$body.took"/]
+// TESTRESPONSE[s/\.\.\.$/"took": "$body.took", "timed_out": false, "_shards": "$body._shards", /]
+// TESTRESPONSE[s/"hits": \[\.\.\.\]/"hits": "$body.hits.hits"/]
+// TESTRESPONSE[s/"buckets": \[\]/"buckets":\[\{"key":"get","doc_count":5\}\]/]
+
+<1> Results for the `my-agg-name` aggregation.
+
 [discrete]
 [[change-agg-scope]]
 === Change an aggregation's scope
@@ -161,8 +198,39 @@ GET /my-index-000001/_search
 }
 ----
 // TEST[setup:my_index]
+// TEST[s/_search/_search?size=0/]
 // TEST[s/my-field/http.request.method/]
 // TEST[s/my-other-field/http.response.bytes/]
+
+The response nests sub-aggregation results under their parent aggregation:
+
+[source,console-result]
+----
+{
+  ...
+  "aggregations": {
+    "my-agg-name": {                           <1>
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": "foo",
+          "doc_count": 5,
+          "my-sub-agg-name": {                 <2>
+            "value": 75.0
+          }
+        }
+      ]
+    }
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits",/]
+// TESTRESPONSE[s/"key": "foo"/"key": "get"/]
+// TESTRESPONSE[s/"value": 75.0/"value": $body.aggregations.my-agg-name.buckets.0.my-sub-agg-name.value/]
+
+<1> Results for the parent aggregation, `my-agg-name`.
+<2> Results for `my-agg-name`'s sub-aggregation, `my-sub-agg-name`.
 
 [discrete]
 [[add-metadata-to-an-agg]]
@@ -343,8 +411,10 @@ GET /my-index-000001/_search
 
 For faster responses, {es} caches the results of frequently run aggregations in
 the <<shard-request-cache,shard request cache>>. To get cached results, use the
-same <<shard-and-node-preference,`preference` string>> for each search. {es}
-routes searches with the same preference string to the same shards. If the
+same <<shard-and-node-preference,`preference` string>> for each search. If you
+don't need search hits, set `size` to `0` to avoid filling the cache.
+
+{es} routes searches with the same preference string to the same shards. If the
 shards' data doesn’t change between searches, the shards return cached
 aggregation results.
 

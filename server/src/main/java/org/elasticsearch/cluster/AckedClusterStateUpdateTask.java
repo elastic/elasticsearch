@@ -40,7 +40,7 @@ public abstract class AckedClusterStateUpdateTask<Response> extends ClusterState
     }
 
     protected AckedClusterStateUpdateTask(Priority priority, AckedRequest request, ActionListener<Response> listener) {
-        super(priority);
+        super(priority, request.masterNodeTimeout());
         this.listener = listener;
         this.request = request;
     }
@@ -85,12 +85,7 @@ public abstract class AckedClusterStateUpdateTask<Response> extends ClusterState
     /**
      * Acknowledgement timeout, maximum time interval to wait for acknowledgements
      */
-    public TimeValue ackTimeout() {
+    public final TimeValue ackTimeout() {
         return request.ackTimeout();
-    }
-
-    @Override
-    public TimeValue timeout() {
-        return request.masterNodeTimeout();
     }
 }

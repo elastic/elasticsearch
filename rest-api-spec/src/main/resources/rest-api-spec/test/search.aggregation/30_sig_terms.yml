@@ -74,6 +74,9 @@
 
 ---
 "IP test":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "Skip until #64014 is merged (include exclude wire format change)"
   - do:
       indices.create:
           index:  ip_index

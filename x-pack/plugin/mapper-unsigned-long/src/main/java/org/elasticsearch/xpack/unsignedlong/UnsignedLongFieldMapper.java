@@ -147,7 +147,7 @@ public class UnsignedLongFieldMapper extends ParametrizedFieldMapper {
             Number nullValueFormatted,
             Map<String, String> meta
         ) {
-            super(name, indexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.nullValueFormatted = nullValueFormatted;
         }
 

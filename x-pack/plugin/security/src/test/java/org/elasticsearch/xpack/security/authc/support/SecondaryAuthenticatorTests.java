@@ -13,7 +13,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -276,9 +275,9 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             tokenSource.set(request.source());
         });
 
-        final PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        final PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(auth, auth, Map.of(), false, tokenFuture);
-        final String token = tokenFuture.actionGet().v1();
+        final String token = tokenFuture.actionGet().getAccessToken();
 
         threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Bearer " + token);
 

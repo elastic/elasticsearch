@@ -92,6 +92,10 @@ ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 ES_DISTRIBUTION_TYPE=${es.distribution.type}
 ES_BUNDLED_JDK=${es.bundled_jdk}
 
+if [[ "$ES_BUNDLED_JDK" == "false" ]]; then
+  echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
+fi
+
 if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
   # Allow environment variables to be set by creating a file with the
   # contents, and setting an environment variable with the suffix _FILE to

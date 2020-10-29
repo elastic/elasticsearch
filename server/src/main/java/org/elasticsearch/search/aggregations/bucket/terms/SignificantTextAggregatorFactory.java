@@ -131,7 +131,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             context.lookup().source(),
             context.bigArrays(),
             fieldType,
-            searchContext.mapperService().indexAnalyzer(),
+            searchContext.getQueryShardContext().getIndexAnalyzer(),
             sourceFieldNames,
             filterDuplicateText
         );

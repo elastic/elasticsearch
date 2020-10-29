@@ -76,7 +76,10 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.BYTES);
+        return List.of(
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.BYTES
+        );
     }
 
     @Override

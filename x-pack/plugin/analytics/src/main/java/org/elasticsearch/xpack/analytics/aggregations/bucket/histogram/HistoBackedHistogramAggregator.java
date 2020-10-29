@@ -76,16 +76,18 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
 
                         double key = Math.floor((value - offset) / interval);
                         assert key >= previousKey;
-                        long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
-                        if (bucketOrd < 0) { // already seen
-                            bucketOrd = -1 - bucketOrd;
-                            collectExistingBucket(sub, doc, bucketOrd);
-                        } else {
-                            collectBucket(sub, doc, bucketOrd);
+                        if (hardBounds == null || hardBounds.contain(key * interval)) {
+                            long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
+                            if (bucketOrd < 0) { // already seen
+                                bucketOrd = -1 - bucketOrd;
+                                collectExistingBucket(sub, doc, bucketOrd);
+                            } else {
+                                collectBucket(sub, doc, bucketOrd);
+                            }
+                            // We have added the document already. We should increment doc_count by count - 1
+                            // so that we have added it count times.
+                            incrementBucketDocCount(bucketOrd, count - 1);
                         }
-                        // We have added the document already. We should increment doc_count by count - 1
-                        // so that we have added it count times.
-                        incrementBucketDocCount(bucketOrd, count - 1);
                         previousKey = key;
                     }
                 }

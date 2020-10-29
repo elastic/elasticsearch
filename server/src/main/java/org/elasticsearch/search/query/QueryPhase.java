@@ -429,8 +429,7 @@ public class QueryPhase {
         // check if this is a field of type Long or Date, that is indexed and has doc values
         String fieldName = sortField.getField();
         if (fieldName == null) return null; // happens when _score or _doc is the 1st sort field
-        if (searchContext.mapperService() == null) return null; // mapperService can be null in tests
-        final MappedFieldType fieldType = searchContext.mapperService().fieldType(fieldName);
+        final MappedFieldType fieldType = searchContext.fieldType(fieldName);
         if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
         if (fieldType.isSearchable() == false) return null;
@@ -445,7 +444,7 @@ public class QueryPhase {
                 if (SortField.FIELD_DOC.equals(sField) == false) return null;
             } else {
                 //TODO: find out how to cover _script sort that don't use _score
-                if (searchContext.mapperService().fieldType(sFieldName) == null) return null; // could be _script sort that uses _score
+                if (searchContext.fieldType(sFieldName) == null) return null; // could be _script sort that uses _score
             }
         }
 

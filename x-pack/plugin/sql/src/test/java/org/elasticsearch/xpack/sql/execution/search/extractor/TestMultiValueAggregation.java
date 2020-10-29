@@ -49,4 +49,9 @@ class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiV
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return values.keySet();
+    }
 }

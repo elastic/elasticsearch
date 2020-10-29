@@ -51,7 +51,7 @@ used with either `id` or `name` or when `owner` flag is set to `true`.
 either `id` or `name` or when `owner` flag is set to `true`.
 
 `owner`::
-(Optional, boolean) A boolean flag that can be used to query API keys owned
+(Optional, Boolean) A boolean flag that can be used to query API keys owned
 by the currently authenticated user. Defaults to false.
 The 'realm_name' or 'username' parameters cannot be specified when this
 parameter is set to 'true' as they are assumed to be the currently authenticated ones.

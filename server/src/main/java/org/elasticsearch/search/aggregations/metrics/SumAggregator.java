@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -56,8 +55,8 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
         this.format = valuesSourceConfig.format();
         if (valuesSource != null) {
-            sums = context.bigArrays().newDoubleArray(1, true);
-            compensations = context.bigArrays().newDoubleArray(1, true);
+            sums = bigArrays().newDoubleArray(1, true);
+            compensations = bigArrays().newDoubleArray(1, true);
         }
     }
 
@@ -72,14 +71,13 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                sums = bigArrays.grow(sums, bucket + 1);
-                compensations = bigArrays.grow(compensations, bucket + 1);
+                sums = bigArrays().grow(sums, bucket + 1);
+                compensations = bigArrays().grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();

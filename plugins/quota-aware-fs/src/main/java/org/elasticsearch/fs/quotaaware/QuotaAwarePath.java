@@ -19,6 +19,9 @@
 
 package org.elasticsearch.fs.quotaaware;
 
+import org.elasticsearch.common.SuppressForbidden;
+
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.FileSystem;
@@ -171,6 +174,12 @@ public final class QuotaAwarePath implements Path {
     @Override
     public Path toRealPath(LinkOption... options) throws IOException {
         return wrap(delegate.toRealPath(options));
+    }
+
+    @SuppressForbidden(reason = "Implementation required by super type")
+    @Override
+    public File toFile() {
+        return delegate.toFile();
     }
 
     @Override

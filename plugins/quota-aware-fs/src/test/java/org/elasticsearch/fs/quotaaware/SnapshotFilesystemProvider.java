@@ -59,11 +59,6 @@ class SnapshotFilesystemProvider extends DelegatingProvider {
         }
 
         @Override
-        public long getBlockSize() throws IOException {
-            return delegate.getBlockSize();
-        }
-
-        @Override
         public String name() {
             return delegate.name();
         }

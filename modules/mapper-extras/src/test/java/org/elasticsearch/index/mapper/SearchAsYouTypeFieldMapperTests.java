@@ -604,7 +604,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
                                                        PrefixFieldType prefixFieldType) {
 
         assertThat(fieldType.shingleFields.length, equalTo(maxShingleSize - 1));
-        NamedAnalyzer indexAnalyzer = (NamedAnalyzer) mapper.indexAnalyzers().values().iterator().next();
+        NamedAnalyzer indexAnalyzer = mapper.indexAnalyzers().values().iterator().next();
         for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().getSearchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
@@ -640,7 +640,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     private static void assertPrefixFieldType(PrefixFieldMapper mapper, int shingleSize, String analyzerName) {
         PrefixFieldType fieldType = mapper.fieldType();
-        NamedAnalyzer indexAnalyzer = (NamedAnalyzer) mapper.indexAnalyzers().values().iterator().next();
+        NamedAnalyzer indexAnalyzer = mapper.indexAnalyzers().values().iterator().next();
         for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().getSearchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }

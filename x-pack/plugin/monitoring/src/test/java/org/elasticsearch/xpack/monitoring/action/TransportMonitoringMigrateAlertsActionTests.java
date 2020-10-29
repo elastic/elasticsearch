@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.monitoring.action;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -19,7 +18,6 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -243,7 +241,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
 
             // enqueue delete request expectations for alerts
-            enqueueWatcherResponses(webServer, true, true, true);
+            enqueueWatcherResponses(webServer, true);
 
             // call migration api
             MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
@@ -281,7 +279,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
 
             // enqueue delete request expectations for alerts
-            enqueueWatcherResponses(webServer, true, true, true);
+            enqueueWatcherResponses(webServer, true);
 
             // call migration api
             MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
@@ -391,7 +389,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
 
             // enqueue a "watcher available" response, but then a "failure to delete watch" response
-            enqueueWatcherResponses(webServer, false, true, true);
+            enqueueWatcherResponses(webServer, false);
 
             // call migration api
             MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
@@ -457,9 +455,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             .collect(Collectors.toList());
     }
 
-    private void enqueueWatcherResponses(final MockWebServer webServer,
-                                         final boolean remoteClusterAllowsWatcher, final boolean currentLicenseAllowsWatcher,
-                                         final boolean alreadyExists) throws IOException {
+    private void enqueueWatcherResponses(final MockWebServer webServer, final boolean remoteClusterAllowsWatcher) throws IOException {
         // if the remote cluster doesn't allow watcher, then we only check for it and we're done
         if (remoteClusterAllowsWatcher) {
             // X-Pack exists and Watcher can be used

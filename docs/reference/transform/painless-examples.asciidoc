@@ -26,7 +26,7 @@ aggregations, too.
 == Getting top hits by using scripted metric aggregation
 
 This snippet shows how to find the latest document, in other words the document 
-with the earliest timestamp. From a technical perspective, it helps to achieve 
+with the latest timestamp. From a technical perspective, it helps to achieve 
 the function of a <<search-aggregations-metrics-top-hits-aggregation>> by using 
 scripted metric aggregation in a {transform}, which provides a metric output.
 
@@ -82,7 +82,7 @@ You can retrieve the last value in a similar way:
     "scripted_metric": {
       "init_script": "state.timestamp_latest = 0L; state.last_value = ''",
       "map_script": """
-        def current_date = doc['date'].getValue().toInstant().toEpochMilli(); 
+        def current_date = doc['@timestamp'].getValue().toInstant().toEpochMilli(); 
         if (current_date > state.timestamp_latest) 
         {state.timestamp_latest = current_date;
         state.last_value = params['_source']['value'];}

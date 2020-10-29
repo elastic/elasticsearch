@@ -868,6 +868,7 @@ public class HttpExporter extends Exporter {
     private static HttpResource configureClusterAlertsResources(final Config config, final String resourceOwnerName) {
         // don't create watches if we're not using them
         if (CLUSTER_ALERTS_MANAGEMENT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())) {
+            logger.info("Alerts Enabled");
             final ClusterService clusterService = config.clusterService();
             final List<HttpResource> watchResources = new ArrayList<>();
             final List<String> blacklist = ClusterAlertsUtil.getClusterAlertsBlacklist(config);
@@ -886,6 +887,7 @@ public class HttpExporter extends Exporter {
             return new WatcherExistsHttpResource(resourceOwnerName, clusterService,
                                                         new MultiHttpResource(resourceOwnerName, watchResources));
         }
+        logger.info("Alerts Disabled");
         return null;
     }
 

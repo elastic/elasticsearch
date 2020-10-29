@@ -106,8 +106,9 @@ public class MonitoringMigrateAlertsResponse extends ActionResponse implements T
                 builder.field("type", type);
                 builder.field("migration_complete", migrationComplete);
                 if (reason != null) {
-                    builder.field("reason");
+                    builder.startObject("reason");
                     ElasticsearchException.generateThrowableXContent(builder, params, reason);
+                    builder.endObject();
                 }
             }
             return builder.endObject();

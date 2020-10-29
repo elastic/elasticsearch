@@ -260,9 +260,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         for (int i = 0; i < rolesSize; i++) {
             final String roleName = in.readString();
             final String roleNameAbbreviation = in.readString();
+            final boolean canContainData;
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                canContainData = in.readBoolean();
+            } else {
+                canContainData = roleName.equals(DiscoveryNodeRole.DATA_ROLE.roleName());
+            }
             final DiscoveryNodeRole role = roleMap.get(roleName);
             if (role == null) {
-                roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation));
+                roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
             } else {
                 assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
                 assert roleNameAbbreviation.equals(role.roleNameAbbreviation())
@@ -288,6 +294,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
             out.writeString(compatibleRole.roleName());
             out.writeString(compatibleRole.roleNameAbbreviation());
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(compatibleRole.canContainData());
+            }
         }
         Version.writeVersion(version, out);
     }

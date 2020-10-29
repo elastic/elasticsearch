@@ -239,7 +239,7 @@ GET /my-index-000001/_search?typed_keys
 
 The response returns the aggregation type as a prefix to the aggregation's name.
 
-IMPORTANT: Some aggregations return a different aggregation type from the the
+IMPORTANT: Some aggregations return a different aggregation type from the
 type in the request. For example, the terms,
 <<search-aggregations-bucket-significantterms-aggregation,significant terms>>,
 and <<search-aggregations-metrics-percentile-aggregation,percentiles>>

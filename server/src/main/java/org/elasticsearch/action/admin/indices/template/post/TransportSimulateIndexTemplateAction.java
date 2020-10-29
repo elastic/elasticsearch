@@ -56,6 +56,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
@@ -182,7 +183,7 @@ public class TransportSimulateIndexTemplateAction
                 resolvedAliases, tempClusterState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                tempIndexService.newQueryShardContext(0, null, () -> 0L, null)));
+                tempIndexService.newQueryShardContext(0, null, () -> 0L, null, emptyMap())));
         Map<String, AliasMetadata> aliasesByName = aliases.stream().collect(
             Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
 

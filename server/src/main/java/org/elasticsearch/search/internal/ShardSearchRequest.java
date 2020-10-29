@@ -47,8 +47,8 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
-import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -61,6 +61,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
@@ -520,5 +521,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             }
             return combined;
         }
+    }
+
+    public Map<String, Object> getRuntimeMappings() {
+        return source != null && source.runtimeMappings() != null ? source.runtimeMappings() : emptyMap();
     }
 }

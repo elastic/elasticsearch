@@ -70,6 +70,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
+
 /**
  * This is an internal action, that executes msearch requests for enrich indices in a more efficient manner.
  * Currently each search request inside a msearch request is executed as a separate search. If many search requests
@@ -233,7 +235,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                     shardId.id(),
                     searcher,
                     () -> { throw new UnsupportedOperationException(); },
-                    null
+                    null,
+                    emptyMap()  // NOCOMMIT is it right not to use the runtime mappings?
                 );
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {

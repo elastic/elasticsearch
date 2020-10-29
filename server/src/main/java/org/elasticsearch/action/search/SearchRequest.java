@@ -42,6 +42,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**

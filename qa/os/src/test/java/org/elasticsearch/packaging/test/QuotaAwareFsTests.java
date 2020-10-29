@@ -27,6 +27,7 @@ import org.elasticsearch.packaging.util.Shell;
 import org.junit.After;
 import org.junit.BeforeClass;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -112,7 +113,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         installation.executables().pluginTool.run("install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
 
         final Path quotaPath = getRootTempDir().resolve("quota.properties");
-        Files.write(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", total, available).getBytes());
+        Files.write(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", total, available).getBytes(StandardCharsets.UTF_8));
 
         sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=" + quotaPath.toUri());
 
@@ -129,7 +130,8 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
             // Check that ES is polling the properties file for changes by modifying the properties file
             // and waiting for ES to pick up the changes.
-            Files.write(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", updatedTotal, updatedAvailable).getBytes());
+            Files.write(quotaPath,
+                String.format(Locale.ROOT, "total=%d\nremaining=%d\n", updatedTotal, updatedAvailable).getBytes(StandardCharsets.UTF_8));
 
             // The check interval is 1000ms, but give ourselves some leeway.
             Thread.sleep(2000);

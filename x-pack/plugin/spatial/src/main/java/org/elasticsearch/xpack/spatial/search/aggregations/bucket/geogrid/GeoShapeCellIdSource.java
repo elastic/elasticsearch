@@ -12,7 +12,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -51,7 +51,7 @@ public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-        MultiGeoShapeValues geoValues = valuesSource.geoShapeValues(ctx);
+        GeoShapeValues geoValues = valuesSource.geoShapeValues(ctx);
         if (precision == 0) {
             // special case, precision 0 is the whole world
             return new AllCellValues(geoValues, encoder, circuitBreakerConsumer);

@@ -228,8 +228,8 @@ POST /my-index-000002/_doc
 +
 These requests create two indices: `my-index-000001` and `my-index-000002`.
 
-. Use the <<indices-get-index,get index API>> to view the new indices'
-configurations.
+. Use the <<indices-get-index,get index API>> to view the configurations for the
+new indices:
 
 [source,console]
 --------------------------------------------------

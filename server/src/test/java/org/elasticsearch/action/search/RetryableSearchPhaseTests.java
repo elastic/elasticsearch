@@ -720,6 +720,11 @@ public class RetryableSearchPhaseTests extends ESTestCase {
         protected void onPhaseDone() {
             getSearchPhaseContext().sendSearchResponse(InternalSearchResponse.empty(), null);
         }
+
+        @Override
+        protected boolean shouldRefreshShardTargets(int shardIndex, ShardId shardId) {
+            return true;
+        }
     }
 
     private DiscoveryNodes addDataNodesToClusterState(String... nodeIds) {

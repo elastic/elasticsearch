@@ -87,7 +87,6 @@ abstract class RetryableSearchPhase<Result extends SearchPhaseResult> extends Se
                 @Override
                 public void onResponse(Result result) {
                     try {
-                        // TODO should we limit if we set the result after done is set to true?
                         searchPhaseResults.consumeResult(result, () -> decrementPendingShards());
                     } catch (Exception e) {
                         searchPhaseContext.onPhaseFailure(RetryableSearchPhase.this, "", e);
@@ -97,7 +96,6 @@ abstract class RetryableSearchPhase<Result extends SearchPhaseResult> extends Se
                 @Override
                 public void onFailure(Exception e) {
                     try {
-                        // TODO should we limit if we set the result after done is set to true?
                         searchPhaseContext.onShardFailure(shardIdx, null, e);
                     } finally {
                         decrementPendingShards();
@@ -176,6 +174,8 @@ abstract class RetryableSearchPhase<Result extends SearchPhaseResult> extends Se
 
     protected abstract boolean shouldTryOnDifferentShardCopy(int shardIndex, ShardId shardId, Exception e);
 
+    protected abstract boolean shouldRefreshShardTargets(int shardIndex, ShardId shardId);
+
     protected abstract void onPhaseDone();
 
     private void cancelActions(List<SearchShardAction> toCancel, Exception e) {
@@ -223,8 +223,13 @@ abstract class RetryableSearchPhase<Result extends SearchPhaseResult> extends Se
 
             SearchShardTarget searchShardTarget = getNextSearchShardTarget();
             if (searchShardTarget == null) {
-                refreshSearchTargets();
-                return;
+                if (shouldRefreshShardTargets(shardIndex, shardId)) {
+                    refreshSearchTargets();
+                    return;
+                } else {
+                    // TODO accumulate errors
+                    onFinalFailure(new RuntimeException("All shard copies failed"));
+                }
             }
 
             NodeSearchExecution nodeSearchExecution =

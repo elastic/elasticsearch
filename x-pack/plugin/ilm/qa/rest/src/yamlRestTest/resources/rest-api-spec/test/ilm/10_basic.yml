@@ -107,7 +107,7 @@ setup:
         body:
           settings:
             index.lifecycle.name: "my_moveable_timeseries_lifecycle"
-  
+
   - do:
       ilm.put_lifecycle:
         policy: "my_timeseries_lifecycle"
@@ -232,6 +232,26 @@ setup:
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 1
+                     }
+                   }
+                 }
+               }
+             }
+           }
+
+  - do:
+      catch: bad_request
+      ilm.put_lifecycle:
+        policy: "my_invalid_lifecycle"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "hot": {
+                   "min_age": "0s",
+                   "actions": {
+                     "shrink": {
+                       "number_of_shards": 1
                      }
                    }
                  }

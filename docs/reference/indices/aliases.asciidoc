@@ -111,18 +111,18 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
 See <<filtered>> for an example.
 
 `is_hidden`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the alias will be excluded from wildcard expressions by default,
 unless overriden in the request using the `expand_wildcards` parameter,
 similar to <<index-hidden,hidden indices>>. This property must be set to the
 same value on all indices that share an alias. Defaults to `false`.
 
 `must_exist`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the alias to remove must exist. Defaults to `false`.
 
 `is_write_index`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, assigns the index as an alias's write index.
 Defaults to `false`.
 +

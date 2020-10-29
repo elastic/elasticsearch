@@ -79,8 +79,10 @@ final class JvmOptionsParser {
      * @param args the args to the program which should consist of a single option, the path to ES_PATH_CONF
      */
     public static void main(final String[] args) throws InterruptedException, IOException {
-        if (args.length != 1) {
-            throw new IllegalArgumentException("expected one argument specifying path to ES_PATH_CONF but was " + Arrays.toString(args));
+        if (args.length != 2) {
+            throw new IllegalArgumentException(
+                "Expected two arguments specifying path to ES_PATH_CONF and plugins directory, but was " + Arrays.toString(args)
+            );
         }
 
         final JvmOptionsParser parser = new JvmOptionsParser();
@@ -93,7 +95,12 @@ final class JvmOptionsParser {
         }
 
         try {
-            final List<String> jvmOptions = parser.jvmOptions(Paths.get(args[0]), System.getenv("ES_JAVA_OPTS"), substitutions);
+            final List<String> jvmOptions = parser.jvmOptions(
+                Paths.get(args[0]),
+                Paths.get(args[1]),
+                System.getenv("ES_JAVA_OPTS"),
+                substitutions
+            );
             Launchers.outPrintln(String.join(" ", jvmOptions));
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
@@ -123,7 +130,7 @@ final class JvmOptionsParser {
         Launchers.exit(0);
     }
 
-    private List<String> jvmOptions(final Path config, final String esJavaOpts, final Map<String, String> substitutions)
+    private List<String> jvmOptions(final Path config, Path plugins, final String esJavaOpts, final Map<String, String> substitutions)
         throws InterruptedException, IOException, JvmOptionsFileParserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
@@ -137,12 +144,15 @@ final class JvmOptionsParser {
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
+        final List<String> bootstrapOptions = BootstrapJvmOptions.bootstrapJvmOptions(plugins);
+
         final List<String> finalJvmOptions = new ArrayList<>(
-            systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size()
+            systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + bootstrapOptions.size()
         );
         finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
         finalJvmOptions.addAll(substitutedJvmOptions);
         finalJvmOptions.addAll(ergonomicJvmOptions);
+        finalJvmOptions.addAll(bootstrapOptions);
 
         return finalJvmOptions;
     }

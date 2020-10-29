@@ -130,8 +130,8 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
             );
             assertThat(
                 "Doc count did not match, source: " + source + ", expected: " + bucket.getDocCount() + ", iteration: " + iteration,
-                XContentMapValues.extractValue("count", source),
-                equalTo(Double.valueOf(bucket.getDocCount()))
+                ((Integer) XContentMapValues.extractValue("count", source)).longValue(),
+                equalTo(bucket.getDocCount())
             );
 
             // transform should only rewrite documents that require it
@@ -146,9 +146,11 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
                     // we use a fixed_interval of `1s`, the transform runs every `1s` so it the bucket might be recalculated at the next run
                     // but
                     // should NOT be recalculated for the 2nd/3rd/... run
-                    Double.valueOf((Integer) XContentMapValues.extractValue(INGEST_RUN_FIELD, source)) - (Double) XContentMapValues
-                        .extractValue(MAX_RUN_FIELD, source),
-                    is(lessThanOrEqualTo(1.0))
+                    (Integer) XContentMapValues.extractValue(INGEST_RUN_FIELD, source) - (Integer) XContentMapValues.extractValue(
+                        MAX_RUN_FIELD,
+                        source
+                    ),
+                    is(lessThanOrEqualTo(1))
                 );
             }
         }

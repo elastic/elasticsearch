@@ -69,7 +69,7 @@ public class NativeController implements MlController {
     NativeController(String localNodeName, Environment env, NamedPipeHelper namedPipeHelper, NamedXContentRegistry xContentRegistry)
         throws IOException {
         this.localNodeName = localNodeName;
-        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, CONTROLLER_CONNECT_TIMEOUT, CONTROLLER, null,
+        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, CONTROLLER_CONNECT_TIMEOUT, CONTROLLER, null, null,
                 true, false, true, false, false);
         processPipes.connectLogStream();
         this.cppLogHandler = processPipes.getLogStreamHandler();

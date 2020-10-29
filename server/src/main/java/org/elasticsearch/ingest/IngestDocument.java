@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -709,6 +710,13 @@ public final class IngestDocument {
             List<?> listValue = (List<?>) value;
             List<Object> copy = new ArrayList<>(listValue.size());
             for (Object itemValue : listValue) {
+                copy.add(deepCopy(itemValue));
+            }
+            return copy;
+        } else if (value instanceof Set) {
+            Set<?> setValue = (Set<?>) value;
+            Set<Object> copy = new HashSet<>(setValue.size());
+            for (Object itemValue : setValue) {
                 copy.add(deepCopy(itemValue));
             }
             return copy;

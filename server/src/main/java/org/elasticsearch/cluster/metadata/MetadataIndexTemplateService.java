@@ -120,12 +120,8 @@ public class MetadataIndexTemplateService {
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", new ClusterStateUpdateTask(Priority.URGENT) {
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterTimeout;
-            }
+        clusterService.submitStateUpdateTask(
+                "remove-index-template [" + request.name + "]", new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
             @Override
             public void onFailure(String source, Exception e) {
@@ -171,12 +167,7 @@ public class MetadataIndexTemplateService {
     public void putComponentTemplate(final String cause, final boolean create, final String name, final TimeValue masterTimeout,
                                      final ComponentTemplate template, final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("create-component-template [" + name + "], cause [" + cause + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
-                }
+            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -305,12 +296,7 @@ public class MetadataIndexTemplateService {
                                         final ActionListener<AcknowledgedResponse> listener) {
         validateNotInUse(clusterService.state().metadata(), name);
         clusterService.submitStateUpdateTask("remove-component-template [" + name + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
-                }
+            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -384,12 +370,7 @@ public class MetadataIndexTemplateService {
                                    final ComposableIndexTemplate template, final ActionListener<AcknowledgedResponse> listener) {
         validateV2TemplateRequest(clusterService.state().metadata(), name, template);
         clusterService.submitStateUpdateTask("create-index-template-v2 [" + name + "], cause [" + cause + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
-                }
+            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -640,12 +621,7 @@ public class MetadataIndexTemplateService {
     public void removeIndexTemplateV2(final String name, final TimeValue masterTimeout,
                                       final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("remove-index-template-v2 [" + name + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
-                }
+            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -735,12 +711,7 @@ public class MetadataIndexTemplateService {
         final IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder(request.name);
 
         clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]",
-                new ClusterStateUpdateTask(Priority.URGENT) {
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterTimeout;
-            }
+                new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
             @Override
             public void onFailure(String source, Exception e) {

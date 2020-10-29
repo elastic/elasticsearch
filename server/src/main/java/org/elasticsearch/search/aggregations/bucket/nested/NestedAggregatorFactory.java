@@ -51,7 +51,7 @@ public class NestedAggregatorFactory extends AggregatorFactory {
                                         CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
         if (childObjectMapper == null) {
-            return new Unmapped(name, searchContext, parent, metadata);
+            return new Unmapped(name, searchContext, parent, factories, metadata);
         }
         return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, searchContext, parent,
             cardinality, metadata);
@@ -62,8 +62,9 @@ public class NestedAggregatorFactory extends AggregatorFactory {
         Unmapped(String name,
                     SearchContext context,
                     Aggregator parent,
+                    AggregatorFactories factories,
                     Map<String, Object> metadata) throws IOException {
-            super(name, context, parent, metadata);
+            super(name, context, parent, factories, metadata);
         }
 
         @Override

@@ -412,7 +412,8 @@ GET /my-index-000001/_search
 For faster responses, {es} caches the results of frequently run aggregations in
 the <<shard-request-cache,shard request cache>>. To get cached results, use the
 same <<shard-and-node-preference,`preference` string>> for each search. If you
-don't need search hits, set `size` to `0` to avoid filling the cache.
+don't need search hits, <<return-only-agg-results,set `size` to `0`>> to avoid
+filling the cache.
 
 {es} routes searches with the same preference string to the same shards. If the
 shards' data doesn’t change between searches, the shards return cached

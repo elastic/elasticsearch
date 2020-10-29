@@ -189,7 +189,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                     if (thread == Thread.currentThread()) {
                         // we are on the same thread, we need to fork to another thread to avoid recursive stack overflow on a single thread
                         threadPool.generic()
-                                .execute(() -> executeSearch(requests, responses, responseCounter, recallGoal, listener, relativeStartTime));
+                                .execute(() -> executeSearch(requests, responses, responseCounter, recallGoal, listener, 
+                                    relativeStartTime));
                     } else {
                         // we are on a different thread (we went asynchronous), it's safe to recurse
                         executeSearch(requests, responses, responseCounter, recallGoal, listener, relativeStartTime);

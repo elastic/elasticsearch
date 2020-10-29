@@ -44,7 +44,7 @@ by specifying `*` as the `<snapshot_id>`, or by omitting the `<snapshot_id>`.
 == {api-request-body-title}
 
 `desc`::
-  (Optional, boolean) If true, the results are sorted in descending order.
+  (Optional, Boolean) If true, the results are sorted in descending order.
 
 `end`::
   (Optional, date) Returns snapshots with timestamps earlier than this time.
@@ -186,7 +186,7 @@ separately for each detector and partition.
 //End model_size_stats
 
 `retain`::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=retain]
 
 `snapshot_id`::

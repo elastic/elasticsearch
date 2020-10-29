@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TaskTransportChannel;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
@@ -101,6 +103,7 @@ final class ServerTransportFilter {
         final Version version = transportChannel.getVersion();
         authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
+                assert Strings.hasText(AuditUtil.extractRequestId(threadContext));
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
                     SystemUser.is(authentication.getUser()) == false) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {

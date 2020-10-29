@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -169,6 +170,7 @@ public class SecurityActionFilter implements ActionFilter {
         authcService.authenticate(securityAction, request, SystemUser.INSTANCE,
                 ActionListener.wrap((authc) -> {
                     if (authc != null) {
+                        assert Strings.hasText(AuditUtil.extractRequestId(threadContext));
                         authorizeRequest(authc, securityAction, request, listener);
                     } else if (licenseState.isSecurityEnabled() == false) {
                         listener.onResponse(null);

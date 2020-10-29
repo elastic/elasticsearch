@@ -434,7 +434,8 @@ public class AuthorizationService {
         return request;
     }
 
-    private boolean isInternalUser(User user) {
+    // protected for tests
+    protected static boolean isInternalUser(User user) {
         return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user) || AsyncSearchUser.is(user);
     }
 

@@ -307,7 +307,7 @@ Specifies whether the feature influence calculation is enabled. Defaults to
 end::compute-feature-influence[]
 
 tag::custom-preprocessor[]
-(Optional, boolean)
+(Optional, Boolean)
 Boolean value indicating if the analytics job created the preprocessor
 or if a user provided it. This adjusts the feature importance calculation.
 When `true`, the feature importance calculation returns importance for the
@@ -462,7 +462,7 @@ real-time {dfeed} runs. In particular, the default `check_window` span
 calculation is based on the maximum of `2h` or `8 * bucket_span`.
 
 `enabled`::
-(boolean) Specifies whether the {dfeed} periodically checks for delayed data.
+(Boolean) Specifies whether the {dfeed} periodically checks for delayed data.
 Defaults to `true`.
 ====
 end::delayed-data-check-config[]

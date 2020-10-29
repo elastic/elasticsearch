@@ -103,7 +103,7 @@ If the {dfeed} is allowed to open lazily and has not yet been
   assigned to a node, this value is an empty string.
 
 `started`::
-  (boolean) For a successful response, this value is always `true`. On failure, an
+  (Boolean) For a successful response, this value is always `true`. On failure, an
   exception is returned instead.
 
 [[ml-start-datafeed-example]]

@@ -46,8 +46,6 @@ include::analysis.asciidoc[]
 
 include::discovery.asciidoc[]
 
-include::filesystem.asciidoc[]
-
 include::ingest.asciidoc[]
 
 include::management.asciidoc[]

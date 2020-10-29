@@ -1,7 +1,6 @@
 esplugin {
   description 'A bootstrap plugin that adds support for interfacing with filesystem that enforce user quotas.'
-  type = 'bootstrap'
-  javaOpts = '-Djava.nio.file.spi.DefaultFileSystemProvider=org.elasticsearch.fs.quotaaware.QuotaAwareFileSystemProvider'
+  classname '<none>'
 }
 
 integTest.enabled = false

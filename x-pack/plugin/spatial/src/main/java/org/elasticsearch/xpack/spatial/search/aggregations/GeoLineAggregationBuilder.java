@@ -39,6 +39,7 @@ public class GeoLineAggregationBuilder
     static final ParseField SORT_FIELD = new ParseField("sort");
     static final ParseField ORDER_FIELD = new ParseField("sort_order");
     static final ParseField INCLUDE_SORT_FIELD = new ParseField("include_sort");
+    static final ParseField SIZE_FIELD = new ParseField("size");
 
     public static final String NAME = "geo_line";
 
@@ -50,10 +51,12 @@ public class GeoLineAggregationBuilder
         MultiValuesSourceParseHelper.declareField(SORT_FIELD.getPreferredName(), PARSER, true, false, false);
         PARSER.declareString((builder, order) -> builder.sortOrder(SortOrder.fromString(order)), ORDER_FIELD);
         PARSER.declareBoolean(GeoLineAggregationBuilder::includeSort, INCLUDE_SORT_FIELD);
+        PARSER.declareInt(GeoLineAggregationBuilder::size, SIZE_FIELD);
     }
 
     private boolean includeSort;
     private SortOrder sortOrder = SortOrder.ASC;
+    private int size = GeoLineAggregator.MAX_PATH_SIZE;
 
     public static void registerUsage(ValuesSourceRegistry.Builder builder) {
         builder.registerUsage(NAME, CoreValuesSourceType.GEOPOINT);
@@ -87,6 +90,14 @@ public class GeoLineAggregationBuilder
         return this;
     }
 
+    public GeoLineAggregationBuilder size(int size) {
+        if (size > GeoLineAggregator.MAX_PATH_SIZE) {
+            throw new IllegalArgumentException("invalid [size] value [" + size + "] must be <= " + GeoLineAggregator.MAX_PATH_SIZE);
+        }
+        this.size = size;
+        return this;
+    }
+
     @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
         return new GeoLineAggregationBuilder(this, factoriesBuilder, metaData);
@@ -116,7 +127,7 @@ public class GeoLineAggregationBuilder
                                                             AggregatorFactory parent,
                                                             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new GeoLineAggregatorFactory(name, configs, format, aggregationContext, parent, subFactoriesBuilder, metadata,
-            includeSort, sortOrder);
+            includeSort, sortOrder, size);
     }
 
     public GeoLineAggregationBuilder value(MultiValuesSourceFieldConfig valueConfig) {

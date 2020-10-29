@@ -24,22 +24,24 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
 
     private boolean includeSort;
     private SortOrder sortOrder;
+    private int size;
 
     GeoLineAggregatorFactory(String name,
                              Map<String, ValuesSourceConfig> configs,
                              DocValueFormat format, AggregationContext aggregationContext, AggregatorFactory parent,
                              AggregatorFactories.Builder subFactoriesBuilder,
-                             Map<String, Object> metaData, boolean includeSort, SortOrder sortOrder) throws IOException {
+                             Map<String, Object> metaData, boolean includeSort, SortOrder sortOrder, int size) throws IOException {
         super(name, configs, format, aggregationContext, parent, subFactoriesBuilder, metaData);
         this.includeSort = includeSort;
         this.sortOrder = sortOrder;
+        this.size = size;
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
                                         Map<String, Object> metaData) throws IOException {
-        return new GeoLineAggregator(name, null, searchContext, parent, metaData, includeSort, sortOrder);
+        return new GeoLineAggregator(name, null, searchContext, parent, metaData, includeSort, sortOrder, size);
     }
 
     @Override
@@ -51,7 +53,7 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
                                           Map<String, Object> metaData) throws IOException {
         MultiValuesSource.AnyMultiValuesSource valuesSources =
             new MultiValuesSource.AnyMultiValuesSource(configs, searchContext.getQueryShardContext());
-        return new GeoLineAggregator(name, valuesSources, searchContext, parent, metaData, includeSort, sortOrder);
+        return new GeoLineAggregator(name, valuesSources, searchContext, parent, metaData, includeSort, sortOrder, size);
     }
 
     @Override

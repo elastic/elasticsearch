@@ -88,8 +88,9 @@ public class InternalGeoLine extends InternalAggregation {
                 idx += 1;
             }
         }
+        // the final reduce should always be in ascending order
 
-        new PathArraySorter(finalList, finalSortVals, sortOrder).sort();
+        new PathArraySorter(finalList, finalSortVals, SortOrder.ASC).sort();
         long[] finalCappedList = Arrays.copyOf(finalList, Math.min(GeoLineAggregator.MAX_PATH_SIZE, mergedSize));
         double[] finalCappedSortVals = Arrays.copyOf(finalSortVals, Math.min(GeoLineAggregator.MAX_PATH_SIZE, mergedSize));
         return new InternalGeoLine(name, finalCappedList, finalCappedSortVals, getMetadata(), complete, includeSorts, sortOrder);

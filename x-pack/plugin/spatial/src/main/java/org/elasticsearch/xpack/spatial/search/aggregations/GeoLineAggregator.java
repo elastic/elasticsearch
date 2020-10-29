@@ -32,9 +32,11 @@ final class GeoLineAggregator extends MetricsAggregator {
     private final GeoLineBucketedSort.Extra extra;
     private final boolean includeSorts;
     private final SortOrder sortOrder;
+    private final int size;
 
     GeoLineAggregator(String name, MultiValuesSource.AnyMultiValuesSource valuesSources, SearchContext context,
-                      Aggregator parent, Map<String,Object> metaData, boolean includeSorts, SortOrder sortOrder) throws IOException {
+                      Aggregator parent, Map<String,Object> metaData, boolean includeSorts, SortOrder sortOrder,
+                      int size) throws IOException {
         super(name, context, parent, metaData);
         this.valuesSources = valuesSources;
         if (valuesSources != null) {
@@ -46,6 +48,7 @@ final class GeoLineAggregator extends MetricsAggregator {
         }
         this.includeSorts = includeSorts;
         this.sortOrder = sortOrder;
+        this.size = size;
     }
 
     @Override

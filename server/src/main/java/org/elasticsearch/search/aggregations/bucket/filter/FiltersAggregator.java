@@ -22,15 +22,15 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
@@ -302,28 +302,14 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             }
             Bits live = ctx.reader().getLiveDocs();
             for (int filterOrd = 0; filterOrd < filters.length; filterOrd++) {
-                int count = 0;
-                Scorer scorer = filterWeights[filterOrd].scorer(ctx);
+                BulkScorer scorer = filterWeights[filterOrd].bulkScorer(ctx);
                 if (scorer == null) {
                     // the filter doesn't match any docs
                     continue;
                 }
-                DocIdSetIterator itr = scorer.iterator();
-                if (live == null) {
-                    while (itr.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        // There aren't any children so we don't have to call `collectBucket` and we can just count instead
-                        count++;
-                    }
-                } else {
-                    segmentsWithDeletedDocs++;
-                    while (itr.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        if (live.get(itr.docID())) {
-                            // There aren't any children so we don't have to call `collectBucket` and we can just count instead
-                            count++;
-                        }
-                    }
-                }
-                incrementBucketDocCount(filterOrd, count);
+                TotalHitCountCollector collector = new TotalHitCountCollector();
+                scorer.score(collector, live);
+                incrementBucketDocCount(filterOrd, collector.getTotalHits());
             }
             // Throwing this exception is how we communicate to the collection mechanism that we don't need the segment.
             throw new CollectionTerminatedException();

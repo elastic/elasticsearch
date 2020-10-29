@@ -17,7 +17,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -280,7 +279,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Version esVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         PluginInfo deprecatedPlugin = new PluginInfo(
             "repository-azure", "dummy plugin description", "dummy_plugin_version", esVersion,
-            "javaVersion", "DummyPluginName", Collections.emptyList(), false, PluginType.ISOLATED, "");
+            "javaVersion", "DummyPluginName", Collections.emptyList(), false);
         pluginsAndModules = new PluginsAndModules(Collections.singletonList(deprecatedPlugin), Collections.emptyList());
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
@@ -295,7 +294,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Version esVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         PluginInfo deprecatedPlugin = new PluginInfo(
             "repository-gcs", "dummy plugin description", "dummy_plugin_version", esVersion,
-            "javaVersion", "DummyPluginName", Collections.emptyList(), false, PluginType.ISOLATED, "");
+            "javaVersion", "DummyPluginName", Collections.emptyList(), false);
         pluginsAndModules = new PluginsAndModules(Collections.singletonList(deprecatedPlugin), Collections.emptyList());
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
@@ -310,7 +309,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Version esVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         PluginInfo deprecatedPlugin = new PluginInfo(
             "discovery-file", "dummy plugin description", "dummy_plugin_version", esVersion,
-            "javaVersion", "DummyPluginName", Collections.emptyList(), false, PluginType.ISOLATED, "");
+            "javaVersion", "DummyPluginName", Collections.emptyList(), false);
         pluginsAndModules = new PluginsAndModules(Collections.singletonList(deprecatedPlugin), Collections.emptyList());
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,

@@ -52,8 +52,8 @@ final class JvmOptionsParser {
      * @param args the args to the program which should consist of a single option, the path to the JVM options
      */
     public static void main(final String[] args) throws IOException {
-        if (args.length != 2) {
-            throw new IllegalArgumentException("Expected two arguments specifying path to jvm.options and plugin directory but was " + Arrays.toString(args));
+        if (args.length != 1) {
+            throw new IllegalArgumentException("expected one argument specifying path to jvm.options but was " + Arrays.toString(args));
         }
         final List<String> jvmOptions = new ArrayList<>();
         final SortedMap<Integer, String> invalidLines = new TreeMap<>();
@@ -78,8 +78,6 @@ final class JvmOptionsParser {
         }
 
         if (invalidLines.isEmpty()) {
-            final List<String> bootstrapOptions = BootstrapJvmOptions.bootstrapJvmOptions(Paths.get(args[1]));
-            jvmOptions.addAll(bootstrapOptions);
             final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(jvmOptions);
             Launchers.outPrintln(spaceDelimitedJvmOptions);
             Launchers.exit(0);

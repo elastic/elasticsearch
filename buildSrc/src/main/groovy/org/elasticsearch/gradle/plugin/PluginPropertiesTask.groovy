@@ -53,7 +53,7 @@ class PluginPropertiesTask extends Copy {
             if (extension.description == null) {
                 throw new InvalidUserDataException('description is a required setting for esplugin')
             }
-            if (extension.type != PluginType.BOOTSTRAP && extension.classname == null) {
+            if (extension.classname == null) {
                 throw new InvalidUserDataException('classname is a required setting for esplugin')
             }
             // configure property substitution
@@ -78,12 +78,10 @@ class PluginPropertiesTask extends Copy {
             'version': stringSnap(extension.version),
             'elasticsearchVersion': stringSnap(VersionProperties.elasticsearch),
             'javaVersion': project.targetCompatibility as String,
-            'classname': extension.type == PluginType.BOOTSTRAP ? "" : extension.classname,
+            'classname': extension.classname,
             'extendedPlugins': extension.extendedPlugins.join(','),
             'hasNativeController': extension.hasNativeController,
-            'requiresKeystore': extension.requiresKeystore,
-            'type': extension.type.toString(),
-            'javaOpts': extension.javaOpts,
+            'requiresKeystore': extension.requiresKeystore
         ]
     }
 }

@@ -27,7 +27,7 @@ version = "2020.1"
 
 project(TeamLevelProject {
     id("Elasticsearch")
-    uuid = "288afa91-bea1-4949-992a-64550f956508"
+    uuid = "debe49ce-6ad6-4789-90b7-a90c2771573e"
     name = "Elasticsearch"
 
     includeDevelopmentBranchProjects()

@@ -307,13 +307,21 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     public void testIndex() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type").field("index", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
+        assertNull(doc.rootDoc().getField("field"));
+    }
 
-        Stream.of(
-            fieldType(doc, "field"),
-            fieldType(doc, "field._index_prefix"),
-            fieldType(doc, "field._2gram"),
-            fieldType(doc, "field._3gram")
-        ).forEach(ft -> assertThat(ft.indexOptions(), equalTo(IndexOptions.NONE)));
+    public void testStoredOnly() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "search_as_you_type");
+            b.field("index", false);
+            b.field("store", true);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
+        assertTrue(fieldType(doc, "field").stored());
+        assertThat(fieldType(doc, "field").indexOptions(), equalTo(IndexOptions.NONE));
+        assertNull(doc.rootDoc().getField("field._index_prefix"));
+        assertNull(doc.rootDoc().getField("field._2gram"));
+        assertNull(doc.rootDoc().getField("field._3gram"));
     }
 
     public void testTermVectors() throws IOException {

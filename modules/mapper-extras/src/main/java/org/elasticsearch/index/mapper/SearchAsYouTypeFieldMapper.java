@@ -578,11 +578,17 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             return;
         }
 
-        context.doc().add(new Field(fieldType().name(), value, fieldType().fieldType));
-        for (ShingleFieldMapper subFieldMapper : shingleFields) {
-            context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
+        if (this.index == false && this.store == false) {
+            return;
         }
-        context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
+
+        context.doc().add(new Field(fieldType().name(), value, fieldType().fieldType));
+        if (this.index) {
+            for (ShingleFieldMapper subFieldMapper : shingleFields) {
+                context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
+            }
+            context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
+        }
         if (fieldType().fieldType.omitNorms()) {
             createFieldNamesField(context);
         }

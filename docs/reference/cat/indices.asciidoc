@@ -74,7 +74,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+`local`::
+(Optional, boolean)
++
+deprecated::[7.10.0,"This parameter does not affect the request. It will be removed in a future release."]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 

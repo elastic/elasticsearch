@@ -30,7 +30,6 @@ public class EqlDataLoader {
         // Need to setup the log configuration properly to avoid messages when creating a new RestClient
         PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
 
-        Properties configuration = loadConfiguration();
         try (
             RestClient client = RestClient.builder(new HttpHost("localhost", 9200))
                 .setRequestConfigCallback(
@@ -41,21 +40,25 @@ public class EqlDataLoader {
                 .setStrictDeprecationMode(true)
                 .build()
         ) {
-            restoreSnapshot(client, new RestHighLevelClient(client, ignore -> {}, List.of()) {
+            Properties configuration = loadConfiguration();
+            restoreSnapshot(new RestHighLevelClient(client, ignore -> {}, List.of()) {
             }, configuration);
         }
     }
 
     static Properties loadConfiguration() throws IOException {
-        try (InputStream is = EsEQLCorrectnessIT.class.getClassLoader().getResourceAsStream(PROPERTIES_FILENAME)) {
+        try (InputStream is = EqlDataLoader.class.getClassLoader().getResourceAsStream(PROPERTIES_FILENAME)) {
             Properties props = new Properties();
             props.load(is);
             return props;
         }
     }
 
-    static void restoreSnapshot(RestClient client, RestHighLevelClient restHighLevelClient, Properties cfg) throws IOException {
-        if (client.performRequest(new Request("HEAD", "/" + cfg.getProperty("index_name"))).getStatusLine().getStatusCode() == 404) {
+    static void restoreSnapshot(RestHighLevelClient restHighLevelClient, Properties cfg) throws IOException {
+        if (restHighLevelClient.getLowLevelClient()
+            .performRequest(new Request("HEAD", "/" + cfg.getProperty("index_name")))
+            .getStatusLine()
+            .getStatusCode() == 404) {
             restHighLevelClient.snapshot()
                 .createRepository(
                     new PutRepositoryRequest(cfg.getProperty("gcs_repo_name")).type("gcs")

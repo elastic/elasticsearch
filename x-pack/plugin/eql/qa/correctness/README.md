@@ -71,7 +71,7 @@ or
 If one wants to run an ES node manually (most probably to be able to debug the server), needs to run the following:
 
 ```shell script
-./gradlew -p x-pack/plugin/eql/qa/correctness runEqlCorrectnessNode --debug-jvm
+./gradlew :x-pack:plugin:eql:qa:correctness:runEqlCorrectnessNode --debug-jvm
 ```
 
 **Set the `eql_test_credentials_file` environmental variable correctly in the shell before running the command above,**
@@ -79,7 +79,7 @@ If one wants to run an ES node manually (most probably to be able to debug the s
 Once the ES node is up and running, the data can be restored from the snapshot by running the `main` of the 
 `EqlDataLoader` class.
 
-Once the data is loaded, a specific query can ber run against the running ES node with:
+Once the data is loaded, a specific query can be run against the running ES node with:
 ```shell script
 ./gradlew ':x-pack:plugin:eql:qa:correctness:javaRestTest' --tests "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT.test {<queryNo>}" -Dtests.rest.cluster=localhost:9200 -Dtests.cluster=localhost:9200 -Dtests.clustername=runTask-0
 ```

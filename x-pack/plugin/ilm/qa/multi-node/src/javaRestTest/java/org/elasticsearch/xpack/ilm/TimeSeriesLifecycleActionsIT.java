@@ -471,6 +471,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         forceMergeActionWithCodec(null);
     }
 
+    public void testForceMergeActionWithCompressionCodec() throws Exception {
+        forceMergeActionWithCodec("best_compression");
+    }
+
     public void testShrinkAction() throws Exception {
         int numShards = 4;
         int divisor = randomFrom(2, 4);

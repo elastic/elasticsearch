@@ -31,6 +31,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -134,7 +135,7 @@ public abstract class AbstractQuotaAwareFsTests extends PackagingTestCase {
         int available = 10 * 1024 * 1024;
 
         final Path quotaPath = getTempDir().resolve("quota.properties");
-        Files.write(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", total, available).getBytes());
+        Files.write(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", total, available).getBytes(StandardCharsets.UTF_8));
 
         sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=" + quotaPath.toUri());
 
@@ -151,7 +152,8 @@ public abstract class AbstractQuotaAwareFsTests extends PackagingTestCase {
 
             // Check that ES is polling the properties file for changes by modifying the properties file
             // and waiting for ES to pick up the changes.
-            Files.write(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", updatedTotal, updatedAvailable).getBytes());
+            Files.write(quotaPath,
+                String.format(Locale.ROOT, "total=%d\nremaining=%d\n", updatedTotal, updatedAvailable).getBytes(StandardCharsets.UTF_8));
 
             // The check interval is 1000ms, but give ourselves some leeway.
             Thread.sleep(2000);

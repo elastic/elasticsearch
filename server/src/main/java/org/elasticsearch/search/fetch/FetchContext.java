@@ -148,7 +148,10 @@ public class FetchContext {
             // retrieve the `doc_value` associated with the collapse field
             String name = searchContext.collapse().getFieldName();
             if (dvContext == null) {
-                return new FetchDocValuesContext(Collections.singletonList(new FieldAndFormat(name, null)));
+                return new FetchDocValuesContext(
+                    searchContext.getQueryShardContext(),
+                    Collections.singletonList(new FieldAndFormat(name, null))
+                );
             } else if (searchContext.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
                 dvContext.fields().add(new FieldAndFormat(name, null));
             }

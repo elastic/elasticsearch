@@ -44,7 +44,7 @@ public class FieldLookup {
         this.fieldType = fieldType;
     }
 
-    public MappedFieldType fieldType() {
+    MappedFieldType fieldType() {
         return fieldType;
     }
 

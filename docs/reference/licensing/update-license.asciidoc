@@ -41,7 +41,7 @@ https://www.elastic.co/subscriptions.
 ==== {api-query-parms-title}
 
 `acknowledge`::
-  (Optional, boolean)
+  (Optional, Boolean)
   Specifies whether you acknowledge the license changes. The default
   value is `false`.
 

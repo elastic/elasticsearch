@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,7 +52,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     /**
      * Create {@link AnalysisStats} from the given cluster state.
      */
-    public static AnalysisStats of(ClusterState state) {
+    public static AnalysisStats of(Metadata metadata) {
         final Map<String, IndexFeatureStats> usedCharFilterTypes = new HashMap<>();
         final Map<String, IndexFeatureStats> usedTokenizerTypes = new HashMap<>();
         final Map<String, IndexFeatureStats> usedTokenFilterTypes = new HashMap<>();
@@ -62,7 +62,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         final Map<String, IndexFeatureStats> usedBuiltInTokenFilters = new HashMap<>();
         final Map<String, IndexFeatureStats> usedBuiltInAnalyzers = new HashMap<>();
 
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : metadata) {
             Set<String> indexAnalyzers = new HashSet<>();
             MappingMetadata mappingMetadata = indexMetadata.mapping();
             if (mappingMetadata != null) {

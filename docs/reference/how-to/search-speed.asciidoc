@@ -303,13 +303,14 @@ may become much worse.
 [discrete]
 === Warm up global ordinals
 
-Global ordinals are a data-structure that is used in order to run
-<<search-aggregations-bucket-terms-aggregation,`terms`>> aggregations on
-<<keyword,`keyword`>> fields. They are loaded lazily in memory because
-Elasticsearch does not know which fields will be used in `terms` aggregations
-and which fields won't. You can tell Elasticsearch to load global ordinals
-eagerly when starting or refreshing a shard by configuring mappings as
-described below:
+<<eager-global-ordinals,Global ordinals>> are a data structure that is used in
+order to increase aggregation speed. They are calculated lazily and stored in
+the JVM heap as part of the <<modules-fielddata, field data cache>>. For fields
+that are heavily used for bucketing aggregations, you can tell {es} to add to
+the cache before requests are received. This should be done carefully because it
+will increase heap usage and delay indexing until the cache is created. This can
+be set dynamically on an existing mapping by setting the
+<<eager-global-ordinals, eager global ordinals>> mappping parameter:
 
 [source,console]
 --------------------------------------------------

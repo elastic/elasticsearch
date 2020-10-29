@@ -4,8 +4,8 @@
 <titleabbrev>cat fielddata</titleabbrev>
 ++++
 
-Returns the amount of heap memory currently used by fielddata on every data node
-in the cluster.
+Returns the amount of heap memory currently used by the
+<<modules-fielddata, field data cache>> on every data node in the cluster.
 
 
 [[cat-fielddata-api-request]]

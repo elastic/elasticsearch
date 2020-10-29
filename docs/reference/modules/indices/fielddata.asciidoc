@@ -1,16 +1,41 @@
 [[modules-fielddata]]
 === Field data cache settings
 
-The field data cache is used mainly when sorting on or computing aggregations
-on a field. It loads all the field values to memory in order to provide fast
-document based access to those values. The field data cache can be
-expensive to build for a field, so its recommended to have enough memory
-to allocate it, and to keep it loaded.
+The field data cache is an in-memory data structure, built on demand
+based on the type of query that is being run. It contains both
+<<fielddata, `fielddata`>> and <<eager-global-ordinals, global ordinals>>,
+which serve similar functions for different types of queries.
+The cache uses the JVM heap, so it is important to monitor its use
+and not to overload your cluster.
 
-The amount of memory used for the field
-data cache can be controlled using `indices.fielddata.cache.size`. Note:
-reloading  the field data which does not fit into your cache will be expensive
-and  perform poorly.
+Other than fields where the cache is built ahead of time, it is populated as needed
+on request. This includes:
+
+* Certain bucket aggregations on `keyword`, `ip`, and `flattened` fields. This
+includes `terms` aggregations, as well as `composite`, `diversified_sampler`,
+and `significant_terms`.
+* Bucket aggregations on `text` fields that have <<fielddata, `fielddata`>>
+ enabled.
+* Bucket aggregations on the <<mapping-id-field, `_id` field>> when it is enabled for aggregation
+* Operations on parent and child documents from a `join` field, including
+`has_child` queries and `parent` aggregations.
+
+[discrete]
+[[fielddata-sizing]]
+==== Cache size
+
+The entries in the cache are expensive to build, so the default behavior is
+to keep the cache loaded in memory
+
+The default cache size is unlimited, causing the cache to grow until it
+reaches the limit set by the <<fielddata-circuit-breaker, field data circuit breaker>>.
+It is recommended to set a cache size limit that is smaller than the circuit breaker
+value. Setting the limit will cause the cache to behave as a least-recently-updated
+cache, only keeping the most recently requested field data.
+
+If the field data circuit breaker is reached, preventing further requests, the
+best option is to manually <<indices-clearcache, clear the cache>>. This will
+allow requests to re-build the cache setting.
 
 `indices.fielddata.cache.size`::
 (<<static-cluster-setting,Static>>)
@@ -24,5 +49,4 @@ absolute value, eg `12GB`. Defaults to unbounded.  Also see
 
 You can monitor memory usage for field data as well as the field data circuit
 breaker using
-<<cluster-nodes-stats,Nodes Stats API>>
-
+<<cluster-nodes-stats,Nodes Stats API>> or the <<cat-fielddata, _cat/fielddata API>>

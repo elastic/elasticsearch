@@ -17,7 +17,7 @@ Aggregations help you answer questions like:
 group documents into buckets, also called bins, based on field values, ranges,
 or other criteria.
 
-* experimental:[] <<search-aggregations-matrix,Matrix>> aggregations that output
+* <<search-aggregations-matrix,Matrix>> aggregations experimental:[] that output
 a matrix based on multiple fields.
 
 * <<search-aggregations-metrics,Metric>> aggregations that calculate metrics,
@@ -140,7 +140,8 @@ GET /my-index-000001/_search
 
 Bucket aggregations support bucket or metric sub-aggregations. For example, a
 terms aggregation with an <<search-aggregations-metrics-avg-aggregation,avg>>
-sub-aggregation calculates an average value for each bucket of documents.
+sub-aggregation calculates an average value for each bucket of documents. There
+is no depth limit for sub-aggregations.
 
 [source,console]
 ----
@@ -266,7 +267,7 @@ the aggregated field.
 === Use scripts in an aggregation
 
 Some aggregations support <<modules-scripting,scripts>>. You can
-use a `script` to extract or generate values for an aggregation:
+use a `script` to extract or generate values for the aggregation:
 
 [source,console]
 ----
@@ -288,7 +289,7 @@ GET /my-index-000001/_search
 // TEST[s/my-field/http.request.method/]
 
 If you also specify a `field`, the `script`  modifies the field values used in
-an aggregation. The following aggregation uses a script to modify `my-field`
+the aggregation. The following aggregation uses a script to modify `my-field`
 values:
 
 [source,console]

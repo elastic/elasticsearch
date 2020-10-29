@@ -99,7 +99,7 @@ The filter produces the following tokens.
 ==== Configurable parameters
 
 `all`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, all substrings matching the `pattern` parameter's regular expression
 are replaced. If `false`, the filter replaces only the first matching substring
 in each token. Defaults to `true`.

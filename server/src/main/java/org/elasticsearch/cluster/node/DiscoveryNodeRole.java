@@ -113,12 +113,13 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         DiscoveryNodeRole that = (DiscoveryNodeRole) o;
         return roleName.equals(that.roleName) &&
             roleNameAbbreviation.equals(that.roleNameAbbreviation) &&
+            canContainData == that.canContainData &&
             isKnownRole == that.isKnownRole;
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(isKnownRole, roleName(), roleNameAbbreviation());
+        return Objects.hash(isKnownRole, roleName(), roleNameAbbreviation(), canContainData());
     }
 
     @Override

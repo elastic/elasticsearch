@@ -59,10 +59,12 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -112,7 +114,6 @@ public abstract class Engine implements Closeable {
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
 
     protected final ShardId shardId;
-    protected final String allocationId;
     protected final Logger logger;
     protected final EngineConfig engineConfig;
     protected final Store store;
@@ -142,7 +143,6 @@ public abstract class Engine implements Closeable {
 
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
-        this.allocationId = engineConfig.getAllocationId();
         this.store = engineConfig.getStore();
         // we use the engine class directly here to make sure all subclasses have the same logger name
         this.logger = Loggers.getLogger(Engine.class,
@@ -279,6 +279,13 @@ public abstract class Engine implements Closeable {
 
         boolean isThrottled() {
             return lock != NOOP_LOCK;
+        }
+
+        boolean throttleLockIsHeldByCurrentThread() { // to be used in assertions and tests only
+            if(isThrottled()) {
+                return lock.isHeldByCurrentThread();
+            }
+            return false;
         }
     }
 
@@ -700,7 +707,7 @@ public abstract class Engine implements Closeable {
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
      * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
      */
-    public abstract Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+    public abstract Translog.Snapshot newChangesSnapshot(String source, Function<String, MappedFieldType> fieldTypeLookup,
                                                          long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
 
     /**
@@ -1532,10 +1539,10 @@ public abstract class Engine implements Closeable {
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-        public Get(boolean realtime, boolean readFromTranslog, String id, Term uid) {
+        public Get(boolean realtime, boolean readFromTranslog, String id) {
             this.realtime = realtime;
             this.id = id;
-            this.uid = uid;
+            this.uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
             this.readFromTranslog = readFromTranslog;
         }
 

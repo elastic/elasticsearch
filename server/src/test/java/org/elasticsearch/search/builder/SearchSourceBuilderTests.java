@@ -387,7 +387,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         TimeValue keepAlive = randomBoolean() ? TimeValue.timeValueHours(1) : null;
-        searchSourceBuilder.pointInTimeBuilder(new SearchSourceBuilder.PointInTimeBuilder("id", keepAlive));
+        searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder("id").setKeepAlive(keepAlive));
         XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
         searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = BytesReference.bytes(builder);

@@ -23,9 +23,9 @@ public class VerifierTests extends ESTestCase {
 
     private static final String INDEX_NAME = "test";
 
-    private EqlParser parser = new EqlParser();
+    private final EqlParser parser = new EqlParser();
 
-    private IndexResolution index = loadIndexResolution("mapping-default.json");
+    private final IndexResolution index = loadIndexResolution("mapping-default.json");
 
     private static Map<String, EsField> loadEqlMapping(String name) {
         return TypesTests.loadMapping(name);
@@ -37,7 +37,7 @@ public class VerifierTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG_CASE_INSENSITIVE, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution));
     }
 
@@ -73,7 +73,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testQueryStartsWithNumber() {
         assertEquals("1:1: no viable alternative at input '42'", errorParsing("42 where true"));
-        assertEquals("1:1: no viable alternative at input '\"42\"'", errorParsing("\"42\" where true"));
     }
 
     public void testMissingColumn() {
@@ -90,11 +89,11 @@ public class VerifierTests extends ESTestCase {
 
     public void testProcessRelationshipsUnsupported() {
         assertEquals("2:7: Process relationships are not supported",
-                errorParsing("process where opcode=1 and process_name == \"csrss.exe\"\n" +
-                        "  and descendant of [file where file_name == \"csrss.exe\" and opcode=0]"));
+                errorParsing("process where opcode==1 and process_name == \"csrss.exe\"\n" +
+                        "  and descendant of [file where file_name == \"csrss.exe\" and opcode==0]"));
         assertEquals("2:7: Process relationships are not supported",
-                errorParsing("process where process_name=\"svchost.exe\"\n" +
-                        "  and child of [file where file_name=\"svchost.exe\" and opcode=0]"));
+                errorParsing("process where process_name==\"svchost.exe\"\n" +
+                        "  and child of [file where file_name=\"svchost.exe\" and opcode==0]"));
     }
 
     // Some functions fail with "Unsupported" message at the parse stage
@@ -122,10 +121,10 @@ public class VerifierTests extends ESTestCase {
     // Test valid/supported queries
     public void testQueryOk() {
         // Mismatched type, still ok
-        accept("process where serial_event_id = \"abcdef\"");
+        accept("process where serial_event_id == \"abcdef\"");
 
         // Equals condition
-        accept("process where serial_event_id = 1");
+        accept("process where serial_event_id == 1");
 
         // Less then condition
         accept("process where serial_event_id < 4");
@@ -136,7 +135,7 @@ public class VerifierTests extends ESTestCase {
 
         // Or and And/And Not
         accept("process where process_name == \"impossible name\" or (serial_event_id < 4.5 and serial_event_id >= 3.1)");
-        accept("process where (serial_event_id<=8 and not serial_event_id > 7) and (opcode=3 and opcode>2)");
+        accept("process where (serial_event_id<=8 and not serial_event_id > 7) and (opcode==3 and opcode>2)");
 
         // In statement
         accept("process where not (exit_code > -1)\n" +
@@ -332,4 +331,11 @@ public class VerifierTests extends ESTestCase {
                 "define one or use MATCH/QUERY instead",
             error(idxr, "process where string(multi_field.english) == \"foo\""));
     }
+
+    public void testIncorrectUsageOfStringEquals() {
+        final IndexResolution idxr = loadIndexResolution("mapping-default.json");
+        assertEquals("1:11: first argument of [:] must be [string], found value [pid] type [long]; consider using [==] instead",
+            error(idxr, "foo where pid : 123"));
+    }
+
 }

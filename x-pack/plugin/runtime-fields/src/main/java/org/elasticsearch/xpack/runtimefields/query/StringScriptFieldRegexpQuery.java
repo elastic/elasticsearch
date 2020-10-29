@@ -15,24 +15,27 @@ import java.util.Objects;
 
 public class StringScriptFieldRegexpQuery extends AbstractStringScriptFieldAutomatonQuery {
     private final String pattern;
-    private final int flags;
+    private final int syntaxFlags;
+    private final int matchFlags;
 
     public StringScriptFieldRegexpQuery(
         Script script,
         StringFieldScript.LeafFactory leafFactory,
         String fieldName,
         String pattern,
-        int flags,
+        int syntaxFlags,
+        int matchFlags,
         int maxDeterminizedStates
     ) {
         super(
             script,
             leafFactory,
             fieldName,
-            new ByteRunAutomaton(new RegExp(Objects.requireNonNull(pattern), flags).toAutomaton(maxDeterminizedStates))
+            new ByteRunAutomaton(new RegExp(Objects.requireNonNull(pattern), syntaxFlags, matchFlags).toAutomaton(maxDeterminizedStates))
         );
         this.pattern = pattern;
-        this.flags = flags;
+        this.syntaxFlags = syntaxFlags;
+        this.matchFlags = matchFlags;
     }
 
     @Override
@@ -46,7 +49,7 @@ public class StringScriptFieldRegexpQuery extends AbstractStringScriptFieldAutom
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), pattern, flags);
+        return Objects.hash(super.hashCode(), pattern, syntaxFlags, matchFlags);
     }
 
     @Override
@@ -55,14 +58,18 @@ public class StringScriptFieldRegexpQuery extends AbstractStringScriptFieldAutom
             return false;
         }
         StringScriptFieldRegexpQuery other = (StringScriptFieldRegexpQuery) obj;
-        return pattern.equals(other.pattern) && flags == other.flags;
+        return pattern.equals(other.pattern) && syntaxFlags == other.syntaxFlags && matchFlags == other.matchFlags;
     }
 
     String pattern() {
         return pattern;
     }
 
-    int flags() {
-        return flags;
+    int syntaxFlags() {
+        return syntaxFlags;
+    }
+
+    int matchFlags() {
+        return matchFlags;
     }
 }

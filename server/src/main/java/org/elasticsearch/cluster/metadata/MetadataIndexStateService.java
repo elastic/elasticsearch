@@ -64,7 +64,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -158,7 +157,7 @@ public class MetadataIndexStateService {
         }
 
         clusterService.submitStateUpdateTask("add-block-index-to-close " + Arrays.toString(concreteIndices),
-            new ClusterStateUpdateTask(Priority.URGENT) {
+            new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
 
                 private final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
 
@@ -232,11 +231,6 @@ public class MetadataIndexStateService {
                 @Override
                 public void onFailure(final String source, final Exception e) {
                     listener.onFailure(e);
-                }
-
-                @Override
-                public TimeValue timeout() {
-                    return request.masterNodeTimeout();
                 }
             }
         );
@@ -409,7 +403,7 @@ public class MetadataIndexStateService {
         }
 
         clusterService.submitStateUpdateTask("add-index-block-[" + request.getBlock().name + "]-" + Arrays.toString(concreteIndices),
-            new ClusterStateUpdateTask(Priority.URGENT) {
+            new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
 
                 private Map<Index, ClusterBlock> blockedIndices;
 
@@ -470,11 +464,6 @@ public class MetadataIndexStateService {
                 @Override
                 public void onFailure(final String source, final Exception e) {
                     listener.onFailure(e);
-                }
-
-                @Override
-                public TimeValue timeout() {
-                    return request.masterNodeTimeout();
                 }
             }
         );
@@ -718,10 +707,6 @@ public class MetadataIndexStateService {
                                                                           final Map<Index, ClusterBlock> blockedIndices,
                                                                           final Map<Index, IndexResult> verifyResult) {
 
-        // Remove the index routing table of closed indices if the cluster is in a mixed version
-        // that does not support the replication of closed indices
-        final boolean removeRoutingTable = currentState.nodes().getMinNodeVersion().before(Version.V_7_2_0);
-
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
@@ -773,17 +758,12 @@ public class MetadataIndexStateService {
                 blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
                 blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                 final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
-                if (removeRoutingTable) {
-                    metadata.put(updatedMetadata);
-                    routingTable.remove(index.getName());
-                } else {
-                    metadata.put(updatedMetadata
+                metadata.put(updatedMetadata
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(Settings.builder()
-                            .put(indexMetadata.getSettings())
-                            .put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)));
-                    routingTable.addAsFromOpenToClose(metadata.getSafe(index));
-                }
+                                .put(indexMetadata.getSettings())
+                                .put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)));
+                routingTable.addAsFromOpenToClose(metadata.getSafe(index));
 
                 logger.debug("closing index {} succeeded", index);
                 closedIndices.add(index.getName());

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.mapper.MapperService;
@@ -78,9 +79,10 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
 
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService, RecoverySettings recoverySettings) {
+                                                               ClusterService clusterService, BigArrays bigArrays,
+                                                               RecoverySettings recoverySettings) {
             return Collections.singletonMap("mock_meta_filtering", metadata ->
-                new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings) {
+                new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
 
                     // Storing the initially expected metadata value here to verify that #filterUserMetadata is only called once on the
                     // initial master node starting the snapshot

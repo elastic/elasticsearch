@@ -319,6 +319,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         BulkRequest bulkRequest = bulkRequestCaptor.getValue();
         assertThat(bulkRequest.requests().size(), equalTo(1));
         IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+        assertThat(indexRequest.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
 
         assertThat(indexRequest.index(), equalTo(expectedIndexOrAlias));
         assertThat(indexRequest.id(), equalTo("foo_quantiles"));
@@ -359,6 +360,7 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         assertThat(indexRequest.index(), equalTo(expectedIndexOrAlias));
         assertThat(indexRequest.id(), equalTo("foo_quantiles"));
+        assertThat(indexRequest.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
     }
 
     public void testPersistQuantilesAsync_QuantilesDocumentCreated() {

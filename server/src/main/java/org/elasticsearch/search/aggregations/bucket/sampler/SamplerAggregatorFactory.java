@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -33,9 +33,9 @@ public class SamplerAggregatorFactory extends AggregatorFactory {
 
     private final int shardSize;
 
-    SamplerAggregatorFactory(String name, int shardSize, QueryShardContext queryShardContext, AggregatorFactory parent,
+    SamplerAggregatorFactory(String name, int shardSize, AggregationContext context, AggregatorFactory parent,
                              AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metadata);
+        super(name, context, parent, subFactories, metadata);
         this.shardSize = shardSize;
     }
 

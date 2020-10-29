@@ -266,10 +266,10 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query buildFilteredQuery(Query query) {
         List<Query> filters = new ArrayList<>();
-
-        if (mapperService().hasNested()
-                && new NestedHelper(mapperService()).mightMatchNestedDocs(query)
-                && (aliasFilter == null || new NestedHelper(mapperService()).mightMatchNestedDocs(aliasFilter))) {
+        NestedHelper nestedHelper = new NestedHelper(queryShardContext::getObjectMapper, queryShardContext::isFieldMapped);
+        if (queryShardContext.hasNested()
+                && nestedHelper.mightMatchNestedDocs(query)
+                && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
             filters.add(Queries.newNonNestedFilter());
         }
 
@@ -278,7 +278,7 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            Query slicedQuery = sliceBuilder.toFilter(clusterService, request, queryShardContext);
+            Query slicedQuery = sliceBuilder.toFilter(clusterService, request, this.queryShardContext);
             if (slicedQuery instanceof MatchNoDocsQuery) {
                 return slicedQuery;
             } else {
@@ -752,12 +752,12 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public MappedFieldType fieldType(String name) {
-        return mapperService().fieldType(name);
+        return queryShardContext.getFieldType(name);
     }
 
     @Override
     public ObjectMapper getObjectMapper(String name) {
-        return mapperService().getObjectMapper(name);
+        return queryShardContext.getObjectMapper(name);
     }
 
     @Override

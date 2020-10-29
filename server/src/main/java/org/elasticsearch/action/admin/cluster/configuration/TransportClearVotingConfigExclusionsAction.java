@@ -38,14 +38,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.function.Predicate;
 
 public class TransportClearVotingConfigExclusionsAction
@@ -58,17 +55,8 @@ public class TransportClearVotingConfigExclusionsAction
                                                       ThreadPool threadPool, ActionFilters actionFilters,
                                                       IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ClearVotingConfigExclusionsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ClearVotingConfigExclusionsRequest::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return Names.SAME;
-    }
-
-    @Override
-    protected ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
-        return new ClearVotingConfigExclusionsResponse(in);
+            ClearVotingConfigExclusionsRequest::new, indexNameExpressionResolver, ClearVotingConfigExclusionsResponse::new,
+                ThreadPool.Names.SAME);
     }
 
     @Override
@@ -117,7 +105,9 @@ public class TransportClearVotingConfigExclusionsAction
 
     private void submitClearVotingConfigExclusionsTask(ClearVotingConfigExclusionsRequest request, long startTimeMillis,
                                                        ActionListener<ClearVotingConfigExclusionsResponse> listener) {
-        clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
+        clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT,
+                TimeValue.timeValueMillis(
+                        Math.max(0, request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis()))) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final CoordinationMetadata newCoordinationMetadata =
@@ -130,11 +120,6 @@ public class TransportClearVotingConfigExclusionsAction
             @Override
             public void onFailure(String source, Exception e) {
                 listener.onFailure(e);
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return TimeValue.timeValueMillis(request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis());
             }
 
             @Override

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
@@ -185,12 +186,12 @@ public final class Verifier {
             // collect Attribute sources
             // only Aliases are interesting since these are the only ones that hide expressions
             // FieldAttribute for example are self replicating.
-            plan.forEachUp(p -> p.forEachExpressionsUp(e -> {
+            plan.forEachExpressionsUp(e -> {
                 if (e instanceof Alias) {
                     Alias a = (Alias) e;
                     collectRefs.put(a.toAttribute(), a.child());
                 }
-            }));
+            });
 
             AttributeMap<Expression> attributeRefs = new AttributeMap<>(collectRefs);
 
@@ -220,6 +221,7 @@ public final class Verifier {
                 checkForGeoFunctionsOnDocValues(p, localFailures);
                 checkPivot(p, localFailures, attributeRefs);
                 checkMatrixStats(p, localFailures);
+                checkCastOnInexact(p, localFailures);
 
                 // everything checks out
                 // mark the plan as analyzed
@@ -864,5 +866,20 @@ public final class Verifier {
                 localFailures.add(fail(s.field(), "[{}()] cannot be used on top of operators or scalars", s.functionName()));
             }
         }, Skewness.class));
+    }
+
+    private static void checkCastOnInexact(LogicalPlan p, Set<Failure> localFailures) {
+        p.forEachDown(f -> f.forEachExpressionsUp(e -> e.forEachUp((Cast c) -> {
+            if (c.field() instanceof FieldAttribute) {
+                EsField.Exact exactInfo = ((FieldAttribute) c.field()).getExactInfo();
+                if (exactInfo.hasExact() == false
+                        || ((FieldAttribute) c.field()).exactAttribute().equals(c.field()) == false) {
+                    localFailures.add(fail(c.field(),
+                            "[{}] of data type [{}] cannot be used for [{}()] inside the WHERE clause",
+                            c.field().sourceText(), c.field().dataType().typeName(), c.functionName()));
+                }
+
+            }
+        }, Cast.class)), Filter.class);
     }
 }

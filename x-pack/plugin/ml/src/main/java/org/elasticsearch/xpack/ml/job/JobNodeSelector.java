@@ -77,7 +77,8 @@ public class JobNodeSelector {
     }
 
     public PersistentTasksCustomMetadata.Assignment selectNode(int dynamicMaxOpenJobs, int maxConcurrentJobAllocations,
-                                                               int maxMachineMemoryPercent, boolean isMemoryTrackerRecentlyRefreshed) {
+                                                               int maxMachineMemoryPercent, boolean isMemoryTrackerRecentlyRefreshed,
+                                                               boolean useAutoMemoryPercentage) {
         // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
         // because of some weird OS problem) then fall back to the old mechanism of only considering numbers of assigned jobs
         boolean allocateByMemory = isMemoryTrackerRecentlyRefreshed;
@@ -91,7 +92,6 @@ public class JobNodeSelector {
         long maxAvailableMemory = Long.MIN_VALUE;
         DiscoveryNode minLoadedNodeByCount = null;
         DiscoveryNode minLoadedNodeByMemory = null;
-        PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
 
             // First check conditions that would rule out the node regardless of what other tasks are assigned to it
@@ -108,7 +108,8 @@ public class JobNodeSelector {
                 node,
                 dynamicMaxOpenJobs,
                 maxMachineMemoryPercent,
-                allocateByMemory
+                allocateByMemory,
+                useAutoMemoryPercentage
             );
             if (currentLoad.getError() != null) {
                 reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)

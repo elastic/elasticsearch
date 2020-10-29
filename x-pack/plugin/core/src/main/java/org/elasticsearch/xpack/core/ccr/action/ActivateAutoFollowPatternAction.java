@@ -24,7 +24,7 @@ public class ActivateAutoFollowPatternAction extends ActionType<AcknowledgedResp
     public static final ActivateAutoFollowPatternAction INSTANCE = new ActivateAutoFollowPatternAction();
 
     private ActivateAutoFollowPatternAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

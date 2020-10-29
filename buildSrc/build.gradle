@@ -96,12 +96,12 @@ dependencies {
   api 'org.apache.ant:ant:1.10.8'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   api 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
-  api 'com.netflix.nebula:gradle-info-plugin:7.1.3'
+  api 'com.netflix.nebula:gradle-info-plugin:9.1.1'
   api 'org.apache.rat:apache-rat:0.11'
   api "org.elasticsearch:jna:5.5.0"
-  api 'com.github.jengelman.gradle.plugins:shadow:6.0.0'
-  api 'de.thetaphi:forbiddenapis:3.0'
-  api 'com.avast.gradle:gradle-docker-compose-plugin:0.12.1'
+  api 'com.github.jengelman.gradle.plugins:shadow:6.1.0'
+  api 'de.thetaphi:forbiddenapis:3.1'
+  api 'com.avast.gradle:gradle-docker-compose-plugin:0.13.4'
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"

@@ -108,7 +108,7 @@ public class OutlierDetectionTests extends AbstractBWCSerializationTestCase<Outl
     }
 
     public void testGetExplicitlyMappedFields() {
-        Map<String, Object> mappedFields = createTestInstance().getExplicitlyMappedFields(null, "test");
+        Map<String, Object> mappedFields = createTestInstance().getExplicitlyMappedFields("test", null);
         assertThat(mappedFields.size(), equalTo(2));
         assertThat(mappedFields, hasKey("test.outlier_score"));
         assertThat(mappedFields.get("test.outlier_score"),
@@ -120,7 +120,7 @@ public class OutlierDetectionTests extends AbstractBWCSerializationTestCase<Outl
     public void testGetStateDocId() {
         OutlierDetection outlierDetection = createRandom();
         assertThat(outlierDetection.persistsState(), is(false));
-        expectThrows(UnsupportedOperationException.class, () -> outlierDetection.getStateDocId("foo"));
+        expectThrows(UnsupportedOperationException.class, () -> outlierDetection.getStateDocIdPrefix("foo"));
     }
 
     public void testInferenceConfig() {

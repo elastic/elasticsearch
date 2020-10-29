@@ -32,6 +32,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -46,7 +47,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
@@ -57,16 +57,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
@@ -91,7 +88,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          * if a shard was moved to a different node or for administrative
          * purposes.
          */
-        MAPPING_RECOVERY;
+        MAPPING_RECOVERY
     }
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
@@ -108,21 +105,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Setting.longSetting("index.mapping.field_name_length.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.IndexScope);
 
     private final IndexAnalyzers indexAnalyzers;
+    private final DocumentMapperParser documentMapperParser;
+    private final DocumentParser documentParser;
+    private final Version indexVersionCreated;
+    private final MapperAnalyzerWrapper indexAnalyzer;
+    private final MapperRegistry mapperRegistry;
+    private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
 
     private volatile DocumentMapper mapper;
-
-    private final DocumentMapperParser documentParser;
-    private final Version indexVersionCreated;
-
-    private final MapperAnalyzerWrapper indexAnalyzer;
-    private final MapperAnalyzerWrapper searchAnalyzer;
-    private final MapperAnalyzerWrapper searchQuoteAnalyzer;
-
-    private volatile Map<String, MappedFieldType> unmappedFieldTypes = emptyMap();
-
-    final MapperRegistry mapperRegistry;
-
-    private final BooleanSupplier idFieldDataEnabled;
 
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
@@ -131,15 +121,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
-        this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
-                queryShardContextSupplier, scriptService);
         this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
-        this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(),
-            p -> p.getTextSearchInfo().getSearchAnalyzer());
-        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(),
-            p -> p.getTextSearchInfo().getSearchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
-        this.idFieldDataEnabled = idFieldDataEnabled;
+        Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
+            dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
+                indexVersionCreated, queryShardContextSupplier, dateFormatter, scriptService, indexAnalyzers, indexSettings,
+                idFieldDataEnabled);
+        this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction);
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
+            mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
+        this.parserContextSupplier = () -> parserContextFunction.apply(null);
+        this.documentMapperParser = new DocumentMapperParser(indexSettings, indexAnalyzers, this::resolveDocumentType, documentParser,
+            this::getMetadataMappers, parserContextSupplier, metadataMapperParsers);
     }
 
     public boolean hasNested() {
@@ -154,8 +147,29 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.indexAnalyzers.get(analyzerName);
     }
 
-    public DocumentMapperParser documentMapperParser() {
+    public Mapper.TypeParser.ParserContext parserContext() {
+        return parserContextSupplier.get();
+    }
+
+    DocumentParser documentParser() {
         return this.documentParser;
+    }
+
+    Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
+        final DocumentMapper existingMapper = mapper;
+        final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
+            mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
+        if (existingMapper == null) {
+            for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
+                MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
+                metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
+            }
+
+        } else {
+            metadataMappers.putAll(existingMapper.mapping().metadataMappersMap);
+        }
+        return metadataMappers;
     }
 
     /**
@@ -218,8 +232,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             requireRefresh = true;
         }
-
-
         return requireRefresh;
     }
 
@@ -291,7 +303,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         DocumentMapper documentMapper;
 
         try {
-            documentMapper = documentParser.parse(type, mappings);
+            documentMapper = documentMapperParser.parse(type, mappings);
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
@@ -339,7 +351,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource) throws MapperParsingException {
-        return documentParser.parse(mappingType, mappingSource);
+        return documentMapperParser.parse(mappingType, mappingSource);
     }
 
     /**
@@ -365,7 +377,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * being used in the mappings. This allows typeless APIs such as 'index' or 'put mappings'
      * to work against indices with a custom type name.
      */
-    public String resolveDocumentType(String type) {
+    private String resolveDocumentType(String type) {
         if (MapperService.SINGLE_MAPPING_NAME.equals(type)) {
             if (mapper != null) {
                 return mapper.type();
@@ -391,7 +403,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
-        return this.mapper == null ? null : this.mapper.fieldTypes().get(fullName);
+        if (fullName.equals(TypeFieldType.NAME)) {
+            return new TypeFieldType(this.mapper == null ? "_doc" : this.mapper.type());
+        }
+        return this.mapper == null ? null : this.mapper.mappers().fieldTypes().get(fullName);
     }
 
     /**
@@ -403,7 +418,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // no wildcards
             return Collections.singleton(pattern);
         }
-        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes().simpleMatchToFullName(pattern);
+        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().simpleMatchToFullName(pattern);
     }
 
     /**
@@ -411,61 +426,22 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * the 'source path' for a multi-field is the path to its parent field.
      */
     public Set<String> sourcePath(String fullName) {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes().sourcePaths(fullName);
+        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().sourcePaths(fullName);
     }
 
     /**
      * Returns all mapped field types.
      */
     public Iterable<MappedFieldType> fieldTypes() {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes();
+        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes();
     }
 
     public ObjectMapper getObjectMapper(String name) {
-        return this.mapper == null ? null : this.mapper.objectMappers().get(name);
-    }
-
-    /**
-     * Given a type (eg. long, string, ...), return an anonymous field mapper that can be used for search operations.
-     */
-    public MappedFieldType unmappedFieldType(String type) {
-        MappedFieldType fieldType = unmappedFieldTypes.get(type);
-        if (fieldType == null) {
-            final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext();
-            Mapper.TypeParser typeParser = parserContext.typeParser(type);
-            if (typeParser == null) {
-                throw new IllegalArgumentException("No mapper found for type [" + type + "]");
-            }
-            final Mapper.Builder<?> builder = typeParser.parse("__anonymous_" + type, emptyMap(), parserContext);
-            final BuilderContext builderContext = new BuilderContext(indexSettings.getSettings(), new ContentPath(1));
-            fieldType = ((FieldMapper)builder.build(builderContext)).fieldType();
-
-            // There is no need to synchronize writes here. In the case of concurrent access, we could just
-            // compute some mappers several times, which is not a big deal
-            Map<String, MappedFieldType> newUnmappedFieldTypes = new HashMap<>(unmappedFieldTypes);
-            newUnmappedFieldTypes.put(type, fieldType);
-            unmappedFieldTypes = unmodifiableMap(newUnmappedFieldTypes);
-        }
-        return fieldType;
+        return this.mapper == null ? null : this.mapper.mappers().objectMappers().get(name);
     }
 
     public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
-    }
-
-    public Analyzer searchAnalyzer() {
-        return this.searchAnalyzer;
-    }
-
-    public Analyzer searchQuoteAnalyzer() {
-        return this.searchQuoteAnalyzer;
-    }
-
-    /**
-     * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
-     */
-    public boolean isIdFieldDataEnabled() {
-        return idFieldDataEnabled.getAsBoolean();
     }
 
     @Override
@@ -541,5 +517,4 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
         return reloadedAnalyzers;
     }
-
 }

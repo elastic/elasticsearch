@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
@@ -294,6 +296,20 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                 .failOnUnsupportedField(true);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("more_like_this only supports text/keyword fields"));
+    }
+
+    public void testUsesIndexAnalyzer() throws IOException {
+        MoreLikeThisQueryBuilder qb
+            = new MoreLikeThisQueryBuilder(new String[]{KEYWORD_FIELD_NAME}, new String[]{"some text"}, null);
+        MoreLikeThisQuery q = (MoreLikeThisQuery) qb.toQuery(createShardContext());
+        try (TokenStream ts = q.getAnalyzer().tokenStream(KEYWORD_FIELD_NAME, "some text")) {
+            ts.reset();
+            CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+            assertTrue(ts.incrementToken());
+            assertEquals("some text", termAtt.toString());
+            assertFalse(ts.incrementToken());
+            ts.end();
+        }
     }
 
     public void testDefaultField() throws IOException {

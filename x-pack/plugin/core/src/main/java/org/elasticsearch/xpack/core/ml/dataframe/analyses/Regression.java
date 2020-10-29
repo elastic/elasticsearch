@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Randomness;
@@ -51,7 +52,7 @@ public class Regression implements DataFrameAnalysis {
     public static final ParseField LOSS_FUNCTION_PARAMETER = new ParseField("loss_function_parameter");
     public static final ParseField FEATURE_PROCESSORS = new ParseField("feature_processors");
 
-    private static final String STATE_DOC_ID_SUFFIX = "_regression_state#1";
+    private static final String STATE_DOC_ID_INFIX = "_regression_state#";
 
     private static final ConstructingObjectParser<Regression, Void> LENIENT_PARSER = createParser(true);
     private static final ConstructingObjectParser<Regression, Void> STRICT_PARSER = createParser(false);
@@ -284,7 +285,7 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
+    public Map<String, Object> getExplicitlyMappedFields(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Map<String, Object> additionalProperties = new HashMap<>();
         additionalProperties.put(resultsFieldName + ".feature_importance", FEATURE_IMPORTANCE_MAPPING);
         // Prediction field should be always mapped as "double" rather than "float" in order to increase precision in case of
@@ -305,8 +306,8 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
-    public String getStateDocId(String jobId) {
-        return jobId + STATE_DOC_ID_SUFFIX;
+    public String getStateDocIdPrefix(String jobId) {
+        return jobId + STATE_DOC_ID_INFIX;
     }
 
     @Override
@@ -328,7 +329,7 @@ public class Regression implements DataFrameAnalysis {
     }
 
     public static String extractJobIdFromStateDoc(String stateDocId) {
-        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_SUFFIX);
+        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_INFIX);
         return suffixIndex <= 0 ? null : stateDocId.substring(0, suffixIndex);
     }
 

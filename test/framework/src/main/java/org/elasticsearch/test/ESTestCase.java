@@ -98,6 +98,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -119,6 +120,7 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
@@ -407,7 +409,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         //appropriate test
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-            assertNull("unexpected warning headers", warnings);
+            if (warnings != null && JvmInfo.jvmInfo().getBundledJdk() == false) {
+                // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
+                final List<String> filteredWarnings = warnings
+                    .stream()
+                    .filter(k -> k.contains(
+                        "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release") == false)
+                    .collect(Collectors.toList());
+                assertThat("unexpected warning headers", filteredWarnings, empty());
+            } else {
+                assertNull("unexpected warning headers", warnings);
+            }
         } finally {
             resetDeprecationLogger();
         }
@@ -606,6 +618,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return (byte) random().nextInt();
     }
 
+    public static byte randomNonNegativeByte() {
+        byte randomByte =  randomByte();
+        return (byte) (randomByte == Byte.MIN_VALUE ? 0 : Math.abs(randomByte));
+    }
+
     /**
      * Helper method to create a byte array of a given length populated with random byte values
      *
@@ -674,6 +691,16 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static long randomLong() {
         return random().nextLong();
+    }
+
+    /**
+     * Returns a random BigInteger uniformly distributed over the range 0 to (2^64 - 1) inclusive
+     * Currently BigIntegers are only used for unsigned_long field type, where the max value is 2^64 - 1.
+     * Modify this random generator if a wider range for BigIntegers is necessary.
+     * @return a random bigInteger in the range [0 ; 2^64 - 1]
+     */
+    public static BigInteger randomBigInteger() {
+        return new BigInteger(64, random());
     }
 
     /** A random integer from 0..max (inclusive). */

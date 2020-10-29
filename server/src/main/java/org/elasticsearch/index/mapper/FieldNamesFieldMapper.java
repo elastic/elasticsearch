@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -116,7 +117,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         private final boolean enabled;
 
         public FieldNamesFieldType(boolean enabled) {
-            super(Defaults.NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(Defaults.NAME, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.enabled = enabled;
         }
 
@@ -127,6 +128,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
         public boolean isEnabled() {
             return enabled;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override

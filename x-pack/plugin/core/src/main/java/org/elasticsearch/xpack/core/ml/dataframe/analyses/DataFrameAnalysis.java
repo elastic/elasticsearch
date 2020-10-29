@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -46,11 +47,11 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     /**
      * Returns fields for which the mappings should be either predefined or copied from source index to destination index.
      *
-     * @param mappingsProperties mappings.properties portion of the index mappings
      * @param resultsFieldName name of the results field under which all the results are stored
+     * @param fieldCapabilitiesResponse field capabilities fetched for this analysis' required fields
      * @return {@link Map} containing fields for which the mappings should be handled explicitly
      */
-    Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName);
+    Map<String, Object> getExplicitlyMappedFields(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse);
 
     /**
      * @return {@code true} if this analysis supports data frame rows with missing values
@@ -63,9 +64,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     boolean persistsState();
 
     /**
-     * Returns the document id for the analysis state
+     * Returns the document id prefix for the analysis state
      */
-    String getStateDocId(String jobId);
+    String getStateDocIdPrefix(String jobId);
 
     /**
      * Returns the progress phases the analysis goes through in order

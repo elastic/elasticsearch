@@ -98,7 +98,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
             .metadata(
                 Metadata.builder()
                     .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                        List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()), 2L))
+                        List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex())))
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)
             ).build();

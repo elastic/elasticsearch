@@ -86,6 +86,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -788,7 +789,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     TransportWriteActionTestHelper.performPostWriteActions(primary, request,
                         ((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, logger);
                     listener.onResponse((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result);
-                }), threadPool);
+                }), threadPool, Names.WRITE);
         } catch (Exception e) {
             listener.onFailure(e);
         }

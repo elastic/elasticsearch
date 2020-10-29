@@ -1,5 +1,7 @@
 ---
 "Test ack watch api":
+  - skip:
+      features: warnings
   - do:
       cluster.health:
           wait_for_status: yellow
@@ -44,12 +46,11 @@
   - match: { "status.actions.test_index.ack.state" : "awaits_successful_execution" }
 
   - do:
-      search:
-        rest_total_hits_as_int: true
-        index: .watches
-        body: { "query": { "term": { "_id": "my_watch" } } }
-  - match: { hits.total: 1 }
-  - match: { hits.hits.0._source.status.actions.test_index.ack.state: "awaits_successful_execution" }
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { found: true }
+  - match: { _id: "my_watch" }
+  - match: { status.actions.test_index.ack.state: "awaits_successful_execution" }
 
   - do:
       watcher.delete_watch:

@@ -18,19 +18,18 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
@@ -42,6 +41,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -53,42 +53,46 @@ import java.util.function.Supplier;
  * Uses lucene 6 LatLonPoint encoding
  */
 public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<ParsedGeoPoint>, List<? extends GeoPoint>> {
+
     public static final String CONTENT_TYPE = "geo_point";
-    public static final FieldType FIELD_TYPE = new FieldType();
 
-    static {
-        FIELD_TYPE.setStored(false);
-        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-        FIELD_TYPE.freeze();
+    private static Builder builder(FieldMapper in) {
+        return ((GeoPointFieldMapper)in).builder;
     }
 
-    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, GeoPointFieldType> {
+    public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        public Builder(String name) {
-            super(name, FIELD_TYPE);
-            hasDocValues = true;
-            builder = this;
+        final Parameter<Explicit<Boolean>> ignoreMalformed;
+        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
+        final Parameter<ParsedPoint> nullValue;
+        final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
+        final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
+        final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
+        final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        public Builder(String name, boolean ignoreMalformedByDefault) {
+            super(name);
+            this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
+            this.nullValue = nullValueParam(
+                m -> builder(m).nullValue.get(),
+                (n, c, o) -> parseNullValue(o, ignoreZValue.get().value(), ignoreMalformed.get().value()),
+                () -> null).acceptsNull();
         }
 
         @Override
-        public GeoPointFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
-                                         MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                                         Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-            GeoPointFieldType ft = new GeoPointFieldType(buildFullName(context), indexed, hasDocValues, meta);
-            ft.setGeometryParser(new PointParser<>());
-            ft.setGeometryIndexer(new GeoPointIndexer(ft));
-            ft.setGeometryQueryBuilder(new VectorGeoPointShapeQueryProcessor());
-            return new GeoPointFieldMapper(name, fieldType, ft, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
-        }
-    }
-
-    public static class TypeParser extends AbstractPointGeometryFieldMapper.TypeParser<Builder> {
-        @Override
-        protected Builder newBuilder(String name, Map<String, Object> params) {
-            return new GeoPointFieldMapper.Builder(name);
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(hasDocValues, indexed, stored, ignoreMalformed, ignoreZValue, nullValue, meta);
         }
 
-        protected ParsedGeoPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
+        public Builder docValues(boolean hasDocValues) {
+            this.hasDocValues.setValue(hasDocValues);
+            return this;
+        }
+
+        private static ParsedGeoPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
+            if (nullValue == null) {
+                return null;
+            }
             ParsedGeoPoint point = new ParsedGeoPoint();
             GeoUtils.parseGeoPoint(nullValue, point, ignoreZValue);
             if (ignoreMalformed == false) {
@@ -103,21 +107,39 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
             }
             return point;
         }
+
+        @Override
+        public ParametrizedFieldMapper build(BuilderContext context) {
+            Parser<List<ParsedGeoPoint>> geoParser = new PointParser<>(name, ParsedGeoPoint::new, (parser, point) -> {
+                GeoUtils.parseGeoPoint(parser, point, ignoreZValue.get().value());
+                return point;
+            }, (ParsedGeoPoint) nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
+            GeoPointFieldType ft
+                = new GeoPointFieldType(buildFullName(context), indexed.get(), stored.get(), hasDocValues.get(), geoParser, meta.get());
+            return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
+                copyTo.build(), new GeoPointIndexer(ft), geoParser, this);
+        }
+
     }
 
-    /**
-     * Parses geopoint represented as an object or an array, ignores malformed geopoints if needed
-     */
+    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())));
+
+    private final Builder builder;
+
+    public GeoPointFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                               MultiFields multiFields, CopyTo copyTo,
+                               Indexer<List<ParsedGeoPoint>, List<? extends GeoPoint>> indexer,
+                               Parser<List<ParsedGeoPoint>> parser,
+                               Builder builder) {
+        super(simpleName, mappedFieldType, multiFields,
+            builder.ignoreMalformed.get(), builder.ignoreZValue.get(), builder.nullValue.get(),
+            copyTo, indexer, parser);
+        this.builder = builder;
+    }
+
     @Override
-    protected void parsePointIgnoringMalformed(XContentParser parser, ParsedPoint point) throws IOException {
-        GeoUtils.parseGeoPoint(parser, (GeoPoint)point, ignoreZValue().value());
-        super.parsePointIgnoringMalformed(parser, point);
-    }
-
-    public GeoPointFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                               MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                               Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
     }
 
     @Override
@@ -161,28 +183,28 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         return CONTENT_TYPE;
     }
 
-    @Override
-    public GeoPointFieldType fieldType() {
-        return (GeoPointFieldType)mappedFieldType;
-    }
+    public static class GeoPointFieldType extends AbstractGeometryFieldType implements GeoShapeQueryable {
 
-    @Override
-    protected ParsedPoint newParsedPoint() {
-        return new ParsedGeoPoint();
-    }
+        private final VectorGeoPointShapeQueryProcessor queryProcessor;
 
-    public static class GeoPointFieldType extends AbstractPointGeometryFieldType<List<ParsedGeoPoint>, List<? extends GeoPoint>> {
-        public GeoPointFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+        private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
+                                  Parser<?> parser, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, true, parser, meta);
+            this.queryProcessor = new VectorGeoPointShapeQueryProcessor();
         }
 
         public GeoPointFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
+            this(name, true, false, true, null, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+            return queryProcessor.geoShapeQuery(shape, fieldName, relation, context);
         }
 
         @Override
@@ -192,7 +214,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         }
 
         @Override
-        public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+        public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
             GeoPoint originGeoPoint;
             if (origin instanceof GeoPoint) {
                 originGeoPoint = (GeoPoint) origin;
@@ -203,7 +225,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
                     "Must be of type [geo_point] or [string] for geo_point fields!");
             }
             double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
-            return LatLonPoint.newDistanceFeatureQuery(name(), boost, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
+            // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
+            return LatLonPoint.newDistanceFeatureQuery(name(), 1.0f, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
         }
     }
 
@@ -251,12 +274,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
                 GeoPoint o = (GeoPoint)other;
                 oLat = o.lat();
                 oLon = o.lon();
-            } else if (other instanceof ParsedGeoPoint == false) {
-                return false;
             } else {
-                ParsedGeoPoint o = (ParsedGeoPoint)other;
-                oLat = o.lat();
-                oLon = o.lon();
+                return false;
             }
             if (Double.compare(oLat, lat) != 0) return false;
             if (Double.compare(oLon, lon) != 0) return false;

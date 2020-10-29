@@ -5,19 +5,24 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.XYShape;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -40,69 +45,80 @@ import java.util.Map;
 public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry, Geometry> {
     public static final String CONTENT_TYPE = "shape";
 
-    @SuppressWarnings({"unchecked"})
-    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, ShapeFieldType> {
+    private static Builder builder(FieldMapper in) {
+        return ((ShapeFieldMapper)in).builder;
+    }
 
-        public Builder(String name) {
-            super(name, new FieldType());
-            fieldType.setDimensions(7, 4, Integer.BYTES);
-            builder = this;
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
+
+        final Parameter<Explicit<Boolean>> ignoreMalformed;
+        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
+        final Parameter<Explicit<Boolean>> coerce;
+        final Parameter<Explicit<Orientation>> orientation = orientationParam(m -> builder(m).orientation.get());
+
+        final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
+            super(name);
+            this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
+            this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
+        }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(indexed, ignoreMalformed, ignoreZValue, coerce, orientation, meta);
         }
 
         @Override
         public ShapeFieldMapper build(BuilderContext context) {
-            ShapeFieldType ft = new ShapeFieldType(buildFullName(context), indexed, hasDocValues, meta);
             GeometryParser geometryParser
-                = new GeometryParser(orientation().value().getAsBoolean(), coerce().value(), ignoreZValue().value());
-            ft.setGeometryParser(new GeoShapeParser(geometryParser));
-            ft.setGeometryIndexer(new ShapeIndexer(ft.name()));
-            ft.setGeometryQueryBuilder(new ShapeQueryProcessor());
-            ft.setOrientation(orientation().value());
-            return new ShapeFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), orientation(), multiFieldsBuilder.build(this, context), copyTo);
+                = new GeometryParser(orientation.get().value().getAsBoolean(), coerce.get().value(), ignoreZValue.get().value());
+            Parser<Geometry> parser = new GeoShapeParser(geometryParser);
+            ShapeFieldType ft
+                = new ShapeFieldType(buildFullName(context), indexed.get(), orientation.get().value(), parser, meta.get());
+            return new ShapeFieldMapper(name, ft,
+                multiFieldsBuilder.build(this, context), copyTo.build(),
+                new ShapeIndexer(ft.name()), parser, this);
         }
     }
 
-    public static class TypeParser extends AbstractShapeGeometryFieldMapper.TypeParser {
-        @Override
-        protected boolean parseXContentParameters(String name, Map.Entry<String, Object> entry,
-                                                  Map<String, Object> params) throws MapperParsingException {
-            return false;
+    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n,
+        IGNORE_MALFORMED_SETTING.get(c.getSettings()),
+        COERCE_SETTING.get(c.getSettings())));
+
+    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType
+        implements ShapeQueryable {
+
+        private final ShapeQueryProcessor queryProcessor;
+
+        public ShapeFieldType(String name, boolean indexed, Orientation orientation,
+                              Parser<Geometry> parser, Map<String, String> meta) {
+            super(name, indexed, false, false, false, parser, orientation, meta);
+            this.queryProcessor = new ShapeQueryProcessor();
         }
 
         @Override
-        public Builder newBuilder(String name, Map<String, Object> params) {
-            return new Builder(name);
-        }
-    }
-
-    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> {
-        public ShapeFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+        public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+            return queryProcessor.shapeQuery(shape, fieldName, relation, context);
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
-
-        @Override
-        protected Indexer<Geometry, Geometry> geometryIndexer() {
-            return geometryIndexer;
-        }
     }
 
-    public ShapeFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                            Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
-                            MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation,
-            multiFields, copyTo);
-    }
+    private final Builder builder;
 
-    @Override
-    protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts) {
-
+    public ShapeFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                            MultiFields multiFields, CopyTo copyTo,
+                            Indexer<Geometry, Geometry> indexer, Parser<Geometry> parser, Builder builder) {
+        super(simpleName, mappedFieldType, builder.ignoreMalformed.get(),
+            builder.coerce.get(), builder.ignoreZValue.get(), builder.orientation.get(),
+            multiFields, copyTo, indexer, parser);
+        this.builder = builder;
     }
 
     @Override
@@ -112,8 +128,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
-    protected void addDocValuesFields(String name, Geometry geometry, List fields, ParseContext context) {
+    protected void addDocValuesFields(String name, Geometry geometry, List<IndexableField> fields, ParseContext context) {
         // we should throw a mapping exception before we get here
     }
 
@@ -125,6 +140,12 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value())
+            .init(this);
     }
 
     @Override

@@ -397,8 +397,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @see #incRef
      */
     @Override
-    public final void decRef() {
-        refCounter.decRef();
+    public final boolean decRef() {
+        return refCounter.decRef();
     }
 
     @Override

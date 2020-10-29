@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -16,6 +17,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -33,6 +36,8 @@ public class DataTier {
     public static final String DATA_HOT = "data_hot";
     public static final String DATA_WARM = "data_warm";
     public static final String DATA_COLD = "data_cold";
+
+    public static final Set<String> ALL_DATA_TIERS = new HashSet<>(Arrays.asList(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD));
 
     /**
      * Returns true if the given tier name is a valid tier
@@ -64,68 +69,120 @@ public class DataTier {
     public static DiscoveryNodeRole DATA_CONTENT_NODE_ROLE = new DiscoveryNodeRole("data_content", "s") {
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
-            return false;
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
 
         @Override
         public Setting<Boolean> legacySetting() {
-            return null;
+            // we do not register these settings, they're not intended to be used externally, only for proper defaults
+            return Setting.boolSetting(
+                "node.data_content",
+                settings ->
+                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+                Setting.Property.Deprecated,
+                Setting.Property.NodeScope
+            );
         }
 
         @Override
         public boolean canContainData() {
             return true;
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
         }
     };
 
     public static DiscoveryNodeRole DATA_HOT_NODE_ROLE = new DiscoveryNodeRole("data_hot", "h") {
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
-            return false;
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
 
         @Override
         public Setting<Boolean> legacySetting() {
-            return null;
+            // we do not register these settings, they're not intended to be used externally, only for proper defaults
+            return Setting.boolSetting(
+                "node.data_hot",
+                settings ->
+                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+                Setting.Property.Deprecated,
+                Setting.Property.NodeScope
+            );
         }
 
         @Override
         public boolean canContainData() {
             return true;
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
         }
     };
 
     public static DiscoveryNodeRole DATA_WARM_NODE_ROLE = new DiscoveryNodeRole("data_warm", "w") {
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
-            return false;
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
 
         @Override
         public Setting<Boolean> legacySetting() {
-            return null;
+            // we do not register these settings, they're not intended to be used externally, only for proper defaults
+            return Setting.boolSetting(
+                "node.data_warm",
+                settings ->
+                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+                Setting.Property.Deprecated,
+                Setting.Property.NodeScope
+            );
         }
 
         @Override
         public boolean canContainData() {
             return true;
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
         }
     };
 
     public static DiscoveryNodeRole DATA_COLD_NODE_ROLE = new DiscoveryNodeRole("data_cold", "c") {
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
-            return false;
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
 
         @Override
         public Setting<Boolean> legacySetting() {
-            return null;
+            // we do not register these settings, they're not intended to be used externally, only for proper defaults
+            return Setting.boolSetting(
+                "node.data_cold",
+                settings ->
+                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+                Setting.Property.Deprecated,
+                Setting.Property.NodeScope
+            );
         }
 
         @Override
         public boolean canContainData() {
             return true;
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
         }
     };
 
@@ -156,9 +213,9 @@ public class DataTier {
         @Override
         public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings indexSettings) {
             Set<String> settings = indexSettings.keySet();
-            if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE)) {
+            if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_PREFER)) {
                 // It's okay to put it, it will be removed or overridden by the template/request settings
-                return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, DATA_HOT).build();
+                return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_HOT).build();
             } else if (settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".")) ||
                 settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".")) ||
                 settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "."))) {
@@ -170,9 +227,9 @@ public class DataTier {
                 // tier if the index is part of a data stream, the "content"
                 // tier if it is not.
                 if (isDataStreamIndex) {
-                    return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, DATA_HOT).build();
+                    return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_HOT).build();
                 } else {
-                    return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, DATA_CONTENT).build();
+                    return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_CONTENT).build();
                 }
             }
         }

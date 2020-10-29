@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 
@@ -42,12 +43,17 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         public static final RankFeatureMetaFieldType INSTANCE = new RankFeatureMetaFieldType();
 
         private RankFeatureMetaFieldType() {
-            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
         }
 
         @Override

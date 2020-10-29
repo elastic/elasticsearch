@@ -325,7 +325,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return order == SortOrder.DESC ? SORT_DOC_REVERSE : SORT_DOC;
         }
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         Nested nested = nested(context, fieldType);
         if (fieldType == null) {
             fieldType = resolveUnmappedType(context);
@@ -347,6 +347,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
+            isNanosecond = resolvedType == NumericType.DATE_NANOSECONDS;
         } else {
             field = fieldData.sortField(missing, localSortMode(), nested, reverse);
             if (fieldData instanceof IndexNumericFieldData) {
@@ -376,7 +377,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (canRewriteToMatchNone() == false) {
             return false;
         }
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             // unmapped
             return false;
@@ -387,11 +388,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
         final DateMathParser dateMathParser;
         if (docValueFormat instanceof DocValueFormat.DateTime) {
-            if (fieldType instanceof DateFieldType && ((DateFieldType) fieldType).resolution() == NANOSECONDS) {
-                // we parse the formatted value with the resolution of the local field because
-                // the provided format can use a different one (date vs date_nanos).
-                docValueFormat = DocValueFormat.withNanosecondResolution(docValueFormat);
-            }
             dateMathParser = ((DocValueFormat.DateTime) docValueFormat).getDateMathParser();
         } else {
             dateMathParser = null;
@@ -415,7 +411,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new IllegalArgumentException("sorting by _doc is not supported");
         }
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         Nested nested = nested(context, fieldType);
         if (fieldType == null) {
             fieldType = resolveUnmappedType(context);
@@ -449,7 +445,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (unmappedType == null) {
             throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
         }
-        return context.getMapperService().unmappedFieldType(unmappedType);
+        return context.buildAnonymousFieldType(unmappedType);
     }
 
     private MultiValueMode localSortMode() {
@@ -503,7 +499,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return null;
         }
         IndexReader reader = context.getIndexReader();
-        MappedFieldType fieldType = context.fieldMapper(sortField.getField());
+        MappedFieldType fieldType = context.getFieldType(sortField.getField());
         if (reader == null || (fieldType == null || fieldType.isSearchable() == false)) {
             return null;
         }

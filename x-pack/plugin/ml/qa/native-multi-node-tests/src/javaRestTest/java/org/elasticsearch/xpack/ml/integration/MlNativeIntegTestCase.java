@@ -156,7 +156,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         }
 
         Settings.Builder builder = Settings.builder();
-        builder.put("node.ml", false);
+        builder.putList("node.roles", Collections.emptyList());
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), true);
@@ -313,7 +313,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                     null,
                     null,
                     null,
-                    new ComposableIndexTemplate.DataStreamTemplate())))
+                    new ComposableIndexTemplate.DataStreamTemplate(),
+                    null)))
             .actionGet();
         client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
     }

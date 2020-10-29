@@ -7,19 +7,14 @@
 
 package org.elasticsearch.xpack.vectors.mapper;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -39,56 +34,47 @@ import java.util.Map;
  * TODO: remove in 9.0.
  */
 @Deprecated
-public class SparseVectorFieldMapper extends FieldMapper {
+public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SparseVectorFieldMapper.class);
     static final String ERROR_MESSAGE = "The [sparse_vector] field type is no longer supported.";
     static final String ERROR_MESSAGE_7X = "The [sparse_vector] field type is no longer supported. Old 7.x indices are allowed to " +
         "contain [sparse_vector] fields, but they cannot be indexed or searched.";
     public static final String CONTENT_TYPE = "sparse_vector";
 
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+    public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends FieldMapper.Builder<Builder> {
+        final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
+            super(name);
+        }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return List.of(meta);
         }
 
         @Override
         public SparseVectorFieldMapper build(BuilderContext context) {
             return new SparseVectorFieldMapper(
-                    name, fieldType, new SparseVectorFieldType(buildFullName(context), meta),
-                    multiFieldsBuilder.build(this, context), copyTo);
+                    name, new SparseVectorFieldType(buildFullName(context), meta.getValue()),
+                    multiFieldsBuilder.build(this, context), copyTo.build());
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
-                throw new IllegalArgumentException(ERROR_MESSAGE);
-            } else {
-                deprecationLogger.deprecate("sparse_vector", ERROR_MESSAGE_7X);
-                return new Builder(name);
-            }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
+        if (c.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+            throw new IllegalArgumentException(ERROR_MESSAGE);
+        } else {
+            deprecationLogger.deprecate("sparse_vector", ERROR_MESSAGE_7X);
+            return new Builder(n);
         }
-    }
+    });
 
     public static final class SparseVectorFieldType extends MappedFieldType {
 
         public SparseVectorFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, TextSearchInfo.NONE, meta);
+            super(name, false, false, false, TextSearchInfo.NONE, meta);
         }
 
         @Override
@@ -98,37 +84,34 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            throw new UnsupportedOperationException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
+            throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
+            throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
+            throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
     }
 
 
-    private SparseVectorFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
-        assert fieldType.indexOptions() == IndexOptions.NONE;
+        super(simpleName, mappedFieldType, multiFields, copyTo);
     }
 
     @Override
     protected SparseVectorFieldMapper clone() {
         return (SparseVectorFieldMapper) super.clone();
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
     }
 
     @Override
@@ -147,20 +130,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
+    protected String contentType() {
+        return CONTENT_TYPE;
     }
 
     @Override
-    protected String contentType() {
-        return CONTENT_TYPE;
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
     }
 }

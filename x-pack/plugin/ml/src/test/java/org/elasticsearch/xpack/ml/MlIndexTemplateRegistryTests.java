@@ -69,7 +69,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(client.admin()).thenReturn(adminClient);
-        doAnswer(withResponse(new AcknowledgedResponse(true))).when(indicesAdminClient).putTemplate(any(), any());
+        doAnswer(withResponse(AcknowledgedResponse.TRUE)).when(indicesAdminClient).putTemplate(any(), any());
 
         clusterService = mock(ClusterService.class);
 

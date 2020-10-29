@@ -33,7 +33,7 @@ import static java.util.Collections.singletonList;
 public class FieldTypeLookupTests extends ESTestCase {
 
     public void testEmpty() {
-        FieldTypeLookup lookup = new FieldTypeLookup();
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.emptyList(), Collections.emptyList());
         assertNull(lookup.get("foo"));
         Collection<String> names = lookup.simpleMatchToFullName("foo");
         assertNotNull(names);
@@ -104,9 +104,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             .build(context);
 
         MockFieldMapper otherField = new MockFieldMapper.Builder("other_field")
-            .copyTo(new FieldMapper.CopyTo.Builder()
-                .add("field")
-                .build())
+            .copyTo("field")
             .build(context);
 
         FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field, otherField), emptyList());

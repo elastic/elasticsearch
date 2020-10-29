@@ -579,9 +579,9 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse2]
 
 [NOTE]
 ====
-If timezone is not specified in the time string expression and the parsing pattern, 
+If timezone is not specified in the time string expression and the parsing pattern,
 the resulting `time` will have the offset of the time zone specified by the user through the
- <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver 
+ <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver
 parameters at the Unix epoch date (`1970-01-01`) with no conversion applied.
 
 [source, sql]
@@ -763,6 +763,59 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[truncateIntervalHour]
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[truncateIntervalDay]
+--------------------------------------------------
+
+[[sql-functions-datetime-format]]
+==== `FORMAT`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+FORMAT(
+    date_exp/datetime_exp/time_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime/time expression
+<2> format pattern
+
+*Output*: string
+
+*Description*: Returns the date/datetime/time as a string using the
+https://docs.microsoft.com/en-us/sql/t-sql/functions/format-transact-sql#arguments[format] specified in the 2nd argument. The formatting
+pattern used is the one from
+https://docs.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings[Microsoft SQL Server Format Specification].
+If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
+
+[NOTE]
+If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
+(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned.
+
+*Special Cases*
+
+- Format specifier `F` will be working similar to format specifier `f`.
+It will return the fractional part of seconds, and the number of digits will be same as of the number of `Fs` provided as input (up to 9 digits).
+Result will contain `0` appended in the end to match with number of `F` provided.
+e.g.: for a time part `10:20:30.1234` and pattern `HH:mm:ss.FFFFFF`, the output string of the function would be: `10:20:30.123400`.
+- Format Specifier `y` will return year-of-era instead of one/two low-order digits.
+eg.: For year `2009`, `y` will be returning `2009` instead of `9`. For year `43`, `y` format specifier will return `43`.
+- Special characters like `"` , `\` and `%` will be returned as it is without any change. eg.: formatting date `17-sep-2020` with `%M` will return `%9`
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[formatDate]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[formatDateTime]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[formatTime]
 --------------------------------------------------
 
 [[sql-functions-datetime-day]]

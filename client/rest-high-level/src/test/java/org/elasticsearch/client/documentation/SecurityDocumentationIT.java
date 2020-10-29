@@ -30,12 +30,14 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.AuthenticateResponse.RealmInfo;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.ClearApiKeyCacheRequest;
 import org.elasticsearch.client.security.ClearPrivilegesCacheRequest;
 import org.elasticsearch.client.security.ClearPrivilegesCacheResponse;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
+import org.elasticsearch.client.security.ClearSecurityCacheResponse;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
@@ -1048,6 +1050,54 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::clear-privileges-cache-execute-async
             client.security().clearPrivilegesCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::clear-privileges-cache-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testClearApiKeyCache() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::clear-api-key-cache-request
+            ClearApiKeyCacheRequest request = ClearApiKeyCacheRequest.clearById(
+                "yVGMr3QByxdh1MSaicYx"  // <1>
+            );
+            //end::clear-api-key-cache-request
+            //tag::clear-api-key-cache-execute
+            ClearSecurityCacheResponse response = client.security().clearApiKeyCache(request, RequestOptions.DEFAULT);
+            //end::clear-api-key-cache-execute
+
+            assertNotNull(response);
+            assertThat(response.getNodes(), not(empty()));
+
+            //tag::clear-api-key-cache-response
+            List<ClearSecurityCacheResponse.Node> nodes = response.getNodes(); // <1>
+            //end::clear-api-key-cache-response
+        }
+
+        {
+            //tag::clear-api-key-cache-execute-listener
+            ClearApiKeyCacheRequest request = ClearApiKeyCacheRequest.clearById("yVGMr3QByxdh1MSaicYx");
+            ActionListener<ClearSecurityCacheResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(ClearSecurityCacheResponse clearSecurityCacheResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::clear-api-key-cache-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clear-api-key-cache-execute-async
+            client.security().clearApiKeyCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::clear-api-key-cache-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

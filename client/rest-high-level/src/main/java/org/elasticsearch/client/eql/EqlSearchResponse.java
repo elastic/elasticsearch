@@ -138,7 +138,7 @@ public class EqlSearchResponse {
     public int hashCode() {
         return Objects.hash(hits, tookInMillis, isTimeout);
     }
-    
+
     // Event
     public static class Event {
 
@@ -181,7 +181,7 @@ public class EqlSearchResponse {
         public static Event fromXContent(XContentParser parser) throws IOException {
             return PARSER.apply(parser, null);
         }
-        
+
         public String index() {
             return index;
         }
@@ -216,11 +216,11 @@ public class EqlSearchResponse {
             if (this == obj) {
                 return true;
             }
-            
+
             if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            
+
             EqlSearchResponse.Event other = (EqlSearchResponse.Event) obj;
             return Objects.equals(index, other.index)
                     && Objects.equals(id, other.id)
@@ -292,114 +292,34 @@ public class EqlSearchResponse {
         }
     }
 
-    // Count
-    public static class Count {
-        private static final class Fields {
-            static final String COUNT = "_count";
-            static final String KEYS = "_keys";
-            static final String PERCENT = "_percent";
-        }
-
-        private final int count;
-        private final List<Object> keys;
-        private final float percent;
-
-        private static final ParseField COUNT = new ParseField(Fields.COUNT);
-        private static final ParseField KEYS = new ParseField(Fields.KEYS);
-        private static final ParseField PERCENT = new ParseField(Fields.PERCENT);
-
-        private static final ConstructingObjectParser<EqlSearchResponse.Count, Void> PARSER =
-            new ConstructingObjectParser<>("eql/search_response_count", true,
-                args -> {
-                    int i = 0;
-                    int count = (int) args[i++];
-                    @SuppressWarnings("unchecked") List<Object> joinKeys = (List<Object>) args[i++];
-                    float percent = (float) args[i];
-                    return new EqlSearchResponse.Count(count, joinKeys, percent);
-                });
-
-        static {
-            PARSER.declareInt(ConstructingObjectParser.constructorArg(), COUNT);
-            PARSER.declareFieldArray(constructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p), KEYS,
-                ObjectParser.ValueType.VALUE_ARRAY);
-            PARSER.declareFloat(ConstructingObjectParser.constructorArg(), PERCENT);
-        }
-
-        public Count(int count, List<Object> keys, float percent) {
-            this.count = count;
-            this.keys = keys == null ? Collections.emptyList() : keys;
-            this.percent = percent;
-        }
-
-        public static Count fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
-        public int count() {
-            return count;
-        }
-
-        public List<Object> keys() {
-            return keys;
-        }
-
-        public float percent() {
-            return percent;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(count, keys, percent);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Count that = (Count) o;
-            return Objects.equals(count, that.count)
-                && Objects.equals(keys, that.keys)
-                && Objects.equals(percent, that.percent);
-        }
-    }
-
     // Hits
     public static class Hits {
-        public static final Hits EMPTY = new Hits(null, null, null, null);
+        public static final Hits EMPTY = new Hits(null, null, null);
 
         private final List<Event> events;
         private final List<Sequence> sequences;
-        private final List<Count> counts;
         private final TotalHits totalHits;
 
         private static final class Fields {
             static final String TOTAL = "total";
             static final String EVENTS = "events";
             static final String SEQUENCES = "sequences";
-            static final String COUNTS = "counts";
         }
 
-        public Hits(@Nullable List<Event> events, @Nullable List<Sequence> sequences, @Nullable List<Count> counts,
-                    @Nullable TotalHits totalHits) {
+        public Hits(@Nullable List<Event> events, @Nullable List<Sequence> sequences, @Nullable TotalHits totalHits) {
             this.events = events;
             this.sequences = sequences;
-            this.counts = counts;
             this.totalHits = totalHits;
         }
 
         private static final ConstructingObjectParser<EqlSearchResponse.Hits, Void> PARSER =
-            new ConstructingObjectParser<>("eql/search_response_count", true,
+            new ConstructingObjectParser<>("eql/search_response_hits", true,
                 args -> {
                     int i = 0;
                     @SuppressWarnings("unchecked") List<Event> events = (List<Event>) args[i++];
                     @SuppressWarnings("unchecked") List<Sequence> sequences = (List<Sequence>) args[i++];
-                    @SuppressWarnings("unchecked") List<Count> counts = (List<Count>) args[i++];
                     TotalHits totalHits = (TotalHits) args[i];
-                    return new EqlSearchResponse.Hits(events, sequences, counts, totalHits);
+                    return new EqlSearchResponse.Hits(events, sequences, totalHits);
                 });
 
         static {
@@ -407,8 +327,6 @@ public class EqlSearchResponse {
                 new ParseField(Fields.EVENTS));
             PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Sequence.PARSER,
                 new ParseField(Fields.SEQUENCES));
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Count.PARSER,
-                new ParseField(Fields.COUNTS));
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> SearchHits.parseTotalHitsFragment(p),
                 new ParseField(Fields.TOTAL));
         }
@@ -425,17 +343,13 @@ public class EqlSearchResponse {
             return this.sequences;
         }
 
-        public List<Count> counts() {
-            return this.counts;
-        }
-
         public TotalHits totalHits() {
             return this.totalHits;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(events, sequences, counts, totalHits);
+            return Objects.hash(events, sequences, totalHits);
         }
 
         @Override
@@ -449,7 +363,6 @@ public class EqlSearchResponse {
             Hits that = (Hits) o;
             return Objects.equals(events, that.events)
                 && Objects.equals(sequences, that.sequences)
-                && Objects.equals(counts, that.counts)
                 && Objects.equals(totalHits, that.totalHits);
         }
     }

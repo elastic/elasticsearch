@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
@@ -64,13 +63,13 @@ public class ReaderContext implements Releasable {
 
     private Map<String, Object> context;
 
-    public ReaderContext(long id,
+    public ReaderContext(ShardSearchContextId id,
                          IndexService indexService,
                          IndexShard indexShard,
                          Engine.SearcherSupplier searcherSupplier,
                          long keepAliveInMillis,
                          boolean singleSession) {
-        this.id = new ShardSearchContextId(UUIDs.base64UUID(), id);
+        this.id = id;
         this.indexService = indexService;
         this.indexShard = indexShard;
         this.searcherSupplier = searcherSupplier;

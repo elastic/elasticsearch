@@ -51,22 +51,20 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
-import org.elasticsearch.xpack.searchablesnapshots.action.RepositoryStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchableSnapshotAction;
-import org.elasticsearch.xpack.searchablesnapshots.action.TransportRepositoryStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportSearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.NodeEnvironmentCacheCleaner;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
-import org.elasticsearch.xpack.searchablesnapshots.rest.RestRepositoryStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
 
 import java.util.Collection;
@@ -148,6 +146,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Setting.Property.NodeScope,
         Setting.Property.NotCopyableOnResize
     );
+
+    /**
+     * Prefer to allocate to the cold tier, then the warm tier, then the hot tier
+     */
+    public static final String DATA_TIERS_PREFERENCE = String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
 
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
@@ -265,7 +268,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             new ActionHandler<>(SearchableSnapshotsStatsAction.INSTANCE, TransportSearchableSnapshotsStatsAction.class),
             new ActionHandler<>(ClearSearchableSnapshotsCacheAction.INSTANCE, TransportClearSearchableSnapshotsCacheAction.class),
             new ActionHandler<>(MountSearchableSnapshotAction.INSTANCE, TransportMountSearchableSnapshotAction.class),
-            new ActionHandler<>(RepositoryStatsAction.INSTANCE, TransportRepositoryStatsAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsInfoTransportAction.class)
         );
@@ -283,8 +285,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         return List.of(
             new RestSearchableSnapshotsStatsAction(),
             new RestClearSearchableSnapshotsCacheAction(),
-            new RestMountSearchableSnapshotAction(),
-            new RestRepositoryStatsAction()
+            new RestMountSearchableSnapshotAction()
         );
     }
 

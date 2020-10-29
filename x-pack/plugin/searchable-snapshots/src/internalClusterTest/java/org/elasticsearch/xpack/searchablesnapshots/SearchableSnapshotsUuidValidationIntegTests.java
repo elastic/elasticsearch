@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionFilter;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -34,8 +32,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class SearchableSnapshotsUuidValidationIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
@@ -91,12 +87,12 @@ public class SearchableSnapshotsUuidValidationIntegTests extends BaseSearchableS
         final String restoredIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
-        createRepo(fsRepoName);
+        createRepository(fsRepoName, "fs");
 
         final Settings.Builder originalIndexSettings = Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
         createAndPopulateIndex(indexName, originalIndexSettings);
 
-        createSnapshot(fsRepoName, snapshotName);
+        createFullSnapshot(fsRepoName, snapshotName);
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             restoredIndexName,
@@ -114,7 +110,7 @@ public class SearchableSnapshotsUuidValidationIntegTests extends BaseSearchableS
         restoreBlockingActionFilter.awaitExecution();
 
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(fsRepoName, snapshotName).get());
-        createSnapshot(fsRepoName, snapshotName);
+        createFullSnapshot(fsRepoName, snapshotName);
 
         assertFalse(responseFuture.isDone());
         restoreBlockingActionFilter.unblock();
@@ -125,17 +121,6 @@ public class SearchableSnapshotsUuidValidationIntegTests extends BaseSearchableS
         );
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
-    }
-
-    private static void createSnapshot(String fsRepoName, String snapshotName) {
-        final CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(fsRepoName, snapshotName)
-            .setWaitForCompletion(true)
-            .get();
-        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
-        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
     }
 
     private static RestoreBlockingActionFilter getBlockingActionFilter() {

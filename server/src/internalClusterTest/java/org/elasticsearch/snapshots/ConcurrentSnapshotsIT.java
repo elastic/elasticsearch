@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.plugins.Plugin;
@@ -46,7 +45,6 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 
@@ -57,11 +55,9 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -128,19 +124,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureGreen();
 
         final int numSnapshots = randomIntBetween(1, 4);
-        final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
-        final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, numSnapshots);
-        final Collection<String> snapshotNames = new HashSet<>();
-        for (int i = 0; i < numSnapshots; i++) {
-            final String snapshot = "snap-" + i;
-            snapshotNames.add(snapshot);
-            client().admin().cluster().prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true)
-                    .execute(snapshotsListener);
-        }
-        final Collection<CreateSnapshotResponse> snapshotResponses = allSnapshotsDone.get();
-        for (CreateSnapshotResponse snapshotResponse : snapshotResponses) {
-            assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
-        }
+        final Collection<String> snapshotNames = createNSnapshots(repoName, numSnapshots);
 
         createIndexWithContent("index-slow");
 
@@ -243,7 +227,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> waiting for concurrent snapshot(s) to finish");
         createNSnapshots(otherRepoName, randomIntBetween(1, 5));
-        assertAcked(startDelete(otherRepoName, "*").get());
+        assertAcked(startDeleteSnapshot(otherRepoName, "*").get());
 
         unblockNode(blockedRepoName, dataNode);
         assertSuccessful(createSlowFuture);
@@ -260,11 +244,11 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         createFullSnapshot( blockedRepoName, "blocked-snapshot");
         blockNodeOnAnyFiles(blockedRepoName, masterNode);
-        final ActionFuture<AcknowledgedResponse> slowDeleteFuture = startDelete(blockedRepoName, "*");
+        final ActionFuture<AcknowledgedResponse> slowDeleteFuture = startDeleteSnapshot(blockedRepoName, "*");
 
         logger.info("--> waiting for concurrent snapshot(s) to finish");
         createNSnapshots(otherRepoName, randomIntBetween(1, 5));
-        assertAcked(startDelete(otherRepoName, "*").get());
+        assertAcked(startDeleteSnapshot(otherRepoName, "*").get());
 
         unblockNode(blockedRepoName, masterNode);
         assertAcked(slowDeleteFuture.actionGet());
@@ -283,8 +267,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(repoName, firstSnapshot);
 
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
-        final ActionFuture<AcknowledgedResponse> deleteFuture = startDelete(repoName, firstSnapshot);
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repoName, firstSnapshot);
+        waitForBlock(masterNode, repoName);
 
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, "second-snapshot");
 
@@ -321,7 +305,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             return snapshotsInProgress.entries().size() == 2 && snapshotHasCompletedShard(secondSnapshot, snapshotsInProgress);
         });
 
-        final ActionFuture<AcknowledgedResponse> deleteSnapshotsResponse = startDelete(repoName, firstSnapshot);
+        final ActionFuture<AcknowledgedResponse> deleteSnapshotsResponse = startDeleteSnapshot(repoName, firstSnapshot);
         awaitNDeletionsInProgress(1);
 
         logger.info("--> start third snapshot");
@@ -370,7 +354,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             return snapshotsInProgress.entries().size() == 2 && snapshotHasCompletedShard(secondSnapshot, snapshotsInProgress);
         });
 
-        final ActionFuture<AcknowledgedResponse> deleteSnapshotsResponse = startDelete(repoName, firstSnapshot);
+        final ActionFuture<AcknowledgedResponse> deleteSnapshotsResponse = startDeleteSnapshot(repoName, firstSnapshot);
         awaitNDeletionsInProgress(1);
 
         final ActionFuture<CreateSnapshotResponse> thirdSnapshotResponse = startFullSnapshot(repoName, "snapshot-three");
@@ -381,7 +365,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> waiting for all three snapshots to show up as in-progress");
         assertBusy(() -> assertThat(currentSnapshots(repoName), hasSize(3)), 30L, TimeUnit.SECONDS);
 
-        final ActionFuture<AcknowledgedResponse> allDeletedResponse = startDelete(repoName, "*");
+        final ActionFuture<AcknowledgedResponse> allDeletedResponse = startDeleteSnapshot(repoName, "*");
 
         logger.info("--> waiting for second and third snapshot to finish");
         assertBusy(() -> {
@@ -417,7 +401,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String firstSnapshot = "snapshot-one";
         blockDataNode(repoName, dataNode);
         final ActionFuture<CreateSnapshotResponse> firstSnapshotResponse = startFullSnapshotFromNonMasterClient(repoName, firstSnapshot);
-        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(dataNode, repoName);
 
         final String dataNode2 = internalCluster().startDataOnlyNode();
         ensureStableCluster(5);
@@ -436,9 +420,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<AcknowledgedResponse> firstDeleteFuture = startDeleteFromNonMasterClient(repoName, firstSnapshot);
         awaitNDeletionsInProgress(1);
 
-        blockDataNode(repoName, dataNode2);
+        blockNodeOnAnyFiles(repoName, dataNode2);
         final ActionFuture<CreateSnapshotResponse> snapshotThreeFuture = startFullSnapshotFromNonMasterClient(repoName, "snapshot-three");
-        waitForBlock(dataNode2, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(dataNode2, repoName);
 
         assertThat(firstSnapshotResponse.isDone(), is(false));
         assertThat(secondSnapshotResponse.isDone(), is(false));
@@ -509,7 +493,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         blockDataNode(repoName, dataNode);
         final ActionFuture<CreateSnapshotResponse> firstSnapshotResponse = startFullSnapshotFromMasterClient(repoName, "snapshot-one");
-        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(dataNode, repoName);
 
         internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
@@ -518,7 +502,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String secondSnapshot = "snapshot-two";
         final ActionFuture<CreateSnapshotResponse> secondSnapshotResponse = startFullSnapshotFromMasterClient(repoName, secondSnapshot);
 
-        internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
+        internalCluster().restartNode(dataNode);
 
         assertThat(firstSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
         assertThat(secondSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
@@ -533,13 +517,13 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createNSnapshots(repoName, randomIntBetween(2, 5));
 
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
-        final ActionFuture<AcknowledgedResponse> firstDeleteFuture = startDelete(repoName, "*");
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        final ActionFuture<AcknowledgedResponse> firstDeleteFuture = startDeleteSnapshot(repoName, "*");
+        waitForBlock(masterNode, repoName);
 
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, "snapshot-queued");
-        awaitNSnapshotsInProgress(1);
+        awaitNumberOfSnapshotsInProgress(1);
 
-        final ActionFuture<AcknowledgedResponse> secondDeleteFuture = startDelete(repoName, "*");
+        final ActionFuture<AcknowledgedResponse> secondDeleteFuture = startDeleteSnapshot(repoName, "*");
         awaitNDeletionsInProgress(2);
 
         unblockNode(repoName, masterNode);
@@ -564,9 +548,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final ActionFuture<AcknowledgedResponse> firstDeleteFuture = startAndBlockOnDeleteSnapshot(repoName, "*");
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, "snapshot-queued");
-        awaitNSnapshotsInProgress(1);
+        awaitNumberOfSnapshotsInProgress(1);
 
-        final ActionFuture<AcknowledgedResponse> secondDeleteFuture = startDelete(repoName, "*");
+        final ActionFuture<AcknowledgedResponse> secondDeleteFuture = startDeleteSnapshot(repoName, "*");
         awaitNDeletionsInProgress(2);
 
         unblockNode(repoName, masterNode);
@@ -593,7 +577,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-three").setWaitForCompletion(false).get();
 
-        startDelete(repoName, "*");
+        startDeleteSnapshot(repoName, "*");
         awaitNDeletionsInProgress(2);
 
         internalCluster().stopCurrentMasterNode();
@@ -617,11 +601,11 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockNodeOnAnyFiles(repoName, masterNode);
         ActionFuture<AcknowledgedResponse> firstDeleteFuture = client(masterNode).admin().cluster()
                 .prepareDeleteSnapshot(repoName, "*").execute();
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(masterNode, repoName);
 
         final ActionFuture<CreateSnapshotResponse> createThirdSnapshot = client(masterNode).admin().cluster()
                 .prepareCreateSnapshot(repoName, "snapshot-three").setWaitForCompletion(true).execute();
-        awaitNSnapshotsInProgress(1);
+        awaitNumberOfSnapshotsInProgress(1);
 
         final ActionFuture<AcknowledgedResponse> secondDeleteFuture =
                 client(masterNode).admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
@@ -655,10 +639,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> firstFailedSnapshotFuture =
                 startFullSnapshotFromMasterClient(repoName, "failing-snapshot-1");
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(masterNode, repoName);
         final ActionFuture<CreateSnapshotResponse> secondFailedSnapshotFuture =
                 startFullSnapshotFromMasterClient(repoName, "failing-snapshot-2");
-        awaitNSnapshotsInProgress(2);
+        awaitNumberOfSnapshotsInProgress(2);
 
         final ActionFuture<AcknowledgedResponse> failedDeleteFuture =
                 client(masterNode).admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
@@ -721,7 +705,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterNode = internalCluster().getMasterName();
         blockNodeOnAnyFiles(repoName, masterNode);
         final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshotFromNonMasterClient(repoName, "snapshot-three");
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(masterNode, repoName);
 
         corruptIndexN(repoPath, generation);
 
@@ -749,12 +733,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterNode = internalCluster().getMasterName();
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshotFromNonMasterClient(repoName, "snapshot-three");
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(masterNode, repoName);
 
         corruptIndexN(repoPath, generation);
 
         final ActionFuture<CreateSnapshotResponse> snapshotFour = startFullSnapshotFromNonMasterClient(repoName, "snapshot-four");
-        awaitNSnapshotsInProgress(2);
+        awaitNumberOfSnapshotsInProgress(2);
 
         final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
@@ -785,22 +769,22 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createNSnapshots(blockedRepoName, randomIntBetween(1, 5));
         blockNodeOnAnyFiles(blockedRepoName, masterNode);
         final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteFromNonMasterClient(blockedRepoName, "*");
-        waitForBlock(masterNode, blockedRepoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(masterNode, blockedRepoName);
         awaitNDeletionsInProgress(1);
         final ActionFuture<CreateSnapshotResponse> createBlockedSnapshot =
             startFullSnapshotFromNonMasterClient(blockedRepoName, "queued-snapshot");
-        awaitNSnapshotsInProgress(1);
+        awaitNumberOfSnapshotsInProgress(1);
 
         final long generation = getRepositoryData(repoName).getGenId();
         blockNodeOnAnyFiles(repoName, masterNode);
         final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshotFromNonMasterClient(repoName, "snapshot-three");
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
-        awaitNSnapshotsInProgress(2);
+        waitForBlock(masterNode, repoName);
+        awaitNumberOfSnapshotsInProgress(2);
 
         corruptIndexN(repoPath, generation);
 
         final ActionFuture<CreateSnapshotResponse> snapshotFour = startFullSnapshotFromNonMasterClient(repoName, "snapshot-four");
-        awaitNSnapshotsInProgress(3);
+        awaitNumberOfSnapshotsInProgress(3);
         internalCluster().stopCurrentMasterNode();
         ensureStableCluster(3);
 
@@ -808,7 +792,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
         expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
         assertAcked(deleteFuture.get());
-        expectThrows(ElasticsearchException.class, createBlockedSnapshot::actionGet);
+        try {
+            createBlockedSnapshot.actionGet();
+        } catch (ElasticsearchException ex) {
+            // Ignored, thrown most of the time but due to retries when shutting down the master could randomly pass when the request is
+            // retried and gets executed after the above delete
+        }
     }
 
     public void testMultipleSnapshotsQueuedAfterDelete() throws Exception {
@@ -842,7 +831,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<AcknowledgedResponse> deleteFuture = startAndBlockOnDeleteSnapshot(repoName, "*");
         final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshot(repoName, "snapshot-three", true);
         final ActionFuture<CreateSnapshotResponse> snapshotFour = startFullSnapshot(repoName, "snapshot-four", true);
-        awaitNSnapshotsInProgress(2);
+        awaitNumberOfSnapshotsInProgress(2);
 
         assertAcked(client().admin().indices().prepareDelete("index-two"));
         unblockNode(repoName, masterNode);
@@ -889,9 +878,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         snapOneResponse.get();
         snapTwoResponse.get();
-        logger.info("--> wait for snapshot to complete");
+        awaitNoMoreRunningOperations();
         for (String snapshot : Arrays.asList(snapshotOne, snapshotTwo)) {
-            SnapshotInfo snapshotInfo = waitForCompletion(repoName, snapshot, TimeValue.timeValueSeconds(600));
+            SnapshotInfo snapshotInfo = getSnapshot(repoName, snapshot);
             assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
             assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
         }
@@ -908,7 +897,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String snapshotTwo = snapshots.get(1);
 
         final ActionFuture<AcknowledgedResponse> deleteSnapshotOne = startAndBlockOnDeleteSnapshot(repoName, snapshotOne);
-        final ActionFuture<AcknowledgedResponse> deleteSnapshotTwo = startDelete(repoName, snapshotTwo);
+        final ActionFuture<AcknowledgedResponse> deleteSnapshotTwo = startDeleteSnapshot(repoName, snapshotTwo);
         awaitNDeletionsInProgress(2);
 
         unblockNode(repoName, masterName);
@@ -935,7 +924,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterName = internalCluster().getMasterName();
 
         final String snapshotOne = snapshotNames.get(0);
-        final ActionFuture<AcknowledgedResponse> deleteSnapshotOne = startDelete(repoName, snapshotOne);
+        final ActionFuture<AcknowledgedResponse> deleteSnapshotOne = startDeleteSnapshot(repoName, snapshotOne);
         awaitNDeletionsInProgress(1);
 
         unblockNode(repoName, masterName);
@@ -954,8 +943,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String snapshotName = "snap-name";
         blockMasterFromDeletingIndexNFile(repoName);
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, snapshotName);
-        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
-        final ActionFuture<AcknowledgedResponse> deleteFuture = startDelete(repoName, snapshotName);
+        waitForBlock(masterName, repoName);
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repoName, snapshotName);
         awaitNDeletionsInProgress(1);
         unblockNode(repoName, masterName);
         assertSuccessful(snapshotFuture);
@@ -976,7 +965,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         for (int i = 0; i < deletes; ++i) {
             deleteResponses.add(client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute());
         }
-        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(masterName, repoName);
         awaitNDeletionsInProgress(1);
         for (ActionFuture<AcknowledgedResponse> deleteResponse : deleteResponses) {
             assertFalse(deleteResponse.isDone());
@@ -1001,10 +990,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterName = internalCluster().getMasterName();
         blockMasterFromDeletingIndexNFile(repoName);
         final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshotFromMasterClient(repoName, "snap-other");
-        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(masterName, repoName);
 
         final String snapshotOne = snapshotNames.get(0);
-        final ActionFuture<AcknowledgedResponse> deleteSnapshotOne = startDelete(repoName, snapshotOne);
+        final ActionFuture<AcknowledgedResponse> deleteSnapshotOne = startDeleteSnapshot(repoName, snapshotOne);
         awaitNDeletionsInProgress(1);
         networkDisruption.startDisrupting();
         ensureStableCluster(3, dataNode);
@@ -1039,14 +1028,14 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             startFullSnapshotBlockedOnDataNode("blocked-snapshot-2", blockedRepoName, dataNode);
         final ActionFuture<CreateSnapshotResponse> createSlowFuture3 =
             startFullSnapshotBlockedOnDataNode("other-blocked-snapshot", otherBlockedRepoName, dataNode);
-        awaitNSnapshotsInProgress(3);
+        awaitNumberOfSnapshotsInProgress(3);
 
         assertSnapshotStatusCountOnRepo("_all", 3);
         assertSnapshotStatusCountOnRepo(blockedRepoName, 2);
         assertSnapshotStatusCountOnRepo(otherBlockedRepoName, 1);
 
         unblockNode(blockedRepoName, dataNode);
-        awaitNSnapshotsInProgress(1);
+        awaitNumberOfSnapshotsInProgress(1);
         assertSnapshotStatusCountOnRepo("_all", 1);
         assertSnapshotStatusCountOnRepo(blockedRepoName, 0);
         assertSnapshotStatusCountOnRepo(otherBlockedRepoName, 1);
@@ -1074,7 +1063,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             startFullSnapshotBlockedOnDataNode("blocked-snapshot-2", blockedRepoName, dataNode);
         final ActionFuture<CreateSnapshotResponse> createSlowFuture3 =
             startFullSnapshotBlockedOnDataNode("other-blocked-snapshot", otherBlockedRepoName, dataNode);
-        awaitNSnapshotsInProgress(3);
+        awaitNumberOfSnapshotsInProgress(3);
         unblockNode(blockedRepoName, dataNode);
         unblockNode(otherBlockedRepoName, dataNode);
 
@@ -1108,10 +1097,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         client().admin().cluster().prepareCreateSnapshot(otherRepoName, "snapshot-other-blocked-1").setWaitForCompletion(false).get();
         client().admin().cluster().prepareCreateSnapshot(otherRepoName, "snapshot-other-blocked-2").setWaitForCompletion(false).get();
 
-        awaitNSnapshotsInProgress(4);
+        awaitNumberOfSnapshotsInProgress(4);
         final String initialMaster = internalCluster().getMasterName();
-        waitForBlock(initialMaster, repoName, TimeValue.timeValueSeconds(30L));
-        waitForBlock(initialMaster, otherRepoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(initialMaster, repoName);
+        waitForBlock(initialMaster, otherRepoName);
 
         internalCluster().stopCurrentMasterNode();
         ensureStableCluster(3, dataNode);
@@ -1129,10 +1118,11 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createIndexWithContent("index-test");
 
         final int limitToTest = randomIntBetween(1, 3);
+        final List<String> snapshotNames = createNSnapshots(repoName, limitToTest + 1);
+
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(
             SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.getKey(), limitToTest).build()).get());
 
-        final List<String> snapshotNames = createNSnapshots(repoName, limitToTest + 1);
         blockNodeOnAnyFiles(repoName, masterName);
         int blockedSnapshots = 0;
         boolean blockedDelete = false;
@@ -1144,14 +1134,14 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 ++blockedSnapshots;
             } else {
                 blockedDelete = true;
-                deleteFuture = startDelete(repoName, randomFrom(snapshotNames));
+                deleteFuture = startDeleteSnapshot(repoName, randomFrom(snapshotNames));
             }
         }
-        awaitNSnapshotsInProgress(blockedSnapshots);
+        awaitNumberOfSnapshotsInProgress(blockedSnapshots);
         if (blockedDelete) {
             awaitNDeletionsInProgress(1);
         }
-        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(masterName, repoName);
 
         final String expectedFailureMessage = "Cannot start another operation, already running [" + limitToTest +
             "] operations and the current limit for concurrent snapshot operations is set to [" + limitToTest + "]";
@@ -1192,8 +1182,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String indexFast = "index-fast";
         createIndexWithContent(indexFast, dataNode2, dataNode);
 
-        final ActionFuture<CreateSnapshotResponse> createFastSnapshot =
-                client().admin().cluster().prepareCreateSnapshot(repoName, "fast-snapshot").setWaitForCompletion(true).execute();
+        final ActionFuture<CreateSnapshotResponse> createFastSnapshot = startFullSnapshot(repoName, "fast-snapshot");
 
         assertThat(createSlowFuture.isDone(), is(false));
         unblockNode(repoName, dataNode);
@@ -1212,8 +1201,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
         final String snapshotName = "snap-1";
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, snapshotName);
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
-        final ActionFuture<AcknowledgedResponse> deleteFuture = startDelete(repoName, snapshotName);
+        waitForBlock(masterNode, repoName);
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repoName, snapshotName);
         awaitNDeletionsInProgress(1);
         unblockNode(repoName, masterNode);
         assertAcked(deleteFuture.get());
@@ -1234,15 +1223,42 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String snapshotTwo = "second-snapshot";
         final ActionFuture<CreateSnapshotResponse> createSnapshot2Future = startFullSnapshot(repoName, snapshotTwo);
 
-        awaitNSnapshotsInProgress(2);
+        awaitNumberOfSnapshotsInProgress(2);
 
-        assertAcked(startDelete(repoName, snapshotTwo).get());
+        assertAcked(startDeleteSnapshot(repoName, snapshotTwo).get());
         final SnapshotException sne = expectThrows(SnapshotException.class, createSnapshot2Future::actionGet);
 
         assertFalse(createSnapshot1Future.isDone());
         unblockNode(repoName, dataNode);
         assertSuccessful(createSnapshot1Future);
         assertThat(getRepositoryData(repoName).getGenId(), is(0L));
+    }
+
+    public void testStartWithSuccessfulShardSnapshotPendingFinalization() throws Exception {
+        final String masterName = internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+
+        createIndexWithContent("test-idx");
+        createFullSnapshot(repoName, "first-snapshot");
+
+        blockMasterOnWriteIndexFile(repoName);
+        final ActionFuture<CreateSnapshotResponse> blockedSnapshot = startFullSnapshot(repoName, "snap-blocked");
+        waitForBlock(masterName, repoName);
+        awaitNumberOfSnapshotsInProgress(1);
+        blockNodeOnAnyFiles(repoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> otherSnapshot = startFullSnapshot(repoName, "other-snapshot");
+        awaitNumberOfSnapshotsInProgress(2);
+        assertFalse(blockedSnapshot.isDone());
+        unblockNode(repoName, masterName);
+        awaitNumberOfSnapshotsInProgress(1);
+
+        awaitMasterFinishRepoOperations();
+
+        unblockNode(repoName, dataNode);
+        assertSuccessful(blockedSnapshot);
+        assertSuccessful(otherSnapshot);
     }
 
     private static String startDataNodeWithLargeSnapshotPool() {
@@ -1256,30 +1272,26 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotStatuses, hasSize(count));
     }
 
-    private List<String> createNSnapshots(String repoName, int count) {
+    private List<String> createNSnapshots(String repoName, int count) throws Exception {
+        final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
+        final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, count);
         final List<String> snapshotNames = new ArrayList<>(count);
         final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
         for (int i = 0; i < count; i++) {
-            final String name = prefix + i;
-            createFullSnapshot(repoName, name);
-            snapshotNames.add(name);
+            final String snapshot = prefix + i;
+            snapshotNames.add(snapshot);
+            client().admin().cluster().prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute(snapshotsListener);
+        }
+        for (CreateSnapshotResponse snapshotResponse : allSnapshotsDone.get()) {
+            assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
         }
         logger.info("--> created {} in [{}]", snapshotNames, repoName);
         return snapshotNames;
     }
 
-    private void awaitNoMoreRunningOperations() throws Exception {
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
-    }
-
     private ActionFuture<AcknowledgedResponse> startDeleteFromNonMasterClient(String repoName, String snapshotName) {
         logger.info("--> deleting snapshot [{}] from repo [{}] from non master client", snapshotName, repoName);
         return internalCluster().nonMasterClient().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute();
-    }
-
-    private ActionFuture<AcknowledgedResponse> startDelete(String repoName, String snapshotName) {
-        logger.info("--> deleting snapshot [{}] from repo [{}]", snapshotName, repoName);
-        return client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute();
     }
 
     private ActionFuture<CreateSnapshotResponse> startFullSnapshotFromNonMasterClient(String repoName, String snapshotName) {
@@ -1294,42 +1306,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setWaitForCompletion(true).execute();
     }
 
-    private ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName) {
-        return startFullSnapshot(repoName, snapshotName, false);
-    }
-
-    private ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName, boolean partial) {
-        logger.info("--> creating full snapshot [{}] to repo [{}]", snapshotName, repoName);
-        return client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
-                .setPartial(partial).execute();
-    }
-
-    private void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
-        awaitClusterState(internalCluster().getMasterName(), statePredicate);
-    }
-
-    // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
-    // threads so that blocking some threads on one repository doesn't block other repositories from doing work
-    private static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
-        .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build();
-
-    private static final Settings SINGLE_SHARD_NO_REPLICA = indexSettingsNoReplicas(1).build();
-
-    private void createIndexWithContent(String indexName) {
-        createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);
-    }
-
     private void createIndexWithContent(String indexName, String nodeInclude, String nodeExclude) {
         createIndexWithContent(indexName, indexSettingsNoReplicas(1)
                 .put("index.routing.allocation.include._name", nodeInclude)
                 .put("index.routing.allocation.exclude._name", nodeExclude).build());
-    }
-
-    private void createIndexWithContent(String indexName, Settings indexSettings) {
-        logger.info("--> creating index [{}]", indexName);
-        createIndex(indexName, indexSettings);
-        ensureGreen(indexName);
-        indexDoc(indexName, "some_id", "foo", "bar");
     }
 
     private static boolean snapshotHasCompletedShard(String snapshot, SnapshotsInProgress snapshotsInProgress) {
@@ -1345,12 +1325,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         return false;
     }
 
-    private static SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
-        final SnapshotInfo snapshotInfo = future.get().getSnapshotInfo();
-        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
-        return snapshotInfo;
-    }
-
     private void corruptIndexN(Path repoPath, long generation) throws IOException {
         logger.info("--> corrupting [index-{}] in [{}]", generation, repoPath);
         Path indexNBlob = repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + generation);
@@ -1364,39 +1338,25 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries().size() == count);
     }
 
-    private void awaitNSnapshotsInProgress(int count) throws Exception {
-        logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
-        awaitClusterState(state ->
-                state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
-    }
-
     private static List<SnapshotInfo> currentSnapshots(String repoName) {
         return client().admin().cluster().prepareGetSnapshots(repoName).setSnapshots(GetSnapshotsRequest.CURRENT_SNAPSHOT)
                 .get().getSnapshots(repoName);
     }
 
     private ActionFuture<AcknowledgedResponse> startAndBlockOnDeleteSnapshot(String repoName, String snapshotName)
-            throws InterruptedException {
+        throws Exception {
         final String masterName = internalCluster().getMasterName();
         blockNodeOnAnyFiles(repoName, masterName);
-        final ActionFuture<AcknowledgedResponse> fut = startDelete(repoName, snapshotName);
-        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        final ActionFuture<AcknowledgedResponse> fut = startDeleteSnapshot(repoName, snapshotName);
+        waitForBlock(masterName, repoName);
         return fut;
     }
 
     private ActionFuture<CreateSnapshotResponse> startAndBlockFailingFullSnapshot(String blockedRepoName, String snapshotName)
-            throws InterruptedException {
+        throws Exception {
         blockMasterFromFinalizingSnapshotOnIndexFile(blockedRepoName);
         final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(blockedRepoName, snapshotName);
-        waitForBlock(internalCluster().getMasterName(), blockedRepoName, TimeValue.timeValueSeconds(30L));
-        return fut;
-    }
-
-    private ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName, String dataNode)
-            throws InterruptedException {
-        blockDataNode(repoName, dataNode);
-        final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(repoName, snapshotName);
-        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(internalCluster().getMasterName(), blockedRepoName);
         return fut;
     }
 }

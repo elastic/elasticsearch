@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Randomness;
@@ -14,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -41,7 +42,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 
 public class Classification implements DataFrameAnalysis {
 
@@ -55,7 +55,7 @@ public class Classification implements DataFrameAnalysis {
     public static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
     public static final ParseField FEATURE_PROCESSORS = new ParseField("feature_processors");
 
-    private static final String STATE_DOC_ID_SUFFIX = "_classification_state#1";
+    private static final String STATE_DOC_ID_INFIX = "_classification_state#";
 
     private static final String NUM_CLASSES = "num_classes";
 
@@ -167,8 +167,9 @@ public class Classification implements DataFrameAnalysis {
                           @Nullable Double trainingPercent,
                           @Nullable Long randomizeSeed,
                           @Nullable List<PreProcessor> featureProcessors) {
-        if (numTopClasses != null && (numTopClasses < 0 || numTopClasses > 1000)) {
-            throw ExceptionsHelper.badRequestException("[{}] must be an integer in [0, 1000]", NUM_TOP_CLASSES.getPreferredName());
+        if (numTopClasses != null && (numTopClasses < -1 || numTopClasses > 1000)) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be an integer in [0, 1000] or a special value -1", NUM_TOP_CLASSES.getPreferredName());
         }
         if (trainingPercent != null && (trainingPercent <= 0.0 || trainingPercent > 100.0)) {
             throw ExceptionsHelper.badRequestException("[{}] must be a positive double in (0, 100]", TRAINING_PERCENT.getPreferredName());
@@ -373,31 +374,27 @@ public class Classification implements DataFrameAnalysis {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
+    public Map<String, Object> getExplicitlyMappedFields(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Map<String, Object> additionalProperties = new HashMap<>();
         additionalProperties.put(resultsFieldName + ".feature_importance", FEATURE_IMPORTANCE_MAPPING);
-        Object dependentVariableMapping = extractMapping(dependentVariable, mappingsProperties);
-        if ((dependentVariableMapping instanceof Map) == false) {
+        Map<String, FieldCapabilities> dependentVariableFieldCaps = fieldCapabilitiesResponse.getField(dependentVariable);
+        if (dependentVariableFieldCaps == null || dependentVariableFieldCaps.isEmpty()) {
             return additionalProperties;
         }
-        Map<String, Object> dependentVariableMappingAsMap = (Map) dependentVariableMapping;
-        // If the source field is an alias, fetch the concrete field that the alias points to.
-        if (FieldAliasMapper.CONTENT_TYPE.equals(dependentVariableMappingAsMap.get("type"))) {
-            String path = (String) dependentVariableMappingAsMap.get(FieldAliasMapper.Names.PATH);
-            dependentVariableMapping = extractMapping(path, mappingsProperties);
-        }
-        // We may have updated the value of {@code dependentVariableMapping} in the "if" block above.
-        // Hence, we need to check the "instanceof" condition again.
-        if ((dependentVariableMapping instanceof Map) == false) {
-            return additionalProperties;
-        }
-        additionalProperties.put(resultsFieldName + "." + predictionFieldName, dependentVariableMapping);
-        additionalProperties.put(resultsFieldName + ".top_classes.class_name", dependentVariableMapping);
-        return additionalProperties;
-    }
+        Object dependentVariableMappingType = dependentVariableFieldCaps.values().iterator().next().getType();
+        additionalProperties.put(
+            resultsFieldName + "." + predictionFieldName, Collections.singletonMap("type", dependentVariableMappingType));
 
-    private static Object extractMapping(String path, Map<String, Object> mappingsProperties) {
-        return extractValue(String.join(".properties.", path.split("\\.")), mappingsProperties);
+        Map<String, Object> topClassesProperties = new HashMap<>();
+        topClassesProperties.put("class_name", Collections.singletonMap("type", dependentVariableMappingType));
+        topClassesProperties.put("class_probability", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+
+        Map<String, Object> topClassesMapping = new HashMap<>();
+        topClassesMapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        topClassesMapping.put("properties", topClassesProperties);
+
+        additionalProperties.put(resultsFieldName + ".top_classes", topClassesMapping);
+        return additionalProperties;
     }
 
     @Override
@@ -411,8 +408,8 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
-    public String getStateDocId(String jobId) {
-        return jobId + STATE_DOC_ID_SUFFIX;
+    public String getStateDocIdPrefix(String jobId) {
+        return jobId + STATE_DOC_ID_INFIX;
     }
 
     @Override
@@ -437,7 +434,7 @@ public class Classification implements DataFrameAnalysis {
     }
 
     public static String extractJobIdFromStateDoc(String stateDocId) {
-        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_SUFFIX);
+        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_INFIX);
         return suffixIndex <= 0 ? null : stateDocId.substring(0, suffixIndex);
     }
 

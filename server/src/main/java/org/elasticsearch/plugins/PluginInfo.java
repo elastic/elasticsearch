@@ -251,6 +251,20 @@ public class PluginInfo implements Writeable, ToXContentObject {
                               classname, extendedPlugins, hasNativeController, type, javaOpts);
     }
 
+    private static PluginType getPluginType(String name, String rawType) {
+        if (Strings.isNullOrEmpty(rawType)) {
+            return PluginType.ISOLATED;
+        }
+
+        try {
+            return PluginType.valueOf(rawType.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                "[type] must be unspecified or one of [isolated, bootstrap] but found [" + rawType + "] for plugin [" + name + "]"
+            );
+        }
+    }
+
     private static String getClassname(String name, PluginType type, String classname) {
         if (type == PluginType.BOOTSTRAP) {
             if (!Strings.isNullOrEmpty(classname)) {

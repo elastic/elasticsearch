@@ -230,7 +230,7 @@ These requests create two indices: `my-index-000001` and `my-index-000002`.
 
 . Use the <<indices-get-index,get index API>> to view the configurations for the
 new indices:
-
++
 [source,console]
 --------------------------------------------------
 GET /my-index-000001,my-index-000002

@@ -288,7 +288,7 @@ GET /my-index-000001/_search
 // TEST[setup:my_index]
 // TEST[s/my-field/http.request.method/]
 
-If you also specify a `field`, the `script`  modifies the field values used in
+If you also specify a `field`, the `script` modifies the field values used in
 the aggregation. The following aggregation uses a script to modify `my-field`
 values:
 

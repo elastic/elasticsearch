@@ -9,7 +9,7 @@ Aggregations help you answer questions like:
 * What's the average load time for my website?
 * Who are my most valuable customers based on transaction volume?
 * What would be considered a large file on my network?
-* How many products does each product category contain?
+* How many products are in each product category?
 
 {es} organizes aggregations into four categories:
 

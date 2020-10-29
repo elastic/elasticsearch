@@ -177,7 +177,7 @@ more examples of customizing the options.
 [[java-rest-high-getting-started-asynchronous-usage]]
 === Asynchronous usage
 
-All of the the methods across the different clients exist in a traditional synchronous and 
+All of the methods across the different clients exist in a traditional synchronous and 
 asynchronous variant. The difference is that the asynchronous ones use asynchronous requests 
 in the REST Low Level Client. This is useful if you are doing multiple requests or are using e.g.
 rx java, Kotlin co-routines, or similar frameworks.

@@ -60,7 +60,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         return ((GeoPointFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Explicit<Boolean>> ignoreMalformed;
         final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
@@ -109,7 +109,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         }
 
         @Override
-        public ParametrizedFieldMapper build(BuilderContext context) {
+        public FieldMapper build(BuilderContext context) {
             Parser<List<ParsedGeoPoint>> geoParser = new PointParser<>(name, ParsedGeoPoint::new, (parser, point) -> {
                 GeoUtils.parseGeoPoint(parser, point, ignoreZValue.get().value());
                 return point;
@@ -138,7 +138,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
     }
 

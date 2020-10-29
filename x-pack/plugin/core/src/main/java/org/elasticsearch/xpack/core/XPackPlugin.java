@@ -408,9 +408,9 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
      */
     private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
         final Map<String, SSLConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment.settings());
+        final SSLService sslService = new SSLService(environment, sslConfigurations);
         final SSLConfigurationReloader reloader =
             new SSLConfigurationReloader(environment, resourceWatcherService, sslConfigurations.values());
-        final SSLService sslService = new SSLService(environment, sslConfigurations);
         reloader.setSSLService(sslService);
         setSslService(sslService);
         return sslService;

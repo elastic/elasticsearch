@@ -312,7 +312,7 @@ Number of deletion operations currently running.
 Total number of noop operations.
 
 `is_throttled`::
-(boolean)
+(Boolean)
 Number of times
 operations were throttled.
 

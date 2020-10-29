@@ -82,7 +82,7 @@ document.
 `ignore_unmapped`::
 +
 --
-(Optional, boolean) Indicates whether to ignore an unmapped `type` and not
+(Optional, Boolean) Indicates whether to ignore an unmapped `type` and not
 return any documents instead of an error. Defaults to `false`.
 
 If `false`, {es} returns an error if the `type` is unmapped.

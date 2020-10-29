@@ -60,7 +60,7 @@ as possible to the failure of an individual node.
 If your cluster consists of one node, that single node must do everything.
 To accommodate this, {es} assigns nodes every role by default.
 
-A single node cluster is not resilient. If the the node fails, the cluster will
+A single node cluster is not resilient. If the node fails, the cluster will
 stop working. Because there are no replicas in a one-node cluster, you cannot
 store your data redundantly. However, by default at least one replica is
 required for a <<cluster-health,`green` cluster health status>>. To ensure your

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
@@ -57,6 +58,8 @@ public class ServerTransportFilterTests extends ESTestCase {
     private TransportChannel channel;
     private boolean failDestructiveOperations;
     private DestructiveOperations destructiveOperations;
+    private ThreadContext threadContext;
+    private ServerTransportFilter serverTransportFilter;
 
     @Before
     public void init() throws Exception {
@@ -67,9 +70,13 @@ public class ServerTransportFilterTests extends ESTestCase {
         when(channel.getVersion()).thenReturn(Version.CURRENT);
         failDestructiveOperations = randomBoolean();
         Settings settings = Settings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), failDestructiveOperations).build();
+                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), failDestructiveOperations)
+                .put("path.home", createTempDir()).build();
         destructiveOperations = new DestructiveOperations(settings,
                 new ClusterSettings(settings, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)));
+        threadContext = new ThreadContext(settings);
+        serverTransportFilter = new ServerTransportFilter(authcService, authzService, threadContext, false, destructiveOperations,
+                new SecurityContext(settings, threadContext), new XPackLicenseState(settings, () -> 0));
     }
 
     public void testInbound() throws Exception {
@@ -80,13 +87,13 @@ public class ServerTransportFilterTests extends ESTestCase {
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
+            AuditUtil.generateRequestId(threadContext);
             ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(true), any(ActionListener.class));
-        ServerTransportFilter filter = getNodeFilter();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        filter.inbound("_action", request, channel, future);
+        serverTransportFilter.inbound("_action", request, channel, future);
         //future.get(); // don't block it's not called really just mocked
         verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
     }
@@ -102,13 +109,13 @@ public class ServerTransportFilterTests extends ESTestCase {
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
+            AuditUtil.generateRequestId(threadContext);
             ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq(action), eq(request), eq(true), any(ActionListener.class));
-        ServerTransportFilter filter = getNodeFilter();
         PlainActionFuture listener = mock(PlainActionFuture.class);
-        filter.inbound(action, request, channel, listener);
+        serverTransportFilter.inbound(action, request, channel, listener);
         if (failDestructiveOperations) {
             verify(listener).onFailure(isA(IllegalArgumentException.class));
             verifyNoMoreInteractions(authzService);
@@ -122,15 +129,15 @@ public class ServerTransportFilterTests extends ESTestCase {
         Exception authE = authenticationError("authc failed");
         doAnswer(i -> {
             final Object[] args = i.getArguments();
+            AuditUtil.generateRequestId(threadContext);
             assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onFailure(authE);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(true), any(ActionListener.class));
-        ServerTransportFilter filter = getNodeFilter();
         try {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            filter.inbound("_action", request, channel, future);
+            serverTransportFilter.inbound("_action", request, channel, future);
             future.actionGet();
             fail("expected filter inbound to throw an authentication exception on authentication error");
         } catch (ElasticsearchSecurityException e) {
@@ -140,11 +147,11 @@ public class ServerTransportFilterTests extends ESTestCase {
     }
 
     public void testInboundAuthorizationException() throws Exception {
-        ServerTransportFilter filter = getNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = mock(Authentication.class);
         doAnswer(i -> {
             final Object[] args = i.getArguments();
+            AuditUtil.generateRequestId(threadContext);
             assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
@@ -156,7 +163,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         doThrow(authorizationError("authz failed"))
             .when(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            filter.inbound("_action", request, channel, future);
+            serverTransportFilter.inbound("_action", request, channel, future);
             future.actionGet();
         });
         assertThat(e.getMessage(), equalTo("authz failed"));
@@ -165,11 +172,11 @@ public class ServerTransportFilterTests extends ESTestCase {
     public void testAllowsNodeActions() throws Exception {
         final String internalAction = "internal:foo/bar";
         final String nodeOrShardAction = "indices:action" + randomFrom("[s]", "[p]", "[r]", "[n]", "[s][p]", "[s][r]", "[f]");
-        ServerTransportFilter filter = getNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = new Authentication(new User("test", "superuser"), new RealmRef("test", "test", "node1"), null);
         doAnswer(i -> {
             final Object[] args = i.getArguments();
+            AuditUtil.generateRequestId(threadContext);
             assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
@@ -183,20 +190,13 @@ public class ServerTransportFilterTests extends ESTestCase {
             return Void.TYPE;
         }).when(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq(true), any(ActionListener.class));
 
-        filter.inbound(internalAction, request, channel, new PlainActionFuture<>());
+        serverTransportFilter.inbound(internalAction, request, channel, new PlainActionFuture<>());
         verify(authcService).authenticate(eq(internalAction), eq(request), eq(true), any(ActionListener.class));
         verify(authzService).authorize(eq(authentication), eq(internalAction), eq(request), any(ActionListener.class));
 
-        filter.inbound(nodeOrShardAction, request, channel, new PlainActionFuture<>());
+        serverTransportFilter.inbound(nodeOrShardAction, request, channel, new PlainActionFuture<>());
         verify(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq(true), any(ActionListener.class));
         verify(authzService).authorize(eq(authentication), eq(nodeOrShardAction), eq(request), any(ActionListener.class));
         verifyNoMoreInteractions(authcService, authzService);
-    }
-
-    private ServerTransportFilter getNodeFilter() {
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        ThreadContext threadContext = new ThreadContext(settings);
-        return new ServerTransportFilter(authcService, authzService, threadContext, false, destructiveOperations,
-                new SecurityContext(settings, threadContext), new XPackLicenseState(settings, () -> 0));
     }
 }

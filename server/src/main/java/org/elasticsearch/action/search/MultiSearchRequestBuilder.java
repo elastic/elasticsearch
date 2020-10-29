@@ -82,4 +82,16 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
         request().maxConcurrentSearchRequests(maxConcurrentSearchRequests);
         return this;
     }
+    
+
+    /**
+     * Sets minimum number of document matches required by any single search request before
+     * the next request is tried. Searches are typically arranged in strict to sloppy order.
+     * A value greater than zero means searches are executed sequentially until recallGoal
+     * is met.
+     */
+    public MultiSearchRequestBuilder setRecallGoal(int recallGoal) {
+        request().recallGoal(recallGoal);
+        return this;
+    }    
 }

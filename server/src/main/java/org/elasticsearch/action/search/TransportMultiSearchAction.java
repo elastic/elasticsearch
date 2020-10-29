@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
@@ -35,6 +36,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
@@ -93,9 +95,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         int numRequests = request.requests().size();
         final AtomicArray<MultiSearchResponse.Item> responses = new AtomicArray<>(numRequests);
         final AtomicInteger responseCounter = new AtomicInteger(numRequests);
+        final long recallGoal = request.recallGoal();
         int numConcurrentSearches = Math.min(numRequests, maxConcurrentSearches);
         for (int i = 0; i < numConcurrentSearches; i++) {
-            executeSearch(searchRequestSlots, responses, responseCounter, listener, relativeStartTime);
+            executeSearch(searchRequestSlots, responses, responseCounter, recallGoal, listener, relativeStartTime);
         }
     }
 
@@ -124,6 +127,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             final Queue<SearchRequestSlot> requests,
             final AtomicArray<MultiSearchResponse.Item> responses,
             final AtomicInteger responseCounter,
+            final long recallGoal,
             final ActionListener<MultiSearchResponse> listener,
             final long relativeStartTime) {
         SearchRequestSlot request = requests.poll();
@@ -159,6 +163,19 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
             private void handleResponse(final int responseSlot, final MultiSearchResponse.Item item) {
                 responses.set(responseSlot, item);
+                long recall = item.getResponse().getHits().getTotalHits().value;
+                
+                if (recallGoal > 0 && recall >= recallGoal) {
+                    // Early exit. Don't run remaining searches and exit with responses gathered so far
+                    responseCounter.decrementAndGet();
+                    requests.clear();
+                    Item[] result = responses.toArray(new MultiSearchResponse.Item[responses.length()]);
+                    // Trim response of null responses we will never collect
+                    result = Arrays.copyOfRange(result, 0, result.length - responseCounter.get());
+                    listener.onResponse(new MultiSearchResponse(result, buildTookInMillis()));
+                    return;
+                }
+                
                 if (responseCounter.decrementAndGet() == 0) {
                     assert requests.isEmpty();
                     finish();
@@ -166,10 +183,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                     if (thread == Thread.currentThread()) {
                         // we are on the same thread, we need to fork to another thread to avoid recursive stack overflow on a single thread
                         threadPool.generic()
-                                .execute(() -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime));
+                                .execute(() -> executeSearch(requests, responses, responseCounter, recallGoal, listener, relativeStartTime));
                     } else {
                         // we are on a different thread (we went asynchronous), it's safe to recurse
-                        executeSearch(requests, responses, responseCounter, listener, relativeStartTime);
+                        executeSearch(requests, responses, responseCounter, recallGoal, listener, relativeStartTime);
                     }
                 }
             }

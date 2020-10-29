@@ -80,5 +80,28 @@ public class MultiSearchIT extends ESIntegTestCase {
             assertHitCount(item.getResponse(), numDocs);
         }
     }
+    
+    public void testFallbackMultiSearch() {
+        createIndex("test");
+        ensureGreen();
+        client().prepareIndex("test").setId("1").setSource("field", "xxx").get();
+        client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
+        refresh();
+        MultiSearchResponse response = client().prepareMultiSearch()
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "zzz")))
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+                .setRecallGoal(1)
+                .get();
+
+        for (MultiSearchResponse.Item item : response) {
+           assertNoFailures(item.getResponse());
+        }
+        assertThat(response.getResponses().length, equalTo(2));
+        assertHitCount(response.getResponses()[0].getResponse(), 0L);
+        assertHitCount(response.getResponses()[1].getResponse(), 1L);
+        assertFirstHit(response.getResponses()[1].getResponse(), hasId("1"));
+    }    
 
 }

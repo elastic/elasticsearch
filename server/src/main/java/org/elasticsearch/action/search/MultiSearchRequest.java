@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -61,6 +62,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;
+    private long recallGoal = 0;
     private final List<SearchRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
@@ -89,6 +91,11 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
      * Returns the amount of search requests specified in this multi search requests are allowed to be ran concurrently.
      */
     public int maxConcurrentSearchRequests() {
+        if (recallGoal > 0) {
+            // requires serial execution to work through list of progressively sloppier queries until 
+            // recall goal is reached.
+            return 1;
+        }
         return maxConcurrentSearchRequests;
     }
 
@@ -103,6 +110,26 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         this.maxConcurrentSearchRequests = maxConcurrentSearchRequests;
         return this;
     }
+    
+    /**
+     * The minimum number of document matches required by any single search request before
+     * the next request is tried.
+     */
+    public long recallGoal() {
+        return recallGoal;
+    }     
+    
+    /**
+     * Sets minimum number of document matches required by any single search request before
+     * the next request is tried. Searches are typically arranged in strict to sloppy order.
+     * A value greater than zero means searches are executed sequentially until recallGoal
+     * is met.
+     */
+    public MultiSearchRequest recallGoal(long recallGoal) {
+        this.recallGoal = recallGoal;
+        return this;
+    }    
+    
 
     public List<SearchRequest> requests() {
         return this.requests;
@@ -113,6 +140,10 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         ActionRequestValidationException validationException = null;
         if (requests.isEmpty()) {
             validationException = addValidationError("no requests added", validationException);
+        }
+        if (recallGoal > 0 && maxConcurrentSearchRequests > 1) {
+            validationException = addValidationError("Cannot have "+maxConcurrentSearchRequests+
+                " maxConcurrentSearchRequests when recallGoal is non-zero", validationException);            
         }
         for (int i = 0; i < requests.size(); i++) {
             ActionRequestValidationException ex = requests.get(i).validate();
@@ -141,6 +172,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         super(in);
         maxConcurrentSearchRequests = in.readVInt();
         int size = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            recallGoal = in.readVLong();
+        }
         for (int i = 0; i < size; i++) {
             SearchRequest request = new SearchRequest(in);
             requests.add(request);
@@ -152,6 +186,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
         out.writeVInt(requests.size());
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeVLong(recallGoal);
+        }
         for (SearchRequest request : requests) {
             request.writeTo(out);
         }
@@ -163,13 +200,14 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         if (o == null || getClass() != o.getClass()) return false;
         MultiSearchRequest that = (MultiSearchRequest) o;
         return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests &&
+                recallGoal == that.recallGoal &&
                 Objects.equals(requests, that.requests) &&
                 Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxConcurrentSearchRequests, requests, indicesOptions);
+        return Objects.hash(maxConcurrentSearchRequests, requests, indicesOptions, recallGoal);
     }
 
     public static void readMultiLineFormat(BytesReference data,

@@ -98,7 +98,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
-
+        if (restRequest.hasParam("recall_goal")) {
+            multiRequest.recallGoal(restRequest.paramAsInt("recall_goal", 0));
+        }
         Integer preFilterShardSize = null;
         if (restRequest.hasParam("pre_filter_shard_size")) {
             preFilterShardSize = restRequest.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE);

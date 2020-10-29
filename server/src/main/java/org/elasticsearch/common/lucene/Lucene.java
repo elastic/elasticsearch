@@ -105,7 +105,7 @@ import java.util.List;
 import java.util.Map;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene87";
+    public static final String LATEST_CODEC = "Lucene86";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 

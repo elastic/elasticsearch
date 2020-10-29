@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.RegexpQuery87;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -80,8 +80,8 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     @Override
     protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(RegexpQuery.class));
-        RegexpQuery regexpQuery = (RegexpQuery) query;
+        assertThat(query, instanceOf(RegexpQuery87.class));
+        RegexpQuery87 regexpQuery = (RegexpQuery87) query;
 
         String expectedFieldName = expectedFieldName( queryBuilder.fieldName());
         assertThat(regexpQuery.getField(), equalTo(expectedFieldName));

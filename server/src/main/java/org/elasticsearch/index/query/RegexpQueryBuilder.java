@@ -22,9 +22,9 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.RegExp87;
+import org.apache.lucene.search.RegexpQuery87;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -279,17 +279,17 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         }
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
-        int matchFlagsValue = caseInsensitive ? RegExp.ASCII_CASE_INSENSITIVE : 0;
+        int matchFlagsValue = caseInsensitive ? RegExp87.ASCII_CASE_INSENSITIVE : 0;
         Query query = null;
         // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
-        int sanitisedSyntaxFlag = syntaxFlagsValue & RegExp.ALL;
+        int sanitisedSyntaxFlag = syntaxFlagsValue & RegExp87.ALL;
 
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
             query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
         }
         if (query == null) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), sanitisedSyntaxFlag,
+            RegexpQuery87 regexpQuery = new RegexpQuery87(new Term(fieldName, BytesRefs.toBytesRef(value)), sanitisedSyntaxFlag,
                 matchFlagsValue, maxDeterminizedStates);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);

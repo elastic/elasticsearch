@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.search.RegExp87;
 import org.elasticsearch.common.Strings;
 
 import java.util.Locale;
@@ -43,37 +43,37 @@ public enum RegexpFlag {
     /**
      * Enables intersection of the form: {@code &lt;expression&gt; &amp; &lt;expression&gt;}
      */
-    INTERSECTION(RegExp.INTERSECTION),
+    INTERSECTION(RegExp87.INTERSECTION),
 
     /**
      * Enables complement expression of the form: {@code ~&lt;expression&gt;}
      */
-    COMPLEMENT(RegExp.COMPLEMENT),
+    COMPLEMENT(RegExp87.COMPLEMENT),
 
     /**
      * Enables empty language expression: {@code #}
      */
-    EMPTY(RegExp.EMPTY),
+    EMPTY(RegExp87.EMPTY),
 
     /**
      * Enables any string expression: {@code @}
      */
-    ANYSTRING(RegExp.ANYSTRING),
+    ANYSTRING(RegExp87.ANYSTRING),
 
     /**
      * Enables numerical interval expression: {@code &lt;n-m&gt;}
      */
-    INTERVAL(RegExp.INTERVAL),
+    INTERVAL(RegExp87.INTERVAL),
 
     /**
      * Disables all available option flags
      */
-    NONE(RegExp.NONE),
+    NONE(RegExp87.NONE),
 
     /**
      * Enables all available option flags
      */
-    ALL(RegExp.ALL);
+    ALL(RegExp87.ALL);
 
 
     final int value;
@@ -110,9 +110,9 @@ public enum RegexpFlag {
      */
     public static int resolveValue(String flags) {
         if (flags == null || flags.isEmpty()) {
-            return RegExp.ALL;
+            return RegExp87.ALL;
         }
-        int magic = RegExp.NONE;
+        int magic = RegExp87.NONE;
         for (String s : Strings.delimitedListToStringArray(flags, "|")) {
             if (s.isEmpty()) {
                 continue;

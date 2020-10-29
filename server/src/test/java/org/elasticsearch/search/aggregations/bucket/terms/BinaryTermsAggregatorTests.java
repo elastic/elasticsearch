@@ -26,9 +26,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegExp87;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -83,7 +83,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testBadIncludeExclude() throws IOException {
-        IncludeExclude includeExclude = new IncludeExclude(new RegExp("foo"), null);
+        IncludeExclude includeExclude = new IncludeExclude(new RegExp87("foo"), null);
 
         // Make sure the include/exclude fails regardless of how the user tries to type hint the agg
         AggregationExecutionException e = expectThrows(AggregationExecutionException.class,

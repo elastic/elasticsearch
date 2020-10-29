@@ -26,6 +26,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegExp87;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -37,7 +38,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.TriFunction;
@@ -212,7 +212,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
 
         // Test regexp query
-        wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(queryString, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+        wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(queryString, RegExp87.ALL, 0, 20000, null, MOCK_QSC);
         wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
 
@@ -311,9 +311,9 @@ public class WildcardFieldMapperTests extends ESTestCase {
                 break;
             case 1:
                 pattern = getRandomRegexPattern(values);
-                int matchFlags = randomBoolean()? 0 : RegExp.ASCII_CASE_INSENSITIVE;
-                wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_QSC);
-                keywordFieldQuery = keywordFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, matchFlags,20000, null, MOCK_QSC);
+                int matchFlags = randomBoolean()? 0 : RegExp87.ASCII_CASE_INSENSITIVE;
+                wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(pattern, RegExp87.ALL, matchFlags, 20000, null, MOCK_QSC);
+                keywordFieldQuery = keywordFieldType.fieldType().regexpQuery(pattern, RegExp87.ALL, matchFlags,20000, null, MOCK_QSC);
                 break;
             case 2:
                 pattern = randomABString(5);
@@ -472,12 +472,12 @@ public class WildcardFieldMapperTests extends ESTestCase {
         // All these expressions should rewrite to a match all with no verification step required at all
         String superfastRegexes[]= { ".*",  "...*..", "(foo|bar|.*)", "@"};
         for (String regex : superfastRegexes) {
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp87.ALL, 0, 20000, null, MOCK_QSC);
             assertTrue(wildcardFieldQuery instanceof DocValuesFieldExistsQuery);
         }
         String matchNoDocsRegexes[]= { ""};
         for (String regex : matchNoDocsRegexes) {
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp87.ALL, 0, 20000, null, MOCK_QSC);
             assertTrue(wildcardFieldQuery instanceof MatchNoDocsQuery);
         }
 
@@ -498,7 +498,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         for (String[] test : acceleratedTests) {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp87.ALL, 0, 20000, null, MOCK_QSC);
             testExpectedAccelerationQuery(regex, wildcardFieldQuery, expectedAccelerationQueryString);
         }
 
@@ -506,7 +506,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         // TODO we can possibly improve on some of these
         String matchAllButVerifyTests[]= { "..", "(a)?","(a|b){0,3}", "((foo)?|(foo|bar)?)", "@&~(abc.+)", "aaa.+&.+bbb"};
         for (String regex : matchAllButVerifyTests) {
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp87.ALL, 0, 20000, null, MOCK_QSC);
             assertTrue(regex +" was not a pure verify query " +formatQuery(wildcardFieldQuery),
                 wildcardFieldQuery instanceof AutomatonQueryOnBinaryDv);
         }
@@ -522,7 +522,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         for (String[] test : suboptimalTests) {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp87.ALL, 0, 20000, null, MOCK_QSC);
 
             testExpectedAccelerationQuery(regex, wildcardFieldQuery, expectedAccelerationQueryString);
         }
@@ -861,7 +861,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         }
 
         //Assert our randomly generated regex actually matches the provided raw input.
-        RegExp regex = new RegExp(result.toString());
+        RegExp87 regex = new RegExp87(result.toString());
         Automaton automaton = regex.toAutomaton();
         ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automaton);
         BytesRef br = new BytesRef(randomValue);

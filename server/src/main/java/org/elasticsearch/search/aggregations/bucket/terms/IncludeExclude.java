@@ -34,7 +34,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.search.RegExp87;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -322,7 +322,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     }
 
-    private final RegExp include, exclude;
+    private final RegExp87 include, exclude;
     private final SortedSet<BytesRef> includeValues, excludeValues;
     private final int incZeroBasedPartition;
     private final int incNumPartitions;
@@ -331,7 +331,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
      * @param include   The regular expression pattern for the terms to be included
      * @param exclude   The regular expression pattern for the terms to be excluded
      */
-    public IncludeExclude(RegExp include, RegExp exclude) {
+    public IncludeExclude(RegExp87 include, RegExp87 exclude) {
         if (include == null && exclude == null) {
             throw new IllegalArgumentException();
         }
@@ -344,7 +344,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     public IncludeExclude(String include, String exclude) {
-        this(include == null ? null : new RegExp(include), exclude == null ? null : new RegExp(exclude));
+        this(include == null ? null : new RegExp87(include), exclude == null ? null : new RegExp87(exclude));
     }
 
     /**
@@ -400,9 +400,9 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             incZeroBasedPartition = 0;
             incNumPartitions = 0;
             String includeString = in.readOptionalString();
-            include = includeString == null ? null : new RegExp(includeString);
+            include = includeString == null ? null : new RegExp87(includeString);
             String excludeString = in.readOptionalString();
-            exclude = excludeString == null ? null : new RegExp(excludeString);
+            exclude = excludeString == null ? null : new RegExp87(excludeString);
             return;
         }
         include = null;

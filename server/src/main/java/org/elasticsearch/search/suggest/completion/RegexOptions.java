@@ -20,7 +20,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.search.RegExp87;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -142,7 +142,7 @@ public class RegexOptions implements ToXContentFragment, Writeable {
      * Options for regular expression queries
      */
     public static class Builder {
-        private int flagsValue = RegExp.ALL;
+        private int flagsValue = RegExp87.ALL;
         private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 
         public Builder() {

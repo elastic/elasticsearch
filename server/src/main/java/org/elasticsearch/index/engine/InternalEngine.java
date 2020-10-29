@@ -182,7 +182,7 @@ public class InternalEngine extends Engine {
 
     /**
      * If multiple writes passed {@link InternalEngine#tryAcquireInFlightDocs(Operation, int)} but they haven't adjusted
-     * {@link IndexWriter#getPendingNumDocs()} yet, then IndexWriter can fail with too many documents. In this case, we have to fail
+     * IndexWriter#getPendingNumDocs() yet, then IndexWriter can fail with too many documents. In this case, we have to fail
      * the engine because we already generated sequence numbers for write operations; otherwise we will have gaps in sequence numbers.
      * To avoid this, we keep track the number of documents that are being added to IndexWriter, and account it in
      * {@link InternalEngine#tryAcquireInFlightDocs(Operation, int)}. Although we can double count some inFlight documents in IW and Engine,
@@ -1365,7 +1365,9 @@ public class InternalEngine extends Engine {
         assert operation.origin() == Operation.Origin.PRIMARY : operation;
         assert operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO : operation;
         assert addingDocs > 0 : addingDocs;
-        final long totalDocs = indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
+        //TODO: needs to be adapted to Lucene86?
+        //indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
+        final long totalDocs = inFlightDocCount.addAndGet(addingDocs);
         if (totalDocs > maxDocs) {
             releaseInFlightDocs(addingDocs);
             return new IllegalArgumentException("Number of documents in the index can't exceed [" + maxDocs + "]");

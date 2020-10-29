@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.search.RegExp87;
 
 public class RLikePattern extends AbstractStringPattern {
 
@@ -18,7 +18,7 @@ public class RLikePattern extends AbstractStringPattern {
 
     @Override
     Automaton createAutomaton() {
-        return new RegExp(regexpPattern).toAutomaton();
+        return new RegExp87(regexpPattern).toAutomaton();
     }
 
     @Override

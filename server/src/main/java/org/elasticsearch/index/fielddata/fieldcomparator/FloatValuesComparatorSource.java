@@ -22,10 +22,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.comparators.FloatComparator;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
@@ -78,15 +76,10 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         final float fMissingValue = (Float) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new FloatComparator(numHits, null, null, reversed, sortPos) {
+        return new FieldComparator.FloatComparator(numHits, null, null) {
             @Override
-            public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
-                return new FloatLeafComparator(context) {
-                    @Override
-                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return FloatValuesComparatorSource.this.getNumericDocValues(context, fMissingValue).getRawFloatValues();
-                    }
-                };
+            protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
+                return FloatValuesComparatorSource.this.getNumericDocValues(context, fMissingValue).getRawFloatValues();
             }
         };
     }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.search.RegExp87;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -105,13 +105,13 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             IncludeExclude incExc = null;
             switch (randomInt(6)) {
             case 0:
-                incExc = new IncludeExclude(new RegExp("foobar"), null);
+                incExc = new IncludeExclude(new RegExp87("foobar"), null);
                 break;
             case 1:
-                incExc = new IncludeExclude(null, new RegExp("foobaz"));
+                incExc = new IncludeExclude(null, new RegExp87("foobaz"));
                 break;
             case 2:
-                incExc = new IncludeExclude(new RegExp("foobar"), new RegExp("foobaz"));
+                incExc = new IncludeExclude(new RegExp87("foobar"), new RegExp87("foobaz"));
                 break;
             case 3:
                 SortedSet<BytesRef> includeValues = new TreeSet<>();

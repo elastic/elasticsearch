@@ -36,10 +36,12 @@ import org.junit.After;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SearchRedStateIndexIT extends ESIntegTestCase {
@@ -52,7 +54,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch().setSize(0).setAllowPartialSearchResults(true)
                 .get();
         assertThat(RestStatus.OK, equalTo(searchResponse.status()));
-        assertThat("Expect no shards failed", searchResponse.getFailedShards(), equalTo(0));
+        assertThat("Expect some shards failed", searchResponse.getFailedShards(), allOf(greaterThan(0), lessThanOrEqualTo(numShards)));
         assertThat("Expect no shards skipped", searchResponse.getSkippedShards(), equalTo(0));
         assertThat("Expect subset of shards successful", searchResponse.getSuccessfulShards(), lessThan(numShards));
         assertThat("Expected total shards", searchResponse.getTotalShards(), equalTo(numShards));
@@ -66,7 +68,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch().setSize(0).get();
         assertThat(RestStatus.OK, equalTo(searchResponse.status()));
-        assertThat("Expect no shards failed", searchResponse.getFailedShards(), equalTo(0));
+        assertThat("Expect some shards failed", searchResponse.getFailedShards(), allOf(greaterThan(0), lessThanOrEqualTo(numShards)));
         assertThat("Expect no shards skipped", searchResponse.getSkippedShards(), equalTo(0));
         assertThat("Expect subset of shards successful", searchResponse.getSuccessfulShards(), lessThan(numShards));
         assertThat("Expected total shards", searchResponse.getTotalShards(), equalTo(numShards));

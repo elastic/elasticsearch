@@ -191,6 +191,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64383")
     public void testEmbeddedMaxAgg() throws IOException {
         Query query = new MatchAllDocsQuery();
 

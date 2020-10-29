@@ -3,12 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.action;
+
+package org.elasticsearch.xpack.ml.job.task;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,9 +30,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
@@ -61,91 +59,36 @@ import java.util.Date;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.validateJobAndId;
+import static org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor.AWAITING_MIGRATION;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TransportOpenJobActionTests extends ESTestCase {
+public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
     public void testValidate_jobMissing() {
-        expectThrows(ResourceNotFoundException.class, () -> TransportOpenJobAction.validate("job_id2", null));
+        expectThrows(ResourceNotFoundException.class, () -> validateJobAndId("job_id2", null));
     }
 
     public void testValidate_jobMarkedAsDeleting() {
         Job.Builder jobBuilder = buildJobBuilder("job_id");
         jobBuilder.setDeleting(true);
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> TransportOpenJobAction.validate("job_id", jobBuilder.build()));
+            () -> validateJobAndId("job_id", jobBuilder.build()));
         assertEquals("Cannot open job [job_id] because it is being deleted", e.getMessage());
     }
 
     public void testValidate_jobWithoutVersion() {
         Job.Builder jobBuilder = buildJobBuilder("job_id");
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> TransportOpenJobAction.validate("job_id", jobBuilder.build()));
+            () -> validateJobAndId("job_id", jobBuilder.build()));
         assertEquals("Cannot open job [job_id] because jobs created prior to version 5.5 are not supported", e.getMessage());
         assertEquals(RestStatus.BAD_REQUEST, e.status());
     }
 
     public void testValidate_givenValidJob() {
         Job.Builder jobBuilder = buildJobBuilder("job_id");
-        TransportOpenJobAction.validate("job_id", jobBuilder.build(new Date()));
-    }
-
-    public void testVerifyIndicesPrimaryShardsAreActive() {
-        final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
-        Metadata.Builder metadata = Metadata.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metadata, routingTable);
-
-        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
-        csBuilder.routingTable(routingTable.build());
-        csBuilder.metadata(metadata);
-
-        ClusterState cs = csBuilder.build();
-        assertEquals(0, TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive(".ml-anomalies-shared", cs, resolver).size());
-
-        metadata = new Metadata.Builder(cs.metadata());
-        routingTable = new RoutingTable.Builder(cs.routingTable());
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
-        String indexToRemove = randomFrom(indexNameExpressionResolver.concreteIndexNames(cs, IndicesOptions.lenientExpandOpen(),
-            TransportOpenJobAction.indicesOfInterest(".ml-anomalies-shared")));
-        if (randomBoolean()) {
-            routingTable.remove(indexToRemove);
-        } else {
-            Index index = new Index(indexToRemove, "_uuid");
-            ShardId shardId = new ShardId(index, 0);
-            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
-            shardRouting = shardRouting.initialize("node_id", null, 0L);
-            routingTable.add(IndexRoutingTable.builder(index)
-                    .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
-        }
-
-        csBuilder.routingTable(routingTable.build());
-        csBuilder.metadata(metadata);
-        List<String> result =
-            TransportOpenJobAction.verifyIndicesPrimaryShardsAreActive(".ml-anomalies-shared", csBuilder.build(), resolver);
-        assertEquals(1, result.size());
-        assertEquals(indexToRemove, result.get(0));
-    }
-
-    public void testJobTaskMatcherMatch() {
-        Task nonJobTask1 = mock(Task.class);
-        Task nonJobTask2 = mock(Task.class);
-        TransportOpenJobAction.JobTask jobTask1 = new TransportOpenJobAction.JobTask("ml-1",
-                0, "persistent", "", null, null);
-        TransportOpenJobAction.JobTask jobTask2 = new TransportOpenJobAction.JobTask("ml-2",
-                1, "persistent", "", null, null);
-
-        assertThat(OpenJobAction.JobTaskMatcher.match(nonJobTask1, "_all"), is(false));
-        assertThat(OpenJobAction.JobTaskMatcher.match(nonJobTask2, "_all"), is(false));
-        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask1, "_all"), is(true));
-        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "_all"), is(true));
-        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask1, "ml-1"), is(true));
-        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "ml-1"), is(false));
-        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask1, "ml-2"), is(false));
-        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "ml-2"), is(true));
+        validateJobAndId("job_id", jobBuilder.build(new Date()));
     }
 
     public void testGetAssignment_GivenJobThatRequiresMigration() {
@@ -156,12 +99,12 @@ public class TransportOpenJobActionTests extends ESTestCase {
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-        TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
-                Settings.EMPTY, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        OpenJobPersistentTasksExecutor executor = new OpenJobPersistentTasksExecutor(
+            Settings.EMPTY, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("missing_job_field");
-        assertEquals(TransportOpenJobAction.AWAITING_MIGRATION, executor.getAssignment(params, mock(ClusterState.class)));
+        assertEquals(AWAITING_MIGRATION, executor.getAssignment(params, mock(ClusterState.class)));
     }
 
     // An index being unavailable should take precedence over waiting for a lazy node
@@ -182,14 +125,14 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder.metadata(metadata);
         csBuilder.routingTable(routingTable.build());
 
-        TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
+        OpenJobPersistentTasksExecutor executor = new OpenJobPersistentTasksExecutor(
             settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("unavailable_index_with_lazy_node");
         params.setJob(mock(Job.class));
-        assertEquals("Not opening job [unavailable_index_with_lazy_node], " +
-            "because not all primary shards are active for the following indices [.ml-state]",
+        assertEquals("Not opening [unavailable_index_with_lazy_node], " +
+                "because not all primary shards are active for the following indices [.ml-state]",
             executor.getAssignment(params, csBuilder.build()).getExplanation());
     }
 
@@ -209,7 +152,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         csBuilder.metadata(metadata);
         csBuilder.routingTable(routingTable.build());
 
-        TransportOpenJobAction.OpenJobPersistentTasksExecutor executor = new TransportOpenJobAction.OpenJobPersistentTasksExecutor(
+        OpenJobPersistentTasksExecutor executor = new OpenJobPersistentTasksExecutor(
             settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
 
@@ -217,7 +160,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         when(job.allowLazyOpen()).thenReturn(true);
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("lazy_job");
         params.setJob(job);
-        Assignment assignment = executor.getAssignment(params, csBuilder.build());
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(params, csBuilder.build());
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), assignment.getExplanation());
@@ -230,7 +173,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetadata.Builder builder,
                                   boolean isStale) {
         builder.addTask(MlTasks.jobTaskId(jobId), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams(jobId),
-            new Assignment(nodeId, "test assignment"));
+            new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment"));
         if (jobState != null) {
             builder.updateTaskState(MlTasks.jobTaskId(jobId),
                 new JobTaskState(jobState, builder.getLastAllocationId() - (isStale ? 1 : 0), null));
@@ -247,9 +190,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
         for (String indexName : indices) {
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
             indexMetadata.settings(Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             );
             if (indexName.equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)) {
                 indexMetadata.putAlias(new AliasMetadata.Builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()));
@@ -258,17 +201,17 @@ public class TransportOpenJobActionTests extends ESTestCase {
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);
             ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             shardRouting = shardRouting.moveToStarted();
             routingTable.add(IndexRoutingTable.builder(index)
-                    .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+                .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
         }
     }
 
     public static Job jobWithRules(String jobId) {
         DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(
-                new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.LT, 100.0)
+            new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.LT, 100.0)
         )).build();
 
         Detector.Builder detector = new Detector.Builder("count", null);

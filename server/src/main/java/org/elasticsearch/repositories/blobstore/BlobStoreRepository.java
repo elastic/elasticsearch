@@ -77,7 +77,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -360,7 +359,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final RepositoryMetadata repositoryMetadataStart = metadata;
         getRepositoryData(ActionListener.wrap(repositoryData -> {
             final ClusterStateUpdateTask updateTask = createUpdateTask.apply(repositoryData);
-            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(updateTask.priority()) {
+            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(updateTask.priority(), updateTask.timeout()) {
 
                 private boolean executedTask = false;
 
@@ -395,11 +394,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     } else {
                         executeConsistentStateUpdate(createUpdateTask, source, onFailure);
                     }
-                }
-
-                @Override
-                public TimeValue timeout() {
-                    return updateTask.timeout();
                 }
             });
         }, onFailure));

@@ -46,6 +46,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.rest.ESRestTestCase.ensureGreen;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 /**
  * This class provides the operational REST functions needed to control an ILM time series lifecycle.
@@ -102,6 +105,17 @@ public final class TimeSeriesRestDriver {
         indexRequest.setEntity(new StringEntity("{\"@timestamp\": \"2020-12-12\"}", ContentType.APPLICATION_JSON));
         Response response = client.performRequest(indexRequest);
         logger.info(response.getStatusLine());
+    }
+
+    public static void index(RestClient client, String index, String id, Object... fields) throws IOException {
+        XContentBuilder document = jsonBuilder().startObject();
+        for (int i = 0; i < fields.length; i += 2) {
+            document.field((String) fields[i], fields[i + 1]);
+        }
+        document.endObject();
+        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
+        request.setJsonEntity(Strings.toString(document));
+        assertThat(client.performRequest(request).getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
     public static void createNewSingletonPolicy(RestClient client, String policyName, String phaseName, LifecycleAction action)
@@ -223,6 +237,14 @@ public final class TimeSeriesRestDriver {
         }
         request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build())
             + ", \"aliases\" : { \"" + alias + "\": { " + writeIndexSnippet + " } } }");
+        client.performRequest(request);
+        // wait for the shards to initialize
+        ensureGreen(index);
+    }
+
+    public static void createIndexWithSettings(RestClient client, String index, Settings.Builder settings) throws IOException {
+        Request request = new Request("PUT", "/" + index);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build()) + "}");
         client.performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);

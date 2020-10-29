@@ -189,7 +189,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext parsedQuery(ParsedQuery parsedQuery) {
+    public SubSearchContext parsedQuery(ParsedQuery parsedQuery) {
         this.parsedQuery = parsedQuery;
         if (parsedQuery != null) {
             this.query = parsedQuery.query();

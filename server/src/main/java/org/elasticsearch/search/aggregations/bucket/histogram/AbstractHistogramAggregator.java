@@ -84,7 +84,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
         this.formatter = formatter;
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinalityUpperBound);
+        bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinalityUpperBound);
     }
 
     @Override

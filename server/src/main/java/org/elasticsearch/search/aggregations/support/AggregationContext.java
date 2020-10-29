@@ -32,7 +32,10 @@ import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -53,6 +56,11 @@ public abstract class AggregationContext {
      * The query at the top level of the search in which these aggregations are running.
      */
     public abstract Query query();
+
+    /**
+     * Wrap the aggregator for profiling if profiling is enabled.
+     */
+    public abstract Aggregator profileIfEnabled(Aggregator agg) throws IOException;
 
     /**
      * The time in milliseconds that is shared across all resources involved. Even across shards and nodes.
@@ -152,58 +160,70 @@ public abstract class AggregationContext {
     public abstract NestedScope nestedScope();
 
     /**
+     * Build a {@linkplain SubSearchContext} to power an aggregation fetching top hits.
+     * Try to avoid using this because it is very very hard to test.
+     */
+    public abstract SubSearchContext subSearchContext();
+
+    /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link QueryShardContext} and the top level
      * {@link Query}. Unit tests should avoid using this because it requires
      * a <strong>huge</strong> portion of a real Elasticsearch node.
      */
     public static class ProductionAggregationContext extends AggregationContext {
-        private final QueryShardContext context;
-        private final Query query;
+        private final SearchContext context;
 
-        public ProductionAggregationContext(QueryShardContext context, Query query) {
+        public ProductionAggregationContext(SearchContext context) {
             this.context = context;
-            this.query = query;
         }
 
         @Override
         public Query query() {
-            return query;
+            return context.parsedQuery() == null ? null : context.parsedQuery().query();
+        }
+
+        @Override
+        public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+            if (context.getProfilers() == null) {
+                return agg;
+            }
+            return new ProfilingAggregator(agg, context.getProfilers().getAggregationProfiler());
         }
 
         @Override
         public long nowInMillis() {
-            return context.nowInMillis();
+            return context.getQueryShardContext().nowInMillis();
         }
 
         @Override
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-            return context.getForField(ft);
+            return context.getQueryShardContext().getForField(ft);
         }
 
         @Override
         public MappedFieldType getFieldType(String path) {
-            return context.getFieldType(path);
+            return context.getQueryShardContext().getFieldType(path);
         }
 
         @Override
         public boolean isFieldMapped(String field) {
-            return context.isFieldMapped(field);
+            return context.getQueryShardContext().isFieldMapped(field);
         }
 
         @Override
         public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> scriptContext) {
-            return context.compile(script, scriptContext);
+            return context.getQueryShardContext().compile(script, scriptContext);
         }
 
         @Override
         public SearchLookup lookup() {
-            return context.lookup();
+            return context.getQueryShardContext().lookup();
         }
 
         @Override
         public ValuesSourceRegistry getValuesSourceRegistry() {
-            return context.getValuesSourceRegistry();
+            return context.getQueryShardContext().getValuesSourceRegistry();
         }
 
         @Override
@@ -218,17 +238,17 @@ public abstract class AggregationContext {
 
         @Override
         public Query buildQuery(QueryBuilder builder) throws IOException {
-            return builder.toQuery(context);
+            return builder.toQuery(context.getQueryShardContext());
         }
 
         @Override
         public IndexSettings getIndexSettings() {
-            return context.getIndexSettings();
+            return context.getQueryShardContext().getIndexSettings();
         }
 
         @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
-            return SortBuilder.buildSort(sortBuilders, context);
+            return SortBuilder.buildSort(sortBuilders, context.getQueryShardContext());
         }
 
         @Override
@@ -238,7 +258,12 @@ public abstract class AggregationContext {
 
         @Override
         public NestedScope nestedScope() {
-            return context.nestedScope();
+            return context.getQueryShardContext().nestedScope();
+        }
+
+        @Override
+        public SubSearchContext subSearchContext() {
+            return new SubSearchContext(context).parsedQuery(context.parsedQuery());
         }
     }
 }

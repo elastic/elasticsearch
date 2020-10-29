@@ -156,7 +156,6 @@ import static org.mockito.Mockito.when;
 public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
-    private static final String TYPE_NAME = "type";
     protected ValuesSourceRegistry valuesSourceRegistry;
 
     // A list of field types that should not be tested, or are not currently supported
@@ -213,9 +212,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder, SearchContext searchContext)
         throws IOException {
+        AggregationContext context = new ProductionAggregationContext(searchContext);
         @SuppressWarnings("unchecked")
         A aggregator = (A) aggregationBuilder.rewrite(searchContext.getQueryShardContext())
-            .build(new ProductionAggregationContext(searchContext.getQueryShardContext(), searchContext.query()), null)
+            .build(context, null)
             .create(searchContext, null, CardinalityUpperBound.ONE);
         return aggregator;
     }

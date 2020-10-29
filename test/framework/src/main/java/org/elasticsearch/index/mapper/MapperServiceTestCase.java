@@ -62,8 +62,10 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -279,6 +281,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+                return agg;
+            }
+
+            @Override
             public Query query() {
                 return query;
             }
@@ -345,6 +352,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public NestedScope nestedScope() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SubSearchContext subSearchContext() {
                 throw new UnsupportedOperationException();
             }
         };

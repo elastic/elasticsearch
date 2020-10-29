@@ -365,10 +365,8 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), new MatchAllDocsQuery(),
                         new MultiBucketConsumer(Integer.MAX_VALUE, breaker.getBreaker(CircuitBreaker.REQUEST)), breaker, doubleFields());
                 TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
-                Aggregator aggregator = builder.build(
-                    new ProductionAggregationContext(searchContext.getQueryShardContext(), searchContext.query()),
-                    null
-                ).create(searchContext, null, CardinalityUpperBound.ONE);
+                Aggregator aggregator = builder.build(new ProductionAggregationContext(searchContext), null)
+                    .create(searchContext, null, CardinalityUpperBound.ONE);
                 aggregator.preCollection();
                 assertThat(indexReader.leaves(), hasSize(1));
                 LeafBucketCollector leaf = aggregator.getLeafCollector(indexReader.leaves().get(0));

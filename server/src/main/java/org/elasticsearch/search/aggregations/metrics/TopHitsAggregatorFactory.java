@@ -110,7 +110,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.storedFieldsContext(storedFieldsContext);
         }
         if (docValueFields != null) {
-            FetchDocValuesContext docValuesContext = new FetchDocValuesContext(searchContext.getQueryShardContext(), docValueFields);
+            FetchDocValuesContext docValuesContext = new FetchDocValuesContext(subSearchContext.getQueryShardContext(), docValueFields);
             subSearchContext.docValuesContext(docValuesContext);
         }
         if (fetchFields != null) {
@@ -124,9 +124,9 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.fetchSourceContext(fetchSourceContext);
         }
         if (highlightBuilder != null) {
-            subSearchContext.highlight(highlightBuilder.build(searchContext.getQueryShardContext()));
+            subSearchContext.highlight(highlightBuilder.build(subSearchContext.getQueryShardContext()));
         }
-        return new TopHitsAggregator(searchContext.fetchPhase(), subSearchContext, name, searchContext, parent, metadata);
+        return new TopHitsAggregator(subSearchContext, name, searchContext, parent, metadata);
     }
 
 }

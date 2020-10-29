@@ -174,7 +174,7 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
             Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, metadata);
         // Make sure we do not allow size > maxDoc, to prevent accidental OOM
-        this.shardSize = Math.min(shardSize, context.searcher().getIndexReader().maxDoc());
+        this.shardSize = Math.min(shardSize, searcher().getIndexReader().maxDoc());
     }
 
     @Override

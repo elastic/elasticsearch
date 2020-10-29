@@ -74,7 +74,7 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
             filters.put("filter" + i, queryBuilder);
         }
         AdjacencyMatrixAggregationBuilder builder = new AdjacencyMatrixAggregationBuilder("dummy", filters);
-        AggregationContext aggContext = new ProductionAggregationContext(context.getQueryShardContext(), new MatchAllDocsQuery());
+        AggregationContext aggContext = new ProductionAggregationContext(context);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> builder.doBuild(aggContext, null, new AggregatorFactories.Builder()));
         assertThat(ex.getMessage(), equalTo("Number of filters is too large, must be less than or equal to: ["+ maxFilters

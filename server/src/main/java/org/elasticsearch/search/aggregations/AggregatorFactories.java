@@ -40,8 +40,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.Profilers;
-import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -169,15 +167,17 @@ public class AggregatorFactories {
         return factories;
     }
 
-    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory[0]);
+    public static final AggregatorFactories EMPTY = new AggregatorFactories(null, new AggregatorFactory[0]);
 
-    private AggregatorFactory[] factories;
+    private final AggregationContext context;
+    private final AggregatorFactory[] factories;
 
     public static Builder builder() {
         return new Builder();
     }
 
-    private AggregatorFactories(AggregatorFactory[] factories) {
+    private AggregatorFactories(AggregationContext context, AggregatorFactory[] factories) {
+        this.context = context;
         this.factories = factories;
     }
 
@@ -192,32 +192,17 @@ public class AggregatorFactories {
                 throws IOException {
         Aggregator[] aggregators = new Aggregator[countAggregators()];
         for (int i = 0; i < factories.length; ++i) {
-            Aggregator factory = factories[i].create(searchContext, parent, cardinality);
-            Profilers profilers = searchContext.getProfilers();
-            if (profilers != null) {
-                factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
-            }
-            aggregators[i] = factory;
+            aggregators[i] = context.profileIfEnabled(factories[i].create(searchContext, parent, cardinality));
         }
         return aggregators;
     }
 
     public Aggregator[] createTopLevelAggregators(SearchContext searchContext) throws IOException {
-        // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
-        Aggregator[] aggregators = new Aggregator[factories.length];
-        for (int i = 0; i < factories.length; i++) {
-            /*
-             * Top level aggs only collect from owningBucketOrd 0 which is
-             * *exactly* what CardinalityUpperBound.ONE *means*.  
-             */
-            Aggregator factory = factories[i].create(searchContext, null, CardinalityUpperBound.ONE);
-            Profilers profilers = searchContext.getProfilers();
-            if (profilers != null) {
-                factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
-            }
-            aggregators[i] = factory;
-        }
-        return aggregators;
+        /*
+         * Top level aggs only collect from owningBucketOrd 0 which is
+         * *exactly* what CardinalityUpperBound.ONE *means*.
+         */
+        return createSubAggregators(searchContext, null, CardinalityUpperBound.ONE);
     }
 
     /**
@@ -347,7 +332,7 @@ public class AggregatorFactories {
                 aggFactories[i] = agg.build(context, parent);
                 ++i;
             }
-            return new AggregatorFactories(aggFactories);
+            return new AggregatorFactories(context, aggFactories);
         }
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(

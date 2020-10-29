@@ -46,6 +46,7 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
@@ -151,6 +152,14 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         "All bytes should have been read from source",
                         ((CountingBlobContainer) blobContainer).totalBytes.sum(),
                         equalTo((long) input.length)
+                    );
+                    // busy assert that closing of all streams happened because they are closed on background fetcher threads
+                    assertBusy(
+                        () -> assertEquals(
+                            "All open streams should have been closed",
+                            0,
+                            ((CountingBlobContainer) blobContainer).openStreams.get()
+                        )
                     );
                 }
             }
@@ -269,6 +278,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
         private final LongAdder totalBytes = new LongAdder();
         private final LongAdder totalOpens = new LongAdder();
 
+        private final AtomicInteger openStreams = new AtomicInteger(0);
+
         private final int rangeSize;
 
         CountingBlobContainer(BlobContainer in, int rangeSize) {
@@ -309,6 +320,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             super(input);
             this.container = Objects.requireNonNull(container);
             this.container.totalOpens.increment();
+            this.container.openStreams.incrementAndGet();
         }
 
         @Override
@@ -344,6 +356,12 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 end = position;
             }
             return result;
+        }
+
+        @Override
+        public void close() throws IOException {
+            super.close();
+            this.container.openStreams.decrementAndGet();
         }
     }
 }

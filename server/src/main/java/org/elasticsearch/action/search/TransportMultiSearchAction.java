@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -163,17 +164,22 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
             private void handleResponse(final int responseSlot, final MultiSearchResponse.Item item) {
                 responses.set(responseSlot, item);
-                long recall = item.getResponse().getHits().getTotalHits().value;
                 
-                if (recallGoal > 0 && recall >= recallGoal) {
-                    // Early exit. Don't run remaining searches and exit with responses gathered so far
-                    responseCounter.decrementAndGet();
-                    requests.clear();
-                    Item[] result = responses.toArray(new MultiSearchResponse.Item[responses.length()]);
-                    // Trim response of null responses we will never collect
-                    result = Arrays.copyOfRange(result, 0, result.length - responseCounter.get());
-                    listener.onResponse(new MultiSearchResponse(result, buildTookInMillis()));
-                    return;
+                if (recallGoal > 0 ) {
+                    SearchHits hits = item.getResponse().getHits();
+                    if (hits != null) {
+                        long recall = hits.getTotalHits().value;
+                        if (recall >= recallGoal) {                    
+                            // Early exit. Don't run remaining searches and exit with responses gathered so far
+                            responseCounter.decrementAndGet();
+                            requests.clear();
+                            Item[] result = responses.toArray(new MultiSearchResponse.Item[responses.length()]);
+                            // Trim response of null responses we will never collect
+                            result = Arrays.copyOfRange(result, 0, result.length - responseCounter.get());
+                            listener.onResponse(new MultiSearchResponse(result, buildTookInMillis()));
+                            return;
+                        }
+                    }
                 }
                 
                 if (responseCounter.decrementAndGet() == 0) {

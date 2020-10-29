@@ -52,7 +52,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class AggregationProfilerIT extends ESIntegTestCase {
     private static final String BUILD_LEAF_COLLECTOR = AggregationTimingType.BUILD_LEAF_COLLECTOR.toString();
     private static final String COLLECT = AggregationTimingType.COLLECT.toString();
-    private static final String POST_COLLECTION = AggregationTimingType.POST_COLLECTION.toString();
     private static final String INITIALIZE = AggregationTimingType.INITIALIZE.toString();
     private static final String BUILD_AGGREGATION = AggregationTimingType.BUILD_AGGREGATION.toString();
     private static final String REDUCE = AggregationTimingType.REDUCE.toString();
@@ -60,13 +59,11 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         INITIALIZE,
         BUILD_LEAF_COLLECTOR,
         COLLECT,
-        POST_COLLECTION,
         BUILD_AGGREGATION,
         REDUCE,
         INITIALIZE + "_count",
         BUILD_LEAF_COLLECTOR + "_count",
         COLLECT + "_count",
-        POST_COLLECTION + "_count",
         BUILD_AGGREGATION + "_count",
         REDUCE + "_count"
     );
@@ -330,7 +327,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(diversifyBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(diversifyBreakdown.get(BUILD_LEAF_COLLECTOR), greaterThan(0L));
             assertThat(diversifyBreakdown.get(COLLECT), greaterThan(0L));
-            assertThat(diversifyBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(diversifyBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(diversifyBreakdown.get(REDUCE), equalTo(0L));
             assertThat(diversifyAggResult.getDebugInfo(), equalTo(Map.of(DEFERRED, List.of("max"))));
@@ -347,7 +343,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(diversifyBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(diversifyBreakdown.get(BUILD_LEAF_COLLECTOR), greaterThan(0L));
             assertThat(diversifyBreakdown.get(COLLECT), greaterThan(0L));
-            assertThat(diversifyBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
             assertThat(maxAggResult.getDebugInfo(), equalTo(Map.of()));
@@ -391,7 +386,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(histoBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(histoBreakdown.get(BUILD_LEAF_COLLECTOR), greaterThan(0L));
             assertThat(histoBreakdown.get(COLLECT), greaterThan(0L));
-            assertThat(histoBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(histoBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(histoBreakdown.get(REDUCE), equalTo(0L));
             Map<String, Object> histoDebugInfo = histoAggResult.getDebugInfo();
@@ -413,7 +407,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(tagsBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(tagsBreakdown.get(BUILD_LEAF_COLLECTOR), greaterThan(0L));
             assertThat(tagsBreakdown.get(COLLECT), greaterThan(0L));
-            assertThat(tagsBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(tagsBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(tagsBreakdown.get(REDUCE), equalTo(0L));
             assertRemapTermsDebugInfo(tagsAggResult);
@@ -432,7 +425,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_LEAF_COLLECTOR), greaterThan(0L));
             assertThat(avgBreakdown.get(COLLECT), greaterThan(0L));
-            assertThat(avgBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
             assertThat(avgAggResult.getDebugInfo(), equalTo(Map.of()));
@@ -448,7 +440,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(maxBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_LEAF_COLLECTOR), greaterThan(0L));
             assertThat(maxBreakdown.get(COLLECT), greaterThan(0L));
-            assertThat(maxBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
             assertThat(maxAggResult.getDebugInfo(), equalTo(Map.of()));
@@ -464,7 +455,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(stringsBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(stringsBreakdown.get(BUILD_LEAF_COLLECTOR), greaterThan(0L));
             assertThat(stringsBreakdown.get(COLLECT), greaterThan(0L));
-            assertThat(stringsBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(stringsBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(stringsBreakdown.get(REDUCE), equalTo(0L));
             assertRemapTermsDebugInfo(stringsAggResult);
@@ -483,7 +473,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_LEAF_COLLECTOR), greaterThan(0L));
             assertThat(avgBreakdown.get(COLLECT), greaterThan(0L));
-            assertThat(avgBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
             assertThat(avgAggResult.getDebugInfo(), equalTo(Map.of()));
@@ -499,7 +488,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(maxBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_LEAF_COLLECTOR), greaterThan(0L));
             assertThat(maxBreakdown.get(COLLECT), greaterThan(0L));
-            assertThat(maxBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
             assertThat(maxAggResult.getDebugInfo(), equalTo(Map.of()));
@@ -516,7 +504,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(tagsBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(tagsBreakdown.get(BUILD_LEAF_COLLECTOR), greaterThan(0L));
             assertThat(tagsBreakdown.get(COLLECT), greaterThan(0L));
-            assertThat(tagsBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(tagsBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(tagsBreakdown.get(REDUCE), equalTo(0L));
             assertRemapTermsDebugInfo(tagsAggResult);
@@ -535,7 +522,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_LEAF_COLLECTOR), greaterThan(0L));
             assertThat(avgBreakdown.get(COLLECT), greaterThan(0L));
-            assertThat(avgBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
             assertThat(avgAggResult.getDebugInfo(), equalTo(Map.of()));
@@ -551,7 +537,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(maxBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_LEAF_COLLECTOR), greaterThan(0L));
             assertThat(maxBreakdown.get(COLLECT), greaterThan(0L));
-            assertThat(maxBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
             assertThat(maxAggResult.getDebugInfo(), equalTo(Map.of()));

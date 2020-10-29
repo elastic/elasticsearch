@@ -92,7 +92,7 @@ variations examined.
 expansions. Defaults to `0`.
 
 `transpositions`::
-(Optional, boolean) Indicates whether edits include transpositions of two
+(Optional, Boolean) Indicates whether edits include transpositions of two
 adjacent characters (ab → ba). Defaults to `true`.
 
 `rewrite`::

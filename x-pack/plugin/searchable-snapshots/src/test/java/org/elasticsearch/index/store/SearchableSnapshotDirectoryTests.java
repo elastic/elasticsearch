@@ -944,14 +944,14 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     }
 
     // Wait for all operations on the threadpool to complete to make sure we don't leak any reference count releasing and then shut it down
-    private static void terminateSafely(ThreadPool threadPool) throws Exception {
+    public static void terminateSafely(ThreadPool threadPool) throws Exception {
         assertBusy(() -> {
             for (ThreadPoolStats.Stats stat : threadPool.stats()) {
                 assertEquals(stat.getActive(), 0);
                 assertEquals(stat.getQueue(), 0);
             }
         });
-        assertTrue(ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+        assertTrue(ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS));
     }
 
     private static class FaultyReadsFileSystem extends FilterFileSystemProvider {

@@ -1,0 +1,51 @@
+---
+"Test geo_line aggregation on geo points":
+  - do:
+      indices.create:
+        index: races
+        body:
+          mappings:
+            properties:
+              race_id:
+                type: keyword
+              position:
+                type: geo_point
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: races
+              _id: 1
+          - '{"position": "POINT(4.912350 52.374081)", "race_id": "Amsterdam", "timestamp": 4}'
+          - index:
+              _index:  races
+              _id: 2
+          - '{"position": "POINT(4.901618 52.369219)", "race_id": "Amsterdam", "timestamp": 3}'
+          - index:
+              _index: races
+              _id: 3
+          - '{"position": "POINT(4.914722 52.371667)", "race_id": "Amsterdam", "timestamp": 10}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: races
+        size: 0
+        body:
+          aggs:
+            trace:
+              geo_line:
+                point:
+                  field: position
+                sort:
+                  field: timestamp
+  - match: { hits.total: 3 }
+  - match: { aggregations.trace.type: "Feature" }
+  - match: { aggregations.trace.geometry.type: "LineString" }
+  - length: { aggregations.trace.geometry.coordinates: 3 }
+  - match: { aggregations.trace.geometry.coordinates.0: [4.901618, 52.369219] }
+  - match: { aggregations.trace.geometry.coordinates.1: [4.91235, 52.374081] }
+  - match: { aggregations.trace.geometry.coordinates.2: [4.914722, 52.371667] }
+  - is_true: aggregations.trace.properties.complete

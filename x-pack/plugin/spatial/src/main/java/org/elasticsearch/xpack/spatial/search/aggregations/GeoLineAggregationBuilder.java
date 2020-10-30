@@ -91,8 +91,9 @@ public class GeoLineAggregationBuilder
     }
 
     public GeoLineAggregationBuilder size(int size) {
-        if (size > GeoLineAggregator.MAX_PATH_SIZE) {
-            throw new IllegalArgumentException("invalid [size] value [" + size + "] must be <= " + GeoLineAggregator.MAX_PATH_SIZE);
+        if (size <= 0 || size > GeoLineAggregator.MAX_PATH_SIZE) {
+            throw new IllegalArgumentException("invalid [size] value [" + size + "] must be a positive integer <= "
+                + GeoLineAggregator.MAX_PATH_SIZE);
         }
         this.size = size;
         return this;
@@ -130,9 +131,9 @@ public class GeoLineAggregationBuilder
             includeSort, sortOrder, size);
     }
 
-    public GeoLineAggregationBuilder value(MultiValuesSourceFieldConfig valueConfig) {
-        valueConfig = Objects.requireNonNull(valueConfig, "Configuration for field [" + POINT_FIELD + "] cannot be null");
-        field(POINT_FIELD.getPreferredName(), valueConfig);
+    public GeoLineAggregationBuilder point(MultiValuesSourceFieldConfig pointConfig) {
+        pointConfig = Objects.requireNonNull(pointConfig, "Configuration for field [" + POINT_FIELD + "] cannot be null");
+        field(POINT_FIELD.getPreferredName(), pointConfig);
         return this;
     }
 

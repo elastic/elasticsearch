@@ -62,7 +62,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .build();
         MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("sort_field").build();
         GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name")
-            .value(valueConfig)
+            .point(valueConfig)
             .sortOrder(sortOrder)
             .sort(sortConfig);
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")

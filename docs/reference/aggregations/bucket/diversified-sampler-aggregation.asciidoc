@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-diversified-sampler-aggregation]]
-=== Diversified Sampler Aggregation
+=== Diversified sampler aggregation
+++++
+<titleabbrev>Diversified sampler</titleabbrev>
+++++
 
 Like the `sampler` aggregation this is a filtering aggregation used to limit any sub aggregations' processing to a sample of the top-scoring documents.
 The `diversified_sampler` aggregation adds the ability to limit the number of matches that share a common value such as an "author".

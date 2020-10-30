@@ -265,6 +265,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     featureStates = systemIndexDescriptorMap.keySet().stream()
                         .filter(feature -> includeAllFeatureStates || featureStatesSet.contains(feature))
                         .map(feature -> new SnapshotFeatureInfo(feature, resolveFeatureIndexNames(currentState, feature)))
+                        .filter(featureInfo -> featureInfo.getIndices().isEmpty() == false) // Omit any empty featureStates
                         .collect(Collectors.toList());
 
                     // Add all resolved indices from the feature states to the list of indices

@@ -81,7 +81,7 @@ GET /my_index/_search
 --------------------------------
 //TEST[continued]
 
-
+==== Sort values
 For queries with sort on an `unsigned_long` field,
 for a particular document {es} returns a sort value of the type `long`
 if the value of this document is within the range of long values,
@@ -102,9 +102,34 @@ GET /my_index/_search
 --------------------------------
 //TEST[continued]
 
+==== Script values
 Similarly to sort values, script values of an `unsigned_long` field
-return a `Number` representing a `Long` or `BigInteger`.
-The same values: `Long` or `BigInteger` are used for `terms` aggregations.
+return a `Number` representing a `Long` or `BigInteger`. Thus, you
+should design your script to account for this.
+
+For example, a script that multiplies a document value by itself,
+could be written like:
+
+```
+"script": {
+    "source": "def v = doc.my_counter.value; v instanceof BigInteger? v.multiply(v) : v * v"
+}
+```
+
+Or alternatively, you can first convert a document value to `double` and then
+do standard double operations on it:
+
+```
+"script": {
+    "source": "def v = doc.my_counter.value.doubleValue(); v * v"
+}
+```
+
+==== Aggregations
+For `terms` aggregations, similarly to sort values, `Long` or
+`BigInteger` values are used. For other aggregations,
+values are converted to the `double` type.
+
 
 ==== Stored fields
 A stored field of `unsigned_long` is stored and returned as `String`.

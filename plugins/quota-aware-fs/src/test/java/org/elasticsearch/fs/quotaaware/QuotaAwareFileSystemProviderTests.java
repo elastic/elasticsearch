@@ -267,6 +267,7 @@ public class QuotaAwareFileSystemProviderTests extends LuceneTestCase {
         FileSystemProvider systemProvider = quotaFile.getFileSystem().provider();
         DelegatingProvider cyclicProvider = new DelegatingProvider(systemProvider) {
             @Override
+            @SuppressForbidden(reason = "Uses new File() to work around test issue on Windows")
             public Path getPath(URI uri) {
                 try {
                     // This convoluted line is necessary in order to get a valid path on Windows.

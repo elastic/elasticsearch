@@ -1,7 +1,9 @@
 {
   "index_patterns": [".logs-deprecation-elasticsearch"],
   "priority": 1000,
-  "data_stream": {},
+  "data_stream": {
+    "hidden": true
+  },
   "composed_of": [
     ".deprecation-indexing-mappings",
     ".deprecation-indexing-settings"

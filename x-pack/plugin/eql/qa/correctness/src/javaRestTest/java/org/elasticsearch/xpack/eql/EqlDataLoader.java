@@ -10,10 +10,12 @@ import org.apache.http.HttpHost;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 
@@ -21,6 +23,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Properties;
+
+import static org.elasticsearch.test.ESTestCase.assertEquals;
 
 public class EqlDataLoader {
 
@@ -71,13 +75,27 @@ public class EqlDataLoader {
                         ),
                     RequestOptions.DEFAULT
                 );
-            restHighLevelClient.snapshot()
+            RestoreSnapshotResponse resp = restHighLevelClient.snapshot()
                 .restore(
                     new RestoreSnapshotRequest(cfg.getProperty("gcs_repo_name"), cfg.getProperty("gcs_snapshot_name")).waitForCompletion(
                         true
                     ),
                     RequestOptions.DEFAULT
                 );
+
+            assertEquals(
+                "Unable to restore snapshot: "
+                    + resp.getRestoreInfo().toString()
+                    + System.lineSeparator()
+                    + "Please check server logs to find the underlying issue.",
+                1,
+                resp.getRestoreInfo().successfulShards()
+            );
+
+            assertEquals(
+                Long.parseLong(cfg.getProperty("index_doc_count")),
+                restHighLevelClient.count(new CountRequest(cfg.getProperty("index_name")), RequestOptions.DEFAULT).getCount()
+            );
         }
     }
 }

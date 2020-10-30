@@ -95,7 +95,7 @@ public class DiscoveryNodeTests extends ESTestCase {
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
 
-        DiscoveryNodeRole customRole = new DiscoveryNodeRole("custom_role", "z") {
+        DiscoveryNodeRole customRole = new DiscoveryNodeRole("custom_role", "z", true) {
             @Override
             public Setting<Boolean> legacySetting() {
                 return null;
@@ -120,6 +120,7 @@ public class DiscoveryNodeTests extends ESTestCase {
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
+            in.setVersion(Version.CURRENT);
             DiscoveryNode serialized = new DiscoveryNode(in);
             assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()),
                 equalTo("custom_role"));
@@ -131,6 +132,7 @@ public class DiscoveryNodeTests extends ESTestCase {
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
+            in.setVersion(Version.V_7_10_0);
             DiscoveryNode serialized = new DiscoveryNode(in);
             assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()),
                 equalTo("data"));

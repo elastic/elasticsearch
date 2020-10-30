@@ -947,8 +947,10 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.remove(requestId);
         if (timeoutInfoHolder != null) {
             long time = threadPool.relativeTimeInMillis();
-            logger.warn("Received response for a request that has timed out, sent [{}ms] ago, timed out [{}ms] ago, " +
-                    "action [{}], node [{}], id [{}]", time - timeoutInfoHolder.sentTime(), time - timeoutInfoHolder.timeoutTime(),
+            logger.warn("Received response for a request that has timed out, sent [{}/{}ms] ago, timed out [{}/{}ms] ago, " +
+                    "action [{}], node [{}], id [{}]",
+                TimeValue.timeValueMillis(time - timeoutInfoHolder.sentTime()), time - timeoutInfoHolder.sentTime(),
+                TimeValue.timeValueMillis(time - timeoutInfoHolder.timeoutTime()), time - timeoutInfoHolder.timeoutTime(),
                 timeoutInfoHolder.action(), timeoutInfoHolder.node(), requestId);
             action = timeoutInfoHolder.action();
             sourceNode = timeoutInfoHolder.node();

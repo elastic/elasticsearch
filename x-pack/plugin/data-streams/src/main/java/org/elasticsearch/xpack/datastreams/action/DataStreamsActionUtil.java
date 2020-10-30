@@ -16,16 +16,10 @@ import java.util.List;
 public class DataStreamsActionUtil {
 
     /**
-     * Get data streams names using {@link IndicesOptions} provided.
+     * Gets data streams names, expanding wildcards using {@link IndicesOptions} provided.
      * For data streams we only care for {@link IndicesOptions.WildcardStates}.HIDDEN state (we can't have closed or open data streams),
      * but we have to have either OPEN or CLOSE to have any names returned from {@link IndexNameExpressionResolver}. So here we always
      * add OPEN to make sure that happens.
-     *
-     * @param indexNameExpressionResolver
-     * @param currentState
-     * @param names
-     * @param indicesOptions
-     * @return
      */
     public static List<String> getDataStreamNames(IndexNameExpressionResolver indexNameExpressionResolver, ClusterState currentState,
                                                   String[] names, IndicesOptions indicesOptions) {

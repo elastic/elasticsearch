@@ -527,12 +527,12 @@ public class TokenServiceTests extends ESTestCase {
         when(securityMainIndex.indexExists()).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
-        PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String rawRefreshToken = UUIDs.randomBase64UUID();
         tokenService.createOAuth2Tokens(userTokenId, rawRefreshToken, authentication, authentication, Collections.emptyMap(), tokenFuture);
-        final String accessToken = tokenFuture.get().v1();
-        final String clientRefreshToken = tokenFuture.get().v2();
+        final String accessToken = tokenFuture.get().getAccessToken();
+        final String clientRefreshToken = tokenFuture.get().getRefreshToken();
         assertNotNull(accessToken);
         mockFindTokenFromRefreshToken(rawRefreshToken, buildUserToken(tokenService, userTokenId, authentication), null);
 
@@ -553,12 +553,12 @@ public class TokenServiceTests extends ESTestCase {
         when(securityMainIndex.indexExists()).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
-        PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String rawRefreshToken = UUIDs.randomBase64UUID();
         tokenService.createOAuth2Tokens(userTokenId, rawRefreshToken, authentication, authentication, Collections.emptyMap(), tokenFuture);
-        final String accessToken = tokenFuture.get().v1();
-        final String clientRefreshToken = tokenFuture.get().v2();
+        final String accessToken = tokenFuture.get().getAccessToken();
+        final String clientRefreshToken = tokenFuture.get().getRefreshToken();
         assertNotNull(accessToken);
         mockFindTokenFromRefreshToken(rawRefreshToken, buildUserToken(tokenService, userTokenId, authentication),
             new RefreshTokenStatus(true, randomAlphaOfLength(12), randomAlphaOfLength(6), false, null, null, null, null)

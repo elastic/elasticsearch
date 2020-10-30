@@ -92,9 +92,9 @@ public enum XContentType implements MediaType {
         @Override
         public Set<Tuple<String, Map<String, String>>> mediaTypeMappings() {
             return Set.of(
-                Tuple.tuple("application/smile", Collections.emptyMap()),
+                Tuple.tuple("application/smile", Map.of("charset", "UTF-8")),
                 Tuple.tuple("application/vnd.elasticsearch+smile",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8")));
         }
     },
     /**
@@ -146,9 +146,9 @@ public enum XContentType implements MediaType {
         @Override
         public Set<Tuple<String, Map<String, String>>> mediaTypeMappings() {
             return Set.of(
-                Tuple.tuple("application/cbor", Collections.emptyMap()),
+                Tuple.tuple("application/cbor", Map.of("charset", "UTF-8")),
                 Tuple.tuple("application/vnd.elasticsearch+cbor",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN,"charset", "UTF-8")));
         }
     };
 

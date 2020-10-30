@@ -34,11 +34,6 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
     public static final String DEPRECATION_INDEXING_TEMPLATE_NAME = ".deprecation-indexing-template";
     public static final String DEPRECATION_INDEXING_POLICY_NAME = ".deprecation-indexing-ilm-policy";
 
-    @Override
-    protected boolean requiresMasterNode() {
-        return true;
-    }
-
     public static final IndexTemplateConfig DEPRECATION_INDEXING_MAPPINGS = new IndexTemplateConfig(
         DEPRECATION_INDEXING_MAPPINGS_NAME,
         "/org/elasticsearch/xpack/deprecation/deprecation-indexing-mappings.json",

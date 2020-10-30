@@ -211,8 +211,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     private static Decision debugNoMissingAttribute(String awarenessAttribute, List<String> awarenessAttributes) {
         return Decision.single(Decision.Type.NO, NAME,
-                "node does not contain the awareness attribute [%s]; required attributes cluster setting ["
-                        + CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey() + "=%s]", awarenessAttribute,
+                "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]", awarenessAttribute,
+                CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
                 Strings.collectionToCommaDelimitedString(awarenessAttributes));
     }
 }

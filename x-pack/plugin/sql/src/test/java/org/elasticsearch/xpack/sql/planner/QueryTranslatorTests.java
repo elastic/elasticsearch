@@ -2257,9 +2257,9 @@ public class QueryTranslatorTests extends ESTestCase {
             new SqlTypedParamValue("integer", 100),
             new SqlTypedParamValue("integer", 200)));
         assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
-        assertThat(p.output().get(0).toString(), startsWith("?1{r}#"));
-        assertThat(p.output().get(1).toString(), startsWith("?2{r}#"));
-        assertThat(p.output().get(2).toString(), startsWith("?3{r}#"));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(2).toString(), startsWith("?{r}#"));
     }
 
     public void testFoldingWithMixedParamsWithoutAlias() {
@@ -2267,7 +2267,29 @@ public class QueryTranslatorTests extends ESTestCase {
             new SqlTypedParamValue("integer", 100),
             new SqlTypedParamValue("text", "200")));
         assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
-        assertThat(p.output().get(0).toString(), startsWith("?1{r}#"));
-        assertThat(p.output().get(1).toString(), startsWith("?2{r}#"));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
+    }
+
+    public void testSameExpressionWithoutAlias() {
+        PhysicalPlan physicalPlan = optimizeAndPlan("SELECT 100, 100 FROM test");
+        assertEquals(EsQueryExec.class, physicalPlan.getClass());
+        EsQueryExec eqe = (EsQueryExec) physicalPlan;
+        assertEquals(2, eqe.output().size());
+        assertThat(eqe.output().get(0).toString(), startsWith("100{r}#"));
+        assertThat(eqe.output().get(1).toString(), startsWith("100{r}#"));
+        // these two should be semantically different reference attributes
+        assertNotEquals(eqe.output().get(0).id(), eqe.output().get(1).id());
+    }
+
+    public void testMath() {
+        PhysicalPlan physicalPlan = optimizeAndPlan("SELECT ABS(int) m, text FROM test WHERE int < 10010 ORDER BY int");
+        assertEquals(EsQueryExec.class, physicalPlan.getClass());
+        EsQueryExec eqe = (EsQueryExec) physicalPlan;
+//        assertEquals(2, eqe.output().size());
+//        assertThat(eqe.output().get(0).toString(), startsWith("100{r}#"));
+//        assertThat(eqe.output().get(1).toString(), startsWith("100{r}#"));
+//         these two should be semantically different reference attributes
+//        assertNotEquals(eqe.output().get(0).id(), eqe.output().get(1).id());
     }
 }

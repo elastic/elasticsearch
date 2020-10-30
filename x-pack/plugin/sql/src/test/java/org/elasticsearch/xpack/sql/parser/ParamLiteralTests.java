@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -38,9 +38,9 @@ public class ParamLiteralTests extends ESTestCase {
             new SqlTypedParamValue("integer", 200)
         );
         List<? extends NamedExpression> projections = ((Project) logicalPlan.children().get(0)).projections();
-        assertThat(projections, everyItem(instanceOf(Alias.class)));
-        assertThat(projections.get(0).toString(), startsWith("100 AS ?1#"));
-        assertThat(projections.get(1).toString(), startsWith("200 AS ?2#"));
+        assertThat(projections, everyItem(instanceOf(UnresolvedAlias.class)));
+        assertThat(projections.get(0).toString(), startsWith("100 AS ?"));
+        assertThat(projections.get(1).toString(), startsWith("200 AS ?"));
     }
 
     public void testMultipleParamLiteralsWithUnresolvedAliasesAndWhereClause() {
@@ -52,10 +52,10 @@ public class ParamLiteralTests extends ESTestCase {
         );
         Project project = (Project) logicalPlan.children().get(0);
         List<? extends NamedExpression> projections = project.projections();
-        assertThat(projections, everyItem(instanceOf(Alias.class)));
-        assertThat(projections.get(0).toString(), startsWith("100 AS ?1#"));
-        assertThat(projections.get(1).toString(), startsWith("100 AS ?2#"));
-        assertThat(projections.get(2).toString(), startsWith("200 AS ?3#"));
+        assertThat(projections, everyItem(instanceOf(UnresolvedAlias.class)));
+        assertThat(projections.get(0).toString(), startsWith("100 AS ?"));
+        assertThat(projections.get(1).toString(), startsWith("100 AS ?"));
+        assertThat(projections.get(2).toString(), startsWith("200 AS ?"));
         assertThat(project.children().get(0), instanceOf(Filter.class));
         Filter filter = (Filter) project.children().get(0);
         assertThat(filter.condition(), instanceOf(LessThan.class));
@@ -71,9 +71,9 @@ public class ParamLiteralTests extends ESTestCase {
             new SqlTypedParamValue("text", "200")
         );
         List<? extends NamedExpression> projections = ((Project) logicalPlan.children().get(0)).projections();
-        assertThat(projections, everyItem(instanceOf(Alias.class)));
-        assertThat(projections.get(0).toString(), startsWith("100 AS ?1#"));
-        assertThat(projections.get(1).toString(), startsWith("200 AS ?2#"));
+        assertThat(projections, everyItem(instanceOf(UnresolvedAlias.class)));
+        assertThat(projections.get(0).toString(), startsWith("100 AS ?"));
+        assertThat(projections.get(1).toString(), startsWith("200 AS ?"));
     }
 
     public void testParamLiteralsWithResolvedAndUnresolvedAliases() {
@@ -83,10 +83,9 @@ public class ParamLiteralTests extends ESTestCase {
             new SqlTypedParamValue("integer", 300)
         );
         List<? extends NamedExpression> projections = ((Project) logicalPlan.children().get(0)).projections();
-        assertThat(projections, everyItem(instanceOf(Alias.class)));
-        assertThat(projections.get(0).toString(), startsWith("100 AS ?1#"));
+        assertThat(projections.get(0).toString(), startsWith("100 AS ?"));
         assertThat(projections.get(1).toString(), startsWith("200 AS x#"));;
-        assertThat(projections.get(2).toString(), startsWith("300 AS ?3#"));;
+        assertThat(projections.get(2).toString(), startsWith("300 AS ?"));;
     }
 
 }

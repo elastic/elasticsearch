@@ -168,10 +168,10 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (alias != null) {
             return new Alias(source, alias, exp);
         }
-        if (exp instanceof Alias) {
+        /*if (exp instanceof Alias) {
             // this can happen only if we hit an originally unaliased param literal
             return exp;
-        }
+        }*/
         return new UnresolvedAlias(source, exp);
     }
 
@@ -708,13 +708,15 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitParamLiteral(ParamLiteralContext ctx) {
         Source source = source(ctx);
+        return createParamLiteral(ctx, source);
+        /*
         Literal paramLiteral = createParamLiteral(ctx, source);
         SelectExpressionContext selectExpressionContext = firstParentOf(ctx, SelectExpressionContext.class);
         if (selectExpressionContext != null && selectExpressionContext.identifier() == null) {
             int paramIndex = param(ctx.PARAM()).getIndex();
             return new Alias(source, "?" + paramIndex, paramLiteral);
         }
-        return paramLiteral;
+        return paramLiteral;*/
     }
 
     private Literal createParamLiteral(ParamLiteralContext ctx, Source source) {

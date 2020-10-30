@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,14 +46,14 @@ public class Pivot extends UnaryPlan {
     public Pivot(Source source, LogicalPlan child, Expression column, List<NamedExpression> values, List<NamedExpression> aggregates) {
         this(source, child, column, values, aggregates, null);
     }
-    
+
     public Pivot(Source source, LogicalPlan child, Expression column, List<NamedExpression> values, List<NamedExpression> aggregates,
             List<Attribute> grouping) {
         super(source, child);
         this.column = column;
         this.values = values;
         this.aggregates = aggregates;
-        
+
         // resolve the grouping set ASAP so it doesn't get re-resolved after analysis (since the aliasing information has been removed)
         if (grouping == null && expressionsResolved()) {
             AttributeSet columnSet = Expressions.references(singletonList(column));
@@ -90,11 +91,11 @@ public class Pivot extends UnaryPlan {
     public List<NamedExpression> aggregates() {
         return aggregates;
     }
-    
+
     public List<Attribute> groupings() {
         return grouping;
     }
-    
+
     public AttributeSet groupingSet() {
         if (groupingSet == null) {
             throw new SqlIllegalArgumentException("Cannot determine grouping in unresolved PIVOT");
@@ -131,10 +132,11 @@ public class Pivot extends UnaryPlan {
         }
         return valueOutput;
     }
-    
+
     public AttributeMap<Literal> valuesToLiterals() {
         AttributeSet outValues = valuesOutput();
         Map<Attribute, Literal> valuesMap = new LinkedHashMap<>();
+        List<Attribute> allAttributes = new LinkedList<>();
 
         int index = 0;
         // for each attribute, associate its value
@@ -145,6 +147,7 @@ public class Pivot extends UnaryPlan {
             // everything should have resolved to an alias
             if (namedExpression instanceof Alias) {
                 valuesMap.put(attribute, Literal.of(((Alias) namedExpression).child()));
+                allAttributes.add(attribute);
             }
             // fallback - verifier should prevent this
             else {
@@ -152,7 +155,7 @@ public class Pivot extends UnaryPlan {
             }
         }
 
-        return new AttributeMap<>(valuesMap);
+        return new AttributeMap<>(valuesMap, allAttributes);
     }
 
     @Override
@@ -183,17 +186,17 @@ public class Pivot extends UnaryPlan {
     public int hashCode() {
         return Objects.hash(column, values, aggregates, child());
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         Pivot other = (Pivot) obj;
         return Objects.equals(column, other.column)
                 && Objects.equals(values, other.values)

@@ -48,7 +48,8 @@ public class SearchFieldsTests extends ESTestCase {
         MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text");
         MappedFieldType result = searchFields.failIfFieldMappingNotFound("name", fieldType);
         assertThat(result, sameInstance(fieldType));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> searchFields.failIfFieldMappingNotFound("name", null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> searchFields.failIfFieldMappingNotFound("name", null));
         assertEquals("No field mapping can be found for the field with name [name]", e.getMessage());
 
         searchFields.setAllowUnmappedFields(true);

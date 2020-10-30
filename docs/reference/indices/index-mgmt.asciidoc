@@ -23,15 +23,13 @@ You'll learn how to:
 [[index-mgm-req-permissions]]
 === Required permissions
 
-If you use {es} {security-features}, the following <<security-privileges,security
-privileges>> are required:
+If you use {es} {security-features}, the following
+<<security-privileges,security privileges>> are required:
 
-* The `monitor` cluster privilege is required to access {kib}'s *Index
-Management* features.
-* The `view_index_metadata` and `manage` index privileges to required view a
-data stream or index's data.
-* The `manage_index_templates` cluster privilege is required to manage index
-templates.
+* The `monitor` cluster privilege to access {kib}'s *Index Management* features.
+* The `view_index_metadata` and `manage` index privileges to view a data stream
+or index's data.
+* The `manage_index_templates` cluster privilege to manage index templates.
 
 To add these privileges in {kib}, go to *Stack Management > Security > Roles*.
 

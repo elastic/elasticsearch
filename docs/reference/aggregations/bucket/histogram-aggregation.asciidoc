@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-histogram-aggregation]]
-=== Histogram Aggregation
+=== Histogram aggregation
+++++
+<titleabbrev>Histogram</titleabbrev>
+++++
 
 A multi-bucket values source based aggregation that can be applied on numeric values or numeric range values extracted
 from the documents. It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the

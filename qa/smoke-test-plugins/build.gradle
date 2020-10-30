@@ -24,6 +24,10 @@ apply plugin: 'elasticsearch.rest-test'
 
 ext.pluginsCount = 0
 project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+  if (pluginName == 'quota-aware-fs') {
+    // This plugin has to be configured to work via system properties
+    return
+  }
   integTestCluster {
     plugin pluginProject.path
   }

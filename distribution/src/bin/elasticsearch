@@ -20,6 +20,14 @@ ES_JVM_OPTIONS="$ES_PATH_CONF"/jvm.options
 JVM_OPTIONS=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_JVM_OPTIONS"`
 ES_JAVA_OPTS="${JVM_OPTIONS//\$\{ES_TMPDIR\}/$ES_TMPDIR} $ES_JAVA_OPTS"
 
+# If the quote-aware filesystem plugin is installed, then we need to pass extra
+# flags to Java in order to use the plugin.
+if [[ -d "$ES_HOME/plugins/quota-aware-fs" ]]; then
+  PLUGIN_JAR_PATH="$(find "$ES_HOME/plugins/quota-aware-fs" -name quota-aware-fs\*.jar)"
+  ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.nio.file.spi.DefaultFileSystemProvider=org.elasticsearch.fs.quotaaware.QuotaAwareFileSystemProvider"
+  ES_JAVA_OPTS="$ES_JAVA_OPTS -Xbootclasspath/a:$PLUGIN_JAR_PATH"
+fi
+
 cd "$ES_HOME"
 # manual parsing to find out, if process should be detached
 if ! echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )' > /dev/null; then

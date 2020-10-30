@@ -70,8 +70,10 @@ integTestCluster {
 // build the cluster with all plugins
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
   /* Skip repositories. We just aren't going to be able to test them so it
-   * doesn't make sense to waste time installing them. */
-  if (subproj.path.startsWith(':plugins:repository-')) {
+   * doesn't make sense to waste time installing them.
+   * Also skip quota-aware-fs since it has to be configured in order to use
+   * it, otherwise ES will not start. */
+  if (subproj.path.startsWith(':plugins:repository-') || subproj.path.startsWith(':plugins:quota-aware-fs')) {
     return
   }
   subproj.afterEvaluate { // need to wait until the project has been configured

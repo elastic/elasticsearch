@@ -1,0 +1,6 @@
+esplugin {
+  description 'A bootstrap plugin that adds support for interfacing with filesystem that enforce user quotas.'
+  classname '<none>'
+}
+
+integTest.enabled = false

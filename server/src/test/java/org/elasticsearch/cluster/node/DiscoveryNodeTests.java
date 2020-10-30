@@ -91,7 +91,6 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertEquals(transportAddress.getPort(), serialized.getAddress().getPort());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64385")
     public void testDiscoveryNodeRoleWithOldVersion() throws Exception {
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));

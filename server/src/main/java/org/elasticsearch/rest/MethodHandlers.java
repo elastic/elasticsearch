@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.Version;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,13 +31,14 @@ import java.util.Set;
 final class MethodHandlers {
 
     private final String path;
-    private final Map<RestRequest.Method, RestHandler> methodHandlers;
+    private final Map<RestRequest.Method, Map<Version, RestHandler>> methodHandlers;
 
-    MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
+    MethodHandlers(String path, RestHandler handler, Version version,  RestRequest.Method... methods) {
         this.path = path;
         this.methodHandlers = new HashMap<>(methods.length);
         for (RestRequest.Method method : methods) {
-            methodHandlers.put(method, handler);
+            methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
+                .put(version, handler);
         }
     }
 
@@ -45,9 +46,10 @@ final class MethodHandlers {
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    MethodHandlers addMethods(RestHandler handler, RestRequest.Method... methods) {
+    MethodHandlers addMethods(RestHandler handler, Version version, RestRequest.Method... methods) {
         for (RestRequest.Method method : methods) {
-            RestHandler existing = methodHandlers.putIfAbsent(method, handler);
+            RestHandler existing = methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
+                .putIfAbsent(version, handler);
             if (existing != null) {
                 throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
             }
@@ -56,11 +58,16 @@ final class MethodHandlers {
     }
 
     /**
-     * Returns the handler for the given method or {@code null} if none exists.
+     * Returns the handler for the given method and version or {@code null} if none exists.
      */
-    @Nullable
-    RestHandler getHandler(RestRequest.Method method) {
-        return methodHandlers.get(method);
+    RestHandler getHandler(RestRequest.Method method, Version version) {
+        Map<Version, RestHandler> versionToHandlers = methodHandlers.get(method);
+        if (versionToHandlers == null) {
+            return null; //method not found
+        }
+        final RestHandler handler = versionToHandlers.get(version);
+        return handler != null || version.equals(Version.CURRENT) ? handler : versionToHandlers.get(Version.CURRENT);
+
     }
 
     /**

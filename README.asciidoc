@@ -194,7 +194,17 @@ Elasticsearch uses https://gradle.org[Gradle] for its build system.
 
 In order to create a distribution, simply run the `./gradlew assemble` command in the cloned directory.
 
-The distribution will be created under the `distribution/build/outputs` directory in the cloned directory root.
+To build distributions from your local Elasticsearch repo, run:
+----
+./gradlew assemble
+----
+To build the distribution for a specific platform, run the related command:
+----
+./gradlew :distribution:archives:linux-tar:assemble
+./gradlew :distribution:archives:darwin-tar:assemble
+./gradlew :distribution:archives:windows-zip:assemble
+----
+Finished distributions are output to `distributions/archives`.
 
 See the xref:TESTING.asciidoc[TESTING] for more information about running the Elasticsearch test suite.
 

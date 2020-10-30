@@ -111,11 +111,6 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         processBufferedDocs();
     }
 
-    @Override
-    protected void doPostCollection() throws IOException {
-        processBufferedDocs();
-    }
-
     private void processBufferedDocs() throws IOException {
         if (bufferingNestedLeafBucketCollector != null) {
             bufferingNestedLeafBucketCollector.processBufferedChildBuckets();
@@ -124,6 +119,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        processBufferedDocs();
         return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
             new InternalNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }

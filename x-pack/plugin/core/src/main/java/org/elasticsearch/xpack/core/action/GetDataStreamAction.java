@@ -159,6 +159,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), dataStream.getTimeStampField());
                 builder.field(DataStream.INDICES_FIELD.getPreferredName(), dataStream.getIndices());
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
+                if (dataStream.getMetadata() != null) {
+                    builder.field(DataStream.METADATA_FIELD.getPreferredName(), dataStream.getMetadata());
+                }
                 builder.field(STATUS_FIELD.getPreferredName(), dataStreamStatus);
                 if (indexTemplate != null) {
                     builder.field(INDEX_TEMPLATE_FIELD.getPreferredName(), indexTemplate);

@@ -59,6 +59,7 @@
         }
     }
   },
+  "allow_auto_create": true,
   "_meta": {
     "description": "index template for watches indices",
     "managed": true

@@ -21,8 +21,12 @@ public class DataStreamsActionUtil {
      * but we have to have either OPEN or CLOSE to have any names returned from {@link IndexNameExpressionResolver}. So here we always
      * add OPEN to make sure that happens.
      */
-    public static List<String> getDataStreamNames(IndexNameExpressionResolver indexNameExpressionResolver, ClusterState currentState,
-                                                  String[] names, IndicesOptions indicesOptions) {
+    public static List<String> getDataStreamNames(
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterState currentState,
+        String[] names,
+        IndicesOptions indicesOptions
+    ) {
         EnumSet<IndicesOptions.WildcardStates> expandWildcards = indicesOptions.getExpandWildcards();
         expandWildcards.add(IndicesOptions.WildcardStates.OPEN);
         indicesOptions = new IndicesOptions(indicesOptions.getOptions(), expandWildcards);

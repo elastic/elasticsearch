@@ -48,7 +48,7 @@ GET /my-index-000001/_search
 // TEST[setup:my_index]
 // TEST[s/my-field/http.request.method/]
 
-Aggregation results are in the response's `aggregations` property:
+Aggregation results are in the response's `aggregations` object:
 
 [source,console-result]
 ----

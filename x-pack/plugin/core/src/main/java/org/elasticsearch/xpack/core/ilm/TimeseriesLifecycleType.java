@@ -40,7 +40,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String DELETE_PHASE = "delete";
     static final List<String> VALID_PHASES = Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, DELETE_PHASE);
     static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
-        ForceMergeAction.NAME);
+        ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         AllocateAction.NAME, MigrateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
@@ -50,14 +50,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
     static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
     static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
-    private static final Map<String, Set<String>> ALLOWED_ACTIONS = new HashMap<>();
+    private static final Map<String, Set<String>> ALLOWED_ACTIONS = Map.of(
+        HOT_PHASE, VALID_HOT_ACTIONS,
+        WARM_PHASE, VALID_WARM_ACTIONS,
+        COLD_PHASE, VALID_COLD_ACTIONS,
+        DELETE_PHASE, VALID_DELETE_ACTIONS);
 
-    static {
-        ALLOWED_ACTIONS.put(HOT_PHASE, VALID_HOT_ACTIONS);
-        ALLOWED_ACTIONS.put(WARM_PHASE, VALID_WARM_ACTIONS);
-        ALLOWED_ACTIONS.put(COLD_PHASE, VALID_COLD_ACTIONS);
-        ALLOWED_ACTIONS.put(DELETE_PHASE, VALID_DELETE_ACTIONS);
-    }
+    static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Sets.newHashSet(ShrinkAction.NAME, ForceMergeAction.NAME);
 
     private TimeseriesLifecycleType() {
     }
@@ -157,16 +156,16 @@ public class TimeseriesLifecycleType implements LifecycleType {
         Map<String, LifecycleAction> actions = phase.getActions();
         switch (phase.getName()) {
             case HOT_PHASE:
-                return ORDERED_VALID_HOT_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
+                return ORDERED_VALID_HOT_ACTIONS.stream().map(actions::get)
                     .filter(Objects::nonNull).collect(toList());
             case WARM_PHASE:
-                return ORDERED_VALID_WARM_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
+                return ORDERED_VALID_WARM_ACTIONS.stream().map(actions::get)
                     .filter(Objects::nonNull).collect(toList());
             case COLD_PHASE:
-                return ORDERED_VALID_COLD_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
+                return ORDERED_VALID_COLD_ACTIONS.stream().map(actions::get)
                     .filter(Objects::nonNull).collect(toList());
             case DELETE_PHASE:
-                return ORDERED_VALID_DELETE_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
+                return ORDERED_VALID_DELETE_ACTIONS.stream().map(actions::get)
                     .filter(Objects::nonNull).collect(toList());
             default:
                 throw new IllegalArgumentException("lifecycle type[" + TYPE + "] does not support phase[" + phase.getName() + "]");
@@ -177,20 +176,20 @@ public class TimeseriesLifecycleType implements LifecycleType {
     public String getNextActionName(String currentActionName, Phase phase) {
         List<String> orderedActionNames;
         switch (phase.getName()) {
-        case HOT_PHASE:
-            orderedActionNames = ORDERED_VALID_HOT_ACTIONS;
-            break;
-        case WARM_PHASE:
-            orderedActionNames = ORDERED_VALID_WARM_ACTIONS;
-            break;
-        case COLD_PHASE:
-            orderedActionNames = ORDERED_VALID_COLD_ACTIONS;
-            break;
-        case DELETE_PHASE:
-            orderedActionNames = ORDERED_VALID_DELETE_ACTIONS;
-            break;
-        default:
-            throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
+            case HOT_PHASE:
+                orderedActionNames = ORDERED_VALID_HOT_ACTIONS;
+                break;
+            case WARM_PHASE:
+                orderedActionNames = ORDERED_VALID_WARM_ACTIONS;
+                break;
+            case COLD_PHASE:
+                orderedActionNames = ORDERED_VALID_COLD_ACTIONS;
+                break;
+            case DELETE_PHASE:
+                orderedActionNames = ORDERED_VALID_DELETE_ACTIONS;
+                break;
+            default:
+                throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
         }
 
         int index = orderedActionNames.indexOf(currentActionName);
@@ -226,17 +225,18 @@ public class TimeseriesLifecycleType implements LifecycleType {
             });
         });
 
-        // Check for forcemerge in 'hot' without a rollover action
-        if (phases.stream()
+        // Check for actions in the hot phase that require a rollover
+        String invalidHotPhaseActions = phases.stream()
             // Is there a hot phase
             .filter(phase -> HOT_PHASE.equals(phase.getName()))
-            // That contains the 'forcemerge' action
-            .filter(phase -> phase.getActions().containsKey(ForceMergeAction.NAME))
-            // But does *not* contain the 'rollover' action?
-            .anyMatch(phase -> phase.getActions().containsKey(RolloverAction.NAME) == false)) {
-            // If there is, throw an exception
-            throw new IllegalArgumentException("the [" + ForceMergeAction.NAME +
-                "] action may not be used in the [" + HOT_PHASE +
+            // that does *not* contain the 'rollover' action
+            .filter(phase -> phase.getActions().containsKey(RolloverAction.NAME) == false)
+            // but that does have actions that require a rollover action?
+            .flatMap(phase -> Sets.intersection(phase.getActions().keySet(), HOT_ACTIONS_THAT_REQUIRE_ROLLOVER).stream())
+            .collect(Collectors.joining(", "));
+        if (Strings.hasText(invalidHotPhaseActions)) {
+            throw new IllegalArgumentException("the [" + invalidHotPhaseActions +
+                "] action(s) may not be used in the [" + HOT_PHASE +
                 "] phase without an accompanying [" + RolloverAction.NAME + "] action");
         }
 

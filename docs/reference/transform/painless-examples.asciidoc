@@ -18,15 +18,23 @@ more about the Painless scripting language in the
 * <<painless-compare>>
 * <<painless-web-session>>
 
-NOTE: While the context of the following examples is the {transform} use case, 
+[NOTE] 
+--
+* While the context of the following examples is the {transform} use case, 
 the Painless scripts in the snippets below can be used in other {es} search 
 aggregations, too.
+* All the following examples use scripts, {transforms} cannot deduce mappings of 
+output fields when the fields are created by a script. {transforms-cap} don't 
+create any mappings in the the destination index for these fields, which means 
+they get dynamically mapped. Create the destination index prior to starting the 
+{transform} in case you want explicit mappings.
+--
 
 [[painless-top-hits]]
 == Getting top hits by using scripted metric aggregation
 
 This snippet shows how to find the latest document, in other words the document 
-with the earliest timestamp. From a technical perspective, it helps to achieve 
+with the latest timestamp. From a technical perspective, it helps to achieve 
 the function of a <<search-aggregations-metrics-top-hits-aggregation>> by using 
 scripted metric aggregation in a {transform}, which provides a metric output.
 
@@ -82,7 +90,7 @@ You can retrieve the last value in a similar way:
     "scripted_metric": {
       "init_script": "state.timestamp_latest = 0L; state.last_value = ''",
       "map_script": """
-        def current_date = doc['date'].getValue().toInstant().toEpochMilli(); 
+        def current_date = doc['@timestamp'].getValue().toInstant().toEpochMilli(); 
         if (current_date > state.timestamp_latest) 
         {state.timestamp_latest = current_date;
         state.last_value = params['_source']['value'];}

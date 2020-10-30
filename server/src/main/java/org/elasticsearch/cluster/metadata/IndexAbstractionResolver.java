@@ -131,23 +131,18 @@ public class IndexAbstractionResolver {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
         }
         final boolean isHidden = indexAbstraction.isHidden();
+        boolean isVisible = isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index);
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             //complicated to support those options with aliases pointing to multiple indices...
-            if (indicesOptions.ignoreAliases()) {
-                return false;
-            } else if (isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index)) {
-                return true;
-            } else {
-                return false;
-            }
+            return isVisible && indicesOptions.ignoreAliases() == false;
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-            return includeDataStreams;
+            return isVisible && includeDataStreams;
         }
         assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
         IndexMetadata indexMetadata = indexAbstraction.getIndices().get(0);
-        if (isHidden && indicesOptions.expandWildcardsHidden() == false && isVisibleDueToImplicitHidden(expression, index) == false) {
+        if (isVisible == false) {
             return false;
         }
 

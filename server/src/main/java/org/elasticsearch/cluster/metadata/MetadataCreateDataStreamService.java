@@ -159,7 +159,7 @@ public class MetadataCreateDataStreamService {
         if (dataStreamName.toLowerCase(Locale.ROOT).equals(dataStreamName) == false) {
             throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must be lowercase");
         }
-        if (request.name.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+        if (dataStreamName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
             throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must not start with '"
                 + DataStream.BACKING_INDEX_PREFIX + "'");
         }
@@ -190,6 +190,7 @@ public class MetadataCreateDataStreamService {
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
         List<Index> dsBackingIndices = backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList());
         dsBackingIndices.add(writeIndex.getIndex());
+        boolean hidden = template.getDataStreamTemplate().isHidden();
         DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1L,
                                                   template.metadata() != null ? Map.copyOf(template.metadata()) : null, hidden);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);

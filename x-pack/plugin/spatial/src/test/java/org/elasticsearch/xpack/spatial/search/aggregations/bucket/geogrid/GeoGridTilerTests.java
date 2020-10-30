@@ -30,7 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +64,7 @@ public class GeoGridTilerTests extends ESTestCase {
         Rectangle shapeRectangle = new Rectangle(tile.getMinX() + 0.00001, tile.getMaxX() - 0.00001,
             tile.getMaxY() - 0.00001,  tile.getMinY() + 0.00001);
         GeometryDocValueReader reader = GeometryDocValueReader(shapeRectangle, CoordinateEncoder.GEO);
-        MultiGeoShapeValues.GeoShapeValue value = new MultiGeoShapeValues.GeoShapeValue(reader);
+        GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue(reader);
         // test shape within tile bounds
         {
             GeoShapeCellValues values = new GeoShapeCellValues(null, precision, GEOTILE, NOOP_BREAKER);
@@ -117,7 +117,7 @@ public class GeoGridTilerTests extends ESTestCase {
 
             GeometryDocValueReader reader = GeometryDocValueReader(geometry, CoordinateEncoder.GEO);
             GeoBoundingBox geoBoundingBox = randomBBox();
-            MultiGeoShapeValues.GeoShapeValue value = new MultiGeoShapeValues.GeoShapeValue(reader);
+            GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue(reader);
             GeoShapeCellValues cellValues = new GeoShapeCellValues(null, precision, GEOTILE, NOOP_BREAKER);
 
             int numTiles = new BoundedGeoTileGridTiler(geoBoundingBox).setValues(cellValues, value, precision);
@@ -143,7 +143,7 @@ public class GeoGridTilerTests extends ESTestCase {
             }, () -> boxToGeo(randomBBox())));
 
             GeometryDocValueReader reader = GeometryDocValueReader(geometry, CoordinateEncoder.GEO);
-            MultiGeoShapeValues.GeoShapeValue value = new MultiGeoShapeValues.GeoShapeValue(reader);
+            GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue(reader);
             GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(null, precision, GEOTILE, NOOP_BREAKER);
             int numTiles = GEOTILE.setValues(unboundedCellValues, value, precision);
             int expected = numTiles(value, precision);
@@ -176,7 +176,7 @@ public class GeoGridTilerTests extends ESTestCase {
                 continue;
             }
             GeometryDocValueReader reader = GeometryDocValueReader(point, CoordinateEncoder.GEO);
-            MultiGeoShapeValues.GeoShapeValue value = new MultiGeoShapeValues.GeoShapeValue(reader);
+            GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue(reader);
             GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(null, precision, GEOTILE, NOOP_BREAKER);
             int numTiles = GEOTILE.setValues(unboundedCellValues, value, precision);
             assertThat(numTiles, equalTo(1));
@@ -197,7 +197,7 @@ public class GeoGridTilerTests extends ESTestCase {
         Rectangle shapeRectangle = new Rectangle(tile.getMinX() + 0.00001, tile.getMaxX() - 0.00001,
             tile.getMaxY() - 0.00001,  tile.getMinY() + 0.00001);
         GeometryDocValueReader reader = GeometryDocValueReader(shapeRectangle, CoordinateEncoder.GEO);
-        MultiGeoShapeValues.GeoShapeValue value =  new MultiGeoShapeValues.GeoShapeValue(reader);
+        GeoShapeValues.GeoShapeValue value =  new GeoShapeValues.GeoShapeValue(reader);
 
         // test shape within tile bounds
         {
@@ -247,8 +247,8 @@ public class GeoGridTilerTests extends ESTestCase {
             || (crossesDateline && boundsWestLeft <= tile.getMaxX() && boundsWestRight >= tile.getMinX())));
     }
 
-    private int numTiles(MultiGeoShapeValues.GeoShapeValue geoValue, int precision, GeoBoundingBox geoBox) throws Exception {
-        MultiGeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
+    private int numTiles(GeoShapeValues.GeoShapeValue geoValue, int precision, GeoBoundingBox geoBox) throws Exception {
+        GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         int count = 0;
 
         if (precision == 0) {
@@ -316,7 +316,7 @@ public class GeoGridTilerTests extends ESTestCase {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         geometry = indexer.prepareForIndexing(geometry);
         GeometryDocValueReader reader = GeometryDocValueReader(geometry, CoordinateEncoder.GEO);
-        MultiGeoShapeValues.GeoShapeValue value = new MultiGeoShapeValues.GeoShapeValue(reader);
+        GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue(reader);
         GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, precision, GEOTILE, NOOP_BREAKER);
         int recursiveCount;
         {
@@ -326,7 +326,7 @@ public class GeoGridTilerTests extends ESTestCase {
         int bruteForceCount;
         {
             final double tiles = 1 << precision;
-            MultiGeoShapeValues.BoundingBox bounds = value.boundingBox();
+            GeoShapeValues.BoundingBox bounds = value.boundingBox();
             int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);
             int minYTile = GeoTileUtils.getYTile(bounds.maxY(), (long) tiles);
             int maxXTile = GeoTileUtils.getXTile(bounds.maxX(), (long) tiles);
@@ -346,7 +346,7 @@ public class GeoGridTilerTests extends ESTestCase {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         geometry = indexer.prepareForIndexing(geometry);
         GeometryDocValueReader reader = GeometryDocValueReader(geometry, CoordinateEncoder.GEO);
-        MultiGeoShapeValues.GeoShapeValue value = new MultiGeoShapeValues.GeoShapeValue(reader);
+        GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue(reader);
         GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, precision, GEOHASH, NOOP_BREAKER);
         int recursiveCount;
         {
@@ -355,7 +355,7 @@ public class GeoGridTilerTests extends ESTestCase {
         GeoShapeCellValues bruteForceValues = new GeoShapeCellValues(null, precision, GEOHASH, NOOP_BREAKER);
         int bruteForceCount;
         {
-            MultiGeoShapeValues.BoundingBox bounds = value.boundingBox();
+            GeoShapeValues.BoundingBox bounds = value.boundingBox();
             bruteForceCount = GEOHASH.setValuesByBruteForceScan(bruteForceValues, value, precision, bounds);
         }
 
@@ -388,8 +388,8 @@ public class GeoGridTilerTests extends ESTestCase {
         }
     }
 
-    private int numTiles(MultiGeoShapeValues.GeoShapeValue geoValue, int precision) {
-        MultiGeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
+    private int numTiles(GeoShapeValues.GeoShapeValue geoValue, int precision) {
+        GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         int count = 0;
 
         if (precision == 0) {
@@ -467,7 +467,7 @@ public class GeoGridTilerTests extends ESTestCase {
         Geometry geometry = GeometryTestUtils.randomPolygon(false);
         int precision = randomIntBetween(0, 3);
         GeometryDocValueReader reader = GeometryDocValueReader(geometry, CoordinateEncoder.GEO);
-        MultiGeoShapeValues.GeoShapeValue value =  new MultiGeoShapeValues.GeoShapeValue(reader);
+        GeoShapeValues.GeoShapeValue value =  new GeoShapeValues.GeoShapeValue(reader);
 
         List<Long> byteChangeHistory = new ArrayList<>();
         if (precision == 0) {

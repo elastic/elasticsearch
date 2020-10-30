@@ -72,7 +72,7 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
     }
 
     @Override
-    public DeferringBucketCollector getDeferringCollector() {
+    public DeferringBucketCollector buildDeferringCollector() {
         bdd = new DiverseDocsDeferringCollector(this::addRequestCircuitBreakerBytes);
         return bdd;
     }

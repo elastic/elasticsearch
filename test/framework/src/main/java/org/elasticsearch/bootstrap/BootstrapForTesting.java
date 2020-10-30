@@ -138,7 +138,7 @@ public class BootstrapForTesting {
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
 
                 // read test-framework permissions
-                Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
+                Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
                 // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
                 addClassCodebase(codebases,"elasticsearch", "org.elasticsearch.plugins.PluginsService");
                 if (System.getProperty("tests.gradle") == null) {
@@ -148,7 +148,7 @@ public class BootstrapForTesting {
                     addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
                     addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
                 }
-                final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
+                final Policy testFramework = PolicyUtil.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
                 final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());
                 Policy.setPolicy(new Policy() {
                     @Override
@@ -224,7 +224,7 @@ public class BootstrapForTesting {
         // parse each policy file, with codebase substitution from the classpath
         final List<Policy> policies = new ArrayList<>(pluginPolicies.size());
         for (URL policyFile : pluginPolicies) {
-            policies.add(Security.readPolicy(policyFile, Security.getCodebaseJarMap(codebases)));
+            policies.add(PolicyUtil.readPolicy(policyFile, PolicyUtil.getCodebaseJarMap(codebases)));
         }
 
         // consult each policy file for those codebases

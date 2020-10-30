@@ -358,7 +358,7 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isHidden() {
-            return false;
+            return dataStream.isHidden();
         }
 
         @Override

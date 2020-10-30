@@ -79,7 +79,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         Map<String, Object> additionalFields = new HashMap<>();
 
         byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
-        String fileNameInput = ingestDocument.getFieldValue(fileName, String.class, ignoreMissing);
+        String fileNameInput = ingestDocument.getFieldValue(fileName, String.class, true);
 
         if (input == null && ignoreMissing) {
             return ingestDocument;
@@ -99,7 +99,9 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         Metadata metadata = new Metadata();
-        metadata.set(Metadata.RESOURCE_NAME_KEY, fileNameInput);
+        if (fileNameInput != null) {
+            metadata.set(Metadata.RESOURCE_NAME_KEY, fileNameInput);
+        }
         String parsedContent = "";
         try {
             parsedContent = TikaImpl.parse(input, metadata, indexedChars);

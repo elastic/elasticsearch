@@ -88,7 +88,6 @@ import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -143,10 +142,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 EsQueryExec exec = (EsQueryExec) project.child();
                 QueryContainer queryC = exec.queryContainer();
 
-                Map<Attribute, Expression> aliases = new LinkedHashMap<>();
-                List<Attribute> allAliasAttributes = new LinkedList<>();
-                Map<Attribute, Pipe> processors = new LinkedHashMap<>();
-                List<Attribute> allProcessorAttributes = new LinkedList<>();
+                AttributeMap.Builder<Expression> aliases = new AttributeMap.Builder<>();
+                AttributeMap.Builder<Pipe> processors = new AttributeMap.Builder<>();
 
                 for (NamedExpression pj : project.projections()) {
                     if (pj instanceof Alias) {
@@ -154,21 +151,19 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         Expression e = ((Alias) pj).child();
 
                         // track all aliases (to determine their reference later on)
-                        aliases.put(attr, e);
-                        allAliasAttributes.add(attr);
+                        aliases.add(attr, e);
 
                         // track scalar pipelines
                         if (e instanceof ScalarFunction) {
-                            processors.put(attr, ((ScalarFunction) e).asPipe());
-                            allProcessorAttributes.add(attr);
+                            processors.add(attr, ((ScalarFunction) e).asPipe());
                         }
                     }
                 }
 
                 QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.fields(),
-                        queryC.aliases().combine(new AttributeMap<>(aliases, allAliasAttributes)),
+                        queryC.aliases().combine(aliases.build()),
                         queryC.pseudoFunctions(),
-                        queryC.scalarFunctions().combine(new AttributeMap<>(processors, allProcessorAttributes)),
+                        queryC.scalarFunctions().combine(processors.build()),
                         queryC.sort(),
                         queryC.limit(),
                         queryC.shouldTrackHits(),

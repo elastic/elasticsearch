@@ -158,17 +158,6 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     public AttributeMap(Map<Attribute, E> attr) {
-        // should be deprecated, but just to keep backwards compatibility
-        this(attr, attr.keySet());
-    }
-
-    public AttributeMap(Map<Attribute, E> attr, Collection<Attribute> semanticAttributeList) {
-        delegate = newImplementation(attr, semanticAttributeList);
-//        delegate = oldImplementation(attr, semanticAttributeList);
-    }
-
-    private Map<AttributeWrapper, E> oldImplementation(Map<Attribute, E> attr, Collection<Attribute> semanticAttributeList) {
-        final Map<AttributeWrapper, E> delegate;
         if (attr.isEmpty()) {
             delegate = emptyMap();
         }
@@ -179,29 +168,6 @@ public class AttributeMap<E> implements Map<Attribute, E> {
                 delegate.put(new AttributeWrapper(entry.getKey()), entry.getValue());
             }
         }
-        return delegate;
-    }
-
-    private Map<AttributeWrapper, E> newImplementation(Map<Attribute, E> attr, Collection<Attribute> semanticAttributeList) {
-        final Map<AttributeWrapper, E> delegate;
-        if (attr.isEmpty()) {
-            delegate = emptyMap();
-        }
-        else {
-            if (semanticAttributeList.size() < attr.size()) {
-                throw new IllegalStateException("The semantic attribute list should be a " +
-                    "superset of the attr map, something went wrong!");
-            }
-
-            delegate = new LinkedHashMap<>(semanticAttributeList.size());
-
-            for (Attribute a : semanticAttributeList) {
-                if (attr.containsKey(a)) {
-                    delegate.put(new AttributeWrapper(a), attr.get(a));
-                }
-            }
-        }
-        return delegate;
     }
 
     public AttributeMap(Attribute key, E value) {
@@ -401,5 +367,17 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     @Override
     public String toString() {
         return delegate.toString();
+    }
+
+    public static class Builder<E> {
+        private final AttributeMap<E> map = new AttributeMap<>();
+
+        public void add(Attribute attr, E value) {
+            map.add(attr, value);
+        }
+
+        public AttributeMap<E> build() {
+            return new AttributeMap<>(map);
+        }
     }
 }

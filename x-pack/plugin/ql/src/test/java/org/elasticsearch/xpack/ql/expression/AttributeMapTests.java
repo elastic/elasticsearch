@@ -38,7 +38,7 @@ public class AttributeMapTests extends ESTestCase {
         return new AttributeMap<>(map);
     }
 
-    public void testAttributeMapFromSameAliasesCanResolveAttributes() {
+    public void testAttributeMapWithSameAliasesCanResolveAttributes() {
         Alias param1 = createIntParameterAlias(1, 100);
         Alias param2 = createIntParameterAlias(2, 100);
         System.out.println(param1.toString());
@@ -66,11 +66,12 @@ public class AttributeMapTests extends ESTestCase {
         assertTrue(attributeMap.containsKey(param1.toAttribute()));
         assertFalse(attributeMap.containsKey(param2.toAttribute())); // results in unknown attribute exception
 
-        AttributeMap<Expression> newAttributeMap =
-            new AttributeMap<>(collectRefs,
-                List.of(param1.toAttribute(), param2.toAttribute()));
+        AttributeMap.Builder<Expression> mapBuilder = new AttributeMap.Builder<>();
+        for (Alias a : List.of(param1, param2)) {
+            mapBuilder.add(a.toAttribute(), a.child());
+        }
+        AttributeMap<Expression> newAttributeMap = mapBuilder.build();
 
-        // validate that all Alias can be e
         assertTrue(newAttributeMap.containsKey(param1.toAttribute()));
         assertTrue(newAttributeMap.containsKey(param2.toAttribute())); // no more unknown attribute exception
     }

@@ -62,7 +62,6 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -180,8 +179,7 @@ public final class Verifier {
 
         if (failures.isEmpty()) {
             Set<Failure> localFailures = new LinkedHashSet<>();
-            final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
-            final List<Attribute> allSemanticallyDifferentRefs = new LinkedList<>();
+            AttributeMap.Builder<Expression> collectRefs = new AttributeMap.Builder<>();
 
             checkFullTextSearchInSelect(plan, localFailures);
 
@@ -192,12 +190,11 @@ public final class Verifier {
                 if (e instanceof Alias) {
                     Alias a = (Alias) e;
                     Attribute attr = a.toAttribute();
-                    collectRefs.put(attr, a.child());
-                    allSemanticallyDifferentRefs.add(attr);
+                    collectRefs.add(attr, a.child());
                 }
             });
 
-            AttributeMap<Expression> attributeRefs = new AttributeMap<>(collectRefs, allSemanticallyDifferentRefs);
+            AttributeMap<Expression> attributeRefs = collectRefs.build();
 
             // for filtering out duplicated errors
             final Set<LogicalPlan> groupingFailures = new LinkedHashSet<>();

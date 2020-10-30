@@ -2281,15 +2281,4 @@ public class QueryTranslatorTests extends ESTestCase {
         // these two should be semantically different reference attributes
         assertNotEquals(eqe.output().get(0).id(), eqe.output().get(1).id());
     }
-
-    public void testMath() {
-        PhysicalPlan physicalPlan = optimizeAndPlan("SELECT ABS(int) m, text FROM test WHERE int < 10010 ORDER BY int");
-        assertEquals(EsQueryExec.class, physicalPlan.getClass());
-        EsQueryExec eqe = (EsQueryExec) physicalPlan;
-//        assertEquals(2, eqe.output().size());
-//        assertThat(eqe.output().get(0).toString(), startsWith("100{r}#"));
-//        assertThat(eqe.output().get(1).toString(), startsWith("100{r}#"));
-//         these two should be semantically different reference attributes
-//        assertNotEquals(eqe.output().get(0).id(), eqe.output().get(1).id());
-    }
 }

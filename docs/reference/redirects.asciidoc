@@ -1261,3 +1261,10 @@ See <<transforms>>.
 === Matrix aggregations
 
 See <<search-aggregations-matrix-stats-aggregation>>.
+
+[[search-aggregations-pipeline-movavg-aggregation]]
+=== Moving average aggregation
+
+The moving average aggregation has been removed. Use the
+<<search-aggregations-pipeline-movfn-aggregation,moving function aggregation>>
+instead.

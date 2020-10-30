@@ -121,6 +121,18 @@ conditions is met:
   - The request targets one or more read-only index.
   - The primary sort of the query targets an indexed field.
 
+`recall_goal`::
+(Optional, integer)
+An aid for "query relaxation". If > 0 then requests are processed sequentially
+until a search produces the required minimum number of matches (subsequent requests
+ are ignored). Requests should be provided in order of
+precision so an end-user querying for `foo bar` might be tried as a phrase query,
+then ORed and, as a last resort, a fuzzy match. Each request might use different
+aggregations - a high-precision search might sum all matches while a fuzzier match
+might choose to use a sampler aggregation to avoid summarising the long tail of
+weaker matches.
+
+
 `rest_total_hits_as_int`::
 (Optional, boolean)
 If `true`, `hits.total` are returned as an integer in the

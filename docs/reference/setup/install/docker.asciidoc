@@ -1,8 +1,9 @@
 [[docker]]
 === Install {es} with Docker
 
-{es} is also available as Docker images.
-The images use https://hub.docker.com/_/centos/[centos:8] as the base image.
+{es} is also available as Docker images. Starting with version 8.0.0, these
+are based upon a tiny core of essential files. Prior versions used
+https://hub.docker.com/_/centos/[centos:8] as the base image.
 
 A list of all published Docker images and tags is available at
 https://www.docker.elastic.co[www.docker.elastic.co]. The source files
@@ -221,7 +222,8 @@ which runs containers using an arbitrarily assigned user ID.
 Openshift presents persistent volumes with the gid set to `0`, which works without any adjustments.
 
 If you are bind-mounting a local directory or file, it must be readable by the `elasticsearch` user.
-In addition, this user must have write access to the <<path-settings,data and log dirs>>.
+In addition, this user must have write access to the <<path-settings,config, data and log dirs>>
+({es} needs write access to the `config` directory so that it can generate a keystore).
 A good strategy is to grant group access to gid `0` for the local directory.
 
 For example, to prepare a local directory for storing data through a bind-mount:
@@ -232,6 +234,12 @@ mkdir esdatadir
 chmod g+rwx esdatadir
 chgrp 0 esdatadir
 --------------------------------------------
+
+You can also run an {es} container using both a custom UID and GID. Unless you
+bind-mount each of the `config`, data` and `logs` directories, you must pass
+the command line option `--group-add 0` to `docker run`. This ensures that the user
+under which {es} is running is also a member of the `root` (GID 0) group inside the
+container.
 
 ===== Increase ulimits for nofile and nproc
 
@@ -343,7 +351,7 @@ without specifying them directly.
 
 For example, to set the {es} bootstrap password from a file, you can bind mount the
 file and set the `ELASTIC_PASSWORD_FILE` environment variable to the mount location.
-If you mount the password file to `/run/secrets/password.txt`, specify:
+If you mount the password file to `/run/secrets/bootstrapPassword.txt`, specify:
 
 [source,sh]
 --------------------------------------------
@@ -423,5 +431,24 @@ You must explicitly accept them either by:
 
 See {plugins}/_other_command_line_parameters.html[Plugin management]
 for more information.
+
+The {es} Docker image only includes what is required to run {es}, and does
+not provide a package manager. It is possible to add additional utilities
+with a multi-phase Docker build. You must also copy any dependencies, for
+example shared libraries.
+
+[source,sh,subs="attributes"]
+--------------------------------------------
+FROM centos:8 AS builder
+yum install -y some-package
+
+FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
+COPY --from=builder /usr/bin/some-utility /usr/bin/
+COPY --from=builder /usr/lib/some-lib.so /usr/lib/
+--------------------------------------------
+
+You should use `centos:8` as a base in order to avoid incompatibilities.
+Use http://man7.org/linux/man-pages/man1/ldd.1.html[`ldd`] to list the
+shared libraries required by a utility.
 
 include::next-steps.asciidoc[]

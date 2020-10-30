@@ -44,6 +44,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -99,6 +100,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
+    private final AtomicBoolean requestCancelled = new AtomicBoolean();
 
     private final List<Releasable> releasables = new ArrayList<>();
 
@@ -393,6 +395,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         logger.debug(() -> new ParameterizedMessage("{}: Failed to execute [{}] lastShard [{}]",
             shard != null ? shard : shardIt.shardId(), request, lastShard), e);
         if (lastShard) {
+            if (request.allowPartialSearchResults() == false) {
+                if (requestCancelled.compareAndSet(false, true)) {
+                    try {
+                        searchTransportService.cancelSearchTask(task, "partial results are not allowed and at least one shard has failed");
+                    } catch (Exception cancelFailure) {
+                        logger.debug("Failed to cancel search request", cancelFailure);
+                    }
+                }
+            }
             onShardGroupFailure(shardIndex, shard, e);
         }
         final int totalOps = this.totalOps.incrementAndGet();
@@ -427,8 +438,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     @Override
     public final void onShardFailure(final int shardIndex, @Nullable SearchShardTarget shardTarget, Exception e) {
-        // we don't aggregate shard failures on non active shards (but do keep the header counts right)
-        if (TransportActions.isShardNotAvailableException(e) == false) {
+        // we don't aggregate shard failures on non active shards and failures due to the internal cancellation,
+        // but do keep the header counts right
+        if (TransportActions.isShardNotAvailableException(e) == false && (requestCancelled.get() && isTaskCancelledException(e)) == false) {
             AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
             // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
             if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
@@ -457,6 +469,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
         }
         results.consumeShardFailure(shardIndex);
+    }
+
+    private static boolean isTaskCancelledException(Exception e) {
+        return ExceptionsHelper.unwrapCausesAndSuppressed(e, ex -> ex instanceof TaskCancelledException).isPresent();
     }
 
     /**
@@ -533,8 +549,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             skippedOps.get(), buildTookInMillis(), failures, clusters, searchContextId);
     }
 
-    boolean includeSearchContextInResponse() {
-        return request.pointInTimeBuilder() != null;
+    boolean buildPointInTimeFromSearchResults() {
+        // TODO: Until we implement the retry mechanism for point in times (i.e., replace an unavailable shard with an equivalent copy),
+        // we can simply return the point in time of the search request.
+        return false;
     }
 
     @Override
@@ -547,8 +565,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else {
             final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-            final String searchContextId =
-                includeSearchContextInResponse() ? SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion) : null;
+            final String searchContextId;
+            if (buildPointInTimeFromSearchResults()) {
+                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion);
+            } else {
+                if (request.source() != null && request.source().pointInTimeBuilder() != null) {
+                    searchContextId = request.source().pointInTimeBuilder().getId();
+                } else {
+                    searchContextId = null;
+                }
+            }
             listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
     }

@@ -55,6 +55,7 @@
       }
     }
   },
+  "allow_auto_create": true,
   "_meta": {
     "description": "index template for SLM history indices",
     "managed": true

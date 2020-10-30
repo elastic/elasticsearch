@@ -10,7 +10,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -63,7 +62,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(new DataFrameAnalyticsConfig.Builder()
             .setId("analytics-with-stats")
-            .setModelMemoryLimit(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .setModelMemoryLimit(ByteSizeValue.ofGb(1))
             .setSource(new DataFrameAnalyticsSource(new String[]{"foo"}, null, null))
             .setDest(new DataFrameAnalyticsDest("bar", null))
             .setAnalysis(new Regression("prediction"))

@@ -42,6 +42,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -132,8 +133,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public static class Builder<T extends Builder> extends Mapper.Builder<T> {
+    public static class Builder extends Mapper.Builder {
 
         protected Explicit<Boolean> enabled = new Explicit<>(true, false);
 
@@ -143,30 +143,28 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
-        @SuppressWarnings("unchecked")
         public Builder(String name) {
             super(name);
-            this.builder = (T) this;
         }
 
-        public T enabled(boolean enabled) {
+        public Builder enabled(boolean enabled) {
             this.enabled = new Explicit<>(enabled, true);
-            return builder;
+            return this;
         }
 
-        public T dynamic(Dynamic dynamic) {
+        public Builder dynamic(Dynamic dynamic) {
             this.dynamic = dynamic;
-            return builder;
+            return this;
         }
 
-        public T nested(Nested nested) {
+        public Builder nested(Nested nested) {
             this.nested = nested;
-            return builder;
+            return this;
         }
 
-        public T add(Mapper.Builder builder) {
+        public Builder add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
-            return this.builder;
+            return this;
         }
 
         @Override
@@ -317,9 +315,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
                     String[] fieldNameParts = fieldName.split("\\.");
                     String realFieldName = fieldNameParts[fieldNameParts.length - 1];
-                    Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
+                    Mapper.Builder fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                        ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
+                        ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i]);
                         intermediate.add(fieldBuilder);
                         fieldBuilder = intermediate;
                     }
@@ -453,11 +451,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
      * Returns the parent {@link ObjectMapper} instance of the specified object mapper or <code>null</code> if there
      * isn't any.
      */
-    public ObjectMapper getParentObjectMapper(MapperService mapperService) {
+    public ObjectMapper getParentObjectMapper(Function<String, ObjectMapper> objectMapperLookup) {
         int indexOfLastDot = fullPath().lastIndexOf('.');
         if (indexOfLastDot != -1) {
             String parentNestObjectPath = fullPath().substring(0, indexOfLastDot);
-            return mapperService.getObjectMapper(parentNestObjectPath);
+            return objectMapperLookup.apply(parentNestObjectPath);
         } else {
             return null;
         }
@@ -466,10 +464,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
     /**
      * Returns whether all parent objects fields are nested too.
      */
-    public boolean parentObjectMapperAreNested(MapperService mapperService) {
-        for (ObjectMapper parent = getParentObjectMapper(mapperService);
+    public boolean parentObjectMapperAreNested(Function<String, ObjectMapper> objectMapperLookup) {
+        for (ObjectMapper parent = getParentObjectMapper(objectMapperLookup);
              parent != null;
-             parent = parent.getParentObjectMapper(mapperService)) {
+             parent = parent.getParentObjectMapper(objectMapperLookup)) {
 
             if (parent.nested().isNested() == false) {
                 return false;

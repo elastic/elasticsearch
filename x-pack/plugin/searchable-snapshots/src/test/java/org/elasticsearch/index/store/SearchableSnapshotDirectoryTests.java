@@ -93,6 +93,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.hamcrest.Matcher;
@@ -120,6 +121,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -481,6 +483,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         final ShardId shardId = new ShardId(indexSettings.getIndex(), randomIntBetween(0, 10));
         final List<Releasable> releasables = new ArrayList<>();
 
+        final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
         try (Directory directory = newDirectory()) {
             final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
             try (IndexWriter writer = new IndexWriter(directory, indexWriterConfig)) {
@@ -506,9 +509,6 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 writer.setLiveCommitData(userData.entrySet());
                 writer.commit();
             }
-
-            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
-            releasables.add(() -> terminate(threadPool));
 
             final Store store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
             store.incRef();
@@ -629,6 +629,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             } finally {
                 Releasables.close(releasables);
             }
+        } finally {
+            terminateSafely(threadPool);
         }
     }
 
@@ -741,11 +743,11 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     assertListOfFiles(cacheDir, allOf(greaterThan(0), lessThanOrEqualTo(nbRandomFiles)), greaterThan(0L));
                     if (randomBoolean()) {
                         directory.clearCache();
-                        assertListOfFiles(cacheDir, equalTo(0), equalTo(0L));
+                        assertBusy(() -> assertListOfFiles(cacheDir, equalTo(0), equalTo(0L)));
                     }
                 }
             } finally {
-                terminate(threadPool);
+                terminateSafely(threadPool);
             }
         }
     }
@@ -941,6 +943,17 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         return recoveryState;
     }
 
+    // Wait for all operations on the threadpool to complete to make sure we don't leak any reference count releasing and then shut it down
+    public static void terminateSafely(ThreadPool threadPool) throws Exception {
+        assertBusy(() -> {
+            for (ThreadPoolStats.Stats stat : threadPool.stats()) {
+                assertEquals(stat.getActive(), 0);
+                assertEquals(stat.getQueue(), 0);
+            }
+        });
+        assertTrue(ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS));
+    }
+
     private static class FaultyReadsFileSystem extends FilterFileSystemProvider {
         FaultyReadsFileSystem(FileSystem inner) {
             super("faulty_fs://", inner);
@@ -957,5 +970,4 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             };
         }
     }
-
 }

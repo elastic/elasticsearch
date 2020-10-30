@@ -26,7 +26,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -105,7 +104,6 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                 throw new CollectionTerminatedException();
             }
         }
-        final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
@@ -114,7 +112,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
             public void collect(int doc, long bucket) throws IOException {
                 if (bucket >= maxes.size()) {
                     long from = maxes.size();
-                    maxes = bigArrays.grow(maxes, bucket + 1);
+                    maxes = bigArrays().grow(maxes, bucket + 1);
                     maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
                 }
                 if (values.advanceExact(doc)) {

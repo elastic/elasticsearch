@@ -22,6 +22,9 @@ package org.elasticsearch.painless.api;
 import org.elasticsearch.common.hash.MessageDigests;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -711,5 +714,12 @@ public class Augmentation {
             return receiver.matcher(input);
         }
         return receiver.matcher(new LimitedCharSequence(input, receiver, limitFactor));
+    }
+
+    /**
+     * Convert a {@link TemporalAccessor} into millis since epoch like {@link Instant#toEpochMilli()}.
+     */
+    public static long toEpochMilli(TemporalAccessor v) {
+        return v.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + v.get(ChronoField.NANO_OF_SECOND) / 1_000_000;
     }
 }

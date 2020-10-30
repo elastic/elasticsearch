@@ -108,7 +108,7 @@ Minimum word character length. Shorter word tokens are excluded from the
 output. Defaults to `5`.
 
 `only_longest_match`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, only include the longest matching subword. Defaults to `false`.
 
 [[analysis-hyp-decomp-tokenfilter-customize]]

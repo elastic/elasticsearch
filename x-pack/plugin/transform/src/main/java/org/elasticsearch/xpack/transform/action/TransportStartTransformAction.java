@@ -141,6 +141,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             DiscoveryNode.isRemoteClusterClient(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
+            ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
@@ -261,22 +262,12 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 createTransform(config.getId(), config.getVersion(), config.getFrequency(), config.getSource().requiresRemoteCluster())
             );
             transformConfigHolder.set(config);
-            if (config.getDestination().getPipeline() != null) {
-                if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
-                    return;
-                }
-            }
 
             sourceDestValidator.validate(
                 clusterService.state(),
                 config.getSource().getIndex(),
                 config.getDestination().getIndex(),
+                config.getDestination().getPipeline(),
                 SourceDestValidations.ALL_VALIDATIONS,
                 validationListener
             );

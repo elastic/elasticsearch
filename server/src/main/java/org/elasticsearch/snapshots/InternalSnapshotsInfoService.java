@@ -149,7 +149,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                     }
                 }
                 // Clean up keys from knownSnapshotShardSizes that are no longer needed for recoveries
-                cleanUpKnownSnapshotShardSizes(onGoingSnapshotRecoveries);
+                cleanUpSnapshotShardSizes(onGoingSnapshotRecoveries);
             }
 
             final int nbFetchers = Math.min(unknownShards, maxConcurrentFetches);
@@ -263,7 +263,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         }
     }
 
-    private void cleanUpKnownSnapshotShardSizes(Set<SnapshotShard> requiredSnapshotShards) {
+    private void cleanUpSnapshotShardSizes(Set<SnapshotShard> requiredSnapshotShards) {
         assert Thread.holdsLock(mutex);
         ImmutableOpenMap.Builder<SnapshotShard, Long> newSnapshotShardSizes = null;
         for (ObjectCursor<SnapshotShard> shard : knownSnapshotShardSizes.keys()) {
@@ -277,6 +277,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         if (newSnapshotShardSizes != null) {
             knownSnapshotShardSizes = newSnapshotShardSizes.build();
         }
+        failedSnapshotShards.retainAll(requiredSnapshotShards);
     }
 
     private boolean invariant() {

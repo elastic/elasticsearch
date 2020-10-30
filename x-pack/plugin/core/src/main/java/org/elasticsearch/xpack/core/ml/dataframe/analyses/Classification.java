@@ -377,6 +377,9 @@ public class Classification implements DataFrameAnalysis {
     public Map<String, Object> getExplicitlyMappedFields(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Map<String, Object> additionalProperties = new HashMap<>();
         additionalProperties.put(resultsFieldName + ".feature_importance", FEATURE_IMPORTANCE_MAPPING);
+        if (fieldCapabilitiesResponse == null) {
+            return additionalProperties;
+        }
         Map<String, FieldCapabilities> dependentVariableFieldCaps = fieldCapabilitiesResponse.getField(dependentVariable);
         if (dependentVariableFieldCaps == null || dependentVariableFieldCaps.isEmpty()) {
             return additionalProperties;

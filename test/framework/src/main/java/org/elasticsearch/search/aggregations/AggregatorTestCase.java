@@ -422,13 +422,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 a.preCollection();
                 Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
                 subSearcher.search(weight, a);
-                a.postCollection();
                 aggs.add(a.buildTopLevel());
             }
         } else {
             root.preCollection();
             searcher.search(rewritten, root);
-            root.postCollection();
             aggs.add(root.buildTopLevel());
         }
 

@@ -581,16 +581,13 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             builder.field(SUCCESSFUL, successfulShards);
             builder.endObject();
         }
-        if (verbose || featureStates != null) {
-            if (featureStates != null) {
-                builder.startArray(FEATURE_STATES);
-                for (SnapshotFeatureInfo snapshotFeatureInfo : featureStates) {
-                    builder.value(snapshotFeatureInfo);
-                }
-                builder.endArray();
-            } else {
-                builder.field(FEATURE_STATES, (Object) null);
+        if (verbose || featureStates.isEmpty() == false) {
+            builder.startArray(FEATURE_STATES);
+            for (SnapshotFeatureInfo snapshotFeatureInfo : featureStates) {
+                builder.value(snapshotFeatureInfo);
             }
+            builder.endArray();
+
         }
         builder.endObject();
         return builder;
@@ -629,13 +626,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             shardFailure.toXContent(builder, params);
         }
         builder.endArray();
-        if (featureStates != null) {
-            builder.startArray(FEATURE_STATES);
-            for (SnapshotFeatureInfo snapshotFeatureInfo : featureStates) {
-                builder.value(snapshotFeatureInfo);
-            }
-            builder.endArray();
+        builder.startArray(FEATURE_STATES);
+        for (SnapshotFeatureInfo snapshotFeatureInfo : featureStates) {
+            builder.value(snapshotFeatureInfo);
         }
+        builder.endArray();
 
         builder.endObject();
         return builder;

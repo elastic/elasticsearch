@@ -11,10 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -31,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.indices.EnsureIndexService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -51,148 +50,16 @@ public class BlobStoreCacheService {
 
     public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(4);
 
-    private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Client client;
     private final String index;
+    private final EnsureIndexService ensureIndexService;
 
     public BlobStoreCacheService(ClusterService clusterService, ThreadPool threadPool, Client client, String index) {
         this.client = new OriginSettingClient(client, SEARCHABLE_SNAPSHOTS_ORIGIN);
-        this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.index = index;
-    }
-
-    private void createIndexIfNecessary(ActionListener<String> listener) {
-        if (clusterService.state().routingTable().hasIndex(index)) {
-            listener.onResponse(index);
-            return;
-        }
-        try {
-            client.admin()
-                .indices()
-                .prepareCreate(index)
-                .setSettings(indexSettings())
-                .setMapping(mappings())
-                .execute(new ActionListener<>() {
-                    @Override
-                    public void onResponse(CreateIndexResponse createIndexResponse) {
-                        assert createIndexResponse.index().equals(index);
-                        listener.onResponse(createIndexResponse.index());
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (e instanceof ResourceAlreadyExistsException
-                            || ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                            listener.onResponse(index);
-                        } else {
-                            listener.onFailure(e);
-                        }
-                    }
-                });
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    private static Settings indexSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            .put(IndexMetadata.SETTING_PRIORITY, "900")
-            .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_PREFERENCE)
-            .build();
-    }
-
-    private static XContentBuilder mappings() throws IOException {
-        final XContentBuilder builder = jsonBuilder();
-        {
-            builder.startObject();
-            {
-                builder.startObject(SINGLE_MAPPING_NAME);
-                builder.field("dynamic", "strict");
-                {
-                    builder.startObject("_meta");
-                    builder.field("version", Version.CURRENT);
-                    builder.endObject();
-                }
-                {
-                    builder.startObject("properties");
-                    {
-                        builder.startObject("type");
-                        builder.field("type", "keyword");
-                        builder.endObject();
-                    }
-                    {
-                        builder.startObject("creation_time");
-                        builder.field("type", "date");
-                        builder.field("format", "epoch_millis");
-                        builder.endObject();
-                    }
-                    {
-                        builder.startObject("version");
-                        builder.field("type", "integer");
-                        builder.endObject();
-                    }
-                    {
-                        builder.startObject("repository");
-                        builder.field("type", "keyword");
-                        builder.endObject();
-                    }
-                    {
-                        builder.startObject("blob");
-                        builder.field("type", "object");
-                        {
-                            builder.startObject("properties");
-                            {
-                                builder.startObject("name");
-                                builder.field("type", "keyword");
-                                builder.endObject();
-                                builder.startObject("path");
-                                builder.field("type", "keyword");
-                                builder.endObject();
-                            }
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    {
-                        builder.startObject("data");
-                        builder.field("type", "object");
-                        {
-                            builder.startObject("properties");
-                            {
-                                builder.startObject("content");
-                                builder.field("type", "binary");
-                                builder.endObject();
-                            }
-                            {
-                                builder.startObject("length");
-                                builder.field("type", "long");
-                                builder.endObject();
-                            }
-                            {
-                                builder.startObject("from");
-                                builder.field("type", "long");
-                                builder.endObject();
-                            }
-                            {
-                                builder.startObject("to");
-                                builder.field("type", "long");
-                                builder.endObject();
-                            }
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-        }
-        return builder;
+        this.ensureIndexService = new EnsureBlobStoreCacheIndexService(clusterService, index, this.client);
     }
 
     public CachedBlob get(String repository, String name, String path, long offset) {
@@ -264,7 +131,7 @@ public class BlobStoreCacheService {
     }
 
     public void putAsync(String repository, String name, String path, long offset, BytesReference content, ActionListener<Void> listener) {
-        createIndexIfNecessary(new ActionListener<>() {
+        this.ensureIndexService.createIndexIfNecessary(new ActionListener<>() {
             @Override
             public void onResponse(String s) {
                 final IndexRequest request;
@@ -311,5 +178,112 @@ public class BlobStoreCacheService {
                 listener.onFailure(e);
             }
         });
+    }
+
+    private static class EnsureBlobStoreCacheIndexService extends EnsureIndexService {
+        public EnsureBlobStoreCacheIndexService(ClusterService clusterService, String index, Client client) {
+            super(clusterService, index, client);
+        }
+
+        @Override
+        protected Settings indexSettings() {
+            return Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                .put(IndexMetadata.SETTING_PRIORITY, "900")
+                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_PREFERENCE)
+                .build();
+        }
+
+        @Override
+        protected XContentBuilder mappings() throws IOException {
+            final XContentBuilder builder = jsonBuilder();
+            {
+                builder.startObject();
+                {
+                    builder.startObject(SINGLE_MAPPING_NAME);
+                    builder.field("dynamic", "strict");
+                    {
+                        builder.startObject("_meta");
+                        builder.field("version", Version.CURRENT);
+                        builder.endObject();
+                    }
+                    {
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("type");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+                        }
+                        {
+                            builder.startObject("creation_time");
+                            builder.field("type", "date");
+                            builder.field("format", "epoch_millis");
+                            builder.endObject();
+                        }
+                        {
+                            builder.startObject("version");
+                            builder.field("type", "integer");
+                            builder.endObject();
+                        }
+                        {
+                            builder.startObject("repository");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+                        }
+                        {
+                            builder.startObject("blob");
+                            builder.field("type", "object");
+                            {
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("name");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+                                    builder.startObject("path");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        {
+                            builder.startObject("data");
+                            builder.field("type", "object");
+                            {
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("content");
+                                    builder.field("type", "binary");
+                                    builder.endObject();
+                                }
+                                {
+                                    builder.startObject("length");
+                                    builder.field("type", "long");
+                                    builder.endObject();
+                                }
+                                {
+                                    builder.startObject("from");
+                                    builder.field("type", "long");
+                                    builder.endObject();
+                                }
+                                {
+                                    builder.startObject("to");
+                                    builder.field("type", "long");
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            return builder;
+        }
     }
 }

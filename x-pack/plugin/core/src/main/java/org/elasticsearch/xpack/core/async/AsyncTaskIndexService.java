@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.core.async;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -35,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.EnsureIndexService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -58,57 +55,17 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AU
  * A service that exposes the CRUD operations for the async task-specific index.
  */
 public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
-    private static final Logger logger = LogManager.getLogger(AsyncTaskIndexService.class);
-
     public static final String HEADERS_FIELD = "headers";
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
 
-    private static Settings settings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            .build();
-    }
-
-    private static XContentBuilder mappings() throws IOException {
-        XContentBuilder builder = jsonBuilder()
-            .startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                    .startObject("_meta")
-                        .field("version", Version.CURRENT)
-                    .endObject()
-                    .field("dynamic", "strict")
-                    .startObject("properties")
-                        .startObject(HEADERS_FIELD)
-                            .field("type", "object")
-                            .field("enabled", "false")
-                        .endObject()
-                        .startObject(RESPONSE_HEADERS_FIELD)
-                            .field("type", "object")
-                            .field("enabled", "false")
-                        .endObject()
-                        .startObject(RESULT_FIELD)
-                            .field("type", "object")
-                            .field("enabled", "false")
-                        .endObject()
-                        .startObject(EXPIRATION_TIME_FIELD)
-                            .field("type", "long")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject();
-        return builder;
-    }
-
     private final String index;
-    private final ClusterService clusterService;
     private final Client client;
     private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
-
+    private final EnsureIndexService ensureIndexService;
 
     public AsyncTaskIndexService(String index,
                                  ClusterService clusterService,
@@ -118,11 +75,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                  Writeable.Reader<R> reader,
                                  NamedWriteableRegistry registry) {
         this.index = index;
-        this.clusterService = clusterService;
         this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
         this.client = new OriginSettingClient(client, origin);
         this.registry = registry;
         this.reader = reader;
+        this.ensureIndexService = new EnsureAsyncTaskIndexService(clusterService, index, this.client);
     }
 
     /**
@@ -132,32 +89,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         return client;
     }
 
-    /**
-     * Creates the index with the expected settings and mappings if it doesn't exist.
-     */
-    void createIndexIfNecessary(ActionListener<Void> listener) {
-        if (clusterService.state().routingTable().hasIndex(index) == false) {
-            try {
-                client.admin().indices().prepareCreate(index)
-                    .setSettings(settings())
-                    .setMapping(mappings())
-                    .execute(ActionListener.wrap(
-                        resp -> listener.onResponse(null),
-                        exc -> {
-                            if (ExceptionsHelper.unwrapCause(exc) instanceof ResourceAlreadyExistsException) {
-                                listener.onResponse(null);
-                            } else {
-                                logger.error("failed to create " + index + " index", exc);
-                                listener.onFailure(exc);
-                            }
-                        }));
-            } catch (Exception exc) {
-                logger.error("failed to create " + index + " index", exc);
-                listener.onFailure(exc);
-            }
-        } else {
-            listener.onResponse(null);
-        }
+    // Only exists for testing
+    void createIndexIfNecessary(ActionListener<String> listener) {
+        this.ensureIndexService.createIndexIfNecessary(listener);
     }
 
     /**
@@ -176,7 +110,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .create(true)
             .id(docId)
             .source(source, XContentType.JSON);
-        createIndexIfNecessary(ActionListener.wrap(v -> client.index(indexRequest, listener), listener::onFailure));
+        this.ensureIndexService.createIndexIfNecessary(ActionListener.wrap(v -> client.index(indexRequest, listener), listener::onFailure));
     }
 
     /**
@@ -392,6 +326,51 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             for (String value : entry.getValue()) {
                 threadContext.addResponseHeader(entry.getKey(), value);
             }
+        }
+    }
+
+    private static class EnsureAsyncTaskIndexService extends EnsureIndexService {
+        public EnsureAsyncTaskIndexService(ClusterService clusterService, String index, Client client) {
+            super(clusterService, index, client);
+        }
+
+        @Override
+        protected Settings indexSettings() {
+            return Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                .build();
+        }
+
+        @Override
+        protected XContentBuilder mappings() throws IOException {
+            XContentBuilder builder = jsonBuilder()
+                .startObject()
+                    .startObject(SINGLE_MAPPING_NAME)
+                        .startObject("_meta")
+                            .field("version", Version.CURRENT)
+                        .endObject()
+                        .field("dynamic", "strict")
+                        .startObject("properties")
+                            .startObject(HEADERS_FIELD)
+                                .field("type", "object")
+                                .field("enabled", "false")
+                            .endObject()
+                            .startObject(RESPONSE_HEADERS_FIELD)
+                                .field("type", "object")
+                                .field("enabled", "false")
+                            .endObject()
+                            .startObject(RESULT_FIELD)
+                                .field("type", "object")
+                                .field("enabled", "false")
+                            .endObject()
+                            .startObject(EXPIRATION_TIME_FIELD)
+                                .field("type", "long")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject();
+            return builder;
         }
     }
 }

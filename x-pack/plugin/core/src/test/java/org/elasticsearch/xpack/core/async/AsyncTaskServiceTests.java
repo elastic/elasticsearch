@@ -96,7 +96,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testSettings() throws ExecutionException, InterruptedException {
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<String> future = PlainActionFuture.newFuture();
         indexService.createIndexIfNecessary(future);
         future.get();
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(

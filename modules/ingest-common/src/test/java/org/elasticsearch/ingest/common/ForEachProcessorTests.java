@@ -278,6 +278,97 @@ public class ForEachProcessorTests extends ESTestCase {
         assertThat(result2.get(1), equalTo("JKL"));
     }
 
+    public void testNestedForEachWithMapIteration() throws Exception {
+        Map<String, Object> innerMap1 = new HashMap<>();
+        innerMap1.put("innerMap", Map.of("foo1", 1, "bar1", 2, "baz1", 3));
+        Map<String, Object> innerMap2 = new HashMap<>();
+        innerMap2.put("innerMap", Map.of("foo2", 4, "bar2", 5, "baz2", 6));
+        Map<String, Object> innerMap3 = new HashMap<>();
+        innerMap3.put("innerMap", Map.of("foo3", 7, "bar3", 8, "baz3", 9));
+
+        Map<String, Object> outerMap = Map.of("foo", innerMap1, "bar", innerMap2, "baz", innerMap3);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Map.of("field", outerMap));
+
+        List<String> encounteredKeys = new ArrayList<>();
+        List<Object> encounteredValues = new ArrayList<>();
+        TestProcessor testProcessor = new TestProcessor(
+            doc -> {
+                String key = (String) doc.getIngestMetadata().get("_key");
+                Object value = doc.getIngestMetadata().get("_value");
+                encounteredKeys.add(key);
+                encounteredValues.add(value);
+
+                if (key.startsWith("bar")) {
+                    doc.setFieldValue("_ingest._key", "bar2");
+                }
+                if (key.startsWith("baz")) {
+                    doc.setFieldValue("_ingest._value", 33);
+                }
+
+
+            }
+        );
+
+        ForEachProcessor processor = new ForEachProcessor(
+            "_tag", null, "field", new ForEachProcessor("_tag", null, "_ingest._value.innerMap", testProcessor, false),
+            false);
+        processor.execute(ingestDocument, (result, e) -> {});
+
+        assertThat(testProcessor.getInvokedCounter(), equalTo(9));
+        assertThat(encounteredKeys.toArray(), arrayContainingInAnyOrder("foo1", "bar1", "baz1", "foo2", "bar2", "baz2", "foo3", "bar3", "baz3"));
+        assertThat(encounteredValues.toArray(), arrayContainingInAnyOrder(1, 2, 3, 4, 5, 6, 7, 8, 9));
+        //assertThat(encounteredValues.toArray(), arrayContainingInAnyOrder(innerMap1, innerMap2, innerMap3));
+        //assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
+        //    arrayContainingInAnyOrder(Map.entry("foo", 1), Map.entry("bar2", 2), Map.entry("baz", 33)));
+
+        Object o = ingestDocument.getFieldValue("field", Map.class).entrySet().toArray();
+        assertThat(ingestDocument.getFieldValue("field", Map.class).entrySet().toArray(),
+            arrayContainingInAnyOrder(
+                Map.entry("foo", Map.of("foo1", 1, "bar2", 2, "baz1", 33)),
+                Map.entry("bar", Map.of("foo2", 1, "bar2", 2, "baz2", 33)),
+                Map.entry("baz", Map.of("foo3", 1, "bar2", 2, "baz3", 33))
+            )
+        );
+
+        /*
+        List<Map<String, Object>> values = new ArrayList<>();
+        List<Object> innerValues = new ArrayList<>();
+        innerValues.add("abc");
+        innerValues.add("def");
+        Map<String, Object> value = new HashMap<>();
+        value.put("values2", innerValues);
+        values.add(value);
+
+        innerValues = new ArrayList<>();
+        innerValues.add("ghi");
+        innerValues.add("jkl");
+        value = new HashMap<>();
+        value.put("values2", innerValues);
+        values.add(value);
+
+        IngestDocument ingestDocument = new IngestDocument(
+            "_index", "_id", null, null, null, Collections.singletonMap("values1", values)
+        );
+
+        TestProcessor testProcessor = new TestProcessor(
+            doc -> doc.setFieldValue("_ingest._value", doc.getFieldValue("_ingest._value", String.class).toUpperCase(Locale.ENGLISH))
+        );
+        ForEachProcessor processor = new ForEachProcessor(
+            "_tag", null, "values1", new ForEachProcessor("_tag", null, "_ingest._value.values2", testProcessor, false),
+            false);
+        processor.execute(ingestDocument, (result, e) -> {});
+
+        List<?> result = ingestDocument.getFieldValue("values1.0.values2", List.class);
+        assertThat(result.get(0), equalTo("ABC"));
+        assertThat(result.get(1), equalTo("DEF"));
+
+        List<?> result2 = ingestDocument.getFieldValue("values1.1.values2", List.class);
+        assertThat(result2.get(0), equalTo("GHI"));
+        assertThat(result2.get(1), equalTo("JKL"));
+
+         */
+    }
+
     public void testIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = new IngestDocument(
             "_index", "_id", null, null, null, Collections.emptyMap()

@@ -1243,7 +1243,7 @@ See <<agg-caches>>.
 See <<return-only-agg-results>>.
 
 [role="exclude",id="agg-metadata"]
-=== Aggregation Metadata
+=== Aggregation metadata
 
 See <<add-metadata-to-an-agg>>.
 

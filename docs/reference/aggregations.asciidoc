@@ -27,9 +27,8 @@ other aggregations instead of documents or fields.
 [[run-an-agg]]
 === Run an aggregation
 
-{es} runs aggregations as part of a <<search-your-data,search>>. To run an
-aggregation, use the <<search-search,search API>>'s `aggs` parameter. The
-following search runs `my-agg-name`, a
+You can run aggregations as part of a <<search-your-data,search>> by specifying the <<search-search,search API>>'s `aggs` parameter. The
+following search runs  a
 <<search-aggregations-bucket-terms-aggregation,terms aggregation>> on
 `my-field`:
 

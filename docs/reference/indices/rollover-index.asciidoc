@@ -115,7 +115,7 @@ is required.
 ==== {api-query-parms-title}
 
 `dry_run`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the request checks whether the index matches provided conditions
 but does not perform a rollover.

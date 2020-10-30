@@ -6,8 +6,11 @@
 package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.store.cache.CacheFile.EvictionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -17,7 +20,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Future;
 
+import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -33,21 +39,18 @@ public class CacheFileTests extends ESTestCase {
         assertThat("Cache file is not acquired: file does not exist", Files.exists(file), is(false));
 
         final TestEvictionListener listener = new TestEvictionListener();
-        boolean acquired = cacheFile.acquire(listener);
-        assertThat("Cache file has been acquired", acquired, is(true));
+        cacheFile.acquire(listener);
         assertThat("Cache file has been acquired: file should exists", Files.exists(file), is(true));
         assertThat("Cache file has been acquired: channel should exists", cacheFile.getChannel(), notNullValue());
         assertThat("Cache file has been acquired: channel is open", cacheFile.getChannel().isOpen(), is(true));
         assertThat("Cache file has been acquired: eviction listener is not executed", listener.isCalled(), is(false));
 
-        boolean released = cacheFile.release(listener);
-        assertThat("Cache file has been released", released, is(true));
+        cacheFile.release(listener);
         assertThat("Cache file has been released: eviction listener is not executed", listener.isCalled(), is(false));
         assertThat("Cache file has been released: channel does not exist", cacheFile.getChannel(), nullValue());
         assertThat("Cache file is not evicted: file still exists after release", Files.exists(file), is(true));
 
-        acquired = cacheFile.acquire(listener);
-        assertThat("Cache file is acquired again", acquired, is(true));
+        cacheFile.acquire(listener);
 
         FileChannel fileChannel = cacheFile.getChannel();
         assertThat("Channel should exists", fileChannel, notNullValue());
@@ -62,8 +65,7 @@ public class CacheFileTests extends ESTestCase {
         assertThat("Cache file is evicted but not fully released: channel is open", cacheFile.getChannel().isOpen(), is(true));
         assertThat("Channel didn't change after eviction", cacheFile.getChannel(), sameInstance(fileChannel));
 
-        released = cacheFile.release(listener);
-        assertTrue("Cache file is fully released", released);
+        cacheFile.release(listener);
         assertThat("Cache file evicted and fully released: channel does not exist", cacheFile.getChannel(), nullValue());
         assertThat("Cache file has been deleted", Files.exists(file), is(false));
     }
@@ -77,14 +79,12 @@ public class CacheFileTests extends ESTestCase {
 
         if (randomBoolean()) {
             final TestEvictionListener listener = new TestEvictionListener();
-            boolean acquired = cacheFile.acquire(listener);
-            assertTrue("Cache file is acquired", acquired);
+            cacheFile.acquire(listener);
 
             assertThat(cacheFile.getChannel(), notNullValue());
             assertThat(Files.exists(file), is(true));
 
-            boolean released = cacheFile.release(listener);
-            assertTrue("Cache file is released", released);
+            cacheFile.release(listener);
         }
 
         cacheFile.startEviction();
@@ -99,7 +99,7 @@ public class CacheFileTests extends ESTestCase {
         final List<TestEvictionListener> acquiredListeners = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 20); i++) {
             TestEvictionListener listener = new TestEvictionListener();
-            assertTrue(cacheFile.acquire(listener));
+            cacheFile.acquire(listener);
             assertThat(cacheFile.getChannel(), notNullValue());
             acquiredListeners.add(listener);
         }
@@ -124,9 +124,56 @@ public class CacheFileTests extends ESTestCase {
         assertFalse(Files.exists(file));
     }
 
-    class TestEvictionListener implements EvictionListener {
+    public void testConcurrentAccess() throws Exception {
+        final Path file = createTempDir().resolve("file.cache");
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
 
-        private SetOnce<CacheFile> evicted = new SetOnce<>();
+        final TestEvictionListener evictionListener = new TestEvictionListener();
+        cacheFile.acquire(evictionListener);
+        final long length = cacheFile.getLength();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
+            builder().put(NODE_NAME_SETTING.getKey(), getTestName()).build(),
+            random()
+        );
+        final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+        final Future<Integer> populateAndReadFuture;
+        final Future<Integer> readIfAvailableFuture;
+        if (randomBoolean()) {
+            populateAndReadFuture = cacheFile.populateAndRead(
+                Tuple.tuple(0L, length),
+                Tuple.tuple(0L, length),
+                channel -> Math.toIntExact(length),
+                (channel, from, to, progressUpdater) -> progressUpdater.accept(length),
+                threadPool.generic()
+            );
+        } else {
+            populateAndReadFuture = null;
+        }
+        if (randomBoolean()) {
+            readIfAvailableFuture = cacheFile.readIfAvailableOrPending(Tuple.tuple(0L, length), channel -> Math.toIntExact(length));
+        } else {
+            readIfAvailableFuture = null;
+        }
+        final boolean evicted = randomBoolean();
+        if (evicted) {
+            deterministicTaskQueue.scheduleNow(cacheFile::startEviction);
+        }
+        deterministicTaskQueue.scheduleNow(() -> cacheFile.release(evictionListener));
+        deterministicTaskQueue.runAllRunnableTasks();
+        if (populateAndReadFuture != null) {
+            assertTrue(populateAndReadFuture.isDone());
+        }
+        if (readIfAvailableFuture != null) {
+            assertTrue(readIfAvailableFuture.isDone());
+        }
+        if (evicted) {
+            assertFalse(Files.exists(file));
+        }
+    }
+
+    static class TestEvictionListener implements EvictionListener {
+
+        private final SetOnce<CacheFile> evicted = new SetOnce<>();
 
         CacheFile getEvictedCacheFile() {
             return evicted.get();

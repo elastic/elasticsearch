@@ -44,7 +44,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory,
         Map<String, String> meta
     ) {
-        super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         this.script = script;
         this.factory = factory;
     }

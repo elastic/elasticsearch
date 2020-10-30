@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
@@ -31,13 +28,15 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -309,11 +308,12 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+                throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }
         }
-        if (!(fieldType instanceof GeoPointFieldType)) {
-            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
+        if (!(fieldType instanceof GeoShapeQueryable)) {
+            throw new QueryShardException(context,
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
         }
 
         QueryValidationException exception = checkLatLon();
@@ -338,15 +338,10 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
 
-        Query query = LatLonPoint.newBoxQuery(fieldType.name(), luceneBottomRight.getLat(), luceneTopLeft.getLat(),
-            luceneTopLeft.getLon(), luceneBottomRight.getLon());
-        if (fieldType.hasDocValues()) {
-            Query dvQuery = LatLonDocValuesField.newSlowBoxQuery(fieldType.name(),
-                    luceneBottomRight.getLat(), luceneTopLeft.getLat(),
-                    luceneTopLeft.getLon(), luceneBottomRight.getLon());
-            query = new IndexOrDocValuesQuery(query, dvQuery);
-        }
-        return query;
+        final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType;
+        final Rectangle rectangle =
+            new Rectangle(luceneTopLeft.getLon(), luceneBottomRight.getLon(), luceneTopLeft.getLat(), luceneBottomRight.getLat());
+        return geoShapeQueryable.geoShapeQuery(rectangle, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, context);
     }
 
     @Override

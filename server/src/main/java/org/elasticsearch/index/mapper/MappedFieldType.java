@@ -294,7 +294,7 @@ public abstract class MappedFieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+    public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
         throw new IllegalArgumentException("Illegal data type of [" + typeName() + "]!"+
             "[" + DistanceFeatureQueryBuilder.NAME + "] query can only be run on a date, date_nanos or geo_point field type!");
     }
@@ -406,9 +406,11 @@ public abstract class MappedFieldType {
      * Returns information on how any text in this field is indexed
      *
      * Fields that do not support any text-based queries should return
-     * {@link TextSearchInfo#NONE}.  Some fields (eg numeric) may support
+     * {@link TextSearchInfo#NONE}.  Some fields (eg keyword) may support
      * only simple match queries, and can return
-     * {@link TextSearchInfo#SIMPLE_MATCH_ONLY}
+     * {@link TextSearchInfo#SIMPLE_MATCH_ONLY}; other fields may support
+     * simple match queries without using the terms index, and can return
+     * {@link TextSearchInfo#SIMPLE_MATCH_WITHOUT_TERMS}
      */
     public TextSearchInfo getTextSearchInfo() {
         return textSearchInfo;

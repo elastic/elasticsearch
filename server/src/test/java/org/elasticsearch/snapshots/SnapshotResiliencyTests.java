@@ -1488,7 +1488,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
                 snapshotsService = new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService,
-                        transportService, actionFilters, null);
+                        transportService, actionFilters, Collections.emptyMap());
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
                 final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());

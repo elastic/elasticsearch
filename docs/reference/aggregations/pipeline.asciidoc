@@ -267,25 +267,40 @@ _insert_zeros_::
                 This option will replace missing values with a zero (`0`) and pipeline aggregation computation will
                 proceed as normal.
 
-
-
+include::pipeline/avg-bucket-aggregation.asciidoc[]
 
 include::pipeline/bucket-script-aggregation.asciidoc[]
+
 include::pipeline/bucket-selector-aggregation.asciidoc[]
+
 include::pipeline/bucket-sort-aggregation.asciidoc[]
-include::pipeline/avg-bucket-aggregation.asciidoc[]
-include::pipeline/max-bucket-aggregation.asciidoc[]
-include::pipeline/min-bucket-aggregation.asciidoc[]
-include::pipeline/sum-bucket-aggregation.asciidoc[]
+
 include::pipeline/cumulative-cardinality-aggregation.asciidoc[]
+
 include::pipeline/cumulative-sum-aggregation.asciidoc[]
+
 include::pipeline/derivative-aggregation.asciidoc[]
-include::pipeline/percentiles-bucket-aggregation.asciidoc[]
-include::pipeline/movavg-aggregation.asciidoc[]
-include::pipeline/movfn-aggregation.asciidoc[]
-include::pipeline/moving-percentiles-aggregation.asciidoc[]
-include::pipeline/normalize-aggregation.asciidoc[]
-include::pipeline/serial-diff-aggregation.asciidoc[]
-include::pipeline/stats-bucket-aggregation.asciidoc[]
+
 include::pipeline/extended-stats-bucket-aggregation.asciidoc[]
+
 include::pipeline/inference-bucket-aggregation.asciidoc[]
+
+include::pipeline/max-bucket-aggregation.asciidoc[]
+
+include::pipeline/min-bucket-aggregation.asciidoc[]
+
+include::pipeline/movavg-aggregation.asciidoc[]
+
+include::pipeline/movfn-aggregation.asciidoc[]
+
+include::pipeline/moving-percentiles-aggregation.asciidoc[]
+
+include::pipeline/normalize-aggregation.asciidoc[]
+
+include::pipeline/percentiles-bucket-aggregation.asciidoc[]
+
+include::pipeline/serial-diff-aggregation.asciidoc[]
+
+include::pipeline/stats-bucket-aggregation.asciidoc[]
+
+include::pipeline/sum-bucket-aggregation.asciidoc[]

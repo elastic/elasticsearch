@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-movavg-aggregation]]
-=== Moving Average Aggregation
+=== Moving average aggregation
+++++
+<titleabbrev>Moving average</titleabbrev>
+++++
 
 The Moving Average aggregation has been removed.  Use the more general
 <<search-aggregations-pipeline-movfn-aggregation,Moving Function Aggregation>> instead.

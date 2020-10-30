@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-significantterms-aggregation]]
-=== Significant Terms Aggregation
+=== Significant terms aggregation
+++++
+<titleabbrev>Significant terms</titleabbrev>
+++++
 
 An aggregation that returns interesting or unusual occurrences of terms in a set.
 

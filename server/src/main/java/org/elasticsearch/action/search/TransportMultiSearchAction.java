@@ -171,11 +171,13 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                         long recall = hits.getTotalHits().value;
                         if (recall >= recallGoal) {                    
                             // Early exit. Don't run remaining searches and exit with responses gathered so far
-                            responseCounter.decrementAndGet();
+                            int remaining = responseCounter.decrementAndGet();
                             requests.clear();
                             Item[] result = responses.toArray(new MultiSearchResponse.Item[responses.length()]);
                             // Trim response of null responses we will never collect
-                            result = Arrays.copyOfRange(result, 0, result.length - responseCounter.get());
+                            if (remaining > 0) {
+                                result = Arrays.copyOfRange(result, 0, result.length - remaining);                                
+                            }
                             listener.onResponse(new MultiSearchResponse(result, buildTookInMillis()));
                             return;
                         }

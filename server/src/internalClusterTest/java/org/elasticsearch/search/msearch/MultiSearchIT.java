@@ -84,24 +84,65 @@ public class MultiSearchIT extends ESIntegTestCase {
     public void testFallbackMultiSearch() {
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("test").setId("1").setSource("field", "xxx").get();
+        client().prepareIndex("test").setId("1").setSource("field", "xxx yyy").get();
         client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
-        MultiSearchResponse response = client().prepareMultiSearch()
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "zzz")))
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
-                .setRecallGoal(1)
-                .get();
-
-        for (MultiSearchResponse.Item item : response) {
-           assertNoFailures(item.getResponse());
+        // Test middle query matches
+        {
+            MultiSearchResponse response = client().prepareMultiSearch()
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("xxx AND yyy")))
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("xxx OR yy")))
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("xxx OR yy*")))
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("xxx OR yyy")))
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+                    .setRecallGoal(2)
+                    .get();
+    
+            for (MultiSearchResponse.Item item : response) {
+               assertNoFailures(item.getResponse());
+            }
+            assertThat(response.getResponses().length, equalTo(3));
+            assertHitCount(response.getResponses()[0].getResponse(), 1L);
+            assertHitCount(response.getResponses()[2].getResponse(), 2L);
+            assertFirstHit(response.getResponses()[1].getResponse(), hasId("1"));
         }
-        assertThat(response.getResponses().length, equalTo(2));
-        assertHitCount(response.getResponses()[0].getResponse(), 0L);
-        assertHitCount(response.getResponses()[1].getResponse(), 1L);
-        assertFirstHit(response.getResponses()[1].getResponse(), hasId("1"));
+        
+        // Test first query matches
+        {
+            MultiSearchResponse response = client().prepareMultiSearch()
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("xxx AND yyy")))
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("xxx OR yy")))
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("xxx OR yy*")))
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("xxx OR yyy")))
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+                    .setRecallGoal(1)
+                    .get();
+    
+            for (MultiSearchResponse.Item item : response) {
+               assertNoFailures(item.getResponse());
+            }
+            assertThat(response.getResponses().length, equalTo(1));
+            assertHitCount(response.getResponses()[0].getResponse(), 1L);
+            assertFirstHit(response.getResponses()[0].getResponse(), hasId("1"));
+        }
+        
+        // Test last query matches
+        {
+            MultiSearchResponse response = client().prepareMultiSearch()
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("zzz OR xxx")))
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("zzz OR bbb")))
+                    .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+                    .setRecallGoal(2)
+                    .get();
+    
+            for (MultiSearchResponse.Item item : response) {
+               assertNoFailures(item.getResponse());
+            }
+            assertThat(response.getResponses().length, equalTo(3));
+            assertHitCount(response.getResponses()[0].getResponse(), 1L);
+            assertHitCount(response.getResponses()[1].getResponse(), 0L);
+            assertHitCount(response.getResponses()[2].getResponse(), 2L);
+        }
     }    
 
 }

@@ -68,6 +68,7 @@ import org.elasticsearch.painless.ir.UnaryMathNode;
 import org.elasticsearch.painless.ir.WhileLoopNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDOperation;
 
 import java.util.function.Consumer;
 
@@ -181,7 +182,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
         if (irUnaryMathNode.getChildNode() instanceof ConstantNode) {
             ConstantNode irConstantNode = (ConstantNode)irUnaryMathNode.getChildNode();
             Operation operation = irUnaryMathNode.getOperation();
-            Class<?> type = irUnaryMathNode.getDecoration(IRDExpressionType.class).getType();
+            Class<?> type = irUnaryMathNode.getDecorationValue(IRDExpressionType.class);
 
             if (operation == Operation.SUB) {
                 if (type == int.class) {
@@ -238,8 +239,8 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
         if (irBinaryMathNode.getLeftNode() instanceof ConstantNode && irBinaryMathNode.getRightNode() instanceof ConstantNode) {
             ConstantNode irLeftConstantNode = (ConstantNode)irBinaryMathNode.getLeftNode();
             ConstantNode irRightConstantNode = (ConstantNode)irBinaryMathNode.getRightNode();
-            Operation operation = irBinaryMathNode.getOperation();
-            Class<?> type = irBinaryMathNode.getDecoration(IRDExpressionType.class).getType();
+            Operation operation = irBinaryMathNode.getDecorationValue(IRDOperation.class);
+            Class<?> type = irBinaryMathNode.getDecorationValue(IRDExpressionType.class);
 
             if (operation == Operation.MUL) {
                 if (type == int.class) {
@@ -477,7 +478,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             ConstantNode irLeftConstantNode = (ConstantNode)irBooleanNode.getLeftNode();
             ConstantNode irRightConstantNode = (ConstantNode)irBooleanNode.getRightNode();
             Operation operation = irBooleanNode.getOperation();
-            Class<?> type = irBooleanNode.getDecoration(IRDExpressionType.class).getType();
+            Class<?> type = irBooleanNode.getDecorationValue(IRDExpressionType.class);
 
             if (operation == Operation.AND) {
                 if (type == boolean.class) {
@@ -661,11 +662,11 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
         irCastNode.getChildNode().visit(this, irCastNode::setChildNode);
 
         if (irCastNode.getChildNode() instanceof ConstantNode &&
-                PainlessLookupUtility.isConstantType(irCastNode.getDecoration(IRDExpressionType.class).getType())) {
+                PainlessLookupUtility.isConstantType(irCastNode.getDecorationValue(IRDExpressionType.class))) {
             ConstantNode irConstantNode = (ConstantNode)irCastNode.getChildNode();
             irConstantNode.setConstant(
                     AnalyzerCaster.constCast(irCastNode.getLocation(), irConstantNode.getConstant(), irCastNode.getCast()));
-            irConstantNode.copyDecorationFrom(irCastNode, IRDExpressionType.class);
+            irConstantNode.attachDecoration(irCastNode.getDecoration(IRDExpressionType.class));
             scope.accept(irConstantNode);
         }
     }

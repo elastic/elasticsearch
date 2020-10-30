@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumns;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -44,7 +45,7 @@ import java.util.Map;
 
 abstract class CommandBuilder extends LogicalPlanBuilder {
 
-    protected CommandBuilder(Map<Token, SqlParser.SqlParameter> params, ZoneId zoneId) {
+    protected CommandBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
         super(params, zoneId);
     }
 

@@ -139,10 +139,10 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.dateTimeOfEscapedLitera
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
 
-    private final Map<Token, SqlParser.SqlParameter> params;
+    private final Map<Token, SqlTypedParamValue> params;
     private final ZoneId zoneId;
 
-    ExpressionBuilder(Map<Token, SqlParser.SqlParameter> params, ZoneId zoneId) {
+    ExpressionBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
         this.params = params;
         this.zoneId = zoneId;
     }
@@ -165,14 +165,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression exp = expression(ctx.expression());
         String alias = visitIdentifier(ctx.identifier());
         Source source = source(ctx);
-        if (alias != null) {
-            return new Alias(source, alias, exp);
-        }
-        /*if (exp instanceof Alias) {
-            // this can happen only if we hit an originally unaliased param literal
-            return exp;
-        }*/
-        return new UnresolvedAlias(source, exp);
+        return alias != null ? new Alias(source, alias, exp) : new UnresolvedAlias(source, exp);
     }
 
     @Override
@@ -706,23 +699,10 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitParamLiteral(ParamLiteralContext ctx) {
-        Source source = source(ctx);
-        return createParamLiteral(ctx, source);
-        /*
-        Literal paramLiteral = createParamLiteral(ctx, source);
-        SelectExpressionContext selectExpressionContext = firstParentOf(ctx, SelectExpressionContext.class);
-        if (selectExpressionContext != null && selectExpressionContext.identifier() == null) {
-            int paramIndex = param(ctx.PARAM()).getIndex();
-            return new Alias(source, "?" + paramIndex, paramLiteral);
-        }
-        return paramLiteral;*/
-    }
-
-    private Literal createParamLiteral(ParamLiteralContext ctx, Source source) {
-        SqlTypedParamValue param = param(ctx.PARAM()).getValue();
+    public Literal visitParamLiteral(ParamLiteralContext ctx) {
+        SqlTypedParamValue param = param(ctx.PARAM());
         DataType dataType = SqlDataTypes.fromTypeName(param.type);
-        // 2. alias if any ctx parent is a SelectExpressionContext
+        Source source = source(ctx);
         if (dataType == null) {
             throw new ParsingException(source, "Invalid parameter data type [{}]", param.type);
         }
@@ -753,15 +733,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> T firstParentOf(ParserRuleContext child, Class<T> parentContextClass) {
-        ParserRuleContext parent = child.getParent();
-        while (parent != null && !parentContextClass.equals(parent.getClass())) {
-            parent = parent.getParent();
-        }
-        return (T) parent;
-    }
-
     @Override
     public String visitString(StringContext ctx) {
         return string(ctx);
@@ -774,17 +745,15 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx == null) {
             return null;
         }
-        SqlParser.SqlParameter sqlParam = param(ctx.PARAM());
-        if (sqlParam != null) {
-            SqlTypedParamValue param = sqlParam.getValue();
-            if (param != null) {
-                return param.value != null ? param.value.toString() : null;
-            }
+        SqlTypedParamValue param = param(ctx.PARAM());
+        if (param != null) {
+            return param.value != null ? param.value.toString() : null;
+        } else {
+            return unquoteString(ctx.getText());
         }
-        return unquoteString(ctx.getText());
     }
 
-    private SqlParser.SqlParameter param(TerminalNode node) {
+    private SqlTypedParamValue param(TerminalNode node) {
         if (node == null) {
             return null;
         }
@@ -796,16 +765,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         return params.get(token);
-    }
-
-    private SqlParser.SqlParameter param(ParserRuleContext ctx) {
-        if (!ctx.getStart().equals(ctx.getStop())) {
-            throw new ParsingException(source(ctx), "Single PARAM literal expected");
-        }
-        if (params.containsKey(ctx.getStart()) == false) {
-            throw new ParsingException(source(ctx), "Unexpected parameter");
-        }
-        return params.get(ctx.getStart());
     }
 
     @Override

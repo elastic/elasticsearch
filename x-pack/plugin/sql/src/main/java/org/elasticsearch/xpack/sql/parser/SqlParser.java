@@ -104,7 +104,7 @@ public class SqlParser {
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
 
-            Map<Token, SqlParameter> paramTokens = new HashMap<>();
+            Map<Token, SqlTypedParamValue> paramTokens = new HashMap<>();
             TokenSource tokenSource = new ParametrizedTokenSource(lexer, paramTokens, params);
 
             CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
@@ -231,27 +231,6 @@ public class SqlParser {
         }
     };
 
-    public static class SqlParameter {
-        public final Integer index;
-        public final SqlTypedParamValue value;
-
-        /**
-         * @param index Index of the SQL parameter. Index of first parameter is 1 (same as in JDBC).
-         */
-        public SqlParameter(Integer index, SqlTypedParamValue value) {
-            this.index = index;
-            this.value = value;
-        }
-
-        public Integer getIndex() {
-            return index;
-        }
-
-        public SqlTypedParamValue getValue() {
-            return value;
-        }
-    }
-
     /**
      * Finds all parameter tokens (?) and associates them with actual parameter values
      * <p>
@@ -261,28 +240,26 @@ public class SqlParser {
     private static class ParametrizedTokenSource implements TokenSource {
 
         private TokenSource delegate;
-        private Map<Token, SqlParameter> paramTokens;
-        private int paramIndex;
+        private Map<Token, SqlTypedParamValue> paramTokens;
+        private int param;
         private List<SqlTypedParamValue> params;
 
-        ParametrizedTokenSource(TokenSource delegate,
-                                Map<Token, SqlParameter> paramTokens,
-                                List<SqlTypedParamValue> params) {
+        ParametrizedTokenSource(TokenSource delegate, Map<Token, SqlTypedParamValue> paramTokens, List<SqlTypedParamValue> params) {
             this.delegate = delegate;
             this.paramTokens = paramTokens;
             this.params = params;
-            paramIndex = 0;
+            param = 0;
         }
 
         @Override
         public Token nextToken() {
             Token token = delegate.nextToken();
             if (token.getType() == SqlBaseLexer.PARAM) {
-                if (paramIndex >= params.size()) {
+                if (param >= params.size()) {
                     throw new ParsingException("Not enough actual parameters {} ", params.size());
                 }
-                paramTokens.put(token, new SqlParameter(paramIndex+1, params.get(paramIndex)));
-                paramIndex++;
+                paramTokens.put(token, params.get(param));
+                param++;
             }
             return token;
         }

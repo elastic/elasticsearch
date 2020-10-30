@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -136,7 +135,6 @@ public class Pivot extends UnaryPlan {
     public AttributeMap<Literal> valuesToLiterals() {
         AttributeSet outValues = valuesOutput();
         Map<Attribute, Literal> valuesMap = new LinkedHashMap<>();
-        List<Attribute> allAttributes = new LinkedList<>();
 
         int index = 0;
         // for each attribute, associate its value
@@ -147,7 +145,6 @@ public class Pivot extends UnaryPlan {
             // everything should have resolved to an alias
             if (namedExpression instanceof Alias) {
                 valuesMap.put(attribute, Literal.of(((Alias) namedExpression).child()));
-                allAttributes.add(attribute);
             }
             // fallback - verifier should prevent this
             else {
@@ -155,7 +152,7 @@ public class Pivot extends UnaryPlan {
             }
         }
 
-        return new AttributeMap<>(valuesMap, allAttributes);
+        return new AttributeMap<>(valuesMap);
     }
 
     @Override

@@ -70,6 +70,7 @@ import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -252,10 +253,15 @@ public class Node implements Closeable {
     private final Lifecycle lifecycle = new Lifecycle();
 
     /**
-     * Logger initialized in the ctor because if it were initialized statically
-     * then it wouldn't get the node name.
+     * This logger instance is an instance field as opposed to a static field. This ensures that the field is not
+     * initialized until an instance of Node is constructed, which is sure to happen after the logging infrastructure
+     * has been initialized to include the hostname. If this field were static, then it would be initialized when the
+     * class initializer runs. Alas, this happens too early, before logging is initialized as this class is referred to
+     * in InternalSettingsPreparer#finalizeSettings, which runs when creating the Environment, before logging is
+     * initialized.
      */
-    private final Logger logger;
+    private final Logger logger = LogManager.getLogger(Node.class);
+    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Node.class);
     private final Injector injector;
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
@@ -280,7 +286,6 @@ public class Node implements Closeable {
      */
     protected Node(final Environment initialEnvironment,
                    Collection<Class<? extends Plugin>> classpathPlugins, boolean forbidPrivateIndexSettings) {
-        logger = LogManager.getLogger(Node.class);
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
         try {
@@ -307,6 +312,9 @@ public class Node implements Closeable {
                 logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             } else {
                 logger.info("JVM home [{}]", System.getProperty("java.home"));
+                deprecationLogger.deprecate(
+                    "no-jdk",
+                    "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
             }
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
             if (Build.CURRENT.isProductionRelease() == false) {

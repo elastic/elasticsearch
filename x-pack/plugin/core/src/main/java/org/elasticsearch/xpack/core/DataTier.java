@@ -66,7 +66,7 @@ public class DataTier {
         return false;
     }
 
-    public static DiscoveryNodeRole DATA_CONTENT_NODE_ROLE = new DiscoveryNodeRole("data_content", "s") {
+    public static DiscoveryNodeRole DATA_CONTENT_NODE_ROLE = new DiscoveryNodeRole("data_content", "s", true) {
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
@@ -86,17 +86,12 @@ public class DataTier {
         }
 
         @Override
-        public boolean canContainData() {
-            return true;
-        }
-
-        @Override
         public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
             return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
         }
     };
 
-    public static DiscoveryNodeRole DATA_HOT_NODE_ROLE = new DiscoveryNodeRole("data_hot", "h") {
+    public static DiscoveryNodeRole DATA_HOT_NODE_ROLE = new DiscoveryNodeRole("data_hot", "h", true) {
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
@@ -116,17 +111,12 @@ public class DataTier {
         }
 
         @Override
-        public boolean canContainData() {
-            return true;
-        }
-
-        @Override
         public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
             return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
         }
     };
 
-    public static DiscoveryNodeRole DATA_WARM_NODE_ROLE = new DiscoveryNodeRole("data_warm", "w") {
+    public static DiscoveryNodeRole DATA_WARM_NODE_ROLE = new DiscoveryNodeRole("data_warm", "w", true) {
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
@@ -146,17 +136,12 @@ public class DataTier {
         }
 
         @Override
-        public boolean canContainData() {
-            return true;
-        }
-
-        @Override
         public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
             return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
         }
     };
 
-    public static DiscoveryNodeRole DATA_COLD_NODE_ROLE = new DiscoveryNodeRole("data_cold", "c") {
+    public static DiscoveryNodeRole DATA_COLD_NODE_ROLE = new DiscoveryNodeRole("data_cold", "c", true) {
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
@@ -173,11 +158,6 @@ public class DataTier {
                 Setting.Property.Deprecated,
                 Setting.Property.NodeScope
             );
-        }
-
-        @Override
-        public boolean canContainData() {
-            return true;
         }
 
         @Override

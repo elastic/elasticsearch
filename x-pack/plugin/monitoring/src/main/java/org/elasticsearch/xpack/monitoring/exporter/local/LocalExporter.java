@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchReques
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
@@ -105,6 +106,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private final boolean useIngest;
     private final DateFormatter dateTimeFormatter;
     private final List<String> clusterAlertBlacklist;
+    private final boolean decommissionClusterAlerts;
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final AtomicBoolean installingSomething = new AtomicBoolean(false);
@@ -120,6 +122,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         this.licenseState = config.licenseState();
         this.useIngest = USE_INGEST_PIPELINE_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         this.clusterAlertBlacklist = ClusterAlertsUtil.getClusterAlertsBlacklist(config);
+        this.decommissionClusterAlerts = Monitoring.MIGRATION_DECOMMISSION_ALERTS.get(config.settings());
         this.cleanerService = cleanerService;
         this.dateTimeFormatter = dateTimeFormatter(config);
         // if additional listeners are added here, adjust LocalExporterTests#testLocalExporterRemovesListenersOnClose accordingly
@@ -158,8 +161,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     boolean isExporterReady() {
         // forces the setup to occur if it hasn't already
         final boolean running = resolveBulk(clusterService.state(), false) != null;
+        // Report on watcher readiness
+        boolean alertsProcessed = canUseWatcher() == false || watcherSetup.get();
 
-        return running && installingSomething.get() == false;
+        return running && installingSomething.get() == false && alertsProcessed;
     }
 
     @Override
@@ -453,7 +458,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);
-            final boolean addWatch = canAddWatches && clusterAlertBlacklist.contains(watchId) == false;
+            final boolean addWatch = canAddWatches && clusterAlertBlacklist.contains(watchId) == false &&
+                decommissionClusterAlerts == false;
 
             // we aren't sure if no watches exist yet, so add them
             if (indexExists) {

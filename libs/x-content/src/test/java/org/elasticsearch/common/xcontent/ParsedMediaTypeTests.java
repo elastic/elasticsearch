@@ -25,6 +25,8 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ParsedMediaTypeTests extends ESTestCase {
 
@@ -56,21 +58,16 @@ public class ParsedMediaTypeTests extends ESTestCase {
 
     }
 
-//    public void testInvalidParameters() {
-//        String mediaType = "application/vnd.elasticsearch+json";
-//        assertThat(ParsedMediaType.parseMediaType(mediaType + "; charset=unknown")
-//            .toMediaType(mediaTypeRegistry),
-//            is(nullValue()));
-//        assertThat(ParsedMediaType.parseMediaType(mediaType + "; keyvalueNoEqualsSign")
-//                .toMediaType(mediaTypeRegistry),
-//            is(nullValue()));
-//        assertThat(ParsedMediaType.parseMediaType(mediaType + "; key = value")
-//                .toMediaType(mediaTypeRegistry),
-//            is(nullValue()));
-//        assertThat(ParsedMediaType.parseMediaType(mediaType + "; key=")
-//                .toMediaType(mediaTypeRegistry),
-//            is(nullValue()));
-//    }
+    public void testInvalidParameters() {
+        String mediaType = "application/vnd.elasticsearch+json";
+        expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(mediaType + "; keyvalueNoEqualsSign")
+            .toMediaType(mediaTypeRegistry));
+        // allowing spaces between =
+        // expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(mediaType + "; key = value")
+        //            .toMediaType(mediaTypeRegistry));
+        expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(mediaType + "; key=")
+            .toMediaType(mediaTypeRegistry));
+    }
 
     public void testXContentTypes() {
         for (XContentType xContentType : XContentType.values()) {
@@ -114,8 +111,14 @@ public class ParsedMediaTypeTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("invalid parameters for header [application/foo; char=set=unknown]"));
     }
 
-//    public void testMultipleValues() {
-//        String mediaType = "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2";
-//        ParsedMediaType.parseMediaType(mediaType);
-//    }
+    public void testDefaultAcceptHeader() {
+        // This media type is defined in sun.net.www.protocol.http.HttpURLConnection as a default Accept header
+        // and used when a header was not set on a request
+        // It should be treated as if a user did not specify a header value
+        String mediaType = "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2";
+        assertThat(ParsedMediaType.parseMediaType(mediaType), is(nullValue()));
+
+        // When using curl */* is used a default Accept header when not specified by a user
+        assertThat(ParsedMediaType.parseMediaType("*/*"), is(nullValue()));
+    }
 }

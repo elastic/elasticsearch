@@ -25,6 +25,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+/**
+ * A raw result of parsing media types from Accept or Content-Type headers.
+ * It follow parsing and validates as per  rules defined in https://tools.ietf.org/html/rfc7231#section-3.1.1.1
+ * Can be resolved to <code>MediaType</code>
+ * @see MediaType
+ * @see MediaTypeRegistry
+ */
 public class ParsedMediaType {
     //sun.net.www.protocol.http.HttpURLConnection sets a default Accept header if it was not provided on a request
     public static final String DEFAULT_ACCEPT_STRING = "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2";
@@ -95,6 +102,12 @@ public class ParsedMediaType {
         return null;
     }
 
+    /**
+     * Resolves this instance to a MediaType instance defined in given MediaTypeRegistry.
+     * Performs validation against parameters.
+     * @param mediaTypeRegistry a registry where a mapping between a raw media type to an instance MediaType is defined
+     * @return a MediaType instance
+     */
     public  <T extends MediaType> T toMediaType(MediaTypeRegistry<T> mediaTypeRegistry) {
         T type = mediaTypeRegistry.typeWithSubtypeToMediaType(mimeTypeWithoutParams());
         if (type != null) {

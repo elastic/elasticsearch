@@ -27,6 +27,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * A registry of mappings between String typeWithSubtype to a MediaType instances. For instance application/json -> XContentType.JSON
+ * Defines parameters that are allowed for media types and a regex to validate them.
+ * Specifies format path parameter values that are used to specify requested response Content-Type.
+ */
 public class MediaTypeRegistry<T extends MediaType> {
 
     private Map<String, T> formatToMediaType = new HashMap<>();

@@ -209,7 +209,8 @@ The API returns the following response:
       "generation": 2,
       "status": "GREEN",
       "template": "my-index-template",
-      "ilm_policy": "my-lifecycle-policy"
+      "ilm_policy": "my-lifecycle-policy",
+      "hidden": false
     },
     {
       "name": "my-data-stream_two",
@@ -225,7 +226,8 @@ The API returns the following response:
       "generation": 1,
       "status": "YELLOW",
       "template": "my-index-template",
-      "ilm_policy": "my-lifecycle-policy"
+      "ilm_policy": "my-lifecycle-policy",
+      "hidden": false
     }
   ]
 }

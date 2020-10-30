@@ -61,7 +61,7 @@ a response. If no response is received before the timeout expires, the request
 fails and returns an error. Defaults to `30s`.
 
 `verify`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the request verifies the repository is functional on all master and
 data nodes in the cluster. If `false`, this verification is skipped. Defaults to
 `true`.
@@ -164,7 +164,7 @@ broken down into chunks of this size or smaller. Defaults to `null` (unlimited
 file size).
 
 `compress`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, metadata files, such as index mappings and settings, are compressed
 in snapshots. Data files are not compressed. Defaults to `true`.
 
@@ -184,7 +184,7 @@ that restores are also throttled through <<recovery,recovery settings>>.
 Maximum snapshot creation rate per node. Defaults to `40mb` per second.
 
 `readonly`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the repository is read-only. The cluster can retrieve and restore
 snapshots from the repository but not write to the repository or create
 snapshots in it.
@@ -244,7 +244,7 @@ place of a host, path, query, or fragment in the URL.
 --
 
 `verify`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the request verifies the repository is functional on all master and
 data nodes in the cluster. If `false`, this verification is skipped. Defaults to
 `true`.

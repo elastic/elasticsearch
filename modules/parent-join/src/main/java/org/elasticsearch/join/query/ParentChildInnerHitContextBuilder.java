@@ -120,7 +120,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                 if (parentId == null) {
                     return new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
                 }
-                q = context.mapperService().fieldType(IdFieldMapper.NAME).termQuery(parentId, qsc);
+                q = context.fieldType(IdFieldMapper.NAME).termQuery(parentId, qsc);
             }
 
             Weight weight = context.searcher().createWeight(context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1f);

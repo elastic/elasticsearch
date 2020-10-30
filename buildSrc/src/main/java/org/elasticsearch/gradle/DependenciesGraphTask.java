@@ -74,6 +74,9 @@ public class DependenciesGraphTask extends DefaultTask {
     @TaskAction
     void generateDependenciesGraph() {
 
+        if (getProject().getGradle().getStartParameter().isOffline()) {
+            throw new GradleException("Must run in online mode in order to submit the dependency graph to the SCA service");
+        }
         final String url = System.getenv("SCA_URL");
         final String token = System.getenv("SCA_TOKEN");
         if (null == url || null == token) {

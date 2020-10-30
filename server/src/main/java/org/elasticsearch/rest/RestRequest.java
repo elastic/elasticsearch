@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -68,7 +69,8 @@ public class RestRequest implements ToXContent.Params {
     private final Set<String> consumedParams = new HashSet<>();
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
     private final HttpChannel httpChannel;
-
+    private final ParsedMediaType parsedAccept;
+    private final ParsedMediaType parsedContentType;
     private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
@@ -86,14 +88,14 @@ public class RestRequest implements ToXContent.Params {
 
     private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
                         Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
-        final XContentType xContentType;
-        try {
-            xContentType = parseContentType(headers.get("Content-Type"));
-        } catch (final IllegalArgumentException e) {
+        try{
+            this.parsedAccept = parseHeaderWithMediaType(httpRequest.getHeaders(), "Accept");
+            this.parsedContentType = parseHeaderWithMediaType(httpRequest.getHeaders(), "Content-Type");
+            if (parsedContentType != null) {
+                this.xContentType.set(parsedContentType.toMediaType(XContentType.MEDIA_TYPE_REGISTRY));
+            }
+        }catch (IllegalArgumentException e){
             throw new ContentTypeHeaderException(e);
-        }
-        if (xContentType != null) {
-            this.xContentType.set(xContentType);
         }
         this.xContentRegistry = xContentRegistry;
         this.httpRequest = httpRequest;
@@ -102,6 +104,22 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
+    }
+
+    private static @Nullable ParsedMediaType parseHeaderWithMediaType(Map<String, List<String>> headers, String headerName) {
+        //TOOD: shouldn't this be case insensitive ?
+        List<String> header = headers.get(headerName);
+        if (header == null || header.isEmpty()) {
+            return null;
+        } else if (header.size() > 1) {
+            throw new IllegalArgumentException("only one value for the  header should be provided");
+        }
+        String rawContentType = header.get(0);
+        if (Strings.hasText(rawContentType)) {
+            return ParsedMediaType.parseMediaType(rawContentType);
+        } else {
+            throw new IllegalArgumentException("Header [" + headerName + "] cannot be empty.");
+        }
     }
 
     protected RestRequest(RestRequest restRequest) {
@@ -495,6 +513,14 @@ public class RestRequest implements ToXContent.Params {
             throw new IllegalStateException("Unknown value for source_content_type [" + typeParam + "]");
         }
         return new Tuple<>(xContentType, bytes);
+    }
+
+    public ParsedMediaType getParsedAccept() {
+        return parsedAccept;
+    }
+
+    public ParsedMediaType getParsedContentType() {
+        return parsedContentType;
     }
 
     /**

@@ -13,7 +13,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 

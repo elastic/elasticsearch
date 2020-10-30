@@ -474,6 +474,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         forceMergeActionWithCodec(null);
     }
 
+    public void testForceMergeActionWithCompressionCodec() throws Exception {
+        forceMergeActionWithCodec("best_compression");
+    }
+
     public void testShrinkAction() throws Exception {
         int numShards = 4;
         int divisor = randomFrom(2, 4);
@@ -563,6 +567,48 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         ResponseException e = expectThrows(ResponseException.class,
             () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
+    public void testShrinkActionInTheHotPhase() throws Exception {
+        int numShards = 2;
+        int expectedFinalShards = 1;
+        String originalIndex = index + "-000001";
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
+
+        // add a policy
+        Map<String, LifecycleAction> hotActions = org.elasticsearch.common.collect.Map.of(
+            RolloverAction.NAME, new RolloverAction(null, null, 1L),
+            ShrinkAction.NAME, new ShrinkAction(expectedFinalShards));
+        Map<String, Phase> phases = org.elasticsearch.common.collect.Map.of(
+            "hot", new Phase("hot", TimeValue.ZERO, hotActions));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
+        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
+        createPolicyRequest.setJsonEntity("{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}");
+        client().performRequest(createPolicyRequest);
+
+        // and a template
+        Request createTemplateRequest = new Request("PUT", "_template/" + index);
+        createTemplateRequest.setJsonEntity("{" +
+            "\"index_patterns\": [\"" + index + "-*\"], \n" +
+            "  \"settings\": {\n" +
+            "    \"number_of_shards\": " + numShards + ",\n" +
+            "    \"number_of_replicas\": 0,\n" +
+            "    \"index.lifecycle.name\": \"" + policy + "\", \n" +
+            "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(createTemplateRequest);
+
+        // then create the index and index a document to trigger rollover
+        createIndexWithSettings(client(), originalIndex, alias, Settings.builder(), true);
+        index(client(), originalIndex, "_id", "foo", "bar");
+
+        assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(client(), shrunkenIndex);
+            assertThat(settings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+        });
     }
 
     public void testSetSingleNodeAllocationRetriesUntilItSucceeds() throws Exception {

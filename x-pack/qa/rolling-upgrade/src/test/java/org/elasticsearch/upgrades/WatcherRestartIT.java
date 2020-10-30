@@ -38,7 +38,7 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
         // v7.7.0 contains a Watch history template (version 11) that can't be used unless all nodes in the cluster are >=7.7.0, so
         // in a mixed cluster with some nodes <7.7.0 it will install template version 10, but if all nodes are <=7.7.0 template v11
         // is used.
-        final String expectedFinalTemplate = templatePrefix + "12";
+        final String expectedFinalTemplate = templatePrefix + "13";
         // In 7.10 watcher templates were converted to composable index templates, so we only
         // check legacy templates if we upgraded from a version that had legacy templates.
         if (UPGRADE_FROM_VERSION.before(Version.V_7_10_0)) {

@@ -270,14 +270,12 @@ public abstract class EngineTestCase extends ESTestCase {
             if (engine != null && engine.isClosed.get() == false) {
                 engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
-                assertNoInFlightDocuments(engine);
                 assertMaxSeqNoInCommitUserData(engine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
                 replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService("test"));
-                assertNoInFlightDocuments(replicaEngine);
                 assertMaxSeqNoInCommitUserData(replicaEngine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
             }
@@ -287,6 +285,7 @@ public abstract class EngineTestCase extends ESTestCase {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
         }
     }
+
 
     protected static ParseContext.Document testDocumentWithTextField() {
         return testDocumentWithTextField("test");
@@ -532,10 +531,6 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine;
     }
 
-    public static InternalEngine createEngine(EngineConfig engineConfig, int maxDocs) {
-        return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new);
-    }
-
     @FunctionalInterface
     public interface IndexWriterFactory {
 
@@ -573,7 +568,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             };
         } else {
-            return new InternalTestEngine(config, IndexWriter.MAX_DOCS, localCheckpointTrackerSupplier) {
+            return new InternalTestEngine(config, localCheckpointTrackerSupplier) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null) ?
@@ -1242,17 +1237,5 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     public static long getNumVersionLookups(Engine engine) {
         return ((InternalEngine) engine).getNumVersionLookups();
-    }
-
-    public static long getInFlightDocCount(Engine engine) {
-        if (engine instanceof InternalEngine) {
-            return ((InternalEngine) engine).getInFlightDocCount();
-        } else {
-            return 0;
-        }
-    }
-
-    public static void assertNoInFlightDocuments(Engine engine) throws Exception {
-        assertBusy(() -> assertThat(getInFlightDocCount(engine), equalTo(0L)));
     }
 }

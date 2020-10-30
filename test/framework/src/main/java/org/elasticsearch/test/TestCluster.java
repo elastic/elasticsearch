@@ -90,7 +90,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * This method checks all the things that need to be checked after each test
      */
-    public void assertAfterTest() throws Exception {
+    public void assertAfterTest() throws IOException {
         ensureEstimatedStats();
     }
 

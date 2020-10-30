@@ -37,9 +37,8 @@ class InternalTestEngine extends InternalEngine {
         super(engineConfig);
     }
 
-    InternalTestEngine(EngineConfig engineConfig, int maxDocs,
-                       BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
-        super(engineConfig, maxDocs, localCheckpointTrackerSupplier);
+    InternalTestEngine(EngineConfig engineConfig, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
+        super(engineConfig, localCheckpointTrackerSupplier);
     }
 
     @Override

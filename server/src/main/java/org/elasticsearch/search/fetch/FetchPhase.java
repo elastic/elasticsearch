@@ -259,7 +259,8 @@ public class FetchPhase {
         return context.sourceRequested() || context.fetchFieldsContext() != null;
     }
 
-    private static int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
+    private static int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId)
+        throws IOException {
         if (context.getQueryShardContext().searchFields().hasNested()) {
             BitSet bits = context.bitsetFilterCache()
                 .getBitSetProducer(Queries.newNonNestedFilter())

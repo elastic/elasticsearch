@@ -157,7 +157,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext) {
+    public SubSearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext) {
         this.fetchFieldsContext = fetchFieldsContext;
         return this;
     }

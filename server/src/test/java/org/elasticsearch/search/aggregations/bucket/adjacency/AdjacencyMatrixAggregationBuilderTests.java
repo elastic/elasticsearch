@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +29,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -74,7 +74,7 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
             filters.put("filter" + i, queryBuilder);
         }
         AdjacencyMatrixAggregationBuilder builder = new AdjacencyMatrixAggregationBuilder("dummy", filters);
-        AggregationContext aggContext = new ProductionAggregationContext(context);
+        AggregationContext aggContext = new ProductionAggregationContext(context, mock(MultiBucketConsumer.class));
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> builder.doBuild(aggContext, null, new AggregatorFactories.Builder()));
         assertThat(ex.getMessage(), equalTo("Number of filters is too large, must be less than or equal to: ["+ maxFilters

@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,7 +46,7 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
     public FilterAggregator(String name,
                             Supplier<Weight> filter,
                             AggregatorFactories factories,
-                            SearchContext context,
+                            AggregationContext context,
                             Aggregator parent,
                             CardinalityUpperBound cardinality,
                             Map<String, Object> metadata) throws IOException {

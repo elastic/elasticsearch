@@ -27,7 +27,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -48,12 +46,9 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.internal.SearchContext;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -525,25 +520,6 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, verify, keywordField("t"), longField("number"));
     }
 
-    protected <A extends Aggregator> A createAggregator(
-        Query query,
-        AggregationBuilder aggregationBuilder,
-        IndexSearcher indexSearcher,
-        IndexSettings indexSettings,
-        MultiBucketConsumer bucketConsumer,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        SearchContext searchContext = createSearchContext(
-            indexSearcher,
-            indexSettings,
-            query,
-            bucketConsumer,
-            circuitBreakerService,
-            fieldTypes
-        );
-        return createAggregator(aggregationBuilder, searchContext);
-    }
-
     /**
      * We cannot use Mockito for mocking QueryShardContext in this case because
      * script-related methods (e.g. QueryShardContext#getLazyExecutableScript)
@@ -570,7 +546,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             xContentRegistry(),
             writableRegistry(),
             null,
-            null,
+            searcher,
             System::currentTimeMillis,
             null,
             null,

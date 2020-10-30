@@ -23,8 +23,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortValue;
@@ -57,18 +57,18 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     private final BucketedSort sort;
     private final Metrics metrics;
 
-    TopMetricsAggregator(String name, SearchContext context, Aggregator parent, Map<String, Object> metadata, int size,
+    TopMetricsAggregator(String name, AggregationContext context, Aggregator parent, Map<String, Object> metadata, int size,
             SortBuilder<?> sort, List<MetricSource> metricSources) throws IOException {
         super(name, context, parent, metadata);
         this.size = size;
-        metrics = new Metrics(size, context.getQueryShardContext().bigArrays(), metricSources);
+        metrics = new Metrics(size, bigArrays(), metricSources);
         /*
          * If we're only collecting a single value then only provided *that*
          * value to the sort so that swaps and loads are just a little faster
          * in that *very* common case.
          */
         BucketedSort.ExtraData values = metricSources.size() == 1 ? metrics.values[0] : metrics;
-        this.sort = sort.buildBucketedSort(context.getQueryShardContext(), size, values);
+        this.sort = context.buildBucketedSort(sort, size, values);
     }
 
     @Override

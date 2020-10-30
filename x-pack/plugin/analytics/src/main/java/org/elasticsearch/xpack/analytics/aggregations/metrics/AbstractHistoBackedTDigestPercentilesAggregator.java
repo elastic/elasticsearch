@@ -20,8 +20,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ abstract class AbstractHistoBackedTDigestPercentilesAggregator extends NumericMe
     protected final double compression;
     protected final boolean keyed;
 
-    AbstractHistoBackedTDigestPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+    AbstractHistoBackedTDigestPercentilesAggregator(String name, ValuesSource valuesSource, AggregationContext context, Aggregator parent,
                                          double[] keys, double compression, boolean keyed, DocValueFormat formatter,
                                          Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);

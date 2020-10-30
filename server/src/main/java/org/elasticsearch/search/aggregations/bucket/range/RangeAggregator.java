@@ -41,8 +41,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -224,7 +224,7 @@ public class RangeAggregator extends BucketsAggregator {
     final double[] maxTo;
 
     public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
-            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
+            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, AggregationContext context,
             Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
 
         super(name, factories, context, parent, cardinality.multiply(ranges.length), metadata);
@@ -359,12 +359,11 @@ public class RangeAggregator extends BucketsAggregator {
             R[] ranges,
             boolean keyed,
             DocValueFormat format,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             InternalRange.Factory factory,
             Map<String, Object> metadata
         ) throws IOException {
-
             super(name, context, parent, factories, metadata);
             this.ranges = ranges;
             this.keyed = keyed;

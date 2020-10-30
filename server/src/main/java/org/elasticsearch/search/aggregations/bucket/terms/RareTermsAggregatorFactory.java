@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -69,7 +68,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     int maxDocCount,
                                     double precision,
                                     IncludeExclude includeExclude,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
@@ -114,7 +113,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     int maxDocCount,
                                     double precision,
                                     IncludeExclude includeExclude,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
@@ -161,11 +160,9 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new UnmappedRareTerms(name, metadata);
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -175,7 +172,6 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -190,7 +186,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 maxDocCount,
                 precision,
                 includeExclude,
-                searchContext,
+                context,
                 parent,
                 cardinality,
                 metadata
@@ -208,7 +204,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 ValuesSource valuesSource,
                 DocValueFormat format,
                 IncludeExclude includeExclude,
-                SearchContext context,
+                AggregationContext context,
                 Aggregator parent,
                 Map<String, Object> metadata,
                 long maxDocCount,
@@ -259,7 +255,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             ValuesSource valuesSource,
             DocValueFormat format,
             IncludeExclude includeExclude,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             Map<String, Object> metadata,
             long maxDocCount,

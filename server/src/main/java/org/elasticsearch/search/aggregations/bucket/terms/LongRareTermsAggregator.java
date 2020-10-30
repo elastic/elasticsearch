@@ -31,8 +31,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,7 +56,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
         AggregatorFactories factories,
         ValuesSource.Numeric valuesSource,
         DocValueFormat format,
-        SearchContext aggregationContext,
+        AggregationContext aggregationContext,
         Aggregator parent,
         IncludeExclude.LongFilter filter,
         int maxDocCount,

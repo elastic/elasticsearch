@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -71,7 +70,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
             }, true);
     }
 
-    private static boolean useGlobalOrds(SearchContext context,
+    private static boolean useGlobalOrds(AggregationContext context,
                                          ValuesSource.Bytes.WithOrdinals source,
                                          int precision) throws IOException {
         final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
@@ -88,22 +87,19 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, config, precision(), searchContext, parent, metadata);
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new CardinalityAggregator(name, config, precision(), context, parent, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
         return context.getValuesSourceRegistry()
             .getAggregator(CardinalityAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, precision(), searchContext, parent, metadata);
+            .build(name, config, precision(), context, parent, metadata);
     }
 
     private int precision() {

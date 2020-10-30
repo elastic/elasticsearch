@@ -67,7 +67,6 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -504,10 +503,8 @@ public class TransportSearchIT extends ESIntegTestCase {
                                             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
             return new AggregatorFactory(name, context, parent, subFactoriesBuilder, metadata) {
                 @Override
-                protected Aggregator createInternal(SearchContext searchContext,
-                                                    Aggregator parent,
-                                                    CardinalityUpperBound cardinality,
-                                                    Map<String, Object> metadata) throws IOException {
+                protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+                    throws IOException {
                     return new TestAggregator(name, parent);
                 }
             };

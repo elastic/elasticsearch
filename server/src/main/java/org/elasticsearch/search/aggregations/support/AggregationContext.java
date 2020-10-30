@@ -21,8 +21,10 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -32,10 +34,12 @@ import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
+import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -166,6 +170,44 @@ public abstract class AggregationContext {
     public abstract SubSearchContext subSearchContext();
 
     /**
+     * Cause this aggregation to be released when the search is finished. 
+     */
+    public abstract void addReleasable(Aggregator aggregator);
+
+    public abstract MultiBucketConsumer multiBucketConsumer();
+
+    /**
+     * Get the filter cache.
+     */
+    public abstract BitsetFilterCache bitsetFilterCache();
+    // TODO it is unclear why we can't just use the IndexSearcher which already caches
+
+    /**
+     * Build a {@linkplain BucketedSort}.
+     */
+    public abstract BucketedSort buildBucketedSort(SortBuilder<?> sort, int size, BucketedSort.ExtraData values) throws IOException;
+
+    /**
+     * Get a deterministic random seed based for this particular shard.
+     */
+    public abstract int shardRandomSeed();
+
+    /**
+     * How many millis have passed since we started the search?
+     */
+    public abstract long getRelativeTimeInMillis();
+
+    /**
+     * Has the search been cancelled?
+     */
+    public abstract boolean isCancelled();
+
+    /**
+     * The circuit breaker used to account for aggs.
+     */
+    public abstract CircuitBreaker breaker();
+
+    /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link QueryShardContext} and the top level
      * {@link Query}. Unit tests should avoid using this because it requires
@@ -173,14 +215,16 @@ public abstract class AggregationContext {
      */
     public static class ProductionAggregationContext extends AggregationContext {
         private final SearchContext context;
+        private final MultiBucketConsumer multiBucketConsumer;
 
-        public ProductionAggregationContext(SearchContext context) {
+        public ProductionAggregationContext(SearchContext context, MultiBucketConsumer multiBucketConsumer) {
             this.context = context;
+            this.multiBucketConsumer = multiBucketConsumer;
         }
 
         @Override
         public Query query() {
-            return context.parsedQuery() == null ? null : context.parsedQuery().query();
+            return context.query();
         }
 
         @Override
@@ -228,12 +272,12 @@ public abstract class AggregationContext {
 
         @Override
         public BigArrays bigArrays() {
-            return context.bigArrays();
+            return context.getQueryShardContext().bigArrays();
         }
 
         @Override
         public IndexSearcher searcher() {
-            return context.searcher();
+            return context.getQueryShardContext().searcher();
         }
 
         @Override
@@ -253,7 +297,7 @@ public abstract class AggregationContext {
 
         @Override
         public ObjectMapper getObjectMapper(String path) {
-            return context.getObjectMapper(path);
+            return context.getQueryShardContext().getObjectMapper(path);
         }
 
         @Override
@@ -263,7 +307,47 @@ public abstract class AggregationContext {
 
         @Override
         public SubSearchContext subSearchContext() {
-            return new SubSearchContext(context).parsedQuery(context.parsedQuery());
+            return new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext());
+        }
+
+        @Override
+        public void addReleasable(Aggregator aggregator) {
+            context.addReleasable(aggregator);
+        }
+
+        @Override
+        public MultiBucketConsumer multiBucketConsumer() {
+            return multiBucketConsumer;
+        }
+
+        @Override
+        public BitsetFilterCache bitsetFilterCache() {
+            return context.bitsetFilterCache();
+        }
+
+        @Override
+        public BucketedSort buildBucketedSort(SortBuilder<?> sort, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
+            return sort.buildBucketedSort(context.getQueryShardContext(), bucketSize, extra);
+        }
+
+        @Override
+        public int shardRandomSeed() {
+            return context.indexShard().shardId().hashCode();
+        }
+
+        @Override
+        public long getRelativeTimeInMillis() {
+            return context.getRelativeTimeInMillis();
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return context.isCancelled();
+        }
+
+        @Override
+        public CircuitBreaker breaker() {
+            return context.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
         }
     }
 }

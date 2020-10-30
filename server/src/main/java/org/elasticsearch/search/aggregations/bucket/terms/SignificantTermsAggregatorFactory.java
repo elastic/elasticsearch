@@ -39,7 +39,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -72,7 +71,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                     IncludeExclude includeExclude,
                                     String executionHint,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     SignificanceHeuristic significanceHeuristic,
                                     SignificanceLookup lookup,
@@ -116,7 +115,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                     IncludeExclude includeExclude,
                                     String executionHint,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     SignificanceHeuristic significanceHeuristic,
                                     SignificanceLookup lookup,
@@ -181,12 +180,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), metadata);
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -196,7 +193,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -236,7 +232,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             bucketCountThresholds,
             includeExclude,
             executionHint,
-            searchContext,
+            context,
             parent,
             significanceHeuristic,
             lookup,
@@ -256,7 +252,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               DocValueFormat format,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds,
                               IncludeExclude includeExclude,
-                              SearchContext aggregationContext,
+                              AggregationContext context,
                               Aggregator parent,
                               SignificanceHeuristic significanceHeuristic,
                               SignificanceLookup lookup,
@@ -273,7 +269,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     format,
                     bucketCountThresholds,
                     filter,
-                    aggregationContext,
+                    context,
                     parent,
                     SubAggCollectionMode.BREADTH_FIRST,
                     false,
@@ -293,7 +289,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               DocValueFormat format,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds,
                               IncludeExclude includeExclude,
-                              SearchContext aggregationContext,
+                              AggregationContext context,
                               Aggregator parent,
                               SignificanceHeuristic significanceHeuristic,
                               SignificanceLookup lookup,
@@ -321,7 +317,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     format,
                     bucketCountThresholds,
                     filter,
-                    aggregationContext,
+                    context,
                     parent,
                     remapGlobalOrd,
                     SubAggCollectionMode.BREADTH_FIRST,
@@ -357,7 +353,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                    DocValueFormat format,
                                    TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                    IncludeExclude includeExclude,
-                                   SearchContext aggregationContext,
+                                   AggregationContext context,
                                    Aggregator parent,
                                    SignificanceHeuristic significanceHeuristic,
                                    SignificanceLookup lookup,

@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -70,10 +69,10 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
      * Note that as aggregations are initialsed and executed in a serial manner,
      * no concurrency considerations are necessary here.
      */
-    public Weight[] getWeights(SearchContext searchContext) {
+    public Weight[] getWeights() {
         if (weights == null) {
             try {
-                IndexSearcher contextSearcher = searchContext.searcher();
+                IndexSearcher contextSearcher = context.searcher();
                 weights = new Weight[filters.length];
                 for (int i = 0; i < filters.length; ++i) {
                     this.weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filters[i]), ScoreMode.COMPLETE_NO_SCORES, 1);
@@ -86,12 +85,11 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
+    public Aggregator createInternal(Aggregator parent,
                                         CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
-        return new FiltersAggregator(name, factories, keys, () -> getWeights(searchContext), keyed,
-            otherBucket ? otherBucketKey : null, searchContext, parent, cardinality, metadata);
+        return new FiltersAggregator(name, factories, keys, this::getWeights, keyed,
+            otherBucket ? otherBucketKey : null, context, parent, cardinality, metadata);
     }
 
 

@@ -6,10 +6,6 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -22,8 +18,11 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 
 class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
 
@@ -62,8 +61,8 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new AbstractRateAggregator(name, config, rateUnit, rateMode, searchContext, parent, metadata) {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new AbstractRateAggregator(name, config, rateUnit, rateMode, context, parent, metadata) {
             @Override
             public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
@@ -73,13 +72,12 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
         return context.getValuesSourceRegistry()
             .getAggregator(RateAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, rateUnit, rateMode, searchContext, parent, metadata);
+            .build(name, config, rateUnit, rateMode, context, parent, metadata);
     }
 }

@@ -18,8 +18,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,7 +35,7 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
     private final Supplier<Tuple<Weight, Weight>> weightsSupplier;
 
     UnpairedTTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, boolean homoscedastic,
-                            Supplier<Tuple<Weight, Weight>> weightsSupplier, DocValueFormat format, SearchContext context,
+                            Supplier<Tuple<Weight, Weight>> weightsSupplier, DocValueFormat format, AggregationContext context,
                             Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, valuesSources, tails, format, context, parent, metadata);
         a = new TTestStatsBuilder(bigArrays());

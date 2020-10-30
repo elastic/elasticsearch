@@ -42,7 +42,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -77,7 +76,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                     IncludeExclude includeExclude,
                                     String executionHint,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     SubAggCollectionMode subAggCollectMode,
                                     boolean showTermDocCountError,
@@ -129,7 +128,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                     IncludeExclude includeExclude,
                                     String executionHint,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     SubAggCollectionMode subAggCollectMode,
                                     boolean showTermDocCountError,
@@ -195,12 +194,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), metadata);
-        Aggregator agg = new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+        Aggregator agg = new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -224,7 +221,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -250,7 +246,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             bucketCountThresholds,
             includeExclude,
             executionHint,
-            searchContext,
+            context,
             parent,
             collectMode,
             showTermDocCountError,
@@ -310,7 +306,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                               DocValueFormat format,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds,
                               IncludeExclude includeExclude,
-                              SearchContext context,
+                              AggregationContext context,
                               Aggregator parent,
                               SubAggCollectionMode subAggCollectMode,
                               boolean showTermDocCountError,
@@ -345,7 +341,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                               DocValueFormat format,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds,
                               IncludeExclude includeExclude,
-                              SearchContext context, Aggregator parent,
+                              AggregationContext context, Aggregator parent,
                               SubAggCollectionMode subAggCollectMode,
                               boolean showTermDocCountError,
                               CardinalityUpperBound cardinality,
@@ -449,7 +445,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                    DocValueFormat format,
                                    TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                    IncludeExclude includeExclude,
-                                   SearchContext context,
+                                   AggregationContext context,
                                    Aggregator parent,
                                    SubAggCollectionMode subAggCollectMode,
                                    boolean showTermDocCountError,

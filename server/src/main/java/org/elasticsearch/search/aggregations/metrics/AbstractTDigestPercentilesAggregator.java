@@ -30,8 +30,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -49,7 +49,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
     protected final double compression;
     protected final boolean keyed;
 
-    AbstractTDigestPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+    AbstractTDigestPercentilesAggregator(String name, ValuesSource valuesSource, AggregationContext context, Aggregator parent,
             double[] keys, double compression, boolean keyed, DocValueFormat formatter,
             Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);

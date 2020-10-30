@@ -611,7 +611,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                 }
             } catch (ResponseException e) {
                 // see gh#54810, wrap temporary 503's as assertion error for retry
-                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                if (e.getResponse().getStatusLine().getStatusCode() != 503) {
                     throw e;
                 }
                 throw new AssertionError("Failed to retrieve audit logs", e);

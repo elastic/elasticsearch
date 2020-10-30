@@ -438,6 +438,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     @Override
     public final void onShardFailure(final int shardIndex, SearchShardTarget shardTarget, Exception e) {
+        if (TransportActions.isShardNotAvailableException(e)) {
+            // Groups shard not available exceptions under a generic exception that returns a SERVICE_UNAVAILABLE(503)
+            // temporary error.
+            e  = new NoShardAvailableActionException(shardTarget.getShardId(), e.getMessage());
+        }
         // we don't aggregate shard on failures due to the internal cancellation,
         // but do keep the header counts right
         if ((requestCancelled.get() && isTaskCancelledException(e)) == false) {

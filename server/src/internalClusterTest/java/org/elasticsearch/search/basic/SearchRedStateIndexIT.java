@@ -20,9 +20,11 @@
 package org.elasticsearch.search.basic;
 
 
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -40,6 +42,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -58,6 +61,9 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
         assertThat("Expect no shards skipped", searchResponse.getSkippedShards(), equalTo(0));
         assertThat("Expect subset of shards successful", searchResponse.getSuccessfulShards(), lessThan(numShards));
         assertThat("Expected total shards", searchResponse.getTotalShards(), equalTo(numShards));
+        for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
+            assertThat(failure.getCause(), instanceOf(NoShardAvailableActionException.class));
+        }
     }
 
     public void testClusterAllowPartialsWithRedState() throws Exception {
@@ -72,6 +78,9 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
         assertThat("Expect no shards skipped", searchResponse.getSkippedShards(), equalTo(0));
         assertThat("Expect subset of shards successful", searchResponse.getSuccessfulShards(), lessThan(numShards));
         assertThat("Expected total shards", searchResponse.getTotalShards(), equalTo(numShards));
+        for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
+            assertThat(failure.getCause(), instanceOf(NoShardAvailableActionException.class));
+        }
     }
 
 

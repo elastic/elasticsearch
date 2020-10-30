@@ -39,7 +39,7 @@ public class TestGeoShapeFieldMapperPlugin extends Plugin implements MapperPlugi
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
-        mappers.put(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
+        mappers.put(GeoShapeFieldMapper.CONTENT_TYPE, GeoShapeFieldMapper.PARSER);
         return Collections.unmodifiableMap(mappers);
     }
 }

@@ -21,66 +21,41 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE;
 import static org.hamcrest.Matchers.containsString;
 
-public class IdFieldMapperTests extends ESSingleNodeTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
-    }
+public class IdFieldMapperTests extends MapperServiceTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
 
-        try {
-            docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("_id", "1").endObject()), XContentType.JSON));
-            fail("Expected failure to parse metadata field");
-        } catch (MapperParsingException e) {
-            assertTrue(e.getCause().getMessage(),
-                e.getCause().getMessage().contains("Field [_id] is a metadata field and cannot be added inside a document"));
-        }
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> docMapper.parse(source(b -> b.field("_id", 1))));
+
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [_id] is a metadata field and cannot be added inside a document"));
     }
 
     public void testDefaults() throws IOException {
-        Settings indexSettings = Settings.EMPTY;
-        MapperService mapperService = createIndex("test", indexSettings).mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(new SourceToParse("index", "id",
-            new BytesArray("{}"), XContentType.JSON));
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument document = mapper.parse(source(b -> {}));
         IndexableField[] fields = document.rootDoc().getFields(IdFieldMapper.NAME);
         assertEquals(1, fields.length);
         assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());
         assertTrue(fields[0].fieldType().stored());
-        assertEquals(Uid.encodeId("id"), fields[0].binaryValue());
+        assertEquals(Uid.encodeId("1"), fields[0].binaryValue());
     }
 
     public void testEnableFieldData() throws IOException {
-        IndexService service = createIndex("test", Settings.EMPTY);
-        MapperService mapperService = service.mapperService();
-        mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) service.mapperService().fieldType("_id");
+
+        boolean[] enabled = new boolean[1];
+
+        MapperService mapperService = createMapperService(() -> enabled[0], mapping(b -> {}));
+        IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) mapperService.fieldType("_id");
 
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
             () -> ft.fielddataBuilder("test", () -> {
@@ -89,21 +64,12 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         assertFalse(ft.isAggregatable());
 
-        client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true))
-            .get();
-        try {
-            ft.fielddataBuilder("test", () -> {
-                throw new UnsupportedOperationException();
-            }).build(null, null);
-            assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
-            assertTrue(ft.isAggregatable());
-        } finally {
-            // unset cluster setting
-            client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
-                .get();
-        }
+        enabled[0] = true;
+        ft.fielddataBuilder("test", () -> {
+            throw new UnsupportedOperationException();
+        }).build(null, null);
+        assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
+        assertTrue(ft.isAggregatable());
     }
 
 }

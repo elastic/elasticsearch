@@ -67,6 +67,7 @@ import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
 import org.elasticsearch.painless.ir.WhileLoopNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 
 import java.util.function.Consumer;
 
@@ -180,7 +181,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
         if (irUnaryMathNode.getChildNode() instanceof ConstantNode) {
             ConstantNode irConstantNode = (ConstantNode)irUnaryMathNode.getChildNode();
             Operation operation = irUnaryMathNode.getOperation();
-            Class<?> type = irUnaryMathNode.getExpressionType();
+            Class<?> type = irUnaryMathNode.getDecoration(IRDExpressionType.class).getType();
 
             if (operation == Operation.SUB) {
                 if (type == int.class) {
@@ -238,7 +239,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             ConstantNode irLeftConstantNode = (ConstantNode)irBinaryMathNode.getLeftNode();
             ConstantNode irRightConstantNode = (ConstantNode)irBinaryMathNode.getRightNode();
             Operation operation = irBinaryMathNode.getOperation();
-            Class<?> type = irBinaryMathNode.getExpressionType();
+            Class<?> type = irBinaryMathNode.getDecoration(IRDExpressionType.class).getType();
 
             if (operation == Operation.MUL) {
                 if (type == int.class) {
@@ -435,22 +436,22 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             if (irLeftNode instanceof ConstantNode && irRightNode instanceof ConstantNode) {
                 ConstantNode irConstantNode = (ConstantNode)irLeftNode;
                 irConstantNode.setConstant("" + irConstantNode.getConstant() + ((ConstantNode)irRightNode).getConstant());
-                irConstantNode.setExpressionType(String.class);
+                irConstantNode.attachDecoration(new IRDExpressionType(String.class));
                 irStringConcatenationNode.getArgumentNodes().remove(i + 1);
             } else if (irLeftNode instanceof NullNode && irRightNode instanceof ConstantNode) {
                 ConstantNode irConstantNode = (ConstantNode)irRightNode;
                 irConstantNode.setConstant("" + null + ((ConstantNode)irRightNode).getConstant());
-                irConstantNode.setExpressionType(String.class);
+                irConstantNode.attachDecoration(new IRDExpressionType(String.class));
                 irStringConcatenationNode.getArgumentNodes().remove(i);
             } else if (irLeftNode instanceof ConstantNode && irRightNode instanceof NullNode) {
                 ConstantNode irConstantNode = (ConstantNode)irLeftNode;
                 irConstantNode.setConstant("" + ((ConstantNode)irLeftNode).getConstant() + null);
-                irConstantNode.setExpressionType(String.class);
+                irConstantNode.attachDecoration(new IRDExpressionType(String.class));
                 irStringConcatenationNode.getArgumentNodes().remove(i + 1);
             } else if (irLeftNode instanceof NullNode && irRightNode instanceof NullNode) {
                 ConstantNode irConstantNode = new ConstantNode(irLeftNode.getLocation());
                 irConstantNode.setConstant("" + null + null);
-                irConstantNode.setExpressionType(String.class);
+                irConstantNode.attachDecoration(new IRDExpressionType(String.class));
                 irStringConcatenationNode.getArgumentNodes().set(i, irConstantNode);
                 irStringConcatenationNode.getArgumentNodes().remove(i + 1);
             } else {
@@ -476,7 +477,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             ConstantNode irLeftConstantNode = (ConstantNode)irBooleanNode.getLeftNode();
             ConstantNode irRightConstantNode = (ConstantNode)irBooleanNode.getRightNode();
             Operation operation = irBooleanNode.getOperation();
-            Class<?> type = irBooleanNode.getExpressionType();
+            Class<?> type = irBooleanNode.getDecoration(IRDExpressionType.class).getType();
 
             if (operation == Operation.AND) {
                 if (type == boolean.class) {
@@ -544,7 +545,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                     }
                 }
 
-                irLeftConstantNode.setExpressionType(boolean.class);
+                irLeftConstantNode.attachDecoration(new IRDExpressionType(boolean.class));
                 scope.accept(irLeftConstantNode);
             } else if (operation == Operation.NE || operation == Operation.NER) {
                 if (type == boolean.class) {
@@ -571,7 +572,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                     }
                 }
 
-                irLeftConstantNode.setExpressionType(boolean.class);
+                irLeftConstantNode.attachDecoration(new IRDExpressionType(boolean.class));
                 scope.accept(irLeftConstantNode);
             } else if (irLeftConstantNode != null && irRightConstantNode != null) {
                 if (operation == Operation.GT) {
@@ -591,7 +592,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                                 "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
                     }
 
-                    irLeftConstantNode.setExpressionType(boolean.class);
+                    irLeftConstantNode.attachDecoration(new IRDExpressionType(boolean.class));
                     scope.accept(irLeftConstantNode);
                 } else if (operation == Operation.GTE) {
                     if (type == int.class) {
@@ -610,7 +611,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                                 "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
                     }
 
-                    irLeftConstantNode.setExpressionType(boolean.class);
+                    irLeftConstantNode.attachDecoration(new IRDExpressionType(boolean.class));
                     scope.accept(irLeftConstantNode);
                 } else if (operation == Operation.LT) {
                     if (type == int.class) {
@@ -629,7 +630,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                                 "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
                     }
 
-                    irLeftConstantNode.setExpressionType(boolean.class);
+                    irLeftConstantNode.attachDecoration(new IRDExpressionType(boolean.class));
                     scope.accept(irLeftConstantNode);
                 } else if (operation == Operation.LTE) {
                     if (type == int.class) {
@@ -648,7 +649,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                                 "constants [" + irLeftConstantNode.getConstant() + "] and [" + irRightConstantNode.getConstant() + "]"));
                     }
 
-                    irLeftConstantNode.setExpressionType(boolean.class);
+                    irLeftConstantNode.attachDecoration(new IRDExpressionType(boolean.class));
                     scope.accept(irLeftConstantNode);
                 }
             }
@@ -659,11 +660,12 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
     public void visitCast(CastNode irCastNode, Consumer<ExpressionNode> scope) {
         irCastNode.getChildNode().visit(this, irCastNode::setChildNode);
 
-        if (irCastNode.getChildNode() instanceof ConstantNode && PainlessLookupUtility.isConstantType(irCastNode.getExpressionType())) {
+        if (irCastNode.getChildNode() instanceof ConstantNode &&
+                PainlessLookupUtility.isConstantType(irCastNode.getDecoration(IRDExpressionType.class).getType())) {
             ConstantNode irConstantNode = (ConstantNode)irCastNode.getChildNode();
             irConstantNode.setConstant(
                     AnalyzerCaster.constCast(irCastNode.getLocation(), irConstantNode.getConstant(), irCastNode.getCast()));
-            irConstantNode.setExpressionType(irCastNode.getExpressionType());
+            irConstantNode.copyDecorationFrom(irCastNode, IRDExpressionType.class);
             scope.accept(irConstantNode);
         }
     }

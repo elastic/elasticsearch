@@ -112,7 +112,7 @@ NOTE: Wildcard (`*`) expressions are not supported for `<snapshot>`.
 ==== {api-request-body-title}
 
 `ignore_unavailable`::
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, the request returns an error for any snapshots that are unavailable. Defaults to `false`.
 +
 If `true`, the request ignores snapshots that are unavailable, such as those that are corrupted or temporarily cannot be returned.
@@ -158,7 +158,7 @@ Indicates the current snapshot state.
 --
 
 `include_global_state`::
-(boolean)
+(Boolean)
 Indicates whether the current cluster state is included in the snapshot.
 
 [[get-snapshot-status-shards-stats]]

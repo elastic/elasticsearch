@@ -21,8 +21,8 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketCollector;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -37,7 +37,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
      * Wrapper that records collections. Non-null if any aggregations have
      * been deferred.
      */
-    private DeferringBucketCollector recordingWrapper;
+    private DeferringBucketCollector deferringCollector;
     private List<String> deferredAggregationNames;
 
     protected DeferableBucketAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
@@ -52,29 +52,39 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
         List<BucketCollector> deferredAggregations = null;
         for (int i = 0; i < subAggregators.length; ++i) {
             if (shouldDefer(subAggregators[i])) {
-                if (recordingWrapper == null) {
-                    recordingWrapper = getDeferringCollector();
+                if (deferringCollector == null) {
+                    deferringCollector = buildDeferringCollector();
                     deferredAggregations = new ArrayList<>(subAggregators.length);
                     deferredAggregationNames = new ArrayList<>(subAggregators.length);
                 }
                 deferredAggregations.add(subAggregators[i]);
                 deferredAggregationNames.add(subAggregators[i].name());
-                subAggregators[i] = recordingWrapper.wrap(subAggregators[i]);
+                subAggregators[i] = deferringCollector.wrap(subAggregators[i]);
             } else {
                 collectors.add(subAggregators[i]);
             }
         }
-        if (recordingWrapper != null) {
-            recordingWrapper.setDeferredCollector(deferredAggregations);
-            collectors.add(recordingWrapper);
+        if (deferringCollector != null) {
+            deferringCollector.setDeferredCollector(deferredAggregations);
+            collectors.add(deferringCollector);
         }
         collectableSubAggregators = MultiBucketCollector.wrap(collectors);
     }
 
-    public DeferringBucketCollector getDeferringCollector() {
-        // Default impl is a collector that selects the best buckets
-        // but an alternative defer policy may be based on best docs.
-        return new BestBucketsDeferringCollector(context(), descendsFromGlobalAggregator(parent()));
+    /**
+     * Get the deferring collector.
+     */
+    protected DeferringBucketCollector deferringCollector() {
+        return deferringCollector;
+    }
+
+    /**
+     * Build the {@link DeferringBucketCollector}. The default implementation
+     * replays all hits against the buckets selected by
+     * {#link {@link DeferringBucketCollector#prepareSelectedBuckets(long...)}.
+     */
+    protected DeferringBucketCollector buildDeferringCollector() {
+        return new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
     }
 
     /**
@@ -91,9 +101,9 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {
-        if (recordingWrapper != null) {
-            recordingWrapper.prepareSelectedBuckets(ordsToCollect);
+    protected final void prepareSubAggs(long[] bucketOrdsToCollect) throws IOException {
+        if (deferringCollector != null) {
+            deferringCollector.prepareSelectedBuckets(bucketOrdsToCollect);
         }
     }
 

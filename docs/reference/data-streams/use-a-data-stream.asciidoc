@@ -56,35 +56,8 @@ DELETE /_index_template/*
 [[add-documents-to-a-data-stream]]
 === Add documents to a data stream
 
-You can add documents to a data stream using two types of indexing requests:
-
-* <<data-streams-individual-indexing-requests>>
-* <<data-streams-bulk-indexing-requests>>
-
-Adding a document to a data stream adds the document to stream's current
-<<data-stream-write-index,write index>>.
-
-You cannot add new documents to a stream's other backing indices, even by
-sending requests directly to the index. This means you cannot submit the
-following requests directly to any backing index except the write index:
-
-* An <<docs-index_,index API>> request with an
-  <<docs-index-api-op_type,`op_type`>> of `create`. The `op_type` parameter
-  defaults to `create` when adding new documents.
-* A <<docs-bulk,bulk API>> request using a `create` action
-
-
-[discrete]
-[[data-streams-individual-indexing-requests]]
-==== Individual indexing requests
-
-You can use an <<docs-index_,index API>> request with an
-<<docs-index-api-op_type,`op_type`>> of `create` to add individual documents
-to a data stream.
-
-NOTE: The `op_type` parameter defaults to `create` when adding new documents.
-
-The following index API request adds a new document to `my-data-stream`.
+To add an individual document, use the <<docs-index_,index API>>.
+<<ingest,Ingest pipelines>> are supported.
 
 [source,console]
 ----
@@ -98,23 +71,13 @@ POST /my-data-stream/_doc/
 }
 ----
 
-IMPORTANT: You cannot add new documents to a data stream using the index API's
-`PUT /<target>/_doc/<_id>` request format. To specify a document ID, use the
-`PUT /<target>/_create/<_id>` format instead.
+You cannot add new documents to a data stream using the index API's `PUT
+/<target>/_doc/<_id>` request format. To specify a document ID, use the `PUT
+/<target>/_create/<_id>` format instead. Only an
+<<docs-index-api-op_type,`op_type`>> of `create` is supported.
 
-
-[discrete]
-[[data-streams-bulk-indexing-requests]]
-==== Bulk indexing requests
-
-You can use the <<docs-bulk,bulk API>> to add multiple documents to a data
-stream in a single request. Each action in the bulk request must use the
-`create` action.
-
-NOTE: Data streams do not support other bulk actions, such as `index`.
-
-The following bulk API request adds several new documents to
-`my-data-stream`. Only the `create` action is used.
+To add multiple documents with a single request, use the <<docs-bulk,bulk API>>.
+Only `create` actions are supported.
 
 [source,console]
 ----
@@ -128,65 +91,6 @@ PUT /my-data-stream/_bulk?refresh
 ----
 
 [discrete]
-[[data-streams-index-with-an-ingest-pipeline]]
-==== Index with an ingest pipeline
-
-You can use an <<ingest,ingest pipeline>> with an indexing request to
-pre-process data before it's indexed to a data stream.
-
-The following <<put-pipeline-api,put pipeline API>> request creates the
-`lowercase_message_field` ingest pipeline. The pipeline uses the
-<<lowercase-processor,`lowercase` ingest processor>> to change the `message`
-field value to lowercase before indexing.
-
-[source,console]
-----
-PUT /_ingest/pipeline/lowercase_message_field
-{
-  "description" : "Lowercases the message field value",
-  "processors" : [
-    {
-      "lowercase" : {
-        "field" : "message"
-      }
-    }
-  ]
-}
-----
-// TEST[continued]
-
-The following index API request adds a new document to `my-data-stream`.
-
-The request includes a `?pipeline=lowercase_message_field` query parameter.
-This parameter indicates {es} should use the `lowercase_message_field` pipeline
-to pre-process the document before indexing it.
-
-During pre-processing, the pipeline changes the letter case of the document's
-`message` field value from `LOGIN Successful` to `login successful`.
-
-[source,console]
-----
-POST /my-data-stream/_doc?pipeline=lowercase_message_field
-{
-  "@timestamp": "2020-12-08T11:12:01.000Z",
-  "user": {
-    "id": "I1YBEOxJ"
-  },
-  "message": "LOGIN Successful"
-}
-----
-// TEST[continued]
-
-////
-[source,console]
-----
-DELETE /_ingest/pipeline/lowercase_message_field
-----
-// TEST[continued]
-////
-
-
-[discrete]
 [[search-a-data-stream]]
 === Search a data stream
 
@@ -198,157 +102,24 @@ The following search APIs support data streams:
 * <<search-field-caps, Field capabilities>>
 * <<eql-search-api, EQL search>>
 
-The following <<search-search,search API>> request searches `my-data-stream`
-for documents with a timestamp between today and yesterday that also have
-`message` value of `login successful`.
-
-[source,console]
-----
-GET /my-data-stream/_search
-{
-  "query": {
-    "bool": {
-      "must": {
-        "range": {
-          "@timestamp": {
-            "gte": "now-1d/d",
-            "lt": "now/d"
-          }
-        }
-      },
-      "should": {
-        "match": {
-          "message": "login successful"
-        }
-      }
-    }
-  }
-}
-----
-
-You can use a comma-separated list to search
-multiple data streams, indices, and index aliases in the same request.
-
-The following request searches `my-data-stream` and `my-data-stream-alt`,
-which are specified as a comma-separated list in the request path.
-
-[source,console]
-----
-GET /my-data-stream,my-data-stream-alt/_search
-{
-  "query": {
-    "match": {
-      "user.id": "8a4f500d"
-    }
-  }
-}
-----
-
-Index patterns are also supported.
-
-The following request uses the `my-data-stream*` index pattern to search any
-data stream, index, or index alias beginning with `my-data-stream`.
-
-[source,console]
-----
-GET /my-data-stream*/_search
-{
-  "query": {
-    "match": {
-      "user.id": "vlb44hny"
-    }
-  }
-}
-----
-
-The following search request omits a target in the request path. The request
-searches all data streams and indices in the cluster.
-
-[source,console]
-----
-GET /_search
-{
-  "query": {
-    "match": {
-      "user.id": "l7gk7f82"
-    }
-  }
-}
-----
-
 [discrete]
 [[get-stats-for-a-data-stream]]
 === Get statistics for a data stream
 
-You can use the <<data-stream-stats-api,data stream stats API>> to retrieve
-statistics for one or more data streams. These statistics include:
-
-* A count of the stream's backing indices
-* The total store size of all shards for the stream's backing indices
-* The highest `@timestamp` value for the stream
-
-.*Example*
-[%collapsible]
-====
-The following data stream stats API request retrieves statistics for
-`my-data-stream`.
+Use the <<data-stream-stats-api,data stream stats API>> to get
+statistics for one or more data streams:
 
 [source,console]
 ----
 GET /_data_stream/my-data-stream/_stats?human=true
 ----
 
-The API returns the following response.
-
-[source,console-result]
-----
-{
-  "_shards": {
-    "total": 6,
-    "successful": 3,
-    "failed": 0
-  },
-  "data_stream_count": 1,
-  "backing_indices": 3,
-  "total_store_size": "624b",
-  "total_store_size_bytes": 624,
-  "data_streams": [
-    {
-      "data_stream": "my-data-stream",
-      "backing_indices": 3,
-      "store_size": "624b",
-      "store_size_bytes": 624,
-      "maximum_timestamp": 1607339167000
-    }
-  ]
-}
-----
-// TESTRESPONSE[s/"total_store_size": "624b"/"total_store_size": $body.total_store_size/]
-// TESTRESPONSE[s/"total_store_size_bytes": 624/"total_store_size_bytes": $body.total_store_size_bytes/]
-// TESTRESPONSE[s/"store_size": "624b"/"store_size": $body.data_streams.0.store_size/]
-// TESTRESPONSE[s/"store_size_bytes": 624/"store_size_bytes": $body.data_streams.0.store_size_bytes/]
-====
-
 [discrete]
 [[manually-roll-over-a-data-stream]]
 === Manually roll over a data stream
 
-A rollover creates a new backing index for a data stream. This new backing index
-becomes the stream's <<data-stream-write-index,write index>> and increments
-the stream's <<data-streams-generation,generation>>.
-
-In most cases, we recommend using <<index-lifecycle-management,{ilm-init}>> to
-automate rollovers for data streams. This lets you automatically roll over the
-current write index when it meets specified criteria, such as a maximum age or
-size.
-
-However, you can also use the <<indices-rollover-index,rollover API>> to
-manually perform a rollover. This can be useful if you want to
-<<data-streams-change-mappings-and-settings,apply mapping or setting changes>>
-to the stream's write index after updating a data stream's template.
-
-The following <<indices-rollover-index,rollover API>> request submits a manual
-rollover request for `my-data-stream`.
+Use the <<indices-rollover-index,rollover API>> to manually
+<<data-streams-rollover,roll over>> a data stream:
 
 [source,console]
 ----
@@ -359,112 +130,35 @@ POST /my-data-stream/_rollover/
 [[open-closed-backing-indices]]
 === Open closed backing indices
 
-You may <<indices-close,close>> one or more of a data stream's backing indices
-as part of its {ilm-init} lifecycle or another workflow. A closed backing index
-cannot be searched, even for searches targeting its data stream. You also can't
-<<update-docs-in-a-data-stream-by-query,update>> or
-<<delete-docs-in-a-data-stream-by-query,delete>> documents in a closed index.
+You cannot search a <<indices-close,closed>> backing index, even by searching
+its data stream. You also cannot <<update-docs-in-a-data-stream-by-query,update>>
+or <<delete-docs-in-a-data-stream-by-query,delete>> documents in a closed index.
 
-You can re-open individual backing indices by sending an
-<<indices-open-close,open request>> directly to the index.
-
-You also can conveniently re-open all closed backing indices for a data stream
-by sending an open request directly to the stream.
-
-The following <<cat-indices,cat indices>> API request retrieves the status for
-`my-data-stream`'s backing indices.
-
-////
-[source,console]
-----
-POST /.ds-my-data-stream-000001,.ds-my-data-stream-000002/_close/
-----
-////
+To re-open a closed backing index, submit an <<indices-open-close,open
+index API request>> directly to the index:
 
 [source,console]
 ----
-GET /_cat/indices/my-data-stream?v&s=index&h=index,status
+POST /.ds-my-data-stream-000001/_open/
 ----
-// TEST[continued]
 
-The API returns the following response. The response indicates
-`my-data-stream` contains two closed backing indices:
-`.ds-my-data-stream-000001` and `.ds-my-data-stream-000002`.
-
-[source,txt]
-----
-index                     status
-.ds-my-data-stream-000001 close
-.ds-my-data-stream-000002 close
-.ds-my-data-stream-000003 open
-----
-// TESTRESPONSE[non_json]
-
-The following <<indices-open-close,open API>> request re-opens any closed
-backing indices for `my-data-stream`, including
-`.ds-my-data-stream-000001` and `.ds-my-data-stream-000002`.
+To re-open all closed backing indices for a data stream, submit an open index
+API request to the stream:
 
 [source,console]
 ----
 POST /my-data-stream/_open/
 ----
-// TEST[continued]
-
-You can resubmit the original cat indices API request to verify
-`.ds-my-data-stream-000001` and `.ds-my-data-stream-000002` were re-opened.
-
-[source,console]
-----
-GET /_cat/indices/my-data-stream?v&s=index&h=index,status
-----
-// TEST[continued]
-
-The API returns the following response.
-
-[source,txt]
-----
-index                     status
-.ds-my-data-stream-000001 open
-.ds-my-data-stream-000002 open
-.ds-my-data-stream-000003 open
-----
-// TESTRESPONSE[non_json]
 
 [discrete]
 [[reindex-with-a-data-stream]]
 === Reindex with a data stream
 
-You can use the <<docs-reindex,reindex API>> to copy documents to a data stream
-from an existing index, index alias, or data stream.
-
-A reindex copies documents from a _source_ to a _destination_. The source and
-destination can be any pre-existing index, index alias, or data stream. However,
-the source and destination must be different. You cannot reindex a data stream
-into itself.
-
-Because data streams are <<data-streams-append-only,append-only>>, a reindex
-request to a data stream destination must have an `op_type` of `create`. This
-means a reindex can only add new documents to a data stream. It cannot update
-existing documents in the data stream destination.
-
-A reindex can be used to:
-
-* Convert an existing index alias and collection of time-based indices into a
-  data stream.
-
-* Apply a new or updated <<create-a-data-stream-template,index template>>
-  by reindexing an existing data stream into a new one. This applies mapping
-  and setting changes in the template to each document and backing index of the
-  data stream destination. See
-  <<data-streams-use-reindex-to-change-mappings-settings>>.
-
-TIP: If you only want to update the mappings or settings of a data stream's
-write index, we recommend you update the <<create-a-data-stream-template,data
-stream's template>> and perform a <<manually-roll-over-a-data-stream,rollover>>.
-
-The following reindex request copies documents from the `archive` index alias to
-`my-data-stream`. Because the destination is a data
-stream, the request's `op_type` is `create`.
+Use the <<docs-reindex,reindex API>> to copy documents from an
+existing index, index alias, or data stream to a data stream. Because data streams are
+<<data-streams-append-only,append-only>>, a reindex into a data stream must use
+an `op_type` of `create`. A reindex cannot update existing documents in a data
+stream.
 
 ////
 [source,console]
@@ -504,48 +198,12 @@ POST /_reindex
 ----
 // TEST[continued]
 
-You can also reindex documents from a data stream to an index, index
-alias, or data stream.
-
-The following reindex request copies documents from `my-data-stream`
-to the existing `archive` index alias. Because the destination is not a
-data stream, the `op_type` does not need to be specified.
-
-[source,console]
-----
-POST /_reindex
-{
-  "source": {
-    "index": "my-data-stream"
-  },
-  "dest": {
-    "index": "archive"
-  }
-}
-----
-// TEST[continued]
-
 [discrete]
 [[update-docs-in-a-data-stream-by-query]]
 === Update documents in a data stream by query
 
-You cannot send indexing or update requests for existing documents directly to a
-data stream. These prohibited requests include:
-
-* An <<docs-index_,index API>> request with an
-  <<docs-index-api-op_type,`op_type`>> of `index`. The `op_type` parameter
-  defaults to `index` for existing documents.
-
-* A <<docs-bulk,bulk API>> request using the `index`  or `update`
-  action.
-
-Instead, you can use the <<docs-update-by-query,update by query API>> to update
-documents in a data stream that matches a provided query.
-
-The following update by query request updates documents in `my-data-stream`
-with a `user.id` of `l7gk7f82`. The request uses a
-<<modules-scripting-using,script>> to assign matching documents a new `user.id`
-value of `XgdX0NoX`.
+Use the <<docs-update-by-query,update by query API>> to update documents in a
+data stream that match a provided query:
 
 [source,console]
 ----
@@ -569,18 +227,8 @@ POST /my-data-stream/_update_by_query
 [[delete-docs-in-a-data-stream-by-query]]
 === Delete documents in a data stream by query
 
-You cannot send document deletion requests directly to a data stream. These
-prohibited requests include:
-
-* A <<docs-delete,delete API>> request
-
-* A <<docs-bulk,bulk API>> request using the `delete` action.
-
-Instead, you can use the <<docs-delete-by-query,delete by query API>> to delete
-documents in a data stream that matches a provided query.
-
-The following delete by query request deletes documents in `my-data-stream`
-with a `user.id` of `vlb44hny`.
+Use the <<docs-delete-by-query,delete by query API>> to delete documents in a
+data stream that match a provided query:
 
 [source,console]
 ----
@@ -598,26 +246,15 @@ POST /my-data-stream/_delete_by_query
 [[update-delete-docs-in-a-backing-index]]
 === Update or delete documents in a backing index
 
-Alternatively, you can update or delete documents in a data stream by sending
-the update or deletion request to the backing index containing the document. To
-do this, you first need to get:
+If needed, you can update or delete documents in a data stream by sending
+requests to the backing index containing the document. You'll need:
 
 * The <<mapping-id-field,document ID>>
-* The name of the backing index that contains the document
+* The name of the backing index containing the document
+* If updating the document, its <<optimistic-concurrency-control,sequence number
+and primary term>>
 
-If you want to update a document, you must also get its current
-<<optimistic-concurrency-control,sequence number and primary term>>.
-
-You can use a <<search-a-data-stream,search request>> to retrieve this
-information.
-
-The following search request retrieves documents in `my-data-stream`
-with a `user.id` of `yWIumJd7`. By default, this search returns the
-document ID and backing index for any matching documents.
-
-The request includes a `"seq_no_primary_term": true` argument. This means the
-search also returns the sequence number and primary term for any matching
-documents.
+To get this information, use a <<search-a-data-stream,search request>>:
 
 [source,console]
 ----
@@ -632,8 +269,7 @@ GET /my-data-stream/_search
 }
 ----
 
-The API returns the following response. The `hits.hits` property contains
-information for any documents matching the search.
+Response:
 
 [source,console-result]
 ----
@@ -680,17 +316,8 @@ information for any documents matching the search.
 <3> Current sequence number for the document
 <4> Primary term for the document
 
-You can use an <<docs-index_,index API>> request to update an individual
-document. To prevent an accidental overwrite, this request must include valid
-`if_seq_no` and `if_primary_term` arguments.
-
-The following index API request updates an existing document in
-`my-data-stream`. The request targets document ID
-`bfspvnIBr7VVZlfp2lqX` in the `.ds-my-data-stream-000003` backing index.
-
-The request also includes the current sequence number and primary term in the
-respective `if_seq_no` and `if_primary_term` query parameters. The request body
-contains a new JSON source for the document.
+To update the document, use an <<docs-index_,index API>> request with valid
+`if_seq_no` and `if_primary_term` arguments:
 
 [source,console]
 ----
@@ -704,32 +331,17 @@ PUT /.ds-my-data-stream-000003/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=0&if_primary_
 }
 ----
 
-You use the <<docs-delete,delete API>> to delete individual documents. Deletion
-requests do not require a sequence number or primary term.
-
-The following index API request deletes an existing document in
-`my-data-stream`. The request targets document ID
-`bfspvnIBr7VVZlfp2lqX` in the `.ds-my-data-stream-000003` backing index.
+To delete the document, use the <<docs-delete,delete API>>:
 
 [source,console]
 ----
 DELETE /.ds-my-data-stream-000003/_doc/bfspvnIBr7VVZlfp2lqX
 ----
 
-You can use the <<docs-bulk,bulk API>> to delete or update multiple documents in
-one request using `delete`, `index`, or `update` actions.
-
-If the action type is `index`, the action must include valid
-<<bulk-optimistic-concurrency-control,`if_seq_no` and `if_primary_term`>>
-arguments.
-
-The following bulk API request uses an `index` action to update an existing
-document in `my-data-stream`.
-
-The `index` action targets document ID `bfspvnIBr7VVZlfp2lqX` in the
-`.ds-my-data-stream-000003` backing index. The action also includes the current
-sequence number and primary term in the respective `if_seq_no` and
-`if_primary_term` parameters.
+To delete or update multiple documents with a single request, use the
+<<docs-bulk,bulk API>>'s `delete`, `index`, and `update` actions. For `index`
+actions, include valid <<bulk-optimistic-concurrency-control,`if_seq_no` and
+`if_primary_term`>> arguments.
 
 [source,console]
 ----

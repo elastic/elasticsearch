@@ -112,6 +112,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     }
 
     public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
+        @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata,
+        @Nullable DataStreamTemplate dataStreamTemplate) {
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null);
+    }
+
+    public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
                                    @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata,
                                    @Nullable DataStreamTemplate dataStreamTemplate, @Nullable Boolean allowAutoCreate) {
         this.indexPatterns = indexPatterns;

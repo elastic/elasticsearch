@@ -428,6 +428,29 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testHardBounds() throws Exception {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            for (double value : new double[] { 3.2, -5, -4.5, 4.3 }) {
+                Document doc = new Document();
+                doc.add(new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(value)));
+                w.addDocument(doc);
+            }
+
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field")
+                .interval(5)
+                .hardBounds(new DoubleBounds(0.0, 10.0));
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                assertEquals(1, histogram.getBuckets().size());
+                assertEquals(0d, histogram.getBuckets().get(0).getKey());
+                assertEquals(2, histogram.getBuckets().get(0).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        }
+    }
+
     public void testAsSubAgg() throws IOException {
         AggregationBuilder request = new HistogramAggregationBuilder("outer").field("outer").interval(5).subAggregation(
             new HistogramAggregationBuilder("inner").field("inner").interval(5).subAggregation(

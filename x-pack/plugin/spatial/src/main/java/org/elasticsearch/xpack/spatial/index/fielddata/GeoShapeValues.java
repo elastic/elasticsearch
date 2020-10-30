@@ -24,32 +24,27 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * A stateful lightweight per document set of geo values.
+ * A stateful lightweight per document geo values.
  * To iterate over values in a document use the following pattern:
  * <pre>
  *   MultiGeoValues values = ..;
- *   values.setDocId(docId);
- *   final int numValues = values.count();
- *   for (int i = 0; i &lt; numValues; i++) {
- *       GeoValue value = values.valueAt(i);
- *       // process value
+ *   // for each docID
+ *   if (values.advanceExact(docId)) {
+ *     GeoValue value = values.value()
+ *     final int numValues = values.count();
+ *     // process value
  *   }
  * </pre>
- * The set of values associated with a document might contain duplicates and
- * comes in a non-specified order.
+ *
+ * There is just one value for one document.
  */
-public abstract class MultiGeoShapeValues {
+public abstract class GeoShapeValues {
 
-    public static MultiGeoShapeValues EMPTY = new MultiGeoShapeValues() {
+    public static GeoShapeValues EMPTY = new GeoShapeValues() {
         private GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
         @Override
         public boolean advanceExact(int doc) {
             return false;
-        }
-
-        @Override
-        public int docValueCount() {
-            return 0;
         }
 
         @Override
@@ -58,15 +53,15 @@ public abstract class MultiGeoShapeValues {
         }
 
         @Override
-        public GeoShapeValue nextValue() {
+        public GeoShapeValue value() {
             throw new UnsupportedOperationException();
         }
     };
 
     /**
-     * Creates a new {@link MultiGeoShapeValues} instance
+     * Creates a new {@link GeoShapeValues} instance
      */
-    protected MultiGeoShapeValues() {
+    protected GeoShapeValues() {
     }
 
     /**
@@ -75,22 +70,17 @@ public abstract class MultiGeoShapeValues {
      */
     public abstract boolean advanceExact(int doc) throws IOException;
 
-    /**
-     * Return the number of geo points the current document has.
-     */
-    public abstract int docValueCount();
 
     public abstract ValuesSourceType valuesSourceType();
 
     /**
-     * Return the next value associated with the current document. This must not be
-     * called more than {@link #docValueCount()} times.
+     * Return the value associated with the current document.
      *
      * Note: the returned {@link GeoShapeValue} might be shared across invocations.
      *
-     * @return the next value for the current docID set to {@link #advanceExact(int)}.
+     * @return the value for the current docID set to {@link #advanceExact(int)}.
      */
-    public abstract GeoShapeValue nextValue() throws IOException;
+    public abstract GeoShapeValue value() throws IOException;
 
     /** thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
      * the Geo decoder */

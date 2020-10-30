@@ -211,7 +211,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         Map<String, Object> attachmentData = parseDocument("asciidoc.asciidoc", processor);
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content_type", "content", "content_length"));
-        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("text/x-asciidoc"));
     }
 
     // See (https://issues.apache.org/jira/browse/COMPRESS-432) for information
@@ -229,6 +229,7 @@ public class AttachmentProcessorTests extends ESTestCase {
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", bytes);
+        document.put("file_name", path);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
@@ -289,6 +290,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         throws Exception {
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", getAsBinaryOrBase64(file));
+        document.put("file_name", file);
         document.putAll(optionalFields);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -337,6 +339,30 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get("content"), is("\"God Save the Queen\" (alternatively \"God Save the King\""));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
         assertThat(attachmentData.get("content_length"), is(56L));
+
+        attachmentData = parseDocument("text-cjk-big5.txt", processor, Collections.singletonMap("max_length", 100));
+
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
+        assertThat(attachmentData.get("content").toString(), containsString("碩鼠碩鼠，無食我黍！"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("charset=Big5"));
+        assertThat(attachmentData.get("content_length"), is(100L));
+
+        attachmentData = parseDocument("text-cjk-gbk.txt", processor, Collections.singletonMap("max_length", 100));
+
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
+        assertThat(attachmentData.get("content").toString(), containsString("硕鼠硕鼠，无食我黍！"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("charset=GB18030"));
+        assertThat(attachmentData.get("content_length"), is(100L));
+
+        attachmentData = parseDocument("text-cjk-euc-jp.txt", processor, Collections.singletonMap("max_length", 100));
+
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
+        assertThat(attachmentData.get("content").toString(), containsString("碩鼠よ碩鼠よ、\n我が黍を食らう無かれ！"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("charset=EUC-JP"));
+        assertThat(attachmentData.get("content_length"), is(100L));
     }
 
     private Object getAsBinaryOrBase64(String filename) throws Exception {

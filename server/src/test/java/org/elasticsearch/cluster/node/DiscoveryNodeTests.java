@@ -133,7 +133,7 @@ public class DiscoveryNodeTests extends ESTestCase {
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-            in.setVersion(Version.V_7_10_0);
+            in.setVersion(Version.V_7_9_0);
             DiscoveryNode serialized = new DiscoveryNode(in);
             assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()),
                 equalTo("data"));

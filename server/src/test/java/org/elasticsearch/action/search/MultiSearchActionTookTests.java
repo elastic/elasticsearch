@@ -172,9 +172,10 @@ public class MultiSearchActionTookTests extends ESTestCase {
                                                   expected::get, client) {
                 @Override
                 void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,
-                        final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener, long startTimeInNanos) {
+                        final AtomicInteger responseCounter, long recallGoal, final ActionListener<MultiSearchResponse> listener,
+                        long startTimeInNanos) {
                     expected.set(1000000);
-                    super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos);
+                    super.executeSearch(requests, responses, responseCounter, recallGoal, listener, startTimeInNanos);
                 }
             };
         } else {
@@ -182,10 +183,11 @@ public class MultiSearchActionTookTests extends ESTestCase {
                                                   availableProcessors, System::nanoTime, client) {
                 @Override
                 void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,
-                        final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener, long startTimeInNanos) {
+                        final AtomicInteger responseCounter, long recallGoal, final ActionListener<MultiSearchResponse> listener,
+                        long startTimeInNanos) {
                     long elapsed = spinForAtLeastNMilliseconds(randomIntBetween(0, 10));
                     expected.set(elapsed);
-                    super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos);
+                    super.executeSearch(requests, responses, responseCounter, recallGoal, listener, startTimeInNanos);
                 }
             };
         }

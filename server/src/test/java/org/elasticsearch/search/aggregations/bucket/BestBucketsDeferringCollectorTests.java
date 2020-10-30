@@ -37,6 +37,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.collect.List;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -46,8 +48,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -224,7 +224,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     }
 
     private class CollectingBucketCollector extends BucketCollector {
-        final Map<Long, List<Integer>> collection = new HashMap<>();
+        final java.util.Map<Long, java.util.List<Integer>> collection = new HashMap<>();
 
         @Override
         public ScoreMode scoreMode() {

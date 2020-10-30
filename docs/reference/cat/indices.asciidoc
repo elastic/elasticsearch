@@ -83,7 +83,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[pri-flag]]
 `pri` (primary shards)::
-(Optional, boolean) If `true`, the response only includes information from
+(Optional, Boolean) If `true`, the response only includes information from
 primary shards. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]

@@ -396,7 +396,7 @@ The meaning of the stats are as follows:
     However,  not all queries can use next_doc, so `advance` is also timed for those queries.
     {empty} +
     {empty} +
-    Conjunctions (e.g. `must` clauses in a boolean) are typical consumers of `advance`
+    Conjunctions (e.g. `must` clauses in a Boolean) are typical consumers of `advance`
 
 `match`::
 

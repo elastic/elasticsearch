@@ -657,9 +657,15 @@ public final class TokenService {
                     } else if (searchHits.getHits().length > 1) {
                         listener.onFailure(new IllegalStateException("multiple tokens share the same refresh token"));
                     } else {
-                        final Tuple<UserToken, String> parsedTokens =
-                            parseTokensFromDocument(searchHits.getAt(0).getSourceAsMap(), null);
-                        indexInvalidation(Collections.singletonList(parsedTokens.v1()), backoff, "refresh_token", null, listener);
+                        final Tuple<UserToken, RefreshTokenStatus> parsedTokens =
+                            parseTokenAndRefreshStatus(searchHits.getAt(0).getSourceAsMap());
+                        final UserToken userToken = parsedTokens.v1();
+                        final RefreshTokenStatus refresh = parsedTokens.v2();
+                        if (refresh.isInvalidated()) {
+                            listener.onResponse(new TokensInvalidationResult(List.of(), List.of(userToken.getId()), null, RestStatus.OK));
+                        } else {
+                            indexInvalidation(Collections.singletonList(userToken), backoff, "refresh_token", null, listener);
+                        }
                     }
                 }, e -> {
                     if (e instanceof IndexNotFoundException || e instanceof IndexClosedException) {
@@ -1258,9 +1264,7 @@ public final class TokenService {
      */
     private static Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkTokenDocumentForRefresh(
         Instant refreshRequested, Authentication clientAuth, Map<String, Object> source) throws IllegalStateException, DateTimeException {
-        final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
-        final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
-        refreshTokenStatus.setVersion(userToken.getVersion());
+        final RefreshTokenStatus refreshTokenStatus = parseTokenAndRefreshStatus(source).v2();
         final ElasticsearchSecurityException validationException = checkTokenDocumentExpired(refreshRequested, source).orElseGet(() -> {
             if (refreshTokenStatus.isInvalidated()) {
                 return invalidGrantException("token has been invalidated");
@@ -1270,6 +1274,13 @@ public final class TokenService {
             }
         });
         return new Tuple<>(refreshTokenStatus, Optional.ofNullable(validationException));
+    }
+
+    private static Tuple<UserToken, RefreshTokenStatus> parseTokenAndRefreshStatus(Map<String, Object> source) {
+        final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
+        final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
+        refreshTokenStatus.setVersion(userToken.getVersion());
+        return new Tuple<>(userToken, refreshTokenStatus);
     }
 
     /**
@@ -1484,12 +1495,18 @@ public final class TokenService {
 
     private BytesReference createTokenDocument(UserToken userToken, @Nullable String refreshToken,
                                                @Nullable Authentication originatingClientAuth) {
+            final Instant creationTime = getCreationTime(userToken.getExpirationTime());
+        return createTokenDocument(userToken, refreshToken, originatingClientAuth, creationTime);
+    }
+
+    static BytesReference createTokenDocument(UserToken userToken, String refreshToken, Authentication originatingClientAuth,
+                                              Instant creationTime) {
         assert refreshToken == null || originatingClientAuth != null : "non-null refresh token " + refreshToken
             + " requires non-null client authn " + originatingClientAuth;
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             builder.field("doc_type", TOKEN_DOC_TYPE);
-            builder.field("creation_time", getCreationTime(userToken.getExpirationTime()).toEpochMilli());
+            builder.field("creation_time", creationTime.toEpochMilli());
             if (refreshToken != null) {
                 builder.startObject("refresh_token")
                     .field("token", refreshToken)

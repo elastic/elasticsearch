@@ -244,6 +244,8 @@ Geo::
 
 Infra/Core::
 * Throws IndexNotFoundException in TransportGetAction for unknown System indices {es-pull}61785[#61785] (issue: {es-issue}57936[#57936])
+* Handle missing logstash index exceptions {es-pull}63698[#63698]
+* XPack Usage API should run on MANAGEMENT threads {es-pull}64160[#64160]
 
 Infra/Packaging::
 * Allow running the Docker image with a non-default group {es-pull}61194[#61194] (issue: {es-issue}60864[#60864])
@@ -269,6 +271,8 @@ Search::
 * Allows nanosecond resolution in search_after {es-pull}60328[#60328] (issue: {es-issue}52424[#52424])
 * Consolidate validation for 'docvalue_fields' {es-pull}59473[#59473]
 * Correct how field retrieval handles multifields and copy_to {es-pull}61309[#61309] (issue: {es-issue}61033[#61033])
+* Apply boost only once for distance_feature query {es-pull}63767[#63767]
+* Fixed NullPointerException in `significant_text` aggregation when field does not exist {es-pull}64144[#64144] (issue: {es-issue}64045[#64045])
 
 Snapshot/Restore::
 * Avoid listener call under SparseFileTracker#mutex {es-pull}61626[#61626] (issue: {es-issue}61520[#61520])
@@ -276,6 +280,8 @@ Snapshot/Restore::
 * Fix Test Failure in testCorrectCountsForDoneShards {es-pull}60254[#60254] (issue: {es-issue}60247[#60247])
 * Minimize cache file locking during prewarming {es-pull}61837[#61837] (issue: {es-issue}58658[#58658])
 * Prevent snapshots to be mounted as system indices {es-pull}61517[#61517] (issue: {es-issue}60522[#60522])
+* Make Searchable Snapshot's CacheFile Lock less {es-pull}63911[#63911] (issue: {es-issue}63586[#63586])
+* Don't Generate an Index Setting History UUID unless it's supported {es-pull}64213[#64213] (issue: {es-issue}64152[#64152])
 
 SQL::
 * Allow unescaped wildcard (*) in LIKE pattern {es-pull}63428[#63428] (issue: {es-issue}55108[#55108])

@@ -25,8 +25,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
-import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -42,8 +40,6 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
     private final double precision;
     protected final DocValueFormat format;
     private final int filterSeed;
-
-    protected MergingBucketsDeferringCollector deferringCollector;
 
     AbstractRareTermsAggregator(
         String name,
@@ -88,12 +84,6 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return true;
-    }
-
-    @Override
-    public DeferringBucketCollector getDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
-        return deferringCollector;
     }
 
     private String subAggsNeedScore() {

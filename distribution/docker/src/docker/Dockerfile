@@ -94,14 +94,18 @@ ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# The JDK's directories' permissions don't allow `java` to be executed under a different
-# group to the default. Fix this.
-RUN find /usr/share/elasticsearch/jdk -type d -exec chmod 0755 '{}' \\; && \\
+# 1. The JDK's directories' permissions don't allow `java` to be executed under a different
+#    group to the default. Fix this.
+# 2. Sync the user and group permissions of /etc/passwd
+# 3. Set correct permissions of the entrypoint
+# 4. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
+# 5. Ensure all files are world-readable by default. It should be possible to
+#    examine the contents of the image under any UID:GID
+RUN find /usr/share/elasticsearch/jdk -type d -exec chmod 0755 {} + && \\
     chmod g=u /etc/passwd && \\
-    chmod 0775 /usr/local/bin/docker-entrypoint.sh
-
-# Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-RUN find / -xdev -perm -4000 -exec chmod ug-s {} +
+    chmod 0775 /usr/local/bin/docker-entrypoint.sh && \\
+    find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
+    find /usr/share/elasticsearch -type f -exec chmod o+r {} +
 
 EXPOSE 9200 9300
 

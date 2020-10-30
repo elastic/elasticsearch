@@ -100,7 +100,7 @@ Time the repository was deleted or updated. Recorded in milliseconds
 since the https://en.wikipedia.org/wiki/Unix_time[Unix Epoch].
 
 `archived`::
-(boolean)
+(Boolean)
 A flag that tells whether or not this object has been archived.
 When a repository is closed or updated the repository metering information
 is archived and kept for a certain period of time. This allows retrieving

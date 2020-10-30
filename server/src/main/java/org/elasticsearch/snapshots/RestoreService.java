@@ -67,7 +67,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -263,7 +262,8 @@ public class RestoreService implements ClusterStateApplier {
 
                 // Now we can start the actual restore process by adding shards to be recovered in the cluster state
                 // and updating cluster metadata (global and index) as needed
-                clusterService.submitStateUpdateTask("restore_snapshot[" + snapshotName + ']', new ClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask(
+                        "restore_snapshot[" + snapshotName + ']', new ClusterStateUpdateTask(request.masterNodeTimeout()) {
                     final String restoreUUID = UUIDs.randomBase64UUID();
                     RestoreInfo restoreInfo = null;
 
@@ -579,11 +579,6 @@ public class RestoreService implements ClusterStateApplier {
                     public void onFailure(String source, Exception e) {
                         logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot", snapshotId), e);
                         listener.onFailure(e);
-                    }
-
-                    @Override
-                    public TimeValue timeout() {
-                        return request.masterNodeTimeout();
                     }
 
                     @Override

@@ -894,7 +894,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean isStored,
                                boolean hasDocValues, boolean coerce, Number nullValue, Map<String, String> meta) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;

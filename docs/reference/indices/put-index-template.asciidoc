@@ -70,7 +70,7 @@ Name of the index template to create.
 ==== {api-query-parms-title}
 
 `create`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, this request cannot replace or update existing index templates. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]

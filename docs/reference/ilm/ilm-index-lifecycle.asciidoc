@@ -77,22 +77,24 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
 * Hot
   - <<ilm-set-priority,Set Priority>>
   - <<ilm-unfollow,Unfollow>>
-  - <<ilm-forcemerge,Force Merge>>
   - <<ilm-rollover,Rollover>>
+  - <<ilm-shrink,Shrink>>
+  - <<ilm-forcemerge,Force Merge>>
 * Warm
   - <<ilm-set-priority,Set Priority>>
   - <<ilm-unfollow,Unfollow>>
   - <<ilm-readonly,Read-Only>>
   - <<ilm-allocate,Allocate>>
+  - <<ilm-migrate,Migrate>>
   - <<ilm-shrink,Shrink>>
   - <<ilm-forcemerge,Force Merge>>
 * Cold
   - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-unfollow-action,Unfollow>>
   - <<ilm-allocate,Allocate>>
+  - <<ilm-migrate,Migrate>>
   - <<ilm-freeze,Freeze>>
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
 * Delete
   - <<ilm-wait-for-snapshot-action,Wait For Snapshot>>
   - <<ilm-delete,Delete>>
-  

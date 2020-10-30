@@ -38,10 +38,11 @@ Aliases containing filters are not a secure way to restrict access to individual
 documents, due to the limitations described in
 <<alias-limitations, Index and field names can be leaked when using aliases>>.
 The {stack-security-features} provide a secure way to restrict access to
-documents through the 
+documents through the
 <<field-and-document-access-control, document-level security>> feature.
 
 [discrete]
+[[field-document-limitations]]
 === Field and document level security limitations
 
 When a user's role enables document or field level security for a data stream or index:
@@ -51,7 +52,7 @@ When a user's role enables document or field level security for a data stream or
 ** Update requests included in bulk requests aren't supported.
 * The request cache is disabled for search requests.
 
-When a user's role enables document level security for a data stream or index:
+When a user's role enables <<document-level-security,document level security>> for a data stream or index:
 
 * Document level security isn't applied for APIs that aren't document based.
   An example is the field stats API.
@@ -62,11 +63,12 @@ When a user's role enables document level security for a data stream or index:
 * The `has_child` and `has_parent` queries aren't supported as query in the
   role definition. The `has_child` and `has_parent` queries can be used in the
   search API with document level security enabled.
-* Any query that makes remote calls to fetch data to query by isn't supported.
-  The following queries aren't supported:
-** The `terms` query with terms lookup isn't supported.
-** The `geo_shape` query with indexed shapes isn't supported.
-** The `percolate` query isn't supported.
+* Any query that makes remote calls to fetch query data isn't supported,
+including the following queries:
+** `terms` query with terms lookup
+** `geo_shape` query with indexed shapes
+** `percolate` query
+** `date_math_expr` range query that includes `now`
 * If suggesters are specified and document level security is enabled then
   the specified suggesters are ignored.
 * A search request cannot be profiled if document level security is enabled.

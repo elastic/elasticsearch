@@ -52,7 +52,7 @@ public class AllocationDeciders extends AllocationDecider {
             // short track if a NO is returned.
             if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -79,7 +79,7 @@ public class AllocationDeciders extends AllocationDecider {
                 }
                 // short circuit only if debugging is not enabled
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -108,7 +108,7 @@ public class AllocationDeciders extends AllocationDecider {
                         shardRouting, node.nodeId(), allocationDecider.getClass().getSimpleName());
                 }
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -127,7 +127,7 @@ public class AllocationDeciders extends AllocationDecider {
             // short track if a NO is returned.
             if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -146,7 +146,7 @@ public class AllocationDeciders extends AllocationDecider {
             // short track if a NO is returned.
             if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -165,7 +165,7 @@ public class AllocationDeciders extends AllocationDecider {
             // short track if a NO is returned.
             if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -184,7 +184,7 @@ public class AllocationDeciders extends AllocationDecider {
             // short track if a NO is returned.
             if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -212,7 +212,7 @@ public class AllocationDeciders extends AllocationDecider {
                         shardRouting.shardId(), node.nodeId(), decider.getClass().getSimpleName());
                 }
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }

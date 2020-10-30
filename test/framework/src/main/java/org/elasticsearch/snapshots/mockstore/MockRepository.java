@@ -143,6 +143,7 @@ public class MockRepository extends FsRepository {
     private volatile boolean throwReadErrorAfterUnblock = false;
 
     private volatile boolean blocked = false;
+    private volatile boolean setThrowExceptionWhileDelete;
 
     public MockRepository(RepositoryMetadata metadata, Environment environment,
                           NamedXContentRegistry namedXContentRegistry, ClusterService clusterService, BigArrays bigArrays,
@@ -244,6 +245,10 @@ public class MockRepository extends FsRepository {
 
     public void setFailReadsAfterUnblock(boolean failReadsAfterUnblock) {
         this.failReadsAfterUnblock = failReadsAfterUnblock;
+    }
+
+    public void setThrowExceptionWhileDelete(boolean throwError) {
+        setThrowExceptionWhileDelete = throwError;
     }
 
     public boolean blocked() {
@@ -414,6 +419,9 @@ public class MockRepository extends FsRepository {
             @Override
             public DeleteResult delete() throws IOException {
                 DeleteResult deleteResult = DeleteResult.ZERO;
+                if (setThrowExceptionWhileDelete) {
+                    throw new IOException("Random exception");
+                }
                 for (BlobContainer child : children().values()) {
                     deleteResult = deleteResult.add(child.delete());
                 }

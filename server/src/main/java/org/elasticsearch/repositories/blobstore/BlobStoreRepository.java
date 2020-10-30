@@ -919,7 +919,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (foundIndices.keySet().equals(survivingIndexIds)) {
             groupedListener.onResponse(DeleteResult.ZERO);
         } else {
-            executor.execute(ActionRunnable.supply(groupedListener, () -> cleanupStaleIndices(foundIndices, survivingIndexIds)));
+            cleanupStaleIndices(foundIndices, survivingIndexIds, executor, groupedListener);
         }
     }
 
@@ -1027,22 +1027,31 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return Collections.emptyList();
     }
 
-    private DeleteResult cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Set<String> survivingIndexIds) {
-        DeleteResult deleteResult = DeleteResult.ZERO;
+    private void cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Set<String> survivingIndexIds,
+                                             Executor executor, GroupedActionListener<DeleteResult> listener) {
+        final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {
+            DeleteResult deleteResult = DeleteResult.ZERO;
+            for (DeleteResult result : deleteResults) {
+                deleteResult = deleteResult.add(result);
+            }
+            listener.onResponse(deleteResult);
+        }, listener::onFailure), foundIndices.size() - survivingIndexIds.size());
+
         try {
             for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
                 final String indexSnId = indexEntry.getKey();
-                try {
-                    if (survivingIndexIds.contains(indexSnId) == false) {
-                        logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
-                        deleteResult = deleteResult.add(indexEntry.getValue().delete());
+                executor.execute(ActionRunnable.supply(groupedListener, () -> {
+                    try {
+                        DeleteResult staleIndexDeleteResult = indexEntry.getValue().delete();
                         logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
+                        return staleIndexDeleteResult;
+                    } catch (IOException e) {
+                        logger.warn(() -> new ParameterizedMessage(
+                            "[{}] index {} is no longer part of any snapshots in the repository, " +
+                                "but failed to clean up their index folders", metadata.name(), indexSnId), e);
+                        return DeleteResult.ZERO;
                     }
-                } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage(
-                        "[{}] index {} is no longer part of any snapshots in the repository, " +
-                            "but failed to clean up their index folders", metadata.name(), indexSnId), e);
-                }
+                }));
             }
         } catch (Exception e) {
             // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
@@ -1051,7 +1060,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             assert false : e;
             logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale indices", metadata.name()), e);
         }
-        return deleteResult;
     }
 
     @Override

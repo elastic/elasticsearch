@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-rare-terms-aggregation]]
-=== Rare Terms Aggregation
+=== Rare terms aggregation
+++++
+<titleabbrev>Rare terms</titleabbrev>
+++++
 
 A multi-bucket value source based aggregation which finds "rare" terms -- terms that are at the long-tail
 of the distribution and are not frequent.  Conceptually, this is like a `terms` aggregation that is

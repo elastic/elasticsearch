@@ -168,7 +168,7 @@ that have been previously described:
                             this instead denotes the name of the  _impersonated_ user.
                             If authenticated using an API key, this is
                             the name of the API key owner.
-  `user.realm`         ::   Name of the the realm to which the _effective_ user 
+  `user.realm`         ::   Name of the realm to which the _effective_ user 
                             belongs. If authenticated using an API key, this is
                             the name of the realm to which the API key owner belongs.
   `user.run_by.name`   ::   This attribute is present only if the request is
@@ -216,7 +216,7 @@ that have been previously described:
                              this instead denotes the name of the  _impersonated_ user.
                              If authenticated using an API key, this is
                              the name of the API key owner.
-  `user.realm`         ::   Name of the the realm to which the _effective_ user 
+  `user.realm`         ::   Name of the realm to which the _effective_ user 
                             belongs. If authenticated using an API key, this is
                             the name of the realm to which the API key owner belongs.
   `user.run_by.name`   ::    This attribute is present only if the request is

@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
+import java.util.Collections;
 import java.util.Properties;
 
 import static org.elasticsearch.test.ESTestCase.assertEquals;
@@ -45,7 +45,7 @@ public class EqlDataLoader {
                 .build()
         ) {
             Properties configuration = loadConfiguration();
-            restoreSnapshot(new RestHighLevelClient(client, ignore -> {}, List.of()) {
+            restoreSnapshot(new RestHighLevelClient(client, ignore -> {}, Collections.emptyList()) {
             }, configuration);
         }
     }

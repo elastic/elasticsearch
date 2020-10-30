@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-sampler-aggregation]]
-=== Sampler Aggregation
+=== Sampler aggregation
+++++
+<titleabbrev>Sampler</titleabbrev>
+++++
 
 A filtering aggregation used to limit any sub aggregations' processing to a sample of the top-scoring documents.
 

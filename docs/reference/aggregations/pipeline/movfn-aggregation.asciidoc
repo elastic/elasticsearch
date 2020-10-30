@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-movfn-aggregation]]
-=== Moving Function Aggregation
+=== Moving function aggregation
+++++
+<titleabbrev>Moving function</titleabbrev>
+++++
 
 Given an ordered series of data, the Moving Function aggregation will slide a window across the data and allow the user to specify a custom
 script that is executed on each window of data.  For convenience, a number of common functions are predefined such as min/max, moving averages,

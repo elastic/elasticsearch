@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-percentile-rank-aggregation]]
-=== Percentile Ranks Aggregation
+=== Percentile ranks aggregation
+++++
+<titleabbrev>Percentile ranks</titleabbrev>
+++++
 
 A `multi-value` metrics aggregation that calculates one or more percentile ranks
 over numeric values extracted from the aggregated documents. These values can be

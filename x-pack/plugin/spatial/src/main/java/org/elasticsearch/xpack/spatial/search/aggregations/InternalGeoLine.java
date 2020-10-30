@@ -89,8 +89,9 @@ public class InternalGeoLine extends InternalAggregation {
             }
         }
         // the final reduce should always be in ascending order
-
-        new PathArraySorter(finalList, finalSortVals, SortOrder.ASC).sort();
+        if (reduceContext.isFinalReduce()) {
+            new PathArraySorter(finalList, finalSortVals, SortOrder.ASC).sort();
+        }
         long[] finalCappedList = Arrays.copyOf(finalList, Math.min(GeoLineAggregator.MAX_PATH_SIZE, mergedSize));
         double[] finalCappedSortVals = Arrays.copyOf(finalSortVals, Math.min(GeoLineAggregator.MAX_PATH_SIZE, mergedSize));
         return new InternalGeoLine(name, finalCappedList, finalCappedSortVals, getMetadata(), complete, includeSorts, sortOrder);
@@ -98,7 +99,7 @@ public class InternalGeoLine extends InternalAggregation {
 
     @Override
     protected boolean mustReduceOnSingleInternalAgg() {
-        return false;
+        return true;
     }
 
     @Override

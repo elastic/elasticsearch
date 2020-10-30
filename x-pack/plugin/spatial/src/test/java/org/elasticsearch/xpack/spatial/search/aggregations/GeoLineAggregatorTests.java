@@ -51,8 +51,11 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
     }
 
 
-    public void testAggregator() throws IOException {
+    public void testAscending() throws IOException {
         testAggregator(SortOrder.ASC);
+    }
+
+    public void testDescending() throws IOException {
         testAggregator(SortOrder.DESC);
     }
 
@@ -87,8 +90,14 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 sortValues[i] = SortOrder.ASC.equals(sortOrder) ? i : numPoints - i;
             }
             int lineSize = Math.min(numPoints, GeoLineAggregator.MAX_PATH_SIZE);
+
+            // re-sort line to be ascending
+            long[] linePoints = Arrays.copyOf(points, lineSize);
+            double[] lineSorts = Arrays.copyOf(sortValues, lineSize);
+            new PathArraySorter(linePoints, lineSorts, SortOrder.ASC).sort();
+
             lines.put(String.valueOf(groupOrd), new InternalGeoLine("_name",
-                Arrays.copyOf(points, lineSize), Arrays.copyOf(sortValues, lineSize), null, complete, true, sortOrder));
+                linePoints, lineSorts, null, complete, true, sortOrder));
 
             for (int i = 0; i < randomIntBetween(1, numPoints); i++) {
                 int idx1 = randomIntBetween(0, numPoints - 1);

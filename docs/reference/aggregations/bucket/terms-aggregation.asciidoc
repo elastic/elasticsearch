@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-terms-aggregation]]
-=== Terms Aggregation
+=== Terms aggregation
+++++
+<titleabbrev>Terms</titleabbrev>
+++++
 
 A multi-bucket value source based aggregation where buckets are dynamically built - one per unique value.
 

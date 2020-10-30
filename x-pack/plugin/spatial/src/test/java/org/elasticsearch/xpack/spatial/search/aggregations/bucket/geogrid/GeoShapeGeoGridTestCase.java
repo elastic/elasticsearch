@@ -57,7 +57,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.randomBBox;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.GeometryDocValueReader;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -78,6 +77,11 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
      * Return a point within the bounds of the tile grid
      */
     protected abstract Point randomPoint();
+
+    /**
+     * Return a random {@link GeoBoundingBox} within the bounds of the tile grid.
+     */
+    protected abstract GeoBoundingBox randomBBox();
 
     /**
      * Return the bounding tile as a {@link Rectangle} for a given point
@@ -156,7 +160,6 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
 
         expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
         expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
-
         GeoBoundingBox bbox = randomBBox();
         final double boundsTop = bbox.top();
         final double boundsBottom = bbox.bottom();

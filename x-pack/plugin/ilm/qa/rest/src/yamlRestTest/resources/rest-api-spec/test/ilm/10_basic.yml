@@ -258,3 +258,21 @@ setup:
                }
              }
            }
+
+  - do:
+      catch: bad_request
+      ilm.put_lifecycle:
+        policy: "my_invalid_lifecycle"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "hot": {
+                   "min_age": "0s",
+                   "actions": {
+                     "readonly": {}
+                   }
+                 }
+               }
+             }
+           }

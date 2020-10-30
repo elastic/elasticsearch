@@ -1231,3 +1231,33 @@ See <<elasticsearch-croneval-parameters>>.
 
 The autoscaling decision API has been renamed to capacity,
 see <<autoscaling-get-autoscaling-capacity>>.
+
+[role="exclude",id="caching-heavy-aggregations"]
+=== Caching heavy aggregations
+
+See <<agg-caches>>.
+
+[role="exclude",id="returning-only-agg-results"]
+=== Returning only aggregation results
+
+See <<return-only-agg-results>>.
+
+[role="exclude",id="agg-metadata"]
+=== Aggregation metadata
+
+See <<add-metadata-to-an-agg>>.
+
+[role="exclude",id="returning-aggregation-type"]
+=== Returning the type of the aggregation
+
+See <<return-agg-type>>.
+
+[role="exclude",id="indexing-aggregation-results"]
+=== Indexing aggregation results with transforms
+
+See <<transforms>>.
+
+[role="exclude",id="search-aggregations-matrix"]
+=== Matrix aggregations
+
+See <<search-aggregations-matrix-stats-aggregation>>.

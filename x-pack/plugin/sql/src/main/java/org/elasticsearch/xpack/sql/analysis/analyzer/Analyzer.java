@@ -956,7 +956,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         private List<NamedExpression> assignAliases(List<? extends NamedExpression> exprs) {
             List<NamedExpression> newExpr = new ArrayList<>(exprs.size());
-            for (NamedExpression expr : exprs) {
+            for (int i = 0; i < exprs.size(); i++) {
+                NamedExpression expr = exprs.get(i);
                 NamedExpression transformed = (NamedExpression) expr.transformUp(ua -> {
                     Expression child = ua.child();
                     if (child instanceof NamedExpression) {

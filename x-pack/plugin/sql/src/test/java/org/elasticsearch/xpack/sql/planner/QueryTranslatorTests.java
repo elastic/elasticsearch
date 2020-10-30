@@ -104,7 +104,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorTests extends ESTestCase {
@@ -2253,19 +2252,21 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testFoldingWithParamsWithoutIndex() {
-        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ? FROM test",
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ?, ? FROM test",
+            new SqlTypedParamValue("integer", 100),
             new SqlTypedParamValue("integer", 100),
             new SqlTypedParamValue("integer", 200)));
-        assertThat(p.output(), everyItem(isA(ReferenceAttribute.class)));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
         assertThat(p.output().get(0).toString(), startsWith("?1{r}#"));
         assertThat(p.output().get(1).toString(), startsWith("?2{r}#"));
+        assertThat(p.output().get(2).toString(), startsWith("?3{r}#"));
     }
 
     public void testFoldingWithMixedParamsWithoutAlias() {
         PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ? FROM test",
             new SqlTypedParamValue("integer", 100),
             new SqlTypedParamValue("text", "200")));
-        assertThat(p.output(), everyItem(isA(ReferenceAttribute.class)));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
         assertThat(p.output().get(0).toString(), startsWith("?1{r}#"));
         assertThat(p.output().get(1).toString(), startsWith("?2{r}#"));
     }

@@ -168,10 +168,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (alias != null) {
             return new Alias(source, alias, exp);
         }
-        if (exp instanceof Literal && "?".equals(exp.source().text())) {
-            int paramIndex = param(ctx).getIndex();
-            // all indexes related to JDBC or databases usually start with 1
-            return new Alias(source, "?" + paramIndex, exp);
+        if (exp instanceof Alias) {
+            // this can happen only if we hit an originally unaliased param literal
+            return exp;
         }
         return new UnresolvedAlias(source, exp);
     }
@@ -707,10 +706,21 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Literal visitParamLiteral(ParamLiteralContext ctx) {
+    public Expression visitParamLiteral(ParamLiteralContext ctx) {
+        Source source = source(ctx);
+        Literal paramLiteral = createParamLiteral(ctx, source);
+        SelectExpressionContext selectExpressionContext = firstParentOf(ctx, SelectExpressionContext.class);
+        if (selectExpressionContext != null && selectExpressionContext.identifier() == null) {
+            int paramIndex = param(ctx.PARAM()).getIndex();
+            return new Alias(source, "?" + paramIndex, paramLiteral);
+        }
+        return paramLiteral;
+    }
+
+    private Literal createParamLiteral(ParamLiteralContext ctx, Source source) {
         SqlTypedParamValue param = param(ctx.PARAM()).getValue();
         DataType dataType = SqlDataTypes.fromTypeName(param.type);
-        Source source = source(ctx);
+        // 2. alias if any ctx parent is a SelectExpressionContext
         if (dataType == null) {
             throw new ParsingException(source, "Invalid parameter data type [{}]", param.type);
         }
@@ -739,6 +749,15 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (QlIllegalArgumentException ex) {
             throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T firstParentOf(ParserRuleContext child, Class<T> parentContextClass) {
+        ParserRuleContext parent = child.getParent();
+        while (parent != null && !parentContextClass.equals(parent.getClass())) {
+            parent = parent.getParent();
+        }
+        return (T) parent;
     }
 
     @Override

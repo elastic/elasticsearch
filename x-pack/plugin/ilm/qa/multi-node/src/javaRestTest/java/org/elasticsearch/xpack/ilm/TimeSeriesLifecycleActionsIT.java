@@ -433,13 +433,43 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testReadOnly() throws Exception {
-        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         createNewSingletonPolicy(client(), policy, "warm", new ReadOnlyAction());
         updatePolicy(index, policy);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
             assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
+            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+        });
+    }
+
+    public void testReadOnlyInTheHotPhase() throws Exception {
+        String originalIndex = index + "-000001";
+
+        // add a policy
+        Map<String, LifecycleAction> hotActions = Map.of(
+            RolloverAction.NAME, new RolloverAction(null, null, 1L),
+            ReadOnlyAction.NAME, new ReadOnlyAction());
+        Map<String, Phase> phases = Map.of(
+            "hot", new Phase("hot", TimeValue.ZERO, hotActions));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
+        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
+        createPolicyRequest.setJsonEntity("{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}");
+        client().performRequest(createPolicyRequest);
+
+        // then create the index and index a document to trigger rollover
+        createIndexWithSettings(client(), originalIndex, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.lifecycle.rollover_alias", alias)
+            .put("index.lifecycle.name", policy));
+        index(client(), originalIndex, "_id", "foo", "bar");
+
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(client(), originalIndex);
+            assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey()));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
     }
@@ -469,6 +499,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     public void testForceMergeAction() throws Exception {
         forceMergeActionWithCodec(null);
+    }
+
+    public void testForceMergeActionWithCompressionCodec() throws Exception {
+        forceMergeActionWithCodec("best_compression");
     }
 
     public void testShrinkAction() throws Exception {
@@ -557,6 +591,48 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that snapshot succeeded
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+    }
+
+    public void testShrinkActionInTheHotPhase() throws Exception {
+        int numShards = 2;
+        int expectedFinalShards = 1;
+        String originalIndex = index + "-000001";
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
+
+        // add a policy
+        Map<String, LifecycleAction> hotActions = Map.of(
+            RolloverAction.NAME, new RolloverAction(null, null, 1L),
+            ShrinkAction.NAME, new ShrinkAction(expectedFinalShards));
+        Map<String, Phase> phases = Map.of(
+            "hot", new Phase("hot", TimeValue.ZERO, hotActions));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
+        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
+        createPolicyRequest.setJsonEntity("{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}");
+        client().performRequest(createPolicyRequest);
+
+        // and a template
+        Request createTemplateRequest = new Request("PUT", "_template/" + index);
+        createTemplateRequest.setJsonEntity("{" +
+            "\"index_patterns\": [\"" + index + "-*\"], \n" +
+            "  \"settings\": {\n" +
+            "    \"number_of_shards\": " + numShards + ",\n" +
+            "    \"number_of_replicas\": 0,\n" +
+            "    \"index.lifecycle.name\": \"" + policy + "\", \n" +
+            "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(createTemplateRequest);
+
+        // then create the index and index a document to trigger rollover
+        createIndexWithSettings(client(), originalIndex, alias, Settings.builder(), true);
+        index(client(), originalIndex, "_id", "foo", "bar");
+
+        assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(client(), shrunkenIndex);
+            assertThat(settings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+        });
     }
 
     public void testSetSingleNodeAllocationRetriesUntilItSucceeds() throws Exception {

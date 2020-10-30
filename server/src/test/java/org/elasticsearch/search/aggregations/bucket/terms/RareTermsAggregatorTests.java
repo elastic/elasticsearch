@@ -190,7 +190,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             }
         );
     }
-
+    
     public void testEmbeddedMaxAgg() throws IOException {
         Query query = new MatchAllDocsQuery();
 

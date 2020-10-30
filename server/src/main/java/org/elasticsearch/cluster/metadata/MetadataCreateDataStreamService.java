@@ -137,8 +137,9 @@ public class MetadataCreateDataStreamService {
         if (request.name.toLowerCase(Locale.ROOT).equals(request.name) == false) {
             throw new IllegalArgumentException("data_stream [" + request.name + "] must be lowercase");
         }
-        if (request.name.startsWith(".")) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
+        if (request.name.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+            throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '"
+                + DataStream.BACKING_INDEX_PREFIX + "'");
         }
 
         ComposableIndexTemplate template = lookupTemplateForDataStream(request.name, currentState.metadata());
@@ -163,10 +164,11 @@ public class MetadataCreateDataStreamService {
 
         String fieldName = template.getDataStreamTemplate().getTimestampField();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
+        boolean hidden = template.getDataStreamTemplate().isHidden();
         DataStream newDataStream =
             new DataStream(request.name, timestampField,
                 Collections.singletonList(firstBackingIndex.getIndex()), 1L,
-                template.metadata() != null ? Collections.unmodifiableMap(new HashMap<>(template.metadata())) : null);
+                template.metadata() != null ? Collections.unmodifiableMap(new HashMap<>(template.metadata())) : null, hidden);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();

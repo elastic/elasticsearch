@@ -1,5 +1,5 @@
 [[search-aggregations-matrix-stats-aggregation]]
-=== Matrix Stats
+=== Matrix stats aggregation
 
 The `matrix_stats` aggregation is a numeric aggregation that computes the following statistics over a set of document fields:
 
@@ -12,6 +12,9 @@ The `matrix_stats` aggregation is a numeric aggregation that computes the follow
 `covariance`:: A matrix that quantitatively describes how changes in one field are associated with another.
 `correlation`:: The covariance matrix scaled to a range of -1 to 1, inclusive. Describes the relationship between field
             distributions.
+
+IMPORTANT: Unlike other metric aggregations, the `matrix_stats` aggregation does
+not support scripting.
 
 //////////////////////////
 

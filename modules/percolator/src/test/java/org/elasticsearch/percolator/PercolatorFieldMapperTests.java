@@ -71,7 +71,6 @@ import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
@@ -532,10 +531,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()),
                     XContentType.JSON));
         });
-        assertThat(exception.getCause(), instanceOf(QueryShardException.class));
+        assertThat(exception.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exception.getCause().getMessage(), equalTo("No field mapping can be found for the field with name [unmapped_field]"));
     }
-
 
     public void testPercolatorFieldMapper_noQuery() throws Exception {
         addQueryFieldMappings();

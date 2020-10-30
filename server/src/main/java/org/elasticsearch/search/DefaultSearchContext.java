@@ -752,7 +752,6 @@ final class DefaultSearchContext extends SearchContext {
         return fetchResult;
     }
 
-    //TODO do these two methods need to be accessed directly?
     @Override
     public MappedFieldType fieldType(String name) {
         return queryShardContext.searchFields().fieldType(name);
@@ -773,7 +772,6 @@ final class DefaultSearchContext extends SearchContext {
         return queryCollectors;
     }
 
-    //TODO can we replace this getter with getSearchFields?
     @Override
     public QueryShardContext getQueryShardContext() {
         return queryShardContext;

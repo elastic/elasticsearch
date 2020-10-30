@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorSupplier;
 import org.elasticsearch.test.ESTestCase;
@@ -34,6 +36,13 @@ public class ValuesSourceRegistryTests extends ESTestCase {
 
     public void testAggregatorNotFoundException() {
         AggregationContext context = mock(AggregationContext.class);
+        TestSearchFields searchFields = new TestSearchFields() {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                return null;
+            }
+        };
+        when(context.searchFields()).thenReturn(searchFields);
         AggregationScript.Factory mockAggScriptFactory = mock(AggregationScript.Factory.class);
         when(mockAggScriptFactory.newFactory(Mockito.any(), Mockito.any())).thenReturn(mock(AggregationScript.LeafFactory.class));
         when(context.compile(Mockito.any(), Mockito.any())).thenReturn(mockAggScriptFactory);

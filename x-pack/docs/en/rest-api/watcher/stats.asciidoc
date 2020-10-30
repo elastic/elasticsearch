@@ -29,7 +29,7 @@ this API. For more information, see
 ==== {api-path-parms-title}
 
 `emit_stacktraces`::
-  (Optional, boolean) Defines whether stack traces are generated for each watch
+  (Optional, Boolean) Defines whether stack traces are generated for each watch
   that is running. The default value is `false`.
 
 `<metric>`::

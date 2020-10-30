@@ -72,13 +72,13 @@ Set <<get-snapshot-api-ignore-unavailable,`ignore_unavailable`>> to `true` to re
 
 [[get-snapshot-api-ignore-unavailable]]
 `ignore_unavailable`::
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, the request returns an error for any snapshots that are unavailable. Defaults to `false`.
 +
 If `true`, the request ignores snapshots that are unavailable, such as those that are corrupted or temporarily cannot be returned.
 
 `verbose`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, returns all available information about a snapshot. Defaults to `true`.
 +
 If `false`, omits additional information about the snapshot, such as version information, start and end times, and the number of snapshotted shards.
@@ -112,7 +112,7 @@ List of indices included in the snapshot.
 List of <<data-streams,data streams>> included in the snapshot.
 
 `include_global_state`::
-(boolean)
+(Boolean)
 Indicates whether the current cluster state is included in the snapshot.
 
 `start_time`::

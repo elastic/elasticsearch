@@ -27,6 +27,16 @@ setup:
                   type: date_nanos
           data_stream: {}
 
+  - do:
+      allowed_warnings:
+        - "index template [my-template3] has index patterns [.hidden-data-stream,hidden-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template3] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template3
+        body:
+          index_patterns: [.hidden-data-stream,hidden-data-stream]
+          data_stream:
+            hidden: true
+
 ---
 "Create data stream":
   - skip:
@@ -53,12 +63,14 @@ setup:
   - match: { data_streams.0.indices.0.index_name: '.ds-simple-data-stream1-000001' }
   - match: { data_streams.0.status: 'GREEN' }
   - match: { data_streams.0.template: 'my-template1' }
+  - match: { data_streams.0.hidden: false }
   - match: { data_streams.1.name: simple-data-stream2 }
   - match: { data_streams.1.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.1.indices: 1 }
   - match: { data_streams.1.indices.0.index_name: '.ds-simple-data-stream2-000001' }
   - match: { data_streams.1.template: 'my-template2' }
+  - match: { data_streams.0.hidden: false }
 
   - do:
       indices.get_mapping:
@@ -99,6 +111,89 @@ setup:
   - do:
       indices.delete_data_stream:
         name: simple-data-stream2
+  - is_true: acknowledged
+
+---
+"Create hidden data stream":
+  - skip:
+      version: " - 7.99.99"
+      reason: "re-enable in 7.11 when backported"
+  - do:
+      indices.create_data_stream:
+        name: hidden-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: .hidden-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - length: { data_streams: 0 }
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+        expand_wildcards: hidden
+  - length: { data_streams: 2 }
+  - match: { data_streams.0.name: .hidden-data-stream }
+  - match: { data_streams.0.hidden: true }
+  - match: { data_streams.1.name: hidden-data-stream }
+  - match: { data_streams.1.hidden: true }
+
+  - do:
+      index:
+        index: hidden-data-stream
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+
+  - do:
+      indices.refresh:
+        index: hidden-data-stream
+
+  - do:
+      search:
+        index: hidden-data-*
+        body: { query: { match_all: {} } }
+  - length:   { hits.hits: 0  }
+
+  - do:
+      search:
+        index: hidden-data-*
+        expand_wildcards: open,hidden
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.foo: 'bar' }
+
+  - do:
+      index:
+        index: .hidden-data-stream
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+
+  - do:
+      indices.refresh:
+        index: .hidden-data-stream
+
+  - do:
+      search:
+        index: .hidden-data-*
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.foo: 'bar' }
+
+  - do:
+      indices.delete_data_stream:
+        name: hidden-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: .hidden-data-stream
   - is_true: acknowledged
 
 ---

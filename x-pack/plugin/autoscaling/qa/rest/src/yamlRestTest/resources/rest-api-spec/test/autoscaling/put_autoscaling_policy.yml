@@ -26,3 +26,26 @@
             deciders:
               does_not_exist: {}
 
+---
+"Test put autoscaling policy with non-existent decider setting":
+  - do:
+      catch: bad_request
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          policy:
+            deciders:
+              fixed:
+                does_not_exist: 0
+
+---
+"Test put autoscaling policy with bad setting value":
+  - do:
+      catch: bad_request
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          policy:
+            deciders:
+              fixed:
+                storage: bad

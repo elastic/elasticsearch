@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -35,6 +36,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCase {
+    private static final PolicyValidator NO_VALIDATION = policy -> {};
 
     public void testWriteBlock() {
         final TransportPutAutoscalingPolicyAction action = new TransportPutAutoscalingPolicyAction(
@@ -42,7 +44,8 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            mock(IndexNameExpressionResolver.class),
+            NO_VALIDATION
         );
         final ClusterBlocks blocks = ClusterBlocks.builder()
             .addGlobalBlock(
@@ -64,7 +67,8 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            mock(IndexNameExpressionResolver.class),
+            NO_VALIDATION
         );
         final ClusterBlocks blocks = ClusterBlocks.builder().build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
@@ -84,7 +88,12 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         // put an entirely new policy
         final AutoscalingPolicy policy = randomAutoscalingPolicy();
         final Logger mockLogger = mock(Logger.class);
-        final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(currentState, policy, mockLogger);
+        final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
+            currentState,
+            policy,
+            NO_VALIDATION,
+            mockLogger
+        );
 
         // ensure the new policy is in the updated cluster state
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
@@ -121,7 +130,12 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
             mutateAutoscalingDeciders(currentMetadata.policies().get(name).policy().deciders())
         );
         final Logger mockLogger = mock(Logger.class);
-        final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(currentState, policy, mockLogger);
+        final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
+            currentState,
+            policy,
+            NO_VALIDATION,
+            mockLogger
+        );
 
         // ensure the updated policy is in the updated cluster state
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
@@ -154,11 +168,31 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
         final AutoscalingPolicy policy = randomFrom(currentMetadata.policies().values()).policy();
         final Logger mockLogger = mock(Logger.class);
-        final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(currentState, policy, mockLogger);
+        final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
+            currentState,
+            policy,
+            NO_VALIDATION,
+            mockLogger
+        );
 
         assertThat(state, sameInstance(currentState));
         verify(mockLogger).info("skipping updating autoscaling policy [{}] due to no change in policy", policy.name());
         verifyNoMoreInteractions(mockLogger);
     }
 
+    public void testPolicyValidator() {
+        final AutoscalingPolicy policy = new AutoscalingPolicy(randomAlphaOfLength(8), Collections.emptySortedMap());
+        final Logger mockLogger = mock(Logger.class);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
+                ClusterState.EMPTY_STATE,
+                policy,
+                p -> { throw new IllegalArgumentException(); },
+                mockLogger
+            )
+        );
+
+        verifyNoMoreInteractions(mockLogger);
+    }
 }

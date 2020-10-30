@@ -11,20 +11,20 @@ import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 
 import java.io.IOException;
 import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> implements Diffable<AutoscalingPolicy>, ToXContentObject {
@@ -38,17 +38,16 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
     static {
         PARSER = new ConstructingObjectParser<>(NAME, false, (c, name) -> {
             @SuppressWarnings("unchecked")
-            final var deciders = (List<Map.Entry<String, AutoscalingDeciderConfiguration>>) c[0];
+            final var deciders = (List<Map.Entry<String, Settings>>) c[0];
             return new AutoscalingPolicy(
                 name,
                 new TreeMap<>(deciders.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
             );
         });
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> new AbstractMap.SimpleEntry<>(n, p.namedObject(AutoscalingDeciderConfiguration.class, n, null)),
-            DECIDERS_FIELD
-        );
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> {
+            p.nextToken();
+            return new AbstractMap.SimpleEntry<>(n, Settings.fromXContent(p));
+        }, DECIDERS_FIELD);
     }
 
     public static AutoscalingPolicy parse(final XContentParser parser, final String name) {
@@ -61,13 +60,13 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
         return name;
     }
 
-    private final SortedMap<String, AutoscalingDeciderConfiguration> deciders;
+    private final SortedMap<String, Settings> deciders;
 
-    public SortedMap<String, AutoscalingDeciderConfiguration> deciders() {
+    public SortedMap<String, Settings> deciders() {
         return deciders;
     }
 
-    public AutoscalingPolicy(final String name, final SortedMap<String, AutoscalingDeciderConfiguration> deciders) {
+    public AutoscalingPolicy(final String name, final SortedMap<String, Settings> deciders) {
         this.name = Objects.requireNonNull(name);
         // TODO: validate that the policy deciders are non-empty
         this.deciders = Objects.requireNonNull(deciders);
@@ -75,17 +74,22 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
 
     public AutoscalingPolicy(final StreamInput in) throws IOException {
         name = in.readString();
-        deciders = new TreeMap<>(
-            in.readNamedWriteableList(AutoscalingDeciderConfiguration.class)
-                .stream()
-                .collect(Collectors.toMap(AutoscalingDeciderConfiguration::name, Function.identity()))
-        );
+        int deciderCount = in.readInt();
+        SortedMap<String, Settings> deciders = new TreeMap<>();
+        for (int i = 0; i < deciderCount; ++i) {
+            deciders.put(in.readString(), Settings.readSettingsFromStream(in));
+        }
+        this.deciders = Collections.unmodifiableSortedMap(deciders);
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeNamedWriteableList(deciders.values().stream().collect(Collectors.toUnmodifiableList()));
+        out.writeInt(deciders.size());
+        for (Map.Entry<String, Settings> entry : deciders.entrySet()) {
+            out.writeString(entry.getKey());
+            Settings.writeSettingsToStream(entry.getValue(), out);
+        }
     }
 
     @Override
@@ -94,8 +98,10 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
         {
             builder.startObject(DECIDERS_FIELD.getPreferredName());
             {
-                for (final Map.Entry<String, AutoscalingDeciderConfiguration> entry : deciders.entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
+                for (final Map.Entry<String, Settings> entry : deciders.entrySet()) {
+                    builder.startObject(entry.getKey());
+                    entry.getValue().toXContent(builder, params);
+                    builder.endObject();
                 }
             }
             builder.endObject();

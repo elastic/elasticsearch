@@ -103,7 +103,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     @Override
     public void testMustRewrite() throws IOException {
         QueryShardContext context = createShardContextWithNoType();
-        context.setAllowUnmappedFields(true);
+        context.searchFields().setAllowUnmappedFields(true);
         IdsQueryBuilder queryBuilder = createTestQueryBuilder();
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> queryBuilder.toQuery(context));

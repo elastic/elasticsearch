@@ -100,7 +100,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
     public void testCrossFieldMultiMatchQuery() throws IOException {
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
                 randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
-        queryShardContext.setAllowUnmappedFields(true);
+        queryShardContext.searchFields().setAllowUnmappedFields(true);
         for (float tieBreaker : new float[] {0.0f, 0.5f}) {
             Query parsedQuery = multiMatchQuery("banon")
                 .field("name.first", 2)

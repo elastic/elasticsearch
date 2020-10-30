@@ -169,7 +169,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     @Override
     public void testMustRewrite() throws IOException {
         QueryShardContext context = createShardContext();
-        context.setAllowUnmappedFields(true);
+        context.searchFields().setAllowUnmappedFields(true);
         PrefixQueryBuilder queryBuilder = new PrefixQueryBuilder("unmapped_field", "foo");
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> queryBuilder.toQuery(context));

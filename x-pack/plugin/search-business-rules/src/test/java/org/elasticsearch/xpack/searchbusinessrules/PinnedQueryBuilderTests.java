@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.searchbusinessrules;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -118,7 +117,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
             bigList[i] = String.valueOf(i);
         }
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), bigList));
-        
+
     }
 
     public void testEmptyPinnedQuery() throws Exception {
@@ -173,9 +172,9 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     @Override
-    public void testMustRewrite() throws IOException {
+    public void testMustRewrite() {
         QueryShardContext context = createShardContext();
-        context.setAllowUnmappedFields(true);
+        context.searchFields().setAllowUnmappedFields(true);
         PinnedQueryBuilder queryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("unmapped_field", "42"));
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> queryBuilder.toQuery(context));

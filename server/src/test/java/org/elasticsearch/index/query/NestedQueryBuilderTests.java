@@ -183,7 +183,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     @Override
     public void testMustRewrite() throws IOException {
         QueryShardContext context = createShardContext();
-        context.setAllowUnmappedFields(true);
+        context.searchFields().setAllowUnmappedFields(true);
         TermQueryBuilder innerQueryBuilder = new TermQueryBuilder("nested1.unmapped_field", "foo");
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("nested1", innerQueryBuilder,
                 RandomPicks.randomFrom(random(), ScoreMode.values()));

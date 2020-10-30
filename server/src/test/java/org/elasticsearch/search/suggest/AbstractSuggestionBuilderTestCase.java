@@ -38,8 +38,6 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -164,10 +162,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
                     indexSettings);
-            MapperService mapperService = mock(MapperService.class);
             ScriptService scriptService = mock(ScriptService.class);
             MappedFieldType fieldType = mockFieldType(suggestionBuilder.field());
-            when(mapperService.fieldType(any(String.class))).thenReturn(fieldType);
             IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
                 new HashMap<>() {
                     @Override
@@ -177,12 +173,26 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 },
                 Collections.emptyMap(),
                 Collections.emptyMap());
-            when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-            when(mapperService.getIndexSettings()).thenReturn(idxSettings);
+            TestSearchFields searchFields = new TestSearchFields() {
+                @Override
+                public MappedFieldType fieldType(String name) {
+                    return fieldType;
+                }
+
+                @Override
+                public boolean isFieldMapped(String name) {
+                    return true;
+                }
+
+                @Override
+                public IndexAnalyzers getIndexAnalyzers() {
+                    return indexAnalyzers;
+                }
+            };
             when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
             QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-                null, new SearchFields(mapperService), null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
+                null, searchFields, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
                     System::currentTimeMillis, null, null, () -> true, null);
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockShardContext);
@@ -222,14 +232,15 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             public boolean isFieldMapped(String name) {
                 return false;
             }
+
+            @Override
+            protected boolean allowUnmappedFields() {
+                return randomBoolean();
+            }
         };
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
             null, searchFields, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
             System::currentTimeMillis, null, null, () -> true, null);
-        if (randomBoolean()) {
-            mockShardContext.setAllowUnmappedFields(randomBoolean());
-        }
-
         SB suggestionBuilder = randomTestBuilder();
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> suggestionBuilder.build(mockShardContext));
         assertEquals("no mapping found for field [" + suggestionBuilder.field + "]", iae.getMessage());

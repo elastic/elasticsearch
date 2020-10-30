@@ -439,7 +439,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     @Override
     public void testMustRewrite() throws IOException {
         QueryShardContext context = createShardContext();
-        context.setAllowUnmappedFields(true);
+        context.searchFields().setAllowUnmappedFields(true);
         TermQueryBuilder termQuery = new TermQueryBuilder("unmapped_field", 42);
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
         boolQuery.must(termQuery);

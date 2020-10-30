@@ -59,7 +59,7 @@ public class SearchFieldsTests extends ESTestCase {
         assertThat(result, nullValue());
 
         searchFields.setAllowUnmappedFields(false);
-        searchFields.setMapUnmappedFieldAsString(true);
+        searchFields.setMapUnmappedFieldAsText(true);
         result = searchFields.failIfFieldMappingNotFound("name", fieldType);
         assertThat(result, sameInstance(fieldType));
         result = searchFields.failIfFieldMappingNotFound("name", null);

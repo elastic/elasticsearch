@@ -457,7 +457,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             throw new QueryShardException(context, "field [" + field + "] does not exist");
         }
 
-        if (!(fieldType instanceof PercolatorFieldMapper.PercolatorFieldType)) {
+        if (fieldType instanceof PercolatorFieldMapper.PercolatorFieldType == false) {
             throw new QueryShardException(context, "expected field [" + field +
                 "] to be of type [percolator], but is of type [" + fieldType.typeName() + "]");
         }
@@ -469,7 +469,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
         FieldNameAnalyzer fieldNameAnalyzer = searchFields.getFieldNameIndexAnalyzer();
         // We need this custom analyzer because FieldNameAnalyzer is strict and the percolator sometimes isn't when
-        // 'index.percolator.map_unmapped_fields_as_string' is enabled:
+        // 'index.percolator.map_unmapped_fields_as_text' is enabled:
         Analyzer analyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
@@ -500,10 +500,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
         String name = this.name != null ? this.name : pft.name();
         QueryShardContext percolateShardContext = wrap(context);
-        PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);;
-        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField,
-            percolateShardContext);
-
+        PercolatorFieldMapper.configureContext(percolateShardContext.searchFields(), pft.mapUnmappedFieldsAsText);
+        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext);
         return pft.percolateQuery(name, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
     }
 
@@ -544,8 +542,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
     }
 
-    static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType,
-                                                 QueryShardContext context) {
+    static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType, QueryShardContext context) {
         Version indexVersion = context.indexVersionCreated();
         NamedWriteableRegistry registry = context.getWriteableRegistry();
         return ctx -> {

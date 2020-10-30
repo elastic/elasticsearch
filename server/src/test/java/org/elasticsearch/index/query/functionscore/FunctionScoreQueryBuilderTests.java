@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -869,7 +868,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     @Override
     public void testMustRewrite() throws IOException {
         QueryShardContext context = createShardContext();
-        context.setAllowUnmappedFields(true);
+        context.searchFields().setAllowUnmappedFields(true);
         TermQueryBuilder termQueryBuilder = new TermQueryBuilder("unmapped_field", "foo");
 
         // main query needs rewriting

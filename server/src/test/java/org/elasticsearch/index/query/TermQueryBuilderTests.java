@@ -213,7 +213,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     @Override
     public void testMustRewrite() throws IOException {
         QueryShardContext context = createShardContext();
-        context.setAllowUnmappedFields(true);
+        context.searchFields().setAllowUnmappedFields(true);
         TermQueryBuilder queryBuilder = new TermQueryBuilder("unmapped_field", "foo");
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> queryBuilder.toQuery(context));

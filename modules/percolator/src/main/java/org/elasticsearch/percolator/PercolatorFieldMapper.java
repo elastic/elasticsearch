@@ -65,6 +65,7 @@ import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -351,7 +352,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             throw new IllegalArgumentException("a document can only contain one percolator query");
         }
 
-        configureContext(queryShardContext, isMapUnmappedFieldAsText());
+        configureContext(queryShardContext.searchFields(), mapUnmappedFieldsAsText);
 
         XContentParser parser = context.parser();
         QueryBuilder queryBuilder = parseQueryBuilder(
@@ -430,7 +431,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
     }
 
-    static void configureContext(QueryShardContext context, boolean mapUnmappedFieldsAsString) {
+    static void configureContext(SearchFields searchFields, boolean mapUnmappedFieldsAsText) {
         // This means that fields in the query need to exist in the mapping prior to registering this query
         // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
         //
@@ -441,10 +442,9 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         // because field type can't be inferred from queries (like document do) so the best option here is to disallow
         // the usage of unmapped fields in percolator queries to avoid unexpected behaviour
         //
-        // if index.percolator.map_unmapped_fields_as_string is set to true, query can contain unmapped fields which will be mapped
-        // as an analyzed string.
-        context.setAllowUnmappedFields(false);
-        context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
+        // if index.percolator.map_unmapped_fields_as_text is set to true, query can contain unmapped fields which will be mapped as text.
+        searchFields.setAllowUnmappedFields(false);
+        searchFields.setMapUnmappedFieldAsText(mapUnmappedFieldsAsText);
     }
 
     private static QueryBuilder parseQueryBuilder(XContentParser parser, XContentLocation location) {
@@ -470,10 +470,6 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    boolean isMapUnmappedFieldAsText() {
-        return mapUnmappedFieldsAsText;
     }
 
     /**

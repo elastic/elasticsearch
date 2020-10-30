@@ -118,7 +118,7 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     @Override
     public void testMustRewrite() throws IOException {
         QueryShardContext context = createShardContext();
-        context.setAllowUnmappedFields(true);
+        context.searchFields().setAllowUnmappedFields(true);
 
         BoostingQueryBuilder queryBuilder1 = new BoostingQueryBuilder(
                 new TermQueryBuilder("unmapped_field", "foo"), new MatchNoneQueryBuilder());

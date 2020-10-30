@@ -181,7 +181,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     public void testDefaultOperatorHandling() throws IOException {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.").field(TEXT_FIELD_NAME);
         QueryShardContext shardContext = createShardContext();
-        shardContext.setAllowUnmappedFields(true); // to avoid occasional cases
+        shardContext.searchFields().setAllowUnmappedFields(true); // to avoid occasional cases
                                                    // in setup where we didn't
                                                    // add types but strict field
                                                    // resolution

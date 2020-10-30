@@ -41,12 +41,17 @@ public class TestSearchFields extends SearchFields {
     }
 
     @Override
-    public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
+    public void setMapUnmappedFieldAsText(boolean mapUnmappedFieldAsText) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    protected boolean mapUnmappedFieldAsString() {
+    protected boolean mapUnmappedFieldAsText() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected boolean allowUnmappedFields() {
         throw new UnsupportedOperationException();
     }
 

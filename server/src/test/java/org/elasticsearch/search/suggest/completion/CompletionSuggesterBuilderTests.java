@@ -50,7 +50,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[] { CompletionSuggestionBuilder.CONTEXTS_FIELD.getPreferredName() };
     private static String categoryContextName;
     private static String geoQueryContextName;
-    private static List<ContextMapping<?>> contextMappings = new ArrayList<>();
+    private static final List<ContextMapping<?>> contextMappings = new ArrayList<>();
 
     @Override
     protected CompletionSuggestionBuilder randomSuggestionBuilder() {

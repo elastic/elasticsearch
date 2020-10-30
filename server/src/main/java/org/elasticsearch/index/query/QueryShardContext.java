@@ -113,7 +113,7 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
-            source.searchFields, source.similarityService, source.scriptService, source.getXContentRegistry(),
+            new SearchFields(source.searchFields), source.similarityService, source.scriptService, source.getXContentRegistry(),
             source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.indexNameMatcher,
             source.fullyQualifiedIndex, source.allowExpensiveQueries, source.valuesSourceRegistry);
     }
@@ -206,14 +206,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public ValuesSourceRegistry getValuesSourceRegistry() {
         return valuesSourceRegistry;
-    }
-
-    public void setAllowUnmappedFields(boolean allowUnmappedFields) {
-        this.searchFields.setAllowUnmappedFields(allowUnmappedFields);
-    }
-
-    public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
-        this.searchFields.setMapUnmappedFieldAsString(mapUnmappedFieldAsString);
     }
 
     public SearchFields searchFields() {

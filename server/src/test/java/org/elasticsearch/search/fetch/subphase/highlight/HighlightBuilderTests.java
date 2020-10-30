@@ -288,7 +288,7 @@ public class HighlightBuilderTests extends ESTestCase {
             }
 
             @Override
-            protected boolean mapUnmappedFieldAsString() {
+            protected boolean mapUnmappedFieldAsText() {
                 return true;
             }
         };

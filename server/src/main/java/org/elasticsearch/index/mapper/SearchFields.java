@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.util.Collections;
@@ -36,12 +35,17 @@ import java.util.Set;
 public class SearchFields {
     private final MapperService mapperService;
     private boolean allowUnmappedFields;
-    private boolean mapUnmappedFieldAsString;
+    private boolean mapUnmappedFieldAsText;
 
     public SearchFields(MapperService mapperService) {
         this(mapperService, mapperService.getIndexSettings().isDefaultAllowUnmappedFields());
     }
 
+    public SearchFields(SearchFields searchFields) {
+        this(searchFields.mapperService);
+    }
+
+    //this is here only for testing: it allows for a null MapperService
     SearchFields(MapperService mapperService, boolean allowUnmappedFields) {
         this.mapperService = mapperService;
         this.allowUnmappedFields = allowUnmappedFields;
@@ -51,8 +55,8 @@ public class SearchFields {
         this.allowUnmappedFields = allowUnmappedFields;
     }
 
-    public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
-        this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+    public void setMapUnmappedFieldAsText(boolean mapUnmappedFieldAsText) {
+        this.mapUnmappedFieldAsText = mapUnmappedFieldAsText;
     }
 
     public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
@@ -87,8 +91,8 @@ public class SearchFields {
      * In case unmapped fields are not allowed, either an exception is thrown or the field is automatically mapped as a text field.
      *
      * @throws QueryShardException if unmapped fields are not allowed and automatically mapping unmapped fields as text is disabled.
-     * @see QueryShardContext#setAllowUnmappedFields(boolean)
-     * @see QueryShardContext#setMapUnmappedFieldAsString(boolean)
+     * @see SearchFields#setAllowUnmappedFields(boolean)
+     * @see SearchFields#setMapUnmappedFieldAsText(boolean)
      */
     public MappedFieldType fieldType(String name) {
         return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
@@ -126,14 +130,18 @@ public class SearchFields {
         throw new IllegalArgumentException("Mapper for type [" + type + "] must be a leaf field");
     }
 
-    protected boolean mapUnmappedFieldAsString() {
-        return mapUnmappedFieldAsString;
+    protected boolean mapUnmappedFieldAsText() {
+        return mapUnmappedFieldAsText;
+    }
+
+    protected boolean allowUnmappedFields() {
+        return allowUnmappedFields;
     }
 
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
-        if (fieldMapping != null || allowUnmappedFields) {
+        if (fieldMapping != null || allowUnmappedFields()) {
             return fieldMapping;
-        } else if (mapUnmappedFieldAsString()) {
+        } else if (mapUnmappedFieldAsText()) {
             TextFieldMapper.Builder builder
                 = new TextFieldMapper.Builder(name, () -> mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer());
             return builder.build(new Mapper.BuilderContext(mapperService.getIndexSettings().getSettings(),

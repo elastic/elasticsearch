@@ -794,7 +794,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                         irLeftNode.getDecorationValue(IRDExpressionType.class),
                         irRightNode.getDecorationValue(IRDExpressionType.class),
                         operation,
-                        irBinaryMathNode.getDecorationValueOrDefaultValue(IRDFlags.class, 0));
+                        irBinaryMathNode.getDecorationValueOrDefault(IRDFlags.class, 0));
             } else {
                 methodWriter.writeBinaryInstruction(irBinaryMathNode.getLocation(), expressionType, operation);
             }

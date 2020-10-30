@@ -70,10 +70,10 @@ public abstract class IRNode {
     }
 
     public <T extends IRDecoration<V>, V> V getDecorationValue(Class<T> type) {
-        return getDecorationValueOrDefaultValue(type, null);
+        return getDecorationValueOrDefault(type, null);
     }
 
-    public <T extends IRDecoration<V>, V> V getDecorationValueOrDefaultValue(Class<T> type, V defaultValue) {
+    public <T extends IRDecoration<V>, V> V getDecorationValueOrDefault(Class<T> type, V defaultValue) {
         T decoration = type.cast(decorations.get(type));
         return decoration == null ? defaultValue : decoration.getValue();
     }

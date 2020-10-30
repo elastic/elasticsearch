@@ -227,7 +227,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     @Override
     protected Query doToQuery(QueryShardContext shardContext) throws IOException {
-        MappedFieldType fieldType = shardContext.getFieldType(fieldName);
+        MappedFieldType fieldType = shardContext.searchFields().fieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();

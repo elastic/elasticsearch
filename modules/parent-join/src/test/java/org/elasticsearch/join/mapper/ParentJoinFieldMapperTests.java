@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -53,7 +54,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         }));
         DocumentMapper docMapper = mapperService.documentMapper();
 
-        Joiner joiner = Joiner.getJoiner(f -> mapperService.fieldType(f) != null, mapperService::fieldType);
+        Joiner joiner = Joiner.getJoiner(new SearchFields(mapperService));
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
 
@@ -239,7 +240,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Joiner joiner = Joiner.getJoiner(f -> mapperService.fieldType(f) != null, mapperService::fieldType);
+        Joiner joiner = Joiner.getJoiner(new SearchFields(mapperService));
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
         assertTrue(joiner.childTypeExists("child2"));
@@ -265,7 +266,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        joiner = Joiner.getJoiner(f -> mapperService.fieldType(f) != null, mapperService::fieldType);
+        joiner = Joiner.getJoiner(new SearchFields(mapperService));
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
         assertTrue(joiner.childTypeExists("child2"));

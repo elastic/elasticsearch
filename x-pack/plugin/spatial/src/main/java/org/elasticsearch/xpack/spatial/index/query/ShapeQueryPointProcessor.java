@@ -47,7 +47,7 @@ public class ShapeQueryPointProcessor {
     }
 
     private void validateIsPointFieldType(String fieldName, QueryShardContext context) {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
+        MappedFieldType fieldType = context.searchFields().fieldType(fieldName);
         if (fieldType instanceof PointFieldMapper.PointFieldType == false) {
             throw new QueryShardException(context, "Expected " + PointFieldMapper.CONTENT_TYPE
                 + " field type for Field [" + fieldName + "] but found " + fieldType.typeName());
@@ -60,7 +60,7 @@ public class ShapeQueryPointProcessor {
         return queryShape.visit(shapeVisitor);
     }
 
-    private class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {
+    private static class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {
         QueryShardContext context;
         MappedFieldType fieldType;
         String fieldName;
@@ -68,7 +68,7 @@ public class ShapeQueryPointProcessor {
 
         ShapeVisitor(QueryShardContext context, String fieldName, ShapeRelation relation) {
             this.context = context;
-            this.fieldType = context.getFieldType(fieldName);
+            this.fieldType = context.searchFields().fieldType(fieldName);
             this.fieldName = fieldName;
             this.relation = relation;
         }

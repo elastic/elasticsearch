@@ -32,7 +32,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return Collections.singletonList(new VersionFieldPlugin(getIndexSettings()));
+        return Collections.singletonList(new VersionFieldPlugin(SETTINGS));
     }
 
     @Override

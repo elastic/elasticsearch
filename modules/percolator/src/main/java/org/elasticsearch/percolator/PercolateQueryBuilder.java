@@ -68,6 +68,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -450,8 +451,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (documents.isEmpty()) {
             throw new IllegalStateException("no document to percolate");
         }
-
-        MappedFieldType fieldType = context.getFieldType(field);
+        SearchFields searchFields = context.searchFields();
+        MappedFieldType fieldType = searchFields.fieldType(field);
         if (fieldType == null) {
             throw new QueryShardException(context, "field [" + field + "] does not exist");
         }
@@ -463,10 +464,10 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
         final List<ParsedDocument> docs = new ArrayList<>();
         for (BytesReference document : documents) {
-            docs.add(context.parseDocument(new SourceToParse(context.index().getName(), "_temp_id", document, documentXContentType)));
+            docs.add(searchFields.parseDocument(new SourceToParse(context.index().getName(), "_temp_id", document, documentXContentType)));
         }
 
-        FieldNameAnalyzer fieldNameAnalyzer = context.getFieldNameIndexAnalyzer();
+        FieldNameAnalyzer fieldNameAnalyzer = searchFields.getFieldNameIndexAnalyzer();
         // We need this custom analyzer because FieldNameAnalyzer is strict and the percolator sometimes isn't when
         // 'index.percolator.map_unmapped_fields_as_string' is enabled:
         Analyzer analyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
@@ -476,16 +477,16 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 if (analyzer != null) {
                     return analyzer;
                 } else {
-                    return context.getIndexAnalyzers().getDefaultIndexAnalyzer();
+                    return searchFields.getIndexAnalyzers().getDefaultIndexAnalyzer();
                 }
             }
         };
         final IndexSearcher docSearcher;
         final boolean excludeNestedDocuments;
         if (docs.size() > 1 || docs.get(0).docs().size() > 1) {
-            assert docs.size() != 1 || context.hasNested();
+            assert docs.size() != 1 || searchFields.hasNested();
             docSearcher = createMultiDocumentSearcher(analyzer, docs);
-            excludeNestedDocuments = context.hasNested() && docs.stream()
+            excludeNestedDocuments = searchFields.hasNested() && docs.stream()
                     .map(ParsedDocument::docs)
                     .mapToInt(List::size)
                     .anyMatch(size -> size > 1);

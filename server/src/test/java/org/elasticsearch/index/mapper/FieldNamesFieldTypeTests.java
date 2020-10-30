@@ -30,27 +30,36 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import java.util.Set;
 
 public class FieldNamesFieldTypeTests extends ESTestCase {
 
     public void testTermQuery() {
-
         FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldMapper.FieldNamesFieldType(true);
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field_name");
 
         Settings settings = settings(Version.CURRENT).build();
         IndexSettings indexSettings = new IndexSettings(
                 new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(), settings);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType("_field_names")).thenReturn(fieldNamesFieldType);
-        when(mapperService.fieldType("field_name")).thenReturn(fieldType);
-        when(mapperService.simpleMatchToFullName("field_name")).thenReturn(Collections.singleton("field_name"));
+        SearchFields searchFields = new TestSearchFields() {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                if (name.equals("_field_names")) {
+                    return fieldNamesFieldType;
+                }
+                if (name.equals("_field_name")) {
+                    return fieldType;
+                }
+                return null;
+            }
 
+            @Override
+            public Set<String> simpleMatchToIndexNames(String pattern) {
+                return pattern.equals("field_name") ? Collections.singleton("field_name") : null;
+            }
+        };
         QueryShardContext queryShardContext = new QueryShardContext(0,
-                indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, mapperService,
+                indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, searchFields,
                 null, null, null, null, null, null, () -> 0L, null, null, () -> true, null);
                 Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);

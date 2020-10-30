@@ -39,6 +39,8 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SearchFields;
+import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -176,10 +178,11 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 Collections.emptyMap(),
                 Collections.emptyMap());
             when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+            when(mapperService.getIndexSettings()).thenReturn(idxSettings);
             when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
             QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-                null, mapperService, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
+                null, new SearchFields(mapperService), null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
                     System::currentTimeMillis, null, null, () -> true, null);
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockShardContext);
@@ -213,13 +216,15 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         Settings indexSettings = builder.build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
             indexSettings);
-        MapperService mapperService = mock(MapperService.class);
         ScriptService scriptService = mock(ScriptService.class);
-
-        when(mapperService.getNamedAnalyzer(any(String.class))).then(
-            invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
+        TestSearchFields searchFields = new TestSearchFields() {
+            @Override
+            public boolean isFieldMapped(String name) {
+                return false;
+            }
+        };
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-            null, mapperService, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
+            null, searchFields, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
             System::currentTimeMillis, null, null, () -> true, null);
         if (randomBoolean()) {
             mockShardContext.setAllowUnmappedFields(randomBoolean());

@@ -201,7 +201,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         NestedSortBuilder nestedNestedSort = nestedSort.getNestedSort();
 
         // verify our nested path
-        ObjectMapper nestedObjectMapper = context.getObjectMapper(nestedPath);
+        ObjectMapper nestedObjectMapper = context.searchFields().getObjectMapper(nestedPath);
 
         if (nestedObjectMapper == null) {
             throw new QueryShardException(context, "[nested] failed to find nested object under path [" + nestedPath + "]");

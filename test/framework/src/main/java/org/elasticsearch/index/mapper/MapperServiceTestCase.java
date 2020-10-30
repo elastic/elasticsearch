@@ -78,8 +78,6 @@ import java.util.function.BooleanSupplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -96,10 +94,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected Collection<? extends Plugin> getPlugins() {
         return emptyList();
-    }
-
-    protected Settings getIndexSettings() {
-        return SETTINGS;
     }
 
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
@@ -128,16 +122,16 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService.documentMapper();
     }
 
-    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
+    protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
         return createMapperService(Version.CURRENT, mappings);
     }
 
-    protected MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
+    protected final MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
         return createMapperService(Version.CURRENT, settings, () -> true, mappings);
     }
 
-    protected MapperService createMapperService(BooleanSupplier idFieldEnabled, XContentBuilder mappings) throws IOException {
-        return createMapperService(Version.CURRENT, getIndexSettings(), idFieldEnabled, mappings);
+    protected final MapperService createMapperService(BooleanSupplier idFieldEnabled, XContentBuilder mappings) throws IOException {
+        return createMapperService(Version.CURRENT, SETTINGS, idFieldEnabled, mappings);
     }
 
     protected final MapperService createMapperService(String mappings) throws IOException {
@@ -147,7 +141,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
-        return createMapperService(version, getIndexSettings(), () -> true, mapping);
+        return createMapperService(version, SETTINGS, () -> true, mapping);
     }
 
     /**
@@ -289,11 +283,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public boolean isFieldMapped(String field) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
             public SearchLookup lookup() {
                 throw new UnsupportedOperationException();
             }
@@ -309,8 +298,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public MappedFieldType getFieldType(String path) {
-                return mapperService.fieldType(path);
+            public SearchFields searchFields() {
+                return new SearchFields(mapperService);
             }
 
             @Override
@@ -319,12 +308,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
+            public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public Query buildQuery(QueryBuilder builder) throws IOException {
+            public Query buildQuery(QueryBuilder builder) {
                 throw new UnsupportedOperationException();
             }
 
@@ -336,11 +325,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             @Override
             public BigArrays bigArrays() {
                 return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-            }
-
-            @Override
-            public ObjectMapper getObjectMapper(String path) {
-                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -377,14 +361,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected QueryShardContext createQueryShardContext(MapperService mapperService) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.getFieldType(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
-        when(queryShardContext.isFieldMapped(anyString()))
-            .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
-        when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
+        SearchFields searchFields = new SearchFields(mapperService);
+        when(queryShardContext.searchFields()).thenReturn(searchFields);
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
-        when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
-            inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
-        );
         when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
         when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");

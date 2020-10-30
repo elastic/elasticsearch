@@ -60,7 +60,7 @@ public class VectorGeoPointShapeQueryProcessor {
     }
 
     private void validateIsGeoPointFieldType(String fieldName, QueryShardContext context) {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
+        MappedFieldType fieldType = context.searchFields().fieldType(fieldName);
         if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType == false) {
             throw new QueryShardException(context, "Expected " + GeoPointFieldMapper.CONTENT_TYPE
                 + " field type for Field [" + fieldName + "] but found " + fieldType.typeName());
@@ -81,7 +81,7 @@ public class VectorGeoPointShapeQueryProcessor {
 
         ShapeVisitor(QueryShardContext context, String fieldName, ShapeRelation relation) {
             this.context = context;
-            this.fieldType = context.getFieldType(fieldName);
+            this.fieldType = context.searchFields().fieldType(fieldName);
             this.fieldName = fieldName;
             this.relation = relation;
         }

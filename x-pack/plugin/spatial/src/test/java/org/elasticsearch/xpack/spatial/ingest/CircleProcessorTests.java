@@ -30,6 +30,7 @@ import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -54,7 +55,6 @@ import static org.elasticsearch.xpack.spatial.ingest.CircleProcessor.CircleShape
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -213,13 +213,10 @@ public class CircleProcessorTests extends ESTestCase {
         Circle circle = new Circle(179.999746, 67.1726, randomDoubleBetween(1000, 300000, true));
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
-
         MappedFieldType shapeType
             = new GeoShapeWithDocValuesFieldType(fieldName, true, false, ShapeBuilder.Orientation.RIGHT, null, Collections.emptyMap());
-
+        QueryShardContext mockedContext = createShardContext(shapeType);
         VectorGeoShapeQueryProcessor processor = new VectorGeoShapeQueryProcessor();
-        QueryShardContext mockedContext = mock(QueryShardContext.class);
-        when(mockedContext.getFieldType(any())).thenReturn(shapeType);
         Query sameShapeQuery = processor.geoShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
         Query pointOnDatelineQuery = processor.geoShapeQuery(new Point(180, circle.getLat()), fieldName,
             ShapeRelation.INTERSECTS, mockedContext);
@@ -248,10 +245,8 @@ public class CircleProcessorTests extends ESTestCase {
         Geometry geometry = SpatialUtils.createRegularShapePolygon(circle, numSides);
 
         MappedFieldType shapeType = new ShapeFieldType(fieldName, true, ShapeBuilder.Orientation.RIGHT, null, Collections.emptyMap());
-
+        QueryShardContext mockedContext = createShardContext(shapeType);
         ShapeQueryProcessor processor = new ShapeQueryProcessor();
-        QueryShardContext mockedContext = mock(QueryShardContext.class);
-        when(mockedContext.getFieldType(any())).thenReturn(shapeType);
         Query sameShapeQuery = processor.shapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
         Query centerPointQuery = processor.shapeQuery(new Point(circle.getLon(), circle.getLat()), fieldName,
             ShapeRelation.INTERSECTS, mockedContext);
@@ -271,5 +266,17 @@ public class CircleProcessorTests extends ESTestCase {
                 assertThat(searcher.search(centerPointQuery, 1).totalHits.value, equalTo(1L));
             }
         }
+    }
+
+    private static QueryShardContext createShardContext(MappedFieldType fieldType) {
+        QueryShardContext mockedContext = mock(QueryShardContext.class);
+        TestSearchFields searchFields = new TestSearchFields() {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                return fieldType;
+            }
+        };
+        when(mockedContext.searchFields()).thenReturn(searchFields);
+        return mockedContext;
     }
 }

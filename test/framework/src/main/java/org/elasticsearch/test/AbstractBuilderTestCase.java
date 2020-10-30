@@ -53,6 +53,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -412,8 +413,9 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
         QueryShardContext createShardContext(IndexSearcher searcher) {
             return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache,
-                indexFieldDataService::getForField, mapperService, similarityService, scriptService, xContentRegistry,
-                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, indexNameMatcher(), () -> true, null);
+                indexFieldDataService::getForField, new SearchFields(mapperService),
+                similarityService, scriptService, xContentRegistry, namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null,
+                indexNameMatcher(), () -> true, null);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

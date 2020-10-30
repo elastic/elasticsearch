@@ -81,6 +81,8 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SearchFields;
+import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
@@ -676,8 +678,20 @@ public class QueryPhaseTests extends IndexShardTestCase {
         MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(fieldNameLong, NumberFieldMapper.NumberType.LONG);
         MappedFieldType fieldTypeDate = new DateFieldMapper.DateFieldType(fieldNameDate);
         QueryShardContext shardContext = mock(QueryShardContext.class);
-        when(shardContext.getFieldType(fieldNameLong)).thenReturn(fieldTypeLong);
-        when(shardContext.getFieldType(fieldNameDate)).thenReturn(fieldTypeDate);
+        SearchFields searchFields = new TestSearchFields() {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                if (name.equals(fieldNameLong)) {
+                    return fieldTypeLong;
+                }
+                if (name.equals(fieldNameDate)) {
+                    return fieldTypeDate;
+                }
+                return null;
+            }
+        };
+        when(shardContext.searchFields()).thenReturn(searchFields);
+
         // enough docs to have a tree with several leaf nodes
         final int numDocs = 3500 * 20;
         Directory dir = newDirectory();

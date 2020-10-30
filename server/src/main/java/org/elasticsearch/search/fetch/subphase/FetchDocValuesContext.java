@@ -19,6 +19,7 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.util.ArrayList;
@@ -41,10 +42,11 @@ public class FetchDocValuesContext {
      * Field patterns containing wildcards are resolved and unmapped fields are filtered out.
      */
     public FetchDocValuesContext(QueryShardContext shardContext, List<FieldAndFormat> fieldPatterns) {
+        SearchFields searchFields = shardContext.searchFields();
         for (FieldAndFormat field : fieldPatterns) {
-            Collection<String> fieldNames = shardContext.simpleMatchToIndexNames(field.field);
+            Collection<String> fieldNames = searchFields.simpleMatchToIndexNames(field.field);
             for (String fieldName : fieldNames) {
-                if (shardContext.isFieldMapped(fieldName)) {
+                if (searchFields.isFieldMapped(fieldName)) {
                     fields.add(new FieldAndFormat(fieldName, field.format));
                 }
             }

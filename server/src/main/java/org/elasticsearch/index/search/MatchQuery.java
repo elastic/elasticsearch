@@ -51,6 +51,7 @@ import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClau
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -178,7 +179,7 @@ public class MatchQuery {
     }
 
     public void setAnalyzer(String analyzerName) {
-        this.analyzer = context.getIndexAnalyzers().get(analyzerName);
+        this.analyzer = context.searchFields().getIndexAnalyzers().get(analyzerName);
         if (analyzer == null) {
             throw new IllegalArgumentException("No analyzer found for [" + analyzerName + "]");
         }
@@ -234,11 +235,12 @@ public class MatchQuery {
     }
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
-        final MappedFieldType fieldType = context.getFieldType(fieldName);
+        SearchFields searchFields = context.searchFields();
+        final MappedFieldType fieldType = searchFields.fieldType(fieldName);
         if (fieldType == null) {
             return newUnmappedFieldQuery(fieldName);
         }
-        Set<String> fields = context.simpleMatchToIndexNames(fieldName);
+        Set<String> fields = searchFields.simpleMatchToIndexNames(fieldName);
         if (fields.contains(fieldName)) {
             assert fields.size() == 1;
             // this field is a concrete field or an alias so we use the

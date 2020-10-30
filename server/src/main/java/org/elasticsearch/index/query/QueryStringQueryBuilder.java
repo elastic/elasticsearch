@@ -864,7 +864,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
 
         if (analyzer != null) {
-            NamedAnalyzer namedAnalyzer = context.getIndexAnalyzers().get(analyzer);
+            NamedAnalyzer namedAnalyzer = context.searchFields().getIndexAnalyzers().get(analyzer);
             if (namedAnalyzer == null) {
                 throw new QueryShardException(context, "[query_string] analyzer [" + analyzer + "] not found");
             }
@@ -872,7 +872,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
 
         if (quoteAnalyzer != null) {
-            NamedAnalyzer forceQuoteAnalyzer = context.getIndexAnalyzers().get(quoteAnalyzer);
+            NamedAnalyzer forceQuoteAnalyzer = context.searchFields().getIndexAnalyzers().get(quoteAnalyzer);
             if (forceQuoteAnalyzer == null) {
                 throw new QueryShardException(context, "[query_string] quote_analyzer [" + quoteAnalyzer + "] not found");
             }

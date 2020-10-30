@@ -112,11 +112,11 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     @Override
     protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         ValuesSourceConfig config;
-        Joiner joiner = Joiner.getJoiner(context);
+        Joiner joiner = Joiner.getJoiner(context.searchFields());
         if (joiner != null && joiner.childTypeExists(childType)) {
             parentFilter = joiner.parentFilter(childType);
             childFilter = joiner.filter(childType);
-            MappedFieldType fieldType = context.getFieldType(joiner.parentJoinField(childType));
+            MappedFieldType fieldType = context.searchFields().fieldType(joiner.parentJoinField(childType));
             config = ValuesSourceConfig.resolveFieldOnly(fieldType, context);
         } else {
             // unmapped case

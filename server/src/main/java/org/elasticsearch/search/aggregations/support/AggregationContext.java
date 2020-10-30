@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -63,7 +63,7 @@ public abstract class AggregationContext {
      * Lookup the context for a field.
      */
     public final FieldContext buildFieldContext(String field) {
-        MappedFieldType ft = getFieldType(field);
+        MappedFieldType ft = searchFields().fieldType(field);
         if (ft == null) {
             // The field is unmapped
             return null;
@@ -83,15 +83,8 @@ public abstract class AggregationContext {
      */
     protected abstract IndexFieldData<?> buildFieldData(MappedFieldType ft);
 
-    /**
-     * Lookup a {@link MappedFieldType} by path.
-     */
-    public abstract MappedFieldType getFieldType(String path);
-
-    /**
-     * Returns true if the field identified by the provided name is mapped, false otherwise
-     */
-    public abstract boolean isFieldMapped(String field);
+    //TODO do we want to have a smaller abstraction for aggs given that they only use three methods?
+    public abstract SearchFields searchFields();
 
     /**
      * Compile a script.
@@ -142,11 +135,6 @@ public abstract class AggregationContext {
     public abstract Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException;
 
     /**
-     * Find an {@link ObjectMapper}.
-     */
-    public abstract ObjectMapper getObjectMapper(String path);
-
-    /**
      * Access the nested scope. Stay away from this unless you are dealing with nested.
      */
     public abstract NestedScope nestedScope();
@@ -182,13 +170,8 @@ public abstract class AggregationContext {
         }
 
         @Override
-        public MappedFieldType getFieldType(String path) {
-            return context.getFieldType(path);
-        }
-
-        @Override
-        public boolean isFieldMapped(String field) {
-            return context.isFieldMapped(field);
+        public SearchFields searchFields() {
+            return context.searchFields();
         }
 
         @Override
@@ -229,11 +212,6 @@ public abstract class AggregationContext {
         @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
             return SortBuilder.buildSort(sortBuilders, context);
-        }
-
-        @Override
-        public ObjectMapper getObjectMapper(String path) {
-            return context.getObjectMapper(path);
         }
 
         @Override

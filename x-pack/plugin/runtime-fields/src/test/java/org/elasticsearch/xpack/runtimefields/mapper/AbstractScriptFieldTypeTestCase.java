@@ -11,15 +11,18 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SearchFields;
+import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -75,12 +78,21 @@ abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
 
     protected static QueryShardContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
         QueryShardContext context = mock(QueryShardContext.class);
-        if (mappedFieldType != null) {
-            when(context.getFieldType(anyString())).thenReturn(mappedFieldType);
-        }
+        SearchFields searchFields = new TestSearchFields() {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                return mappedFieldType;
+            }
+
+            @Override
+            public Set<String> simpleMatchToIndexNames(String pattern) {
+                return Collections.emptySet();
+            }
+        };
+        when(context.searchFields()).thenReturn(searchFields);
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
-            context::getFieldType,
+            searchFields::fieldType,
             (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
         );
         when(context.lookup()).thenReturn(lookup);

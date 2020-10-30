@@ -85,12 +85,13 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.SearchFields;
+import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -143,7 +144,6 @@ import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -155,12 +155,11 @@ import static org.mockito.Mockito.when;
  */
 public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
-    private List<Releasable> releasables = new ArrayList<>();
-    private static final String TYPE_NAME = "type";
+    private final List<Releasable> releasables = new ArrayList<>();
     protected ValuesSourceRegistry valuesSourceRegistry;
 
     // A list of field types that should not be tested, or are not currently supported
-    private static List<String> TYPE_TEST_BLACKLIST = List.of(
+    private static final List<String> TYPE_TEST_BLACKLIST = List.of(
         ObjectMapper.CONTENT_TYPE, // Cannot aggregate objects
         GeoShapeFieldMapper.CONTENT_TYPE, // Cannot aggregate geoshapes (yet)
 
@@ -177,18 +176,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return Collections.emptyMap();
     }
 
-    private static void registerFieldTypes(SearchContext searchContext, MapperService mapperService,
-                                           Map<String, MappedFieldType> fieldNameToType) {
-        for (Map.Entry<String, MappedFieldType> entry : fieldNameToType.entrySet()) {
-            String fieldName = entry.getKey();
-            MappedFieldType fieldType = entry.getValue();
-
-            when(mapperService.fieldType(fieldName)).thenReturn(fieldType);
-            when(searchContext.fieldType(fieldName)).thenReturn(fieldType);
-        }
-    }
-
-    // Make this @Before instead of @BeforeClass so it can call the non-static getSearchPlugins method
+    //TODO Make this @Before instead of @BeforeClass so it can call the non-static getSearchPlugins method
     @Before
     public void initValuesSourceRegistry() {
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
@@ -223,7 +211,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Create a {@linkplain SearchContext} for testing an {@link Aggregator}.
      */
-    protected SearchContext createSearchContext(
+    protected final SearchContext createSearchContext(
         IndexSearcher indexSearcher,
         Query query,
         MappedFieldType... fieldTypes
@@ -236,12 +224,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return createSearchContext(indexSearcher, createIndexSettings(), query, bucketConsumer, breakerService, fieldTypes);
     }
 
-    protected SearchContext createSearchContext(IndexSearcher indexSearcher,
-                                                IndexSettings indexSettings,
-                                                Query query,
-                                                MultiBucketConsumer bucketConsumer,
-                                                CircuitBreakerService circuitBreakerService,
-                                                MappedFieldType... fieldTypes) throws IOException {
+    protected final SearchContext createSearchContext(IndexSearcher indexSearcher,
+                                                      IndexSettings indexSettings,
+                                                      Query query,
+                                                      MultiBucketConsumer bucketConsumer,
+                                                      CircuitBreakerService circuitBreakerService,
+                                                      MappedFieldType... fieldTypes) throws IOException {
         QueryCache queryCache = new DisabledQueryCache(indexSettings);
         QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
             @Override
@@ -276,30 +264,41 @@ public abstract class AggregatorTestCase extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking();
         when(searchContext.bigArrays()).thenReturn(bigArrays);
 
-        // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
-        MapperService mapperService = mapperServiceMock();
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-        when(mapperService.hasNested()).thenReturn(false);
-        QueryShardContext queryShardContext =
-            queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
-        when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
-        when(queryShardContext.getObjectMapper(anyString())).thenAnswer(invocation -> {
-            String fieldName = (String) invocation.getArguments()[0];
-            if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
-                BuilderContext context = new BuilderContext(indexSettings.getSettings(), new ContentPath());
-                return new ObjectMapper.Builder(fieldName).nested(Nested.newNested()).build(context);
-            }
-            return null;
-        });
-
         Map<String, MappedFieldType> fieldNameToType = new HashMap<>();
         fieldNameToType.putAll(Arrays.stream(fieldTypes)
             .filter(Objects::nonNull)
             .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
+        fieldNameToType.putAll(getAdditionalFieldTypes());
+        SearchFields searchFields = new TestSearchFields() {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                return fieldNameToType.get(name);
+            }
 
-        registerFieldTypes(searchContext, mapperService,
-            fieldNameToType);
+            @Override
+            public boolean isFieldMapped(String name) {
+                return fieldNameToType.containsKey(name);
+            }
+
+            @Override
+            public boolean hasNested() {
+                return false;
+            }
+
+            @Override
+            public ObjectMapper getObjectMapper(String name) {
+                if (name.startsWith(NESTEDFIELD_PREFIX)) {
+                    BuilderContext context = new BuilderContext(indexSettings.getSettings(), new ContentPath());
+                    return new ObjectMapper.Builder(name).nested(Nested.newNested()).build(context);
+                }
+                return null;
+            }
+        };
+        QueryShardContext queryShardContext =
+            createQueryShardContext(contextIndexSearcher, searchFields, indexSettings, circuitBreakerService, bigArrays);
+        when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
+
         doAnswer(invocation -> {
             /* Store the release-ables so we can release them at the end of the test case. This is important because aggregations don't
              * close their sub-aggregations. This is fairly similar to what the production code does. */
@@ -307,6 +306,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return null;
         }).when(searchContext).addReleasable(anyObject());
         return searchContext;
+    }
+
+    protected Map<String, MappedFieldType> getAdditionalFieldTypes() {
+        return Collections.emptyMap();
     }
 
     protected IndexSettings createIndexSettings() {
@@ -320,25 +323,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
         );
     }
 
-    /**
-     * sub-tests that need a more complex mock can overwrite this
-     */
-    protected MapperService mapperServiceMock() {
-        return mock(MapperService.class);
-    }
-
-    /**
-     * sub-tests that need a more complex mock can overwrite this
-     */
-    protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
-                                                      MapperService mapperService,
-                                                      IndexSettings indexSettings,
-                                                      CircuitBreakerService circuitBreakerService,
-                                                      BigArrays bigArrays) {
-
+    //TODO this could be final if MinAggregatorTests did not need to get a reference to the shard context
+    protected QueryShardContext createQueryShardContext(IndexSearcher searcher,
+                                                        SearchFields searchFields,
+                                                        IndexSettings indexSettings,
+                                                        CircuitBreakerService circuitBreakerService,
+                                                        BigArrays bigArrays) {
         return new QueryShardContext(0, indexSettings, bigArrays, null,
-            getIndexFieldDataLookup(mapperService, circuitBreakerService),
-            mapperService, null, getMockScriptService(), xContentRegistry(),
+            getIndexFieldDataLookup(indexSettings.getIndex().getName(), circuitBreakerService),
+            searchFields, null, getMockScriptService(), xContentRegistry(),
             writableRegistry(), null, searcher, System::currentTimeMillis, null, null, () -> true,
             valuesSourceRegistry);
     }
@@ -346,10 +339,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Sub-tests that need a more complex index field data provider can override this
      */
-    protected TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> getIndexFieldDataLookup(
-        MapperService mapperService, CircuitBreakerService circuitBreakerService) {
-        return (fieldType, s, searchLookup) -> fieldType.fielddataBuilder(
-            mapperService.getIndexSettings().getIndex().getName(), searchLookup)
+    protected final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> getIndexFieldDataLookup(
+        String indexName, CircuitBreakerService circuitBreakerService) {
+        return (fieldType, s, searchLookup) -> fieldType.fielddataBuilder(indexName, searchLookup)
             .build(new IndexFieldDataCache.None(), circuitBreakerService);
     }
 
@@ -360,26 +352,26 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return null;
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSearcher searcher,
-                                                                                      Query query,
-                                                                                      AggregationBuilder builder,
-                                                                                      MappedFieldType... fieldTypes) throws IOException {
+    protected final <A extends InternalAggregation> A searchAndReduce(IndexSearcher searcher,
+                                                                      Query query,
+                                                                      AggregationBuilder builder,
+                                                                      MappedFieldType... fieldTypes) throws IOException {
         return searchAndReduce(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, fieldTypes);
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSettings indexSettings,
-                                                                                      IndexSearcher searcher,
-                                                                                      Query query,
-                                                                                      AggregationBuilder builder,
-                                                                                      MappedFieldType... fieldTypes) throws IOException {
+    protected final <A extends InternalAggregation> A searchAndReduce(IndexSettings indexSettings,
+                                                                      IndexSearcher searcher,
+                                                                      Query query,
+                                                                      AggregationBuilder builder,
+                                                                      MappedFieldType... fieldTypes) throws IOException {
         return searchAndReduce(indexSettings, searcher, query, builder, DEFAULT_MAX_BUCKETS, fieldTypes);
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSearcher searcher,
-                                                                                      Query query,
-                                                                                      AggregationBuilder builder,
-                                                                                      int maxBucket,
-                                                                                      MappedFieldType... fieldTypes) throws IOException {
+    protected final <A extends InternalAggregation> A searchAndReduce(IndexSearcher searcher,
+                                                                      Query query,
+                                                                      AggregationBuilder builder,
+                                                                      int maxBucket,
+                                                                      MappedFieldType... fieldTypes) throws IOException {
         return searchAndReduce(createIndexSettings(), searcher, query, builder, maxBucket, fieldTypes);
     }
 
@@ -391,12 +383,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * results together. The other half the time it aggregates across the entire
      * index at once and runs a final reduction on the single resulting agg.
      */
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSettings indexSettings,
-                                                                                      IndexSearcher searcher,
-                                                                                      Query query,
-                                                                                      AggregationBuilder builder,
-                                                                                      int maxBucket,
-                                                                                      MappedFieldType... fieldTypes) throws IOException {
+    protected final <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSettings indexSettings,
+                                                                                            IndexSearcher searcher,
+                                                                                            Query query,
+                                                                                            AggregationBuilder builder,
+                                                                                            int maxBucket,
+                                                                                            MappedFieldType... fieldTypes)
+        throws IOException {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
@@ -416,8 +409,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
             }
             for (ShardSearcher subSearcher : subSearchers) {
-                MultiBucketConsumer shardBucketConsumer = new MultiBucketConsumer(maxBucket,
-                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
                 C a = createAggregator(builder, searchContext);
                 a.preCollection();
                 Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
@@ -467,7 +458,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
 
-    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
+    protected final <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
         T aggregationBuilder,
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,

@@ -43,7 +43,8 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SearchFields;
+import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -107,23 +108,29 @@ public class DefaultSearchContextTests extends ESTestCase {
         QueryCache queryCache = mock(QueryCache.class);
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), anyString())).thenReturn(queryShardContext);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.hasNested()).thenReturn(randomBoolean());
-        when(indexService.mapperService()).thenReturn(mapperService);
-
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         when(indexService.getIndexSettings()).thenReturn(indexSettings);
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
+        SearchFields searchFields = new TestSearchFields() {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                return mock(MappedFieldType.class);
+            }
+
+            @Override
+            public boolean hasNested() {
+                return false;
+            }
+        };
+        when(queryShardContext.searchFields()).thenReturn(searchFields);
+        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), anyString())).thenReturn(queryShardContext);
 
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-
-
             final Supplier<Engine.SearcherSupplier> searcherSupplier = () -> new Engine.SearcherSupplier(Function.identity()) {
                 @Override
                 protected void doClose() {
@@ -217,9 +224,6 @@ public class DefaultSearchContextTests extends ESTestCase {
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
-
-            when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
-            when(queryShardContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
             when(shardSearchRequest.indexRoutings()).thenReturn(new String[0]);
 
             readerContext.close();

@@ -53,8 +53,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
@@ -165,11 +165,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected QueryShardContext queryShardContextMock(IndexSearcher searcher, MapperService mapperService,
-                                                      IndexSettings indexSettings, CircuitBreakerService circuitBreakerService,
-                                                      BigArrays bigArrays) {
-         this.queryShardContext = super.queryShardContextMock(searcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
-         return queryShardContext;
+    protected QueryShardContext createQueryShardContext(IndexSearcher searcher, SearchFields searchFields, IndexSettings indexSettings,
+                                                        CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
+        this.queryShardContext  = super.createQueryShardContext(searcher, searchFields, indexSettings, circuitBreakerService, bigArrays);
+        return this.queryShardContext;
     }
 
     public void testNoMatchingField() throws IOException {

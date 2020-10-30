@@ -34,6 +34,8 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SearchFields;
+import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -146,56 +148,78 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             writer.commit();
         }
         QueryShardContext shardContext = mock(QueryShardContext.class);
+
+
         try (IndexReader reader = DirectoryReader.open(dir)) {
             when(shardContext.getIndexReader()).thenReturn(reader);
 
-            MappedFieldType numberFieldType =
-                new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-            when(shardContext.getFieldType("field")).thenReturn(numberFieldType);
-            CollapseBuilder builder = new CollapseBuilder("field");
-            CollapseContext collapseContext = builder.build(shardContext);
-            assertEquals(collapseContext.getFieldType(), numberFieldType);
-
-            numberFieldType =
-                new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, true, false,
-                    false, false, null, Collections.emptyMap());
-            when(shardContext.getFieldType("field")).thenReturn(numberFieldType);
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
-            assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
-
-            numberFieldType =
-                new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, false,
-                    true, false, null, Collections.emptyMap());
-            when(shardContext.getFieldType("field")).thenReturn(numberFieldType);
-            builder.setInnerHits(new InnerHitBuilder());
-            exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
-            assertEquals(exc.getMessage(),
-                "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`");
-
-            MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field");
-            when(shardContext.getFieldType("field")).thenReturn(keywordFieldType);
-            CollapseBuilder kbuilder = new CollapseBuilder("field");
-            collapseContext = kbuilder.build(shardContext);
-            assertEquals(collapseContext.getFieldType(), keywordFieldType);
-
-            keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", true, false, Collections.emptyMap());
-            when(shardContext.getFieldType("field")).thenReturn(keywordFieldType);
-            exc = expectThrows(IllegalArgumentException.class, () -> kbuilder.build(shardContext));
-            assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
-
-            keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", false, true, Collections.emptyMap());
-            when(shardContext.getFieldType("field")).thenReturn(keywordFieldType);
-            kbuilder.setInnerHits(new InnerHitBuilder());
-            exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
-            assertEquals(exc.getMessage(),
-                "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`");
-
+            {
+                MappedFieldType numberFieldType =
+                    new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+                when(shardContext.searchFields()).thenReturn(createSearchFields(numberFieldType));
+                CollapseBuilder builder = new CollapseBuilder("field");
+                CollapseContext collapseContext = builder.build(shardContext);
+                assertEquals(collapseContext.getFieldType(), numberFieldType);
+            }
+            {
+                MappedFieldType numberFieldType =
+                    new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, true, false,
+                        false, false, null, Collections.emptyMap());
+                when(shardContext.searchFields()).thenReturn(createSearchFields(numberFieldType));
+                CollapseBuilder builder = new CollapseBuilder("field");
+                IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
+                assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
+            }
+            {
+                MappedFieldType numberFieldType =
+                    new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, false,
+                        true, false, null, Collections.emptyMap());
+                when(shardContext.searchFields()).thenReturn(createSearchFields(numberFieldType));
+                CollapseBuilder builder = new CollapseBuilder("field");
+                builder.setInnerHits(new InnerHitBuilder());
+                IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
+                assertEquals(exc.getMessage(),
+                    "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`");
+            }
+            {
+                MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field");
+                when(shardContext.searchFields()).thenReturn(createSearchFields(keywordFieldType));
+                CollapseBuilder builder = new CollapseBuilder("field");
+                CollapseContext collapseContext = builder.build(shardContext);
+                assertEquals(collapseContext.getFieldType(), keywordFieldType);
+            }
+            {
+                MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", true, false, Collections.emptyMap());
+                when(shardContext.searchFields()).thenReturn(createSearchFields(keywordFieldType));
+                CollapseBuilder builder = new CollapseBuilder("field");
+                IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
+                assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
+            }
+            {
+                MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", false, true, Collections.emptyMap());
+                when(shardContext.searchFields()).thenReturn(createSearchFields(keywordFieldType));
+                CollapseBuilder builder = new CollapseBuilder("field");
+                builder.setInnerHits(new InnerHitBuilder());
+                IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
+                assertEquals(exc.getMessage(),
+                    "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`");
+            }
         }
+    }
+
+    private static SearchFields createSearchFields(MappedFieldType fieldType) {
+        return new TestSearchFields() {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                return fieldType;
+            }
+        };
     }
 
     public void testBuildWithExceptions() {
         QueryShardContext shardContext = mock(QueryShardContext.class);
         {
+            when(shardContext.searchFields()).thenReturn(createSearchFields(null));
             CollapseBuilder builder = new CollapseBuilder("unknown_field");
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
             assertEquals(exc.getMessage(), "no mapping found for `unknown_field` in order to collapse on");
@@ -222,7 +246,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                     return null;
                 }
             };
-            when(shardContext.getFieldType("field")).thenReturn(fieldType);
+            when(shardContext.searchFields()).thenReturn(createSearchFields(fieldType));
             CollapseBuilder builder = new CollapseBuilder("field");
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
             assertEquals(exc.getMessage(), "collapse is not supported for the field [field] of the type [some_type]");

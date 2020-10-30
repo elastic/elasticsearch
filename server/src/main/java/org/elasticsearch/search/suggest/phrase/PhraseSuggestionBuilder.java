@@ -623,7 +623,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
         for (List<CandidateGenerator> candidateGenerators : this.generators.values()) {
             for (CandidateGenerator candidateGenerator : candidateGenerators) {
-                suggestionContext.addGenerator(candidateGenerator.build(context.getIndexAnalyzers()));
+                suggestionContext.addGenerator(candidateGenerator.build(context.searchFields().getIndexAnalyzers()));
             }
         }
 

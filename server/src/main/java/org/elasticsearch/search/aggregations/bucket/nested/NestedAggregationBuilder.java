@@ -95,7 +95,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     protected AggregatorFactory doBuild(AggregationContext context,
                                             AggregatorFactory parent,
                                             Builder subFactoriesBuilder) throws IOException {
-        ObjectMapper childObjectMapper = context.getObjectMapper(path);
+        ObjectMapper childObjectMapper = context.searchFields().getObjectMapper(path);
         if (childObjectMapper == null) {
             // in case the path has been unmapped:
             return new NestedAggregatorFactory(name, null, null, context,

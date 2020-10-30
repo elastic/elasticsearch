@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -298,16 +299,16 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
      * original {@link SuggestionBuilder} to the target {@link SuggestionContext}
      */
     protected void populateCommonFields(QueryShardContext context, SuggestionSearchContext.SuggestionContext suggestionContext) {
-
+        SearchFields searchFields = context.searchFields();
         Objects.requireNonNull(field, "field must not be null");
-        if (context.isFieldMapped(field) == false) {
+        if (searchFields.isFieldMapped(field) == false) {
             throw new IllegalArgumentException("no mapping found for field [" + field + "]");
         }
-        MappedFieldType fieldType = context.getFieldType(field);
+        MappedFieldType fieldType = searchFields.fieldType(field);
         if (analyzer == null) {
             suggestionContext.setAnalyzer(fieldType.getTextSearchInfo().getSearchAnalyzer());
         } else {
-            Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
+            Analyzer luceneAnalyzer = searchFields.getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {
                 throw new IllegalArgumentException("analyzer [" + analyzer + "] doesn't exists");
             }

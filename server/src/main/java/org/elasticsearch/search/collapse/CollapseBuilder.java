@@ -30,9 +30,9 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -198,7 +198,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     }
 
     public CollapseContext build(QueryShardContext queryShardContext) {
-        MappedFieldType fieldType = queryShardContext.getFieldType(field);
+        MappedFieldType fieldType = queryShardContext.searchFields().fieldType(field);
         if (fieldType == null) {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }

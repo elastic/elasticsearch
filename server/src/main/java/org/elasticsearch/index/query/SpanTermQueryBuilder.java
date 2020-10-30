@@ -80,7 +80,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
 
     @Override
     protected SpanQuery doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType mapper = context.getFieldType(fieldName);
+        MappedFieldType mapper = context.searchFields().fieldType(fieldName);
         Term term;
         if (mapper == null) {
             term = new Term(fieldName, BytesRefs.toBytesRef(value));

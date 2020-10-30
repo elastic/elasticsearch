@@ -325,7 +325,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return order == SortOrder.DESC ? SORT_DOC_REVERSE : SORT_DOC;
         }
 
-        MappedFieldType fieldType = context.getFieldType(fieldName);
+        MappedFieldType fieldType = context.searchFields().fieldType(fieldName);
         Nested nested = nested(context, fieldType);
         if (fieldType == null) {
             fieldType = resolveUnmappedType(context);
@@ -377,7 +377,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (canRewriteToMatchNone() == false) {
             return false;
         }
-        MappedFieldType fieldType = context.getFieldType(fieldName);
+        MappedFieldType fieldType = context.searchFields().fieldType(fieldName);
         if (fieldType == null) {
             // unmapped
             return false;
@@ -411,7 +411,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new IllegalArgumentException("sorting by _doc is not supported");
         }
 
-        MappedFieldType fieldType = context.getFieldType(fieldName);
+        MappedFieldType fieldType = context.searchFields().fieldType(fieldName);
         Nested nested = nested(context, fieldType);
         if (fieldType == null) {
             fieldType = resolveUnmappedType(context);
@@ -445,7 +445,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (unmappedType == null) {
             throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
         }
-        return context.buildAnonymousFieldType(unmappedType);
+        return context.searchFields().buildAnonymousFieldType(unmappedType);
     }
 
     private MultiValueMode localSortMode() {
@@ -499,7 +499,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return null;
         }
         IndexReader reader = context.getIndexReader();
-        MappedFieldType fieldType = context.getFieldType(sortField.getField());
+        MappedFieldType fieldType = context.searchFields().fieldType(sortField.getField());
         if (reader == null || (fieldType == null || fieldType.isSearchable() == false)) {
             return null;
         }
@@ -592,7 +592,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return;
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
-            ObjectMapper parentMapper = context.getObjectMapper(parent);
+            ObjectMapper parentMapper = context.searchFields().getObjectMapper(parent);
             if (parentMapper != null && parentMapper.nested().isNested()) {
                 if (contextMapper != null && contextMapper.fullPath().equals(parentMapper.fullPath())) {
                     // we are in a nested context that matches the path of the provided field so the nested path

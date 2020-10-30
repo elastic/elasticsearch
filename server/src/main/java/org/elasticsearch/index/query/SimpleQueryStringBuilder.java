@@ -412,7 +412,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (analyzer == null) {
             sqp = new SimpleQueryStringQueryParser(resolvedFieldsAndWeights, flags, newSettings, context);
         } else {
-            Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
+            Analyzer luceneAnalyzer = context.searchFields().getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {
                 throw new QueryShardException(context, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
                         + "] not found");

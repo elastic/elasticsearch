@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RankFeatureFieldMapper.RankFeatureFieldType;
 import org.elasticsearch.index.mapper.RankFeatureMetaFieldMapper;
 import org.elasticsearch.index.mapper.RankFeaturesFieldMapper.RankFeaturesFieldType;
+import org.elasticsearch.index.mapper.SearchFields;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -337,7 +338,8 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        final MappedFieldType ft = context.getFieldType(field);
+        SearchFields searchFields = context.searchFields();
+        final MappedFieldType ft = searchFields.fieldType(field);
 
         if (ft instanceof RankFeatureFieldType) {
             final RankFeatureFieldType fft = (RankFeatureFieldType) ft;
@@ -346,7 +348,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
             final int lastDotIndex = field.lastIndexOf('.');
             if (lastDotIndex != -1) {
                 final String parentField = field.substring(0, lastDotIndex);
-                final MappedFieldType parentFt = context.getFieldType(parentField);
+                final MappedFieldType parentFt = searchFields.fieldType(parentField);
                 if (parentFt instanceof RankFeaturesFieldType) {
                     return scoreFunction.toQuery(parentField, field.substring(lastDotIndex + 1), true);
                 }

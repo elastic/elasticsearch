@@ -104,7 +104,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
 
         ObjectMapper parentObjectMapper = null;
         if (path != null) {
-            parentObjectMapper = context.getObjectMapper(path);
+            parentObjectMapper = context.searchFields().getObjectMapper(path);
             if (parentObjectMapper == null) {
                 return new ReverseNestedAggregatorFactory(name, true, null, context, parent, subFactoriesBuilder, metadata);
             }

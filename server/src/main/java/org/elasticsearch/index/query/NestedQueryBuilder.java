@@ -46,6 +46,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.search.SearchHit;
@@ -272,8 +273,8 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             throw new ElasticsearchException("[joining] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
-
-        ObjectMapper nestedObjectMapper = context.getObjectMapper(path);
+        SearchFields searchFields = context.searchFields();
+        ObjectMapper nestedObjectMapper = searchFields.getObjectMapper(path);
         if (nestedObjectMapper == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
@@ -302,7 +303,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents
         // in its child space
-        NestedHelper nestedHelper = new NestedHelper(context::getObjectMapper, context::isFieldMapped);
+        NestedHelper nestedHelper = new NestedHelper(searchFields);
         if (nestedHelper.mightMatchNonNestedDocs(innerQuery, path)) {
             innerQuery = Queries.filtered(innerQuery, nestedObjectMapper.nestedTypeFilter());
         }
@@ -350,7 +351,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         protected void doBuild(SearchContext parentSearchContext,
                           InnerHitsContext innerHitsContext) throws IOException {
             QueryShardContext queryShardContext = parentSearchContext.getQueryShardContext();
-            ObjectMapper nestedObjectMapper = queryShardContext.getObjectMapper(path);
+            ObjectMapper nestedObjectMapper = queryShardContext.searchFields().getObjectMapper(path);
             if (nestedObjectMapper == null) {
                 if (innerHitBuilder.isIgnoreUnmapped() == false) {
                     throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + path + "]");

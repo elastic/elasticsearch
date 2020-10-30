@@ -22,6 +22,7 @@ package org.elasticsearch.index.search;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchModule;
@@ -116,19 +117,20 @@ public final class QueryParserHelper {
      */
     static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
                                                          boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
-        Set<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
+        SearchFields searchFields = context.searchFields();
+        Set<String> allFields = searchFields.simpleMatchToIndexNames(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
 
         for (String fieldName : allFields) {
-            if (fieldSuffix != null && context.getFieldType(fieldName + fieldSuffix) != null) {
+            if (fieldSuffix != null && searchFields.fieldType(fieldName + fieldSuffix) != null) {
                 fieldName = fieldName + fieldSuffix;
             }
 
-            if (context.isFieldMapped(fieldName) == false) {
+            if (searchFields.isFieldMapped(fieldName) == false) {
                 continue;
             }
 
-            MappedFieldType fieldType = context.getFieldType(fieldName);
+            MappedFieldType fieldType = searchFields.fieldType(fieldName);
             if (acceptMetadataField == false && fieldType.name().startsWith("_")) {
                 // Ignore metadata fields
                 continue;

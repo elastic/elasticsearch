@@ -28,6 +28,7 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -144,8 +145,9 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
         IndexNumericFieldData fieldData = null;
-        if (context.isFieldMapped(field)) {
-            fieldData = context.getForField(context.getFieldType(field));
+        SearchFields searchFields = context.searchFields();
+        if (searchFields.isFieldMapped(field)) {
+            fieldData = context.getForField(searchFields.fieldType(field));
         } else {
             if (missing == null) {
                 throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]. No 'missing' value defined.");

@@ -28,6 +28,8 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.SearchFields;
+import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
@@ -61,8 +63,18 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         Mockito.when(context.index()).thenReturn(settings.getIndex());
         Mockito.when(context.getShardId()).thenReturn(0);
         Mockito.when(context.getIndexSettings()).thenReturn(settings);
-        Mockito.when(context.getFieldType(IdFieldMapper.NAME)).thenReturn(new KeywordFieldMapper.KeywordFieldType(IdFieldMapper.NAME));
-        Mockito.when(context.isFieldMapped(IdFieldMapper.NAME)).thenReturn(true);
+        SearchFields searchFields = new TestSearchFields() {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                return name.equals(IdFieldMapper.NAME) ? new KeywordFieldMapper.KeywordFieldType(IdFieldMapper.NAME) : null;
+            }
+
+            @Override
+            public boolean isFieldMapped(String name) {
+                return name.equals(IdFieldMapper.NAME);
+            }
+        };
+        Mockito.when(context.searchFields()).thenReturn(searchFields);
         builder.toFunction(context);
         assertWarnings("As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
     }
@@ -79,8 +91,18 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         Mockito.when(context.getShardId()).thenReturn(0);
         Mockito.when(context.getIndexSettings()).thenReturn(settings);
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("foo", NumberType.LONG);
-        Mockito.when(context.getFieldType("foo")).thenReturn(ft);
-        Mockito.when(context.isFieldMapped("foo")).thenReturn(true);
+        SearchFields searchFields = new TestSearchFields() {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                return name.equals("foo") ? ft : null;
+            }
+
+            @Override
+            public boolean isFieldMapped(String name) {
+                return name.equals("foo");
+            }
+        };
+        Mockito.when(context.searchFields()).thenReturn(searchFields);
         builder.toFunction(context);
     }
 }

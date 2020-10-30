@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SearchFields;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -430,7 +431,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
         if (shardContext != null) {
-            final MappedFieldType fieldType = shardContext.getFieldType(fieldName);
+            final MappedFieldType fieldType = shardContext.searchFields().fieldType(fieldName);
             if (fieldType == null) {
                 return MappedFieldType.Relation.DISJOINT;
             }
@@ -474,22 +475,23 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        SearchFields searchFields = context.searchFields();
         if (from == null && to == null) {
             /*
              * Open bounds on both side, we can rewrite to an exists query
              * if the {@link FieldNamesFieldMapper} is enabled.
              */
-            if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
+            if (searchFields.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
                 return new MatchNoDocsQuery("No mappings yet");
             }
             final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-                (FieldNamesFieldMapper.FieldNamesFieldType) context.getFieldType(FieldNamesFieldMapper.NAME);
+                (FieldNamesFieldMapper.FieldNamesFieldType) searchFields.fieldType(FieldNamesFieldMapper.NAME);
             // Exists query would fail if the fieldNames field is disabled.
             if (fieldNamesFieldType.isEnabled()) {
                 return ExistsQueryBuilder.newFilter(context, fieldName, false);
             }
         }
-        MappedFieldType mapper = context.getFieldType(this.fieldName);
+        MappedFieldType mapper = searchFields.fieldType(this.fieldName);
         if (mapper == null) {
             throw new IllegalStateException("Rewrite first");
         }

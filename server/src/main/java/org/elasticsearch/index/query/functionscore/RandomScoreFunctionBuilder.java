@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -163,8 +164,9 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             } else {
                 fieldName = field;
             }
-            if (context.isFieldMapped(fieldName) == false) {
-                if (context.hasMappings() == false) {
+            SearchFields searchFields = context.searchFields();
+            if (searchFields.isFieldMapped(fieldName) == false) {
+                if (searchFields.hasMappings() == false) {
                     // no mappings: the index is empty anyway
                     return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
                 }
@@ -172,7 +174,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                     "] and cannot be used as a source of random numbers.");
             }
             int seed = this.seed == null ? hash(context.nowInMillis()) : this.seed;
-            return new RandomScoreFunction(seed, salt, context.getForField(context.getFieldType(fieldName)));
+            return new RandomScoreFunction(seed, salt, context.getForField(searchFields.fieldType(fieldName)));
         }
     }
 

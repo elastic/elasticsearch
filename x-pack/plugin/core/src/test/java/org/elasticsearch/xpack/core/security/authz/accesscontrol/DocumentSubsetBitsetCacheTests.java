@@ -30,7 +30,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SearchFields;
+import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -494,7 +496,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         }
     }
 
-    private TestIndexContext testIndex(MapperService mapperService, Client client) throws IOException {
+    private TestIndexContext testIndex(SearchFields searchFields, Client client) throws IOException {
         TestIndexContext context = null;
 
         final long nowInMillis = randomNonNegativeLong();
@@ -522,7 +524,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             final LeafReaderContext leaf = directoryReader.leaves().get(0);
 
             final QueryShardContext shardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+                null, null, searchFields, null, null, xContentRegistry(), writableRegistry(),
                 client, new IndexSearcher(directoryReader), () -> nowInMillis, null, null, () -> true, null);
 
             context = new TestIndexContext(directory, iw, directoryReader, shardContext, leaf);
@@ -543,15 +545,16 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     private void runTestOnIndices(int numberIndices, CheckedConsumer<List<TestIndexContext>, Exception> body) throws Exception {
-        final MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType(Mockito.anyString())).thenAnswer(invocation -> {
-            final String fieldName = (String) invocation.getArguments()[0];
-            if (fieldName.equals(MISSING_FIELD_NAME)) {
-                return null;
-            } else {
-                return new KeywordFieldMapper.KeywordFieldType(fieldName);
+        SearchFields searchFields = new TestSearchFields() {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                if (name.equals(MISSING_FIELD_NAME)) {
+                    return null;
+                } else {
+                    return new KeywordFieldMapper.KeywordFieldType(name);
+                }
             }
-        });
+        };
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
@@ -559,7 +562,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         final List<TestIndexContext> context = new ArrayList<>(numberIndices);
         try {
             for (int i = 0; i < numberIndices; i++) {
-                context.add(testIndex(mapperService, client));
+                context.add(testIndex(searchFields, client));
             }
 
             body.accept(context);

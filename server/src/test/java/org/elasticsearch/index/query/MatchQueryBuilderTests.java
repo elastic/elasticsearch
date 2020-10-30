@@ -151,7 +151,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             return;
         }
 
-        MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
+        MappedFieldType fieldType = context.searchFields().fieldType(queryBuilder.fieldName());
         if (query instanceof TermQuery && fieldType != null) {
             String queryValue = queryBuilder.value().toString();
             if (isTextField(queryBuilder.fieldName())

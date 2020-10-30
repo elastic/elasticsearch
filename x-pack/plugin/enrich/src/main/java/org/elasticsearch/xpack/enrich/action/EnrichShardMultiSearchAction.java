@@ -48,6 +48,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -255,10 +256,11 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                         visitor.reset();
                         searcher.doc(scoreDoc.doc, visitor);
                         visitor.postProcess(field -> {
-                            if (context.isFieldMapped(field) == false) {
+                            SearchFields searchFields = context.searchFields();
+                            if (searchFields.isFieldMapped(field) == false) {
                                 throw new IllegalStateException("Field [" + field + "] exists in the index but not in mappings");
                             }
-                            return context.getFieldType(field);
+                            return searchFields.fieldType(field);
                         });
                         final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), Map.of(), Map.of());
                         hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));

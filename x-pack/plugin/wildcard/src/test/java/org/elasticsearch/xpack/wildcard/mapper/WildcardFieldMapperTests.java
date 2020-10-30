@@ -56,10 +56,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.SearchFields;
+import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
@@ -76,8 +79,6 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
-//import org.apache.lucene.util.automaton.RegExp;
 
 public class WildcardFieldMapperTests extends MapperTestCase {
 
@@ -903,15 +904,15 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
-                null, null, null, xContentRegistry(), null, null, null,
-                () -> randomNonNegativeLong(), null, null, () -> true, null) {
-
+        SearchFields searchFields = new TestSearchFields() {
             @Override
-            public MappedFieldType getFieldType(String name) {
+            public MappedFieldType fieldType(String name) {
                 return provideMappedFieldType(name);
             }
         };
+        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
+                searchFields, null, null, xContentRegistry(), null, null, null,
+            ESTestCase::randomNonNegativeLong, null, null, () -> true, null);
     }
 
     private void addFields(ParseContext.Document parseDoc, Document doc, String docContent) throws IOException {
@@ -933,14 +934,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
         iw.addDocument(doc);
     }
-
-    protected IndexSettings createIndexSettings(Version version) {
-        return new IndexSettings(
-                IndexMetadata.builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version))
-                        .numberOfShards(1).numberOfReplicas(0).creationDate(System.currentTimeMillis()).build(),
-                Settings.EMPTY);
-    }
-
 
     static String randomABString(int minLength) {
         StringBuilder sb = new StringBuilder();

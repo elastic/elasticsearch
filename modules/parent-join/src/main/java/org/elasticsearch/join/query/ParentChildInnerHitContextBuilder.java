@@ -70,7 +70,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     @Override
     protected void doBuild(SearchContext context, InnerHitsContext innerHitsContext) throws IOException {
         QueryShardContext queryShardContext = context.getQueryShardContext();
-        Joiner joiner = Joiner.getJoiner(queryShardContext);
+        Joiner joiner = Joiner.getJoiner(queryShardContext.searchFields());
         if (joiner != null) {
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
             JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(name, context, typeName,

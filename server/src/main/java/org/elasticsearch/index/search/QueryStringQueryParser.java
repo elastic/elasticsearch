@@ -53,6 +53,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -148,7 +149,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private QueryStringQueryParser(QueryShardContext context, String defaultField,
                                    Map<String, Float> fieldsAndWeights,
                                    boolean lenient) {
-        super(defaultField, context.getIndexAnalyzers().getDefaultSearchAnalyzer());
+        super(defaultField, context.searchFields().getIndexAnalyzers().getDefaultSearchAnalyzer());
         this.context = context;
         this.fieldsAndWeights = Collections.unmodifiableMap(fieldsAndWeights);
         this.queryBuilder = new MultiMatchQuery(context);
@@ -327,7 +328,7 @@ public class QueryStringQueryParser extends XQueryParser {
                     return getRangeQuery(field, null, queryText.substring(1), true, false);
                 }
                 // if we are querying a single date field, we also create a range query that leverages the time zone setting
-                if (context.getFieldType(field) instanceof DateFieldType && this.timeZone != null) {
+                if (context.searchFields().fieldType(field) instanceof DateFieldType && this.timeZone != null) {
                     return getRangeQuery(field, queryText, queryText, true, true);
                 }
             }
@@ -416,7 +417,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
     private Query getRangeQuerySingle(String field, String part1, String part2,
                                       boolean startInclusive, boolean endInclusive, QueryShardContext context) {
-        MappedFieldType currentFieldType = context.getFieldType(field);
+        MappedFieldType currentFieldType = context.searchFields().fieldType(field);
         if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
             return newUnmappedFieldQuery(field);
         }
@@ -466,7 +467,7 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query getFuzzyQuerySingle(String field, String termStr, int minSimilarity) throws ParseException {
-        MappedFieldType currentFieldType = context.getFieldType(field);
+        MappedFieldType currentFieldType = context.searchFields().fieldType(field);
         if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
             return newUnmappedFieldQuery(field);
         }
@@ -518,7 +519,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private Query getPrefixQuerySingle(String field, String termStr) throws ParseException {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            MappedFieldType currentFieldType = context.getFieldType(field);
+            MappedFieldType currentFieldType = context.searchFields().fieldType(field);
             if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
                 return newUnmappedFieldQuery(field);
             }
@@ -623,11 +624,12 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query existsQuery(String fieldName) {
-        if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
+        SearchFields searchFields = context.searchFields();
+        if (searchFields.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
             return new MatchNoDocsQuery("No mappings yet");
         }
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-            (FieldNamesFieldMapper.FieldNamesFieldType) context.getFieldType(FieldNamesFieldMapper.NAME);
+            (FieldNamesFieldMapper.FieldNamesFieldType) searchFields.fieldType(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType.isEnabled() == false) {
             // The field_names_field is disabled so we switch to a wildcard query that matches all terms
             return new WildcardQuery(new Term(fieldName, "*"));
@@ -671,7 +673,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            MappedFieldType currentFieldType = queryBuilder.context.getFieldType(field);
+            MappedFieldType currentFieldType = queryBuilder.context.searchFields().fieldType(field);
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }
@@ -724,7 +726,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private Query getRegexpQuerySingle(String field, String termStr) throws ParseException {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
-            MappedFieldType currentFieldType = queryBuilder.context.getFieldType(field);
+            MappedFieldType currentFieldType = queryBuilder.context.searchFields().fieldType(field);
             if (currentFieldType == null) {
                 return newUnmappedFieldQuery(field);
             }

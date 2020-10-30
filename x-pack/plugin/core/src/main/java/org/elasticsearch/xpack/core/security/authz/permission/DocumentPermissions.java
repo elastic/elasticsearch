@@ -12,6 +12,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -116,14 +117,15 @@ public final class DocumentPermissions {
                                        BooleanQuery.Builder filter) throws IOException {
         for (BytesReference bytesReference : queries) {
             QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
+            SearchFields searchFields = queryShardContext.searchFields();
             QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(bytesReference, scriptService,
                 queryShardContext.getXContentRegistry(), user);
             if (queryBuilder != null) {
                 failIfQueryUsesClient(queryBuilder, queryShardContext);
                 Query roleQuery = queryShardContext.toQuery(queryBuilder).query();
                 filter.add(roleQuery, SHOULD);
-                if (queryShardContext.hasNested()) {
-                    NestedHelper nestedHelper = new NestedHelper(queryShardContext::getObjectMapper, queryShardContext::isFieldMapped);
+                if (searchFields.hasNested()) {
+                    NestedHelper nestedHelper = new NestedHelper(searchFields);
                     if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
                         roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER)
                             .add(Queries.newNonNestedFilter(), FILTER).build();

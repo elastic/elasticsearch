@@ -51,12 +51,10 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -72,46 +70,11 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class QueryShardContextTests extends ESTestCase {
-
-    public void testFailIfFieldMappingNotFound() {
-        QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
-        context.setAllowUnmappedFields(false);
-        MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text");
-        MappedFieldType result = context.failIfFieldMappingNotFound("name", fieldType);
-        assertThat(result, sameInstance(fieldType));
-        QueryShardException e = expectThrows(QueryShardException.class, () -> context.failIfFieldMappingNotFound("name", null));
-        assertEquals("No field mapping can be found for the field with name [name]", e.getMessage());
-
-        context.setAllowUnmappedFields(true);
-        result = context.failIfFieldMappingNotFound("name", fieldType);
-        assertThat(result, sameInstance(fieldType));
-        result = context.failIfFieldMappingNotFound("name", null);
-        assertThat(result, nullValue());
-
-        context.setAllowUnmappedFields(false);
-        context.setMapUnmappedFieldAsString(true);
-        result = context.failIfFieldMappingNotFound("name", fieldType);
-        assertThat(result, sameInstance(fieldType));
-        result = context.failIfFieldMappingNotFound("name", null);
-        assertThat(result, notNullValue());
-        assertThat(result, instanceOf(TextFieldMapper.TextFieldType.class));
-        assertThat(result.name(), equalTo("name"));
-    }
-
-    public void testBuildAnonymousFieldType() {
-        QueryShardContext context = createQueryShardContext("uuid", null);
-        assertThat(context.buildAnonymousFieldType("keyword"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-        assertThat(context.buildAnonymousFieldType("long"), instanceOf(NumberFieldMapper.NumberFieldType.class));
-    }
 
     public void testToQueryFails() {
         QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
@@ -123,17 +86,17 @@ public class QueryShardContextTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doWriteTo(StreamOutput out) throws IOException {
+                protected void doWriteTo(StreamOutput out) {
 
                 }
 
                 @Override
-                protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+                protected void doXContent(XContentBuilder builder, Params params) {
 
                 }
 
                 @Override
-                protected Query doToQuery(QueryShardContext context) throws IOException {
+                protected Query doToQuery(QueryShardContext context) {
                     throw new RuntimeException("boom");
                 }
 
@@ -309,7 +272,6 @@ public class QueryShardContextTests extends ESTestCase {
         );
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-        when(mapperService.index()).thenReturn(indexMetadata.getIndex());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         Map<String, Mapper.TypeParser> typeParserMap = IndicesModule.getMappers(Collections.emptyList());
         Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(name -> null, typeParserMap::get,
@@ -328,7 +290,8 @@ public class QueryShardContextTests extends ESTestCase {
         return new QueryShardContext(
             0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
                 (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
-                mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
+                new SearchFields(mapperService), null, null, NamedXContentRegistry.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
             null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
     }
 
@@ -384,7 +347,7 @@ public class QueryShardContextTests extends ESTestCase {
             indexWriter.addDocument(List.of(new StringField("indexed_field", "second", Field.Store.NO)));
             try (DirectoryReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType fieldType = queryShardContext.getFieldType(field);
+                MappedFieldType fieldType = queryShardContext.searchFields().fieldType(field);
                 IndexFieldData<?> indexFieldData;
                 if (randomBoolean()) {
                     indexFieldData = queryShardContext.getForField(fieldType);

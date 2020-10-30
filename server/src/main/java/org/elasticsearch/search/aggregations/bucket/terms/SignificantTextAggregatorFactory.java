@@ -81,7 +81,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                                                 Map<String, Object> metadata) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
 
-        this.fieldType = context.getFieldType(fieldName);
+        this.fieldType = context.searchFields().fieldType(fieldName);
         if (fieldType == null) {
             throw new IllegalArgumentException("Field [" + fieldName + "] does not exist, SignificantText " +
                 "requires an analyzed field");

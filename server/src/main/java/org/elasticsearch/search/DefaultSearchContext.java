@@ -41,6 +41,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -266,8 +267,9 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query buildFilteredQuery(Query query) {
         List<Query> filters = new ArrayList<>();
-        NestedHelper nestedHelper = new NestedHelper(queryShardContext::getObjectMapper, queryShardContext::isFieldMapped);
-        if (queryShardContext.hasNested()
+        SearchFields searchFields = queryShardContext.searchFields();
+        NestedHelper nestedHelper = new NestedHelper(searchFields);
+        if (searchFields.hasNested()
                 && nestedHelper.mightMatchNestedDocs(query)
                 && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
             filters.add(Queries.newNonNestedFilter());
@@ -750,14 +752,15 @@ final class DefaultSearchContext extends SearchContext {
         return fetchResult;
     }
 
+    //TODO do these two methods need to be accessed directly?
     @Override
     public MappedFieldType fieldType(String name) {
-        return queryShardContext.getFieldType(name);
+        return queryShardContext.searchFields().fieldType(name);
     }
 
     @Override
     public ObjectMapper getObjectMapper(String name) {
-        return queryShardContext.getObjectMapper(name);
+        return queryShardContext.searchFields().getObjectMapper(name);
     }
 
     @Override
@@ -770,6 +773,7 @@ final class DefaultSearchContext extends SearchContext {
         return queryCollectors;
     }
 
+    //TODO can we replace this getter with getSearchFields?
     @Override
     public QueryShardContext getQueryShardContext() {
         return queryShardContext;

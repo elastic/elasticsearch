@@ -31,6 +31,9 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.SearchFields;
+import org.elasticsearch.index.mapper.TestSearchFields;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -310,7 +313,14 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     public void testBuildIgnoreUnmappedNestQuery() throws Exception {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.getObjectMapper("path")).thenReturn(null);
+        SearchFields searchFields = new TestSearchFields() {
+            @Override
+            public ObjectMapper getObjectMapper(String name) {
+                assert name.equals("path");
+                return null;
+            }
+        };
+        when(queryShardContext.searchFields()).thenReturn(searchFields);
         IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
         when(queryShardContext.getIndexSettings()).thenReturn(settings);
         SearchContext searchContext = mock(SearchContext.class);

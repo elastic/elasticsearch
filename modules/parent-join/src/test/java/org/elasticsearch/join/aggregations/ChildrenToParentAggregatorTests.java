@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
@@ -274,16 +273,13 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected MapperService mapperServiceMock() {
+    protected Map<String, MappedFieldType> getAdditionalFieldTypes() {
         ParentJoinFieldMapper joinFieldMapper = createJoinFieldMapper();
-        MapperService mapperService = mock(MapperService.class);
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
         when(metaJoinFieldType.getJoinField()).thenReturn("join_field");
-        when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
-        when(mapperService.fieldType("join_field")).thenReturn(joinFieldMapper.fieldType());
-        when(mapperService.fieldType("join_field#" + PARENT_TYPE))
-            .thenReturn(new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false));
-        return mapperService;
+        return Map.of("_parent_join", metaJoinFieldType,
+            "join_field", joinFieldMapper.fieldType(),
+            "join_field#" + PARENT_TYPE, new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false));
     }
 
     private static ParentJoinFieldMapper createJoinFieldMapper() {

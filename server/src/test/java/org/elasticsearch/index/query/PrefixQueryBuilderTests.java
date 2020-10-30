@@ -73,7 +73,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, Matchers.anyOf(instanceOf(PrefixQuery.class), instanceOf(MatchNoDocsQuery.class),
             instanceOf(AutomatonQuery.class)));
-        if (context.getFieldType(queryBuilder.fieldName()) != null
+        if (context.searchFields().fieldType(queryBuilder.fieldName()) != null
             && queryBuilder.caseInsensitive() == false) { // The field is mapped and case sensitive
             PrefixQuery prefixQuery = (PrefixQuery) query;
 

@@ -228,7 +228,8 @@ public class FetchPhase {
                     continue;
                 }
 
-                Collection<String> fieldNames = context.getQueryShardContext().simpleMatchToIndexNames(fieldNameOrPattern);
+                Collection<String> fieldNames = context.getQueryShardContext()
+                    .searchFields().simpleMatchToIndexNames(fieldNameOrPattern);
                 for (String fieldName : fieldNames) {
                     MappedFieldType fieldType = context.fieldType(fieldName);
                     if (fieldType == null) {
@@ -258,8 +259,8 @@ public class FetchPhase {
         return context.sourceRequested() || context.fetchFieldsContext() != null;
     }
 
-    private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
-        if (context.getQueryShardContext().hasNested()) {
+    private static int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
+        if (context.getQueryShardContext().searchFields().hasNested()) {
             BitSet bits = context.bitsetFilterCache()
                 .getBitSetProducer(Queries.newNonNestedFilter())
                 .getBitSet(subReaderContext);

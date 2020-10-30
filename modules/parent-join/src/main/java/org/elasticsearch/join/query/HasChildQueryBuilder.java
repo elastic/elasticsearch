@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
@@ -301,8 +302,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             throw new ElasticsearchException("[joining] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
-
-        Joiner joiner = Joiner.getJoiner(context);
+        SearchFields searchFields = context.searchFields();
+        Joiner joiner = Joiner.getJoiner(searchFields);
         if (joiner == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
@@ -321,7 +322,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
 
         String parentJoinField = joiner.parentJoinField(type);
-        if (context.isFieldMapped(parentJoinField) == false) {
+        if (searchFields.isFieldMapped(parentJoinField) == false) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             }
@@ -331,7 +332,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         Query parentFilter = joiner.parentFilter(type);
         Query childFilter = joiner.filter(type);
         Query filteredQuery = Queries.filtered(query.toQuery(context), childFilter);
-        MappedFieldType ft = context.getFieldType(parentJoinField);
+        MappedFieldType ft = searchFields.fieldType(parentJoinField);
         final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(ft);
         return new LateParsingQuery(parentFilter, filteredQuery, minChildren, maxChildren,
             parentJoinField, scoreMode, fieldData, context.getSearchSimilarity());

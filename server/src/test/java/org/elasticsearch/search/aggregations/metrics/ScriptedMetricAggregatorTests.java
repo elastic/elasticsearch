@@ -35,11 +35,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -247,16 +244,11 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected ScriptService getMockScriptService() {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
-            SCRIPTS,
-            Collections.emptyMap());
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
-
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
     }
 
-
-    @SuppressWarnings("unchecked")
     public void testNoDocs() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -542,40 +534,5 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             fieldTypes
         );
         return createAggregator(aggregationBuilder, searchContext);
-    }
-
-    /**
-     * We cannot use Mockito for mocking QueryShardContext in this case because
-     * script-related methods (e.g. QueryShardContext#getLazyExecutableScript)
-     * is final and cannot be mocked
-     */
-    @Override
-    protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
-                                                        MapperService mapperService,
-                                                        IndexSettings indexSettings,
-                                                        CircuitBreakerService circuitBreakerService,
-                                                        BigArrays bigArrays) {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
-        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
-        ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
-        return new QueryShardContext(
-            0,
-            indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            null,
-            getIndexFieldDataLookup(mapperService, circuitBreakerService),
-            mapperService,
-            null,
-            scriptService,
-            xContentRegistry(),
-            writableRegistry(),
-            null,
-            null,
-            System::currentTimeMillis,
-            null,
-            null,
-            () -> true,
-            valuesSourceRegistry
-        );
     }
 }

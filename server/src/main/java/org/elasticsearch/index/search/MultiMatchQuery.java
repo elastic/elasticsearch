@@ -60,7 +60,7 @@ public class MultiMatchQuery extends MatchQuery {
     public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
                        Object value, String minimumShouldMatch) throws IOException {
         boolean hasMappedField = fieldNames.keySet().stream()
-            .anyMatch(k -> context.getFieldType(k) != null);
+            .anyMatch(k -> context.searchFields().fieldType(k) != null);
         if (hasMappedField == false) {
             // all query fields are unmapped
             return Queries.newUnmappedFieldsQuery(fieldNames.keySet());
@@ -100,7 +100,7 @@ public class MultiMatchQuery extends MatchQuery {
                                           Object value, String minimumShouldMatch) throws IOException {
         List<Query> queries = new ArrayList<>();
         for (String fieldName : fieldNames.keySet()) {
-            if (context.getFieldType(fieldName) == null) {
+            if (context.searchFields().fieldType(fieldName) == null) {
                 // ignore unmapped fields
                 continue;
             }
@@ -125,7 +125,7 @@ public class MultiMatchQuery extends MatchQuery {
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
             String name = entry.getKey();
-            MappedFieldType fieldType = context.getFieldType(name);
+            MappedFieldType fieldType = context.searchFields().fieldType(name);
             if (fieldType != null) {
                 Analyzer actualAnalyzer = getAnalyzer(fieldType, type == MultiMatchQueryBuilder.Type.PHRASE);
                 if (!groups.containsKey(actualAnalyzer)) {

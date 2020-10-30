@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.SearchFields;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -164,13 +165,14 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     private static Query newFieldExistsQuery(QueryShardContext context, String field) {
-        if (context.isFieldMapped(field)) {
-            Query filter = context.getFieldType(field).existsQuery(context);
+        SearchFields searchFields = context.searchFields();
+        if (searchFields.isFieldMapped(field)) {
+            Query filter = searchFields.fieldType(field).existsQuery(context);
             return new ConstantScoreQuery(filter);
         } else {
             // The field does not exist as a leaf but could be an object so
             // check for an object mapper
-            if (context.getObjectMapper(field) != null) {
+            if (searchFields.getObjectMapper(field) != null) {
                 return newObjectFieldExistsQuery(context, field);
             }
             return Queries.newMatchNoDocsQuery("User requested \"match_none\" query.");
@@ -178,10 +180,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     private static Query newObjectFieldExistsQuery(QueryShardContext context, String objField) {
+        SearchFields searchFields = context.searchFields();
         BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
-        Collection<String> fields = context.simpleMatchToIndexNames(objField + ".*");
+        Collection<String> fields = searchFields.simpleMatchToIndexNames(objField + ".*");
         for (String field : fields) {
-            Query existsQuery = context.getFieldType(field).existsQuery(context);
+            Query existsQuery = searchFields.fieldType(field).existsQuery(context);
             booleanQuery.add(existsQuery, Occur.SHOULD);
         }
         return new ConstantScoreQuery(booleanQuery.build());
@@ -192,26 +195,27 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
      * @return return collection of fields if exists else return empty.
      */
     private static Collection<String> getMappedField(QueryShardContext context, String fieldPattern) {
-        if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
+        SearchFields searchFields = context.searchFields();
+        if (searchFields.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
             // can only happen when no types exist, so no docs exist either
             return Collections.emptySet();
         }
 
         final Collection<String> fields;
-        if (context.getObjectMapper(fieldPattern) != null) {
+        if (searchFields.getObjectMapper(fieldPattern) != null) {
             // the _field_names field also indexes objects, so we don't have to
             // do any more work to support exists queries on whole objects
             fields = Collections.singleton(fieldPattern);
         } else {
-            fields = context.simpleMatchToIndexNames(fieldPattern);
+            fields = searchFields.simpleMatchToIndexNames(fieldPattern);
         }
 
         if (fields.size() == 1) {
             String field = fields.iterator().next();
-            if (context.isFieldMapped(field) == false) {
+            if (searchFields.isFieldMapped(field) == false) {
                 // The field does not exist as a leaf but could be an object so
                 // check for an object mapper
-                if (context.getObjectMapper(field) == null) {
+                if (searchFields.getObjectMapper(field) == null) {
                     return Collections.emptySet();
                 }
             }

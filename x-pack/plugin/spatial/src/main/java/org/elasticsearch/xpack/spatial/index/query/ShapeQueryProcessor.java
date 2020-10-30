@@ -49,7 +49,7 @@ public class ShapeQueryProcessor  {
     }
 
     private void validateIsShapeFieldType(String fieldName, QueryShardContext context) {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
+        MappedFieldType fieldType = context.searchFields().fieldType(fieldName);
         if (fieldType instanceof ShapeFieldMapper.ShapeFieldType == false) {
             throw new QueryShardException(context, "Expected " + ShapeFieldMapper.CONTENT_TYPE
                 + " field type for Field [" + fieldName + "] but found " + fieldType.typeName());

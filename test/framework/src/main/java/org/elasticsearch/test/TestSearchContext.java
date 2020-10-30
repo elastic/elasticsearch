@@ -554,12 +554,12 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public MappedFieldType fieldType(String name) {
-        return queryShardContext.getFieldType(name);
+        return queryShardContext.searchFields().fieldType(name);
     }
 
     @Override
     public ObjectMapper getObjectMapper(String name) {
-        return queryShardContext.getObjectMapper(name);
+        return queryShardContext.searchFields().getObjectMapper(name);
     }
 
     @Override

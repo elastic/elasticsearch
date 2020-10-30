@@ -136,7 +136,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
             String fieldName = expectedFieldName(queryBuilder.fieldName());
             Query expected;
-            if (context.getFieldType(fieldName) != null) {
+            if (context.searchFields().fieldType(fieldName) != null) {
                 expected = new TermInSetQuery(fieldName,
                         terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
             } else {

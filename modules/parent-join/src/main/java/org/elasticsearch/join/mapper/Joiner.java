@@ -25,9 +25,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.index.mapper.SearchFields;
 
 import java.util.HashMap;
 import java.util.List;
@@ -35,8 +33,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * Utility class to help build join queries and aggregations, based on a join_field
@@ -46,32 +42,18 @@ public final class Joiner {
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
-    public static Joiner getJoiner(QueryShardContext context) {
-        return getJoiner(context::isFieldMapped, context::getFieldType);
-    }
-
-    /**
-     * Get the Joiner for this context, or {@code null} if none is configured
-     */
-    public static Joiner getJoiner(AggregationContext context) {
-        return getJoiner(context::isFieldMapped, context::getFieldType);
-    }
-
-    /**
-     * Get the Joiner for this context, or {@code null} if none is configured
-     */
-    static Joiner getJoiner(Predicate<String> isMapped, Function<String, MappedFieldType> getFieldType) {
-        if (isMapped.test(MetaJoinFieldMapper.NAME) == false) {
+    public static Joiner getJoiner(SearchFields searchFields) {
+        if (searchFields.isFieldMapped(MetaJoinFieldMapper.NAME) == false) {
             return null;
         }
         MetaJoinFieldMapper.MetaJoinFieldType ft
-            = (MetaJoinFieldMapper.MetaJoinFieldType) getFieldType.apply(MetaJoinFieldMapper.NAME);
+            = (MetaJoinFieldMapper.MetaJoinFieldType) searchFields.fieldType(MetaJoinFieldMapper.NAME);
         String joinField = ft.getJoinField();
-        if (isMapped.test(joinField) == false) {
+        if (searchFields.isFieldMapped(joinField) == false) {
             return null;
         }
         ParentJoinFieldMapper.JoinFieldType jft =
-            (ParentJoinFieldMapper.JoinFieldType) getFieldType.apply(joinField);
+            (ParentJoinFieldMapper.JoinFieldType) searchFields.fieldType(joinField);
         return jft.getJoiner();
     }
 

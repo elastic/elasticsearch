@@ -567,7 +567,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     private IndexGeoPointFieldData fieldData(QueryShardContext context) {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
+        MappedFieldType fieldType = context.searchFields().fieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new LatLonPointIndexFieldData(fieldName, CoreValuesSourceType.GEOPOINT);

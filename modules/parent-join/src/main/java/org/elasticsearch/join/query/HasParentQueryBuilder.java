@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
@@ -165,7 +166,8 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
 
-        Joiner joiner = Joiner.getJoiner(context);
+        SearchFields searchFields = context.searchFields();
+        Joiner joiner = Joiner.getJoiner(searchFields);
         if (joiner == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
@@ -185,7 +187,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         Query parentFilter = joiner.filter(parentType);
         Query innerQuery = Queries.filtered(query.toQuery(context), parentFilter);
         Query childFilter = joiner.childrenFilter(parentType);
-        MappedFieldType fieldType = context.getFieldType(joiner.childJoinField(parentType));
+        MappedFieldType fieldType = searchFields.fieldType(joiner.childJoinField(parentType));
         final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
         return new HasChildQueryBuilder.LateParsingQuery(childFilter, innerQuery,
             HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,

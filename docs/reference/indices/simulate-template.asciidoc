@@ -82,7 +82,7 @@ omit this parameter and specify the template configuration in the request body.
 ////
 
 `create`::
-(Optional, boolean) If `true`, the template passed in the body is 
+(Optional, Boolean) If `true`, the template passed in the body is 
 only used if no existing templates match the same index patterns. 
 If `false`, the simulation uses the template with the highest priority.
 Note that the template is not permanently added or updated in either case;

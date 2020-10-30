@@ -47,7 +47,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 == {api-request-body-title}
 
 `delete_intervening_results`::
-  (Optional, boolean) If true, deletes the results in the time period between
+  (Optional, Boolean) If true, deletes the results in the time period between
   the latest results and the time of the reverted snapshot. It also resets the
   model to accept records for this time period. The default value is false.
 

@@ -31,6 +31,7 @@ import java.io.File;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.function.Function;
 
 public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
@@ -103,13 +104,16 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<Boolean> bundledJdk;
     private final Property<Boolean> failIfUnavailable;
     private final Configuration extracted;
+    private Function<ElasticsearchDistribution, ElasticsearchDistribution> distributionFinalizer;
+    private boolean froozen = false;
 
     ElasticsearchDistribution(
         String name,
         ObjectFactory objectFactory,
         Provider<DockerSupportService> dockerSupport,
         Configuration fileConfiguration,
-        Configuration extractedConfiguration
+        Configuration extractedConfiguration,
+        Function<ElasticsearchDistribution, ElasticsearchDistribution> distributionFinalizer
     ) {
         this.name = name;
         this.dockerSupport = dockerSupport;
@@ -123,6 +127,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.bundledJdk = objectFactory.property(Boolean.class);
         this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
         this.extracted = extractedConfiguration;
+        this.distributionFinalizer = distributionFinalizer;
     }
 
     public String getName() {
@@ -196,7 +201,22 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         return getName() + "_" + getType() + "_" + getVersion();
     }
 
+    /**
+     * if not executed before, this
+     * freezes the distribution configuration and
+     * runs distribution finalizer logic.
+     * */
+    public ElasticsearchDistribution maybeFreeze() {
+        if (!froozen) {
+            finalizeValues();
+            distributionFinalizer.apply(this);
+            froozen = true;
+        }
+        return this;
+    }
+
     public String getFilepath() {
+        maybeFreeze();
         return configuration.getSingleFile().toString();
     }
 
@@ -221,18 +241,26 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         if (isDocker() && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false) {
             return task -> Collections.emptySet();
         }
+        maybeFreeze();
+        return getType().shouldExtract() ? extracted.getBuildDependencies() : configuration.getBuildDependencies();
+    }
 
+    public TaskDependency getArchiveBuildDependencies() {
+        // For non-required Docker distributions, skip building the distribution is Docker is unavailable
+        if (isDocker() && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false) {
+            return task -> Collections.emptySet();
+        }
+        maybeFreeze();
         return configuration.getBuildDependencies();
     }
 
     @Override
     public Iterator<File> iterator() {
-        return configuration.iterator();
+        return getType().shouldExtract() ? extracted.iterator() : configuration.iterator();
     }
 
     // internal, make this distribution's configuration unmodifiable
     void finalizeValues() {
-
         if (getType() == Type.INTEG_TEST_ZIP) {
             if (platform.getOrNull() != null) {
                 throw new IllegalArgumentException(

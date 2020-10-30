@@ -46,11 +46,12 @@ index them.
 
 [[runtime-mapping-fields]]
 ==== Mapping a runtime field
-You map runtime fields by
-<<modules-scripting-using,defining a painless script>>. At search time, the
-script runs and generates values for each scripted field. Runtime
-scripts have access to the entire context of a document, the original
-`_source`, and the mapped field plus its values (`doc_values`).
+You map runtime fields by adding a `"runtime"` section under the mapping
+definition. Within that section, you
+<<modules-scripting-using,define a Painless script>>, which has access to the
+entire context of a document, the original `_source`, and the mapped field plus
+its values (`doc_values`). At search time, the script runs and generates values
+for each scripted field.
 
 Runtime fields are similar to the <<script-fields,`script_fields`>> parameter
 of the `_search` request. You can retrieve the results of running a script, but
@@ -79,21 +80,24 @@ The script in the following request extracts the day of the week from the
 PUT /my-index
 {
   "mappings": {
-    "properties": {
+    "runtime": { <1>
       "day_of_week": {
-        "type": "runtime", <1>
-        "runtime_type": "keyword", <2>
+        "type": "keyword", <2>
         "script": { <3>
           "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
         }
       }
+    },
+    "properties": {
+      "timestamp": {"type": "date"}
     }
   }
 }
 ----
 
-<1> Runtime fields are of the `runtime` data type.
-<2> Each runtime has its own field type, defined by `runtime_type`.
+<1> Runtime fields are defined in the `runtime` section of the mapping
+definition.
+<2> Each runtime has its own field type, just like any other field.
 <3> The script defines the evaluation to calculate at search time.
 
 [[runtime-params]]
@@ -161,7 +165,7 @@ field type for `message`.
 PUT /my-index/
 {
   "mappings": {
-    "properties": {
+    "runtime": {
       "@timestamp": {
         "format": "strict_date_optional_time||epoch_second",
         "type": "date"
@@ -222,7 +226,7 @@ The mapping contains two fields: `@timestamp` and `message`.
 {
   "my-index" : {
     "mappings" : {
-      "properties" : {
+      "runtime" : {
         "@timestamp" : {
           "type" : "date",
           "format" : "strict_date_optional_time||epoch_second"
@@ -246,10 +250,9 @@ field at runtime to calculate values for that field.
 ----
 PUT /my-index/_mappings
 {
-  "properties": {
+  "runtime": {
     "clientip": {
-      "type": "runtime",
-      "runtime_type": "ip",
+      "type": "ip",
       "script" : {
       "source" : "String m = doc[\"message\"].value; int end = m.indexOf(\" \"); emit(m.substring(0, end));"
       }
@@ -353,7 +356,7 @@ allows you to modify the mapping without changing any field values.
 ----
 PUT /my-index/
 {
-  "mappings": {
+  "runtime": {
     "properties": {
       "@timestamp": {
         "format": "strict_date_optional_time||epoch_second",
@@ -392,10 +395,9 @@ POST /my-index/_bulk?refresh
 
 PUT /my-index/_mappings
 {
-  "properties": {
+  "runtime": {
     "clientip": {
-      "type": "runtime",
-      "runtime_type": "ip",
+      "type": "ip",
       "script" : {
       "source" : "String m = doc[\"message\"].value; int end = m.indexOf(\" \"); emit(m.substring(0, end));"
       }
@@ -403,15 +405,19 @@ PUT /my-index/_mappings
   }
 }
 
-PUT /my-index/_mappings
+PUT /my-index
 {
-  "properties": {
-    "day_of_week": {
-      "type": "runtime",
-      "runtime_type": "keyword",
-      "script": {
-        "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+  "mappings": {
+    "runtime": {
+      "day_of_week": {
+        "type": "keyword",
+        "script": {
+          "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+        }
       }
+    },
+    "properties": {
+      "timestamp": {"type": "date"}
     }
   }
 }

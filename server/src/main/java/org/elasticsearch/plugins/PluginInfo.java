@@ -50,8 +50,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
-    private static final Version QUOTA_FS_PLUGIN_SUPPORT = Version.V_7_11_0;
-
     private final String name;
     private final String description;
     private final String version;
@@ -92,6 +90,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.javaOpts = javaOpts;
     }
 
+    public static boolean supportBootstrapPlugins(Version version) {
+        return (version.onOrAfter(Version.V_6_8_14) && version.before(Version.V_7_0_0)) || version.onOrAfter(Version.V_7_11_0);
+    }
+
     /**
      * Construct plugin info from a stream.
      *
@@ -125,7 +127,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
              */
             in.readBoolean();
         }
-        if (in.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
+        if (supportBootstrapPlugins(in.getVersion())) {
             type = PluginType.valueOf(in.readString());
             javaOpts = in.readOptionalString();
         } else {
@@ -155,7 +157,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
              */
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
+        if (supportBootstrapPlugins(out.getVersion())) {
             out.writeString(type.name());
             out.writeOptionalString(javaOpts);
         }

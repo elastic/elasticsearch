@@ -269,7 +269,9 @@ public class QuotaAwareFileSystemProviderTests extends LuceneTestCase {
             @Override
             public Path getPath(URI uri) {
                 try {
-                    return cyclicReference.getFileSystem(new URI("file:///")).getPath(uri.getPath());
+                    // This convoluted line is necessary in order to get a valid path on Windows.
+                    final String uriPath = new File(uri.getPath()).toPath().toString();
+                    return cyclicReference.getFileSystem(new URI("file:///")).getPath(uriPath);
                 } catch (URISyntaxException e) {
                     throw new RuntimeException(e);
                 }

@@ -117,7 +117,7 @@ public final class SetProcessor extends AbstractProcessor {
             } else {
                 Object value = config.remove("value");
                 if (value != null) {
-                    throw newConfigurationException(TYPE, processorTag, "copy_from", "cannot set `copy_from` while also setting `value`");
+                    throw newConfigurationException(TYPE, processorTag, "copy_from", "cannot set both `copy_from` and `value` in the same processor");
                 }
             }
 

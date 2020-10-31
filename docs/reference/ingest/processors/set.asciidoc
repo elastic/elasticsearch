@@ -88,7 +88,7 @@ Result:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/2019-03-11T21:54:37.909224Z/$body.docs.0.doc._ingest.timestamp/]
-As `template snippets` only produces string value, we can copy an array from one field to another by using `copy_from`:
+The contents of a field including complex values such as arrays and objects can be copied to another field using `copy_from`:
 [source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/set_bar

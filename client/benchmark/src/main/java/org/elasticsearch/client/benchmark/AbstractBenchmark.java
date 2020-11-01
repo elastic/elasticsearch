@@ -72,10 +72,10 @@ public abstract class AbstractBenchmark<T extends Closeable> {
         String indexFilePath = args[2];
         String indexName = args[3];
         String typeName = args[4];
-        int totalDocs = Integer.valueOf(args[5]);
+        float totalDocs = Float.valueOf(args[5]);
         int bulkSize = Integer.valueOf(args[6]);
 
-        int totalIterationCount = (int) Math.floor(totalDocs / bulkSize);
+        int totalIterationCount = (int) Math.ceil(totalDocs / bulkSize);
         // consider 40% of all iterations as warmup iterations
         int warmupIterations = (int) (0.4d * totalIterationCount);
         int iterations = totalIterationCount - warmupIterations;

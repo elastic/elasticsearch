@@ -23,13 +23,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 // Like a String mapper but with very few options. We just use it to test if highlighting on a custom string mapped field works as expected.
 public class FakeStringFieldMapper extends FieldMapper {
@@ -84,12 +82,7 @@ public class FakeStringFieldMapper extends FieldMapper {
 
     protected FakeStringFieldMapper(MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(mappedFieldType.name(), mappedFieldType, multiFields, copyTo);
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), Lucene.STANDARD_ANALYZER);
+        super(mappedFieldType.name(), mappedFieldType, Lucene.STANDARD_ANALYZER, multiFields, copyTo);
     }
 
     @Override

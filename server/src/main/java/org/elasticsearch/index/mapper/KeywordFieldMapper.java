@@ -314,9 +314,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
 
-    protected KeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+    protected KeywordFieldMapper(String simpleName, FieldType fieldType, KeywordFieldType mappedFieldType,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, mappedFieldType.normalizer, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -341,11 +341,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     public KeywordFieldType fieldType() {
         return (KeywordFieldType) super.fieldType();
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), fieldType().normalizer);
     }
 
     @Override

@@ -27,14 +27,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -137,7 +135,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     private RankFeatureFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                    MultiFields multiFields, CopyTo copyTo, boolean positiveScoreImpact) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         this.positiveScoreImpact = positiveScoreImpact;
     }
 
@@ -182,11 +180,6 @@ public class RankFeatureFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), Lucene.KEYWORD_ANALYZER);
     }
 
     public FieldMapper.Builder getMergeBuilder() {

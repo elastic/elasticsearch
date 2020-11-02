@@ -384,12 +384,34 @@ public class TextFieldMapper extends FieldMapper {
             return new PhraseFieldMapper(phraseFieldType, new PhraseFieldType(parent), a);
         }
 
+        public Map<String, NamedAnalyzer> indexAnalyzers(String name,
+                                                         PhraseFieldMapper phraseFieldMapper,
+                                                         PrefixFieldMapper prefixFieldMapper) {
+            Map<String, NamedAnalyzer> analyzers = new HashMap<>();
+            NamedAnalyzer main = this.analyzers.getIndexAnalyzer();
+            analyzers.put(name, main);
+            if (phraseFieldMapper != null) {
+                analyzers.put(
+                    phraseFieldMapper.name(),
+                    new NamedAnalyzer(main.name() + "_phrase", AnalyzerScope.INDEX, phraseFieldMapper.analyzer));
+            }
+            if (prefixFieldMapper != null) {
+                analyzers.put(
+                    prefixFieldMapper.name(),
+                    new NamedAnalyzer(main.name() + "_prefix", AnalyzerScope.INDEX, prefixFieldMapper.analyzer));
+            }
+            return analyzers;
+        }
+
         @Override
         public TextFieldMapper build(BuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
+            PhraseFieldMapper phraseFieldMapper = buildPhraseMapper(fieldType, tft);
+            PrefixFieldMapper prefixFieldMapper = buildPrefixMapper(context, fieldType, tft);
             return new TextFieldMapper(name, fieldType, tft,
-                buildPrefixMapper(context, fieldType, tft), buildPhraseMapper(fieldType, tft),
+                indexAnalyzers(tft.name(), phraseFieldMapper, prefixFieldMapper),
+                prefixFieldMapper, phraseFieldMapper,
                 multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
@@ -845,10 +867,11 @@ public class TextFieldMapper extends FieldMapper {
 
     protected TextFieldMapper(String simpleName, FieldType fieldType,
                               TextFieldType mappedFieldType,
+                              Map<String, NamedAnalyzer> indexAnalyzers,
                               PrefixFieldMapper prefixFieldMapper,
                               PhraseFieldMapper phraseFieldMapper,
                               MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
@@ -916,24 +939,6 @@ public class TextFieldMapper extends FieldMapper {
     @Override
     public TextFieldType fieldType() {
         return (TextFieldType) super.fieldType();
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        Map<String, NamedAnalyzer> analyzers = new HashMap<>();
-        NamedAnalyzer main = builder.analyzers.getIndexAnalyzer();
-        analyzers.put(name(), main);
-        if (phraseFieldMapper != null) {
-            analyzers.put(
-                phraseFieldMapper.name(),
-                new NamedAnalyzer(main.name() + "_phrase", AnalyzerScope.INDEX, phraseFieldMapper.analyzer));
-        }
-        if (prefixFieldMapper != null) {
-            analyzers.put(
-                prefixFieldMapper.name(),
-                new NamedAnalyzer(main.name() + "_prefix", AnalyzerScope.INDEX, prefixFieldMapper.analyzer));
-        }
-        return analyzers;
     }
 
     public static Query createPhraseQuery(TokenStream stream, String field, int slop, boolean enablePositionIncrements) throws IOException {

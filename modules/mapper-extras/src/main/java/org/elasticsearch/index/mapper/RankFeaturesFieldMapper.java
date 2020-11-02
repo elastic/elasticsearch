@@ -23,7 +23,6 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -99,7 +98,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     private RankFeaturesFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
     }
 
     @Override
@@ -152,11 +151,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), Lucene.KEYWORD_ANALYZER);
     }
 
 }

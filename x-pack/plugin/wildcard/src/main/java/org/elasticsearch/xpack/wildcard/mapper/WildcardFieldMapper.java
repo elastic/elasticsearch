@@ -71,7 +71,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -931,10 +930,10 @@ public class WildcardFieldMapper extends FieldMapper {
     private final FieldType ngramFieldType;
     private final Version indexVersionCreated;
 
-    private WildcardFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+    private WildcardFieldMapper(String simpleName, WildcardFieldType mappedFieldType,
                                 int ignoreAbove, MultiFields multiFields, CopyTo copyTo,
                                 String nullValue, Version indexVersionCreated) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, mappedFieldType.analyzer, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.indexVersionCreated = indexVersionCreated;
@@ -1001,11 +1000,6 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), fieldType().analyzer);
     }
 
     public FieldMapper.Builder getMergeBuilder() {

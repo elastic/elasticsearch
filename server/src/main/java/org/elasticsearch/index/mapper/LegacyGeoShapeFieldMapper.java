@@ -43,7 +43,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.locationtech.spatial4j.shape.Shape;
@@ -461,7 +460,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                                      MultiFields multiFields, CopyTo copyTo,
                                      LegacyGeoShapeIndexer indexer, LegacyGeoShapeParser parser,
                                      Builder builder) {
-        super(simpleName, mappedFieldType,
+        super(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER),
             builder.ignoreMalformed.get(), builder.coerce.get(), builder.ignoreZValue.get(), builder.orientation.get(),
             multiFields, copyTo, indexer, parser);
         this.indexCreatedVersion = builder.indexCreatedVersion;
@@ -475,11 +474,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     String strategy() {
         return fieldType().strategy().getStrategyName();
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

@@ -174,6 +174,11 @@ public class CompletionFieldMapper extends FieldMapper {
             return List.of(analyzer, searchAnalyzer, preserveSeparators, preservePosInc, maxInputLength, contexts, meta);
         }
 
+        NamedAnalyzer buildAnalyzer() {
+            return new NamedAnalyzer(analyzer.get().name(), AnalyzerScope.INDEX,
+                new CompletionAnalyzer(analyzer.get(), preserveSeparators.get(), preservePosInc.get()));
+        }
+
         @Override
         public CompletionFieldMapper build(BuilderContext context) {
             checkCompletionContextsLimit(context);
@@ -303,15 +308,12 @@ public class CompletionFieldMapper extends FieldMapper {
 
     private final int maxInputLength;
     private final Builder builder;
-    private final NamedAnalyzer analyzer;
 
     public CompletionFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builder.buildAnalyzer(), multiFields, copyTo);
         this.builder = builder;
         this.maxInputLength = builder.maxInputLength.getValue();
-        this.analyzer = new NamedAnalyzer(builder.analyzer.get().name(), AnalyzerScope.INDEX,
-            new CompletionAnalyzer(builder.analyzer.get(), builder.preserveSeparators.get(), builder.preservePosInc.get()));
     }
 
     @Override
@@ -322,11 +324,6 @@ public class CompletionFieldMapper extends FieldMapper {
     @Override
     public boolean parsesArrayValue() {
         return true;
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), analyzer);
     }
 
     int getMaxInputLength() {

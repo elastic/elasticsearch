@@ -57,6 +57,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -155,11 +156,15 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             fieldType.setStored(store.getValue());
             TextParams.setTermVectorParams(termVectors.getValue(), fieldType);
 
+            Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
+
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
 
             SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(buildFullName(context), fieldType, similarity.getValue(),
                 analyzers.getSearchAnalyzer(), analyzers.getSearchQuoteAnalyzer(), meta.getValue());
+
+            indexAnalyzers.put(ft.name(), indexAnalyzer);
 
             // set up the prefix field
             FieldType prefixft = new FieldType(fieldType);
@@ -179,7 +184,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
             final NamedAnalyzer prefixAnalyzer
                 = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper);
-            final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType, prefixAnalyzer);
+            final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType);
+            indexAnalyzers.put(prefixFieldType.name(), prefixAnalyzer);
 
             // set up the shingle fields
             final ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[maxShingleSize.getValue() - 1];
@@ -203,11 +209,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 shingleFieldTypes[i] = shingleFieldType;
                 NamedAnalyzer shingleAnalyzer
                     = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper);
-                shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType, shingleAnalyzer);
+                shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType);
+                indexAnalyzers.put(shingleFieldType.name(), shingleAnalyzer);
             }
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
-            return new SearchAsYouTypeFieldMapper(name, ft, copyTo.build(), prefixFieldMapper, shingleFieldMappers, this);
+            return new SearchAsYouTypeFieldMapper(name, ft, copyTo.build(), indexAnalyzers, prefixFieldMapper, shingleFieldMappers, this);
         }
     }
 
@@ -396,12 +403,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     static final class PrefixFieldMapper extends FieldMapper {
 
-        final NamedAnalyzer analyzer;
         final FieldType fieldType;
 
-        PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType, NamedAnalyzer analyzer) {
+        PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
             super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
-            this.analyzer = analyzer;
             this.fieldType = fieldType;
         }
 
@@ -425,11 +430,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Map<String, NamedAnalyzer> indexAnalyzers() {
-            return Collections.singletonMap(name(), analyzer);
-        }
-
-        @Override
         protected String contentType() {
             return "prefix";
         }
@@ -442,13 +442,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     static final class ShingleFieldMapper extends FieldMapper {
 
-        final NamedAnalyzer analyzer;
         private final FieldType fieldType;
 
 
-        ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype, NamedAnalyzer analyzer) {
+        ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype) {
             super(mappedFieldtype.name(), mappedFieldtype, MultiFields.empty(), CopyTo.empty());
-            this.analyzer = analyzer;
             this.fieldType = fieldType;
         }
 
@@ -459,11 +457,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         public ShingleFieldType fieldType() {
             return (ShingleFieldType) super.fieldType();
-        }
-
-        @Override
-        public Map<String, NamedAnalyzer> indexAnalyzers() {
-            return Collections.singletonMap(name(), analyzer);
         }
 
         @Override
@@ -567,10 +560,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     public SearchAsYouTypeFieldMapper(String simpleName,
                                       SearchAsYouTypeFieldType mappedFieldType,
                                       CopyTo copyTo,
+                                      Map<String, NamedAnalyzer> indexAnalyzers,
                                       PrefixFieldMapper prefixField,
                                       ShingleFieldMapper[] shingleFields,
                                       Builder builder) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, MultiFields.empty(), copyTo);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();
@@ -604,11 +598,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), analyzer);
     }
 
     public FieldMapper.Builder getMergeBuilder() {

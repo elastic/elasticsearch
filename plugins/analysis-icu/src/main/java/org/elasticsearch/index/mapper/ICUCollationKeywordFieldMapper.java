@@ -36,7 +36,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.IndexableBinaryStringTools;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -418,7 +417,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                                              MappedFieldType mappedFieldType,
                                              MultiFields multiFields, CopyTo copyTo,
                                              Collator collator, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         assert collator.isFrozen();
         this.fieldType = fieldType;
         this.params = builder.collatorParams();
@@ -433,11 +432,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     @Override
     public CollationFieldType fieldType() {
         return (CollationFieldType) super.fieldType();
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

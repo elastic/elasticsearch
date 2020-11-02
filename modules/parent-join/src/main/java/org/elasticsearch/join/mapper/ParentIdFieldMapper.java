@@ -25,7 +25,6 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -38,7 +37,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -92,7 +90,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     protected ParentIdFieldMapper(String name, boolean eagerGlobalOrdinals) {
-        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), MultiFields.empty(), CopyTo.empty());
+        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
     }
 
     @Override
@@ -110,11 +108,6 @@ public final class ParentIdFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

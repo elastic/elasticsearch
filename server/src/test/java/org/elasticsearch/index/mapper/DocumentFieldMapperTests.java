@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 
 public class DocumentFieldMapperTests extends LuceneTestCase {
 
@@ -87,19 +86,14 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         final String indexedValue;
 
         FakeFieldMapper(FakeFieldType fieldType, String indexedValue) {
-            super(fieldType.name(), fieldType, MultiFields.empty(), CopyTo.empty());
+            super(fieldType.name(), fieldType,
+                new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)),
+                MultiFields.empty(), CopyTo.empty());
             this.indexedValue = indexedValue;
         }
 
         @Override
         protected void parseCreateField(ParseContext context) {
-        }
-
-        @Override
-        public Map<String, NamedAnalyzer> indexAnalyzers() {
-            return Collections.singletonMap(
-                name(),
-                new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)));
         }
 
         @Override

@@ -31,7 +31,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -55,7 +54,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
@@ -211,11 +209,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), Lucene.KEYWORD_ANALYZER);
-    }
-
     private static LeafFieldData wrap(LeafFieldData in) {
         return new LeafFieldData() {
 
@@ -265,7 +258,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     private IdFieldMapper(BooleanSupplier fieldDataEnabled) {
-        super(new IdFieldType(fieldDataEnabled));
+        super(new IdFieldType(fieldDataEnabled), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

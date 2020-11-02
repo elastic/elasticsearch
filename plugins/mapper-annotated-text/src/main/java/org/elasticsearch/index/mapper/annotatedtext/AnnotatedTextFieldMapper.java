@@ -49,7 +49,6 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -507,21 +506,14 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     private final FieldType fieldType;
-    private final NamedAnalyzer analyzer;
     private final Builder builder;
 
     protected AnnotatedTextFieldMapper(String simpleName, FieldType fieldType, AnnotatedTextFieldType mappedFieldType,
                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, wrapAnalyzer(builder.analyzers.getIndexAnalyzer()), multiFields, copyTo);
         assert fieldType.tokenized();
         this.fieldType = fieldType;
         this.builder = builder;
-        this.analyzer = wrapAnalyzer(builder.analyzers.getIndexAnalyzer());
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), analyzer);
     }
 
     @Override

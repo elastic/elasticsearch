@@ -23,12 +23,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class RoutingFieldMapper extends MetadataFieldMapper {
 
@@ -104,7 +102,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     private final boolean required;
 
     private RoutingFieldMapper(boolean required) {
-        super(RoutingFieldType.INSTANCE);
+        super(RoutingFieldType.INSTANCE, Lucene.KEYWORD_ANALYZER);
         this.required = required;
     }
 
@@ -124,11 +122,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return Collections.singletonMap(name(), Lucene.KEYWORD_ANALYZER);
     }
 
 }

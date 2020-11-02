@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -169,13 +167,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) {
-        if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
-            return;
-        }
-        context.doc().add(new Field(fieldType().name(), context.sourceToParse().type(), fieldType));
-        if (fieldType().hasDocValues()) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(MapperService.SINGLE_MAPPING_NAME)));
-        }
+
     }
 
     @Override

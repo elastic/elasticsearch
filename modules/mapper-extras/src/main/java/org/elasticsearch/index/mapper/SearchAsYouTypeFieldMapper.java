@@ -79,7 +79,7 @@ import static org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType.hasGa
  *     └── [ PrefixFieldMapper, PrefixFieldType, analysis wrapped with max_shingle_size-shingles and edge-ngrams ]
  * </pre>
  */
-public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
+public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "search_as_you_type";
     private static final int MAX_SHINGLE_SIZE_LOWER_BOUND = 2;
@@ -103,7 +103,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         return toType(in).fieldType();
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
@@ -399,8 +399,11 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
     static final class PrefixFieldMapper extends FieldMapper {
 
+        final FieldType fieldType;
+
         PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
-            super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+            super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+            this.fieldType = fieldType;
         }
 
         @Override
@@ -418,8 +421,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+        public Builder getMergeBuilder() {
+            return null;
         }
 
         @Override
@@ -435,8 +438,11 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
     static final class ShingleFieldMapper extends FieldMapper {
 
+        private final FieldType fieldType;
+
         ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype) {
-            super(mappedFieldtype.name(), fieldType, mappedFieldtype, MultiFields.empty(), CopyTo.empty());
+            super(mappedFieldtype.name(), mappedFieldtype, MultiFields.empty(), CopyTo.empty());
+            this.fieldType = fieldType;
         }
 
         FieldType getLuceneFieldType() {
@@ -454,8 +460,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+        public Builder getMergeBuilder() {
+            return null;
         }
 
         @Override
@@ -572,11 +578,17 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        context.doc().add(new Field(fieldType().name(), value, fieldType().fieldType));
-        for (ShingleFieldMapper subFieldMapper : shingleFields) {
-            context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
+        if (this.index == false && this.store == false) {
+            return;
         }
-        context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
+
+        context.doc().add(new Field(fieldType().name(), value, fieldType().fieldType));
+        if (this.index) {
+            for (ShingleFieldMapper subFieldMapper : shingleFields) {
+                context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
+            }
+            context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
+        }
         if (fieldType().fieldType.omitNorms()) {
             createFieldNamesField(context);
         }
@@ -588,7 +600,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), () -> fieldType().indexAnalyzer()).init(this);
     }
 

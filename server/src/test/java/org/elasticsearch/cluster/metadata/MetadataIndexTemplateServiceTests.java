@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -78,7 +77,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
@@ -1606,7 +1605,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected List<ParametrizedFieldMapper.Parameter<?>> getParameters() {
+        protected List<FieldMapper.Parameter<?>> getParameters() {
             return Collections.singletonList(enabled);
         }
 
@@ -1645,7 +1644,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        public FieldMapper.Builder getMergeBuilder() {
             return new MetadataTimestampFieldBuilder().init(this);
         }
 

@@ -36,14 +36,14 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIn
  * A {@link FieldMapper} that takes a string and writes a count of the tokens in that string
  * to the index.  In most ways the mapper acts just like an {@link NumberFieldMapper}.
  */
-public class TokenCountFieldMapper extends ParametrizedFieldMapper {
+public class TokenCountFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "token_count";
 
     private static TokenCountFieldMapper toType(FieldMapper in) {
         return (TokenCountFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -196,7 +196,7 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

@@ -63,7 +63,7 @@ Boost values are relative to the default value of `1.0`. A boost value between
 increases the relevance score.
 
 `case_insensitive`::
-(Optional, boolean) allows ASCII case insensitive matching of the
+(Optional, Boolean) allows ASCII case insensitive matching of the
 value with the indexed field values when set to true. Default is false which means
 the case sensitivity of matching depends on the underlying field's mapping
 

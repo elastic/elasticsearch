@@ -109,3 +109,50 @@
   - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "1" }
+
+
+---
+"Test fields option on flattened object field":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fields option on search request was added in 7.10"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:
+          flattened:
+            some_field: some_value
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: ["flattened"]
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: ["flat*"]
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }

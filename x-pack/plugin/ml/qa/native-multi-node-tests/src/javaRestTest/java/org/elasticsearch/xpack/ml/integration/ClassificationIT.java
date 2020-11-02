@@ -460,6 +460,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(e.getMessage(), startsWith("field [text-field] of type [text] is non-aggregatable"));
     }
 
+    public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsTextAndKeyword() throws Exception {
+        testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
+            "classification_training_percent_is_50_text_and_keyword", TEXT_FIELD + ".keyword", KEYWORD_FIELD_VALUES, "keyword");
+    }
+
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsBoolean() throws Exception {
         testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
             "classification_training_percent_is_50_boolean", BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES, "boolean");
@@ -832,7 +837,12 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "          \"type\": \"integer\"\n" +
             "        }," +
             "        \""+ TEXT_FIELD + "\": {\n" +
-            "          \"type\": \"text\"\n" +
+            "          \"type\": \"text\",\n" +
+            "          \"fields\": {" +
+            "            \"keyword\": {" +
+            "              \"type\": \"keyword\"\n" +
+            "            }" +
+            "          }" +
             "        }," +
             "        \""+ KEYWORD_FIELD + "\": {\n" +
             "          \"type\": \"keyword\"\n" +

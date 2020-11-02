@@ -36,7 +36,7 @@ subprojects {
   repositories {
     maven {
       // Repository for downloading BWC compatible JDBC driver releases
-      url = 'https://artifacts.elastic.co/maven'
+      url = 'https://artifacts-no-kpi.elastic.co/maven'
     }
   }
 

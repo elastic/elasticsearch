@@ -36,7 +36,6 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
@@ -70,7 +69,7 @@ import java.util.regex.Pattern;
  * This code is largely a copy of TextFieldMapper which is less than ideal -
  * my attempts to subclass TextFieldMapper failed but we can revisit this.
  **/
-public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
+public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "annotated_text";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
@@ -79,7 +78,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
         return ((AnnotatedTextFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
 
@@ -532,11 +531,6 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected AnnotatedTextFieldMapper clone() {
-        return (AnnotatedTextFieldMapper) super.clone();
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
@@ -564,7 +558,7 @@ public class AnnotatedTextFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), builder.analyzers.indexAnalyzer::getDefaultValue).init(this);
     }
 }

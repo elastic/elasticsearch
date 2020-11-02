@@ -221,7 +221,7 @@ class MutableSearchResponse {
                 totalShards,
                 successfulShards,
                 skippedShards,
-                getQueryFailuresCount(),
+                queryFailures == null ? 0 : queryFailures.nonNullLength(),
                 ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure))
             );
         }
@@ -234,7 +234,7 @@ class MutableSearchResponse {
             totalShards,
             successfulShards,
             skippedShards,
-            getQueryFailuresCount(),
+            queryFailures == null ? 0 : queryFailures.nonNullLength(),
             null  // for a still running search, completion status is null
         );
     }
@@ -267,18 +267,5 @@ class MutableSearchResponse {
             }
         }
         return failures.toArray(ShardSearchFailure[]::new);
-    }
-
-    private int getQueryFailuresCount() {
-        if (queryFailures == null) {
-            return 0;
-        }
-        int count = 0;
-        for (int i = 0; i < queryFailures.length(); i++) {
-            if (queryFailures.get(i) != null) {
-                count++;
-            }
-        }
-        return count;
     }
 }

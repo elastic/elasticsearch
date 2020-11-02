@@ -204,6 +204,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
             );
         }
 
+        if (esVersion.onOrAfter(Version.V_6_8_14)) {
+            propsMap.remove("licensed");
+        }
+
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());
         }

@@ -31,7 +31,7 @@ import java.util.function.Function;
 /**
  * A mapper for a builtin field containing metadata about a document.
  */
-public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
+public abstract class MetadataFieldMapper extends FieldMapper {
 
     public interface TypeParser extends Mapper.TypeParser {
 
@@ -112,7 +112,7 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public abstract static class Builder extends ParametrizedFieldMapper.Builder {
+    public abstract static class Builder extends FieldMapper.Builder {
 
         protected Builder(String name) {
             super(name);
@@ -136,7 +136,7 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return null;    // by default, things can't be configured so we have no builder
     }
 

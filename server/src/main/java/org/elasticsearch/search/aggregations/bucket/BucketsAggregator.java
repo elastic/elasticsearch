@@ -111,11 +111,11 @@ public abstract class BucketsAggregator extends AggregatorBase {
      *
      * Refer to that method for documentation about the merge map.
      *
-     * @deprecated use {@link mergeBuckets(long, LongUnaryOperator)}
+     * @deprecated use {@link rewriteBuckets(long, LongUnaryOperator)}
      */
     @Deprecated
     public final void mergeBuckets(long[] mergeMap, long newNumBuckets) {
-        mergeBuckets(newNumBuckets, bucket -> mergeMap[Math.toIntExact(bucket)]);
+        rewriteBuckets(newNumBuckets, bucket -> mergeMap[Math.toIntExact(bucket)]);
     }
 
     /**
@@ -123,10 +123,10 @@ public abstract class BucketsAggregator extends AggregatorBase {
      *  @param mergeMap a unary operator which maps a bucket's ordinal to the ordinal it should be merged with.
      *  If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
      *
-     * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(LongUnaryOperator)} to
+     * This only tidies up doc counts. Call {@link BestBucketsDeferringCollector#rewriteBuckets(LongUnaryOperator)} to
      * merge the actual ordinals and doc ID deltas.
      */
-    public final void mergeBuckets(long newNumBuckets, LongUnaryOperator mergeMap){
+    public final void rewriteBuckets(long newNumBuckets, LongUnaryOperator mergeMap){
         try (LongArray oldDocCounts = docCounts) {
             docCounts = bigArrays.newLongArray(newNumBuckets, true);
             docCounts.fill(0, newNumBuckets, 0);
@@ -172,9 +172,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Hook to allow taking an action before building buckets.
+     * Hook to allow taking an action before building the sub agg results.
      */
-    protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {}
+    protected void prepareSubAggs(long[] bucketOrdsToCollect) throws IOException {}
 
     /**
      * Build the results of the sub-aggregations of the buckets at each of
@@ -190,7 +190,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      *         array of ordinals
      */
     protected final InternalAggregations[] buildSubAggsForBuckets(long[] bucketOrdsToCollect) throws IOException {
-        beforeBuildingBuckets(bucketOrdsToCollect);
+        prepareSubAggs(bucketOrdsToCollect);
         InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {
             aggregations[i] = subAggregators[i].buildAggregations(bucketOrdsToCollect);

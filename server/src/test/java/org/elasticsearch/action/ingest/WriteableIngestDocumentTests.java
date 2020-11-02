@@ -27,21 +27,24 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -154,6 +157,20 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
 
         IngestDocument serializedIngestDocument = new IngestDocument(toXContentSource, toXContentIngestMetadata);
         assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
+    }
+
+    public void testXContentHashSetSerialization() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("key", Set.of("value")));
+        final WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(ingestDocument);
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            writeableIngestDocument.toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+            Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            assertThat(map.get("doc"), is(instanceOf(Map.class)));
+            Map<String, Object> source = (Map<String, Object>) ((Map) map.get("doc")).get("_source");
+            assertThat(source.get("key"), is(Arrays.asList("value")));
+        }
     }
 
     static IngestDocument createRandomIngestDoc() {

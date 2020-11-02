@@ -66,7 +66,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.time.DateUtils.toLong;
 
 /** A {@link FieldMapper} for dates. */
-public final class DateFieldMapper extends ParametrizedFieldMapper {
+public final class DateFieldMapper extends FieldMapper {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateFieldMapper.class);
 
@@ -181,7 +181,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         return (DateFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -273,7 +273,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         public DateFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
                              DateFormatter dateTimeFormatter, Resolution resolution, String nullValue,
                              Map<String, String> meta) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
@@ -432,10 +432,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+        public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
-            return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime);
+            // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
+            return resolution.distanceFeatureQuery(name(), 1.0f, originLong, pivotTime);
         }
 
         @Override
@@ -560,7 +561,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), resolution, null, ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
 
@@ -572,11 +573,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return fieldType().resolution.type();
-    }
-
-    @Override
-    protected DateFieldMapper clone() {
-        return (DateFieldMapper) super.clone();
     }
 
     @Override

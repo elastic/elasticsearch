@@ -34,10 +34,8 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
-import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.provider.Provider;
-import org.gradle.authentication.http.HttpHeaderAuthentication;
 
 import java.util.Comparator;
 

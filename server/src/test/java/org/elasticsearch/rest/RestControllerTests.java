@@ -48,6 +48,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -61,6 +62,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -193,7 +195,7 @@ public class RestControllerTests extends ESTestCase {
 
         RestRequest.Method method = randomFrom(RestRequest.Method.values());
         String path = "/_" + randomAlphaOfLengthBetween(1, 6);
-        RestHandler handler = mock(RestHandler.class);
+        RestHandler handler = v8mockHandler();
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
 
         // don't want to test everything -- just that it actually wraps the handler
@@ -209,7 +211,7 @@ public class RestControllerTests extends ESTestCase {
 
         final RestRequest.Method method = randomFrom(RestRequest.Method.values());
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
-        final RestHandler handler = mock(RestHandler.class);
+        final RestHandler handler = v8mockHandler();
         final RestRequest.Method deprecatedMethod = randomFrom(RestRequest.Method.values());
         final String deprecatedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
 
@@ -235,13 +237,20 @@ public class RestControllerTests extends ESTestCase {
 
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
 
-        RestHandler handler = mock(RestHandler.class);
+        RestHandler handler = v8mockHandler();
+
         restController.registerHandler(firstMethod, path + "/{wildcard1}", handler);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> restController.registerHandler(secondMethod, path + "/{wildcard2}", handler));
 
         assertThat(exception.getMessage(), equalTo("Trying to use conflicting wildcard names for same path: wildcard1 and wildcard2"));
+    }
+
+    private RestHandler v8mockHandler() {
+        RestHandler mock = mock(RestHandler.class);
+        Mockito.when(mock.compatibleWithVersion()).thenReturn(Version.CURRENT);
+        return mock;
     }
 
     public void testRestHandlerWrapper() throws Exception {
@@ -627,6 +636,65 @@ public class RestControllerTests extends ESTestCase {
         assertThat(channel.getRestResponse().getHeaders().get("Allow"), hasItem(equalTo(RestRequest.Method.GET.toString())));
     }
 
+    public void testDispatchCompatibleHandler() {
+
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService,
+            (a,c,h)->Version.minimumRestCompatibilityVersion());//always return compatible version
+
+        final byte version = Version.minimumRestCompatibilityVersion().major;
+
+        final String mimeType = randomCompatibleMimeType(version);
+        String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
+        final List<String> mimeTypeList = Collections.singletonList(mimeType);
+        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray(content), RestRequest.parseContentType(mimeTypeList))
+            .withPath("/foo")
+            .withHeaders(Map.of("Content-Type", mimeTypeList, "Accept", mimeTypeList))
+            .build();
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                XContentBuilder xContentBuilder = channel.newBuilder();
+//                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+
+            @Override
+            public Version compatibleWithVersion() {
+                return Version.V_7_0_0;
+            }
+        });
+
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testRegisterIncompatibleVersionHandler() {
+        //using restController which uses a compatible version function returning always Version.CURRENT
+        final byte version = (byte) (Version.CURRENT.major - 2);
+
+        expectThrows(AssertionError.class,
+            () -> restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
+                @Override
+                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                }
+
+                @Override
+                public Version compatibleWithVersion() {
+                    return Version.fromString(version + ".0.0");
+                }
+            }));
+    }
+
+    private String randomCompatibleMimeType(byte version) {
+        String subtype = randomFrom(Stream.of(XContentType.values())
+            .map(XContentType::mediaTypeWithoutParameters)
+            .toArray(String[]::new))
+            .split("/")[1];
+        return randomFrom("application/vnd.elasticsearch+" + subtype + ";compatible-with=" + version);
+    }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements
         HttpServerTransport {

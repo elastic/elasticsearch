@@ -30,7 +30,7 @@ import org.gradle.util.DistributionLocator
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 plugins {
-    id 'com.gradle.build-scan' version '2.3'
+    id 'com.gradle.build-scan' version '3.5'
     id 'base'
 }
 

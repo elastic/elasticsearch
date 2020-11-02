@@ -949,7 +949,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (Objects.equals("boost", propName)) {
                     deprecationLogger.deprecate(
                         "boost",
-                        "Parameter [boost] on field [{}] is deprecated and has no effect",
+                        "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
                         name);
                     iterator.remove();
                     continue;

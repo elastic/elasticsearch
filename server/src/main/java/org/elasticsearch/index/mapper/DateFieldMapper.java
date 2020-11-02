@@ -66,7 +66,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.time.DateUtils.toLong;
 
 /** A {@link FieldMapper} for dates. */
-public final class DateFieldMapper extends ParametrizedFieldMapper {
+public final class DateFieldMapper extends FieldMapper {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateFieldMapper.class);
 
@@ -181,7 +181,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         return (DateFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -561,7 +561,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), resolution, null, ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
 
@@ -573,11 +573,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return fieldType().resolution.type();
-    }
-
-    @Override
-    protected DateFieldMapper clone() {
-        return (DateFieldMapper) super.clone();
     }
 
     @Override

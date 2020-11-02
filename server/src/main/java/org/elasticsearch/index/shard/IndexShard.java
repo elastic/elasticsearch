@@ -2684,13 +2684,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             || currentRouting.primary() != newRouting.primary()
             || currentRouting.allocationId().equals(newRouting.allocationId()) == false) {
             assert currentRouting == null || currentRouting.isSameAllocation(newRouting);
-            final String writeReason;
-            if (currentRouting == null) {
-                writeReason = "initial state with allocation id [" + newRouting.allocationId() + "]";
-            } else {
-                writeReason = "routing changed from " + currentRouting + " to " + newRouting;
+            if (logger.isTraceEnabled()) {
+                final String writeReason;
+                if (currentRouting == null) {
+                    writeReason = "initial state with allocation id [" + newRouting.allocationId() + "]";
+                } else {
+                    writeReason = "routing changed from " + currentRouting + " to " + newRouting;
+                }
+                logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
             }
-            logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
             final ShardStateMetadata newShardStateMetadata =
                     new ShardStateMetadata(newRouting.primary(), indexSettings.getUUID(), newRouting.allocationId());
             ShardStateMetadata.FORMAT.writeAndCleanup(newShardStateMetadata, shardPath.getShardStatePath());
@@ -2716,7 +2718,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new EngineConfig(shardId,
                 threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
                 mapperService != null ? mapperService.indexAnalyzer() : null,
-                similarityService.similarity(mapperService), codecService, shardEventListener,
+                similarityService.similarity(mapperService == null ? null : mapperService::fieldType), codecService, shardEventListener,
                 indexCache != null ? indexCache.query() : null, cachingPolicy, translogConfig,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
                 List.of(refreshListeners, refreshPendingLocationListener),

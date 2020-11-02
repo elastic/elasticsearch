@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-avg-bucket-aggregation]]
-=== Avg Bucket Aggregation
+=== Avg bucket aggregation
+++++
+<titleabbrev>Avg bucket</titleabbrev>
+++++
 
 A sibling pipeline aggregation which calculates the (mean) average value of a specified metric in a sibling aggregation.
 The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.

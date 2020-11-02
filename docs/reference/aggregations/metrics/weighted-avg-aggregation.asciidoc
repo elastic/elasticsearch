@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-weight-avg-aggregation]]
-=== Weighted Avg Aggregation
+=== Weighted avg aggregation
+++++
+<titleabbrev>Weighted avg</titleabbrev>
+++++
 
 A `single-value` metrics aggregation that computes the weighted average of numeric values that are extracted from the aggregated documents.
 These values can be extracted either from specific numeric fields in the documents, or provided by a script.

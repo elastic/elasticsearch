@@ -11,7 +11,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -278,17 +277,26 @@ public class DataStreamTimestampFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] has disallowed attributes: [store]"));
     }
 
-    public void testCannotUpdateTimestampField() throws IOException {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+    public void testCanUpdateTimestampFieldMapperFromDisabledToEnabled() throws IOException {
+        MapperService mapperService = createIndex("test").mapperService();
         String mapping1 =
             "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":false}, \"properties\": {\"@timestamp\": {\"type\": \"date\"}}}}}";
         String mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":true}, \"properties\": {\"@timestamp2\": "
             + "{\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
-        assertConflicts(mapping1, mapping2, parser, "Mapper for [_data_stream_timestamp]", "[enabled] from [false] to [true]");
+        assertConflicts(mapping1, mapping2, mapperService);
 
         mapping1 = "{\"type\":{\"properties\":{\"@timestamp\": {\"type\": \"date\"}}}}}";
         mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":true}, \"properties\": "
             + "{\"@timestamp2\": {\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
-        assertConflicts(mapping1, mapping2, parser, "Mapper for [_data_stream_timestamp]", "[enabled] from [false] to [true]");
+        assertConflicts(mapping1, mapping2, mapperService);
+    }
+
+    public void testCannotUpdateTimestampFieldMapperFromEnabledToDisabled() throws IOException {
+        MapperService mapperService = createIndex("test").mapperService();
+        String mapping1 =
+            "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":true}, \"properties\": {\"@timestamp\": {\"type\": \"date\"}}}}}";
+        String mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"enabled\":false}, \"properties\": {\"@timestamp2\": "
+            + "{\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
+        assertConflicts(mapping1, mapping2, mapperService, "Cannot update parameter [enabled] from [true] to [false]");
     }
 }

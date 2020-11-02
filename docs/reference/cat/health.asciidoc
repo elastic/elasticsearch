@@ -50,7 +50,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
 `ts` (timestamps)::
-(Optional, boolean) If `true`, returns `HH:MM:SS` and
+(Optional, Boolean) If `true`, returns `HH:MM:SS` and
 {wikipedia}/Unix_time[Unix `epoch`] timestamps. Defaults to
 `true`.
 

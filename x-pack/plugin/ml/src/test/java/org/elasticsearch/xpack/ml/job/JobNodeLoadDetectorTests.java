@@ -17,7 +17,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests;
+import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
@@ -67,10 +67,10 @@ public class JobNodeLoadDetectorTests extends ESTestCase {
             .build();
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
-        TransportOpenJobActionTests.addJobTask("job_id1", "_node_id1", null, tasksBuilder);
-        TransportOpenJobActionTests.addJobTask("job_id2", "_node_id1", null, tasksBuilder);
-        TransportOpenJobActionTests.addJobTask("job_id3", "_node_id2", null, tasksBuilder);
-        TransportOpenJobActionTests.addJobTask("job_id4", "_node_id4", JobState.OPENED, tasksBuilder);
+        OpenJobPersistentTasksExecutorTests.addJobTask("job_id1", "_node_id1", null, tasksBuilder);
+        OpenJobPersistentTasksExecutorTests.addJobTask("job_id2", "_node_id1", null, tasksBuilder);
+        OpenJobPersistentTasksExecutorTests.addJobTask("job_id3", "_node_id2", null, tasksBuilder);
+        OpenJobPersistentTasksExecutorTests.addJobTask("job_id4", "_node_id4", JobState.OPENED, tasksBuilder);
         PersistentTasksCustomMetadata tasks = tasksBuilder.build();
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
@@ -79,28 +79,28 @@ public class JobNodeLoadDetectorTests extends ESTestCase {
         metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks);
         cs.metadata(metadata);
 
-        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id1"), 10, -1, true);
+        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id1"), 10, 30, true, false);
         assertThat(load.getAssignedJobMemory(), equalTo(52428800L));
         assertThat(load.getNumAllocatingJobs(), equalTo(2L));
         assertThat(load.getNumAssignedJobs(), equalTo(2L));
         assertThat(load.getMaxJobs(), equalTo(10));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
-        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id2"), 5, -1, true);
+        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id2"), 5, 30, true, false);
         assertThat(load.getAssignedJobMemory(), equalTo(41943040L));
         assertThat(load.getNumAllocatingJobs(), equalTo(1L));
         assertThat(load.getNumAssignedJobs(), equalTo(1L));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
-        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id3"), 5, -1, true);
+        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id3"), 5, 30, true, false);
         assertThat(load.getAssignedJobMemory(), equalTo(0L));
         assertThat(load.getNumAllocatingJobs(), equalTo(0L));
         assertThat(load.getNumAssignedJobs(), equalTo(0L));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
-        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id4"), 5, -1, true);
+        load = nodeLoadDetector.detectNodeLoad(cs.build(), true, nodes.get("_node_id4"), 5, 30, true, false);
         assertThat(load.getAssignedJobMemory(), equalTo(41943040L));
         assertThat(load.getNumAllocatingJobs(), equalTo(0L));
         assertThat(load.getNumAssignedJobs(), equalTo(1L));
@@ -122,7 +122,7 @@ public class JobNodeLoadDetectorTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder();
         cs.metadata(metadata);
 
-        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), false, nodes.get("_node_id1"), 10, -1, true);
+        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), false, nodes.get("_node_id1"), 10, 30, true, false);
         assertThat(load.getError(), containsString("ml.max_open_jobs attribute [foo] is not an integer"));
     }
 
@@ -140,7 +140,7 @@ public class JobNodeLoadDetectorTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder();
         cs.metadata(metadata);
 
-        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), false, nodes.get("_node_id1"), 10, -1, true);
+        NodeLoadDetector.NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), false, nodes.get("_node_id1"), 10, -1, true, false);
         assertThat(load.getError(), containsString("ml.machine_memory attribute [bar] is not a long"));
     }
 

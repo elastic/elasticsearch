@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValue implements Boxplot {
 
@@ -155,6 +157,10 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return results;
     }
 
+    public static List<String> metricNames = Stream.of(Metrics.values())
+        .map(m -> m.name().toLowerCase(Locale.ROOT))
+        .collect(Collectors.toList());
+
     private final TDigestState state;
 
     InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, Map<String, Object> metadata) {
@@ -236,6 +242,11 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     @Override
     public double value(String name) {
         return Metrics.resolve(name).value(this);
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return metricNames;
     }
 
     // for testing only

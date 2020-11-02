@@ -58,7 +58,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `write_index_only`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the mappings are applied only to the current write index for the target.
 Defaults to `false`.

@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
+import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
@@ -87,7 +87,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         return (TestMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> fixed
             = Parameter.boolParam("fixed", false, m -> toType(m).fixed, true);
@@ -137,7 +137,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        public ParametrizedFieldMapper build(Mapper.BuilderContext context) {
+        public FieldMapper build(Mapper.BuilderContext context) {
             return new TestMapper(name(), buildFullName(context),
                 multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
@@ -153,7 +153,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
     }
 
-    public static class TestMapper extends ParametrizedFieldMapper {
+    public static class TestMapper extends FieldMapper {
 
         private final boolean fixed;
         private final boolean fixed2;
@@ -214,7 +214,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             }
             return null;
         }, version, () -> null, null, null,
-            mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), mapperService::isIdFieldDataEnabled);
+            mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
+            throw new UnsupportedOperationException();
+        });
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
             .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));

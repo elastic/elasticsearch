@@ -32,7 +32,6 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -45,7 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class Murmur3FieldMapper extends ParametrizedFieldMapper {
+public class Murmur3FieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "murmur3";
 
@@ -61,7 +60,7 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
         return (Murmur3FieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType().isStored(), false);
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -123,7 +122,7 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 

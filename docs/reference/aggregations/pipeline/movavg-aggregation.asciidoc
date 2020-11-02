@@ -1,5 +1,0 @@
-[[search-aggregations-pipeline-movavg-aggregation]]
-=== Moving Average Aggregation
-
-The Moving Average aggregation has been removed.  Use the more general
-<<search-aggregations-pipeline-movfn-aggregation,Moving Function Aggregation>> instead.

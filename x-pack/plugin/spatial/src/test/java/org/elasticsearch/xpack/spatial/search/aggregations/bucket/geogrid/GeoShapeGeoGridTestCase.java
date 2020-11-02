@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -57,7 +57,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.randomBBox;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.GeometryDocValueReader;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -78,6 +77,11 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
      * Return a point within the bounds of the tile grid
      */
     protected abstract Point randomPoint();
+
+    /**
+     * Return a random {@link GeoBoundingBox} within the bounds of the tile grid.
+     */
+    protected abstract GeoBoundingBox randomBBox();
 
     /**
      * Return the bounding tile as a {@link Rectangle} for a given point
@@ -156,7 +160,6 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
 
         expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
         expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
-
         GeoBoundingBox bbox = randomBBox();
         final double boundsTop = bbox.top();
         final double boundsBottom = bbox.bottom();
@@ -189,7 +192,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
             Rectangle pointTile = getTile(x, y, precision);
 
             GeometryDocValueReader reader = GeometryDocValueReader(p, CoordinateEncoder.GEO);
-            MultiGeoShapeValues.GeoShapeValue value = new MultiGeoShapeValues.GeoShapeValue(reader);
+            GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue(reader);
             GeoRelation tileRelation =  value.relate(pointTile);
             boolean intersectsBounds = boundsTop >= pointTile.getMinY() && boundsBottom <= pointTile.getMaxY()
                 && (boundsEastLeft <= pointTile.getMaxX() && boundsEastRight >= pointTile.getMinX()
@@ -302,8 +305,6 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
-        aggregator.postCollection();
-
         verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());
 
         indexReader.close();

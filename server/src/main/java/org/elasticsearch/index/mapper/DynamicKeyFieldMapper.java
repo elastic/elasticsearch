@@ -37,7 +37,7 @@ package org.elasticsearch.index.mapper;
  * Note: we anticipate that 'flattened' fields will be the only implementation of this
  * interface. Flattened object fields live in the 'mapper-flattened' module.
  */
-public abstract class DynamicKeyFieldMapper extends ParametrizedFieldMapper {
+public abstract class DynamicKeyFieldMapper extends FieldMapper {
 
     public DynamicKeyFieldMapper(String simpleName,
                                  MappedFieldType defaultFieldType,

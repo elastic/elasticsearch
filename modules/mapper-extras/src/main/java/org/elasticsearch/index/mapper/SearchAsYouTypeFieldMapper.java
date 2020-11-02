@@ -444,7 +444,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private final FieldType fieldType;
 
-
         ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype) {
             super(mappedFieldtype.name(), mappedFieldtype, MultiFields.empty(), CopyTo.empty());
             this.fieldType = fieldType;
@@ -554,7 +553,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     private final int maxShingleSize;
     private final PrefixFieldMapper prefixField;
     private final ShingleFieldMapper[] shingleFields;
-    private final NamedAnalyzer analyzer;
     private final Builder builder;
 
     public SearchAsYouTypeFieldMapper(String simpleName,
@@ -568,7 +566,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();
-        this.analyzer = builder.analyzers.getIndexAnalyzer();
         this.builder = builder;
     }
 

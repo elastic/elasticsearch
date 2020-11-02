@@ -205,6 +205,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
     public JoinFieldType fieldType() {
         return (JoinFieldType) super.fieldType();
     }

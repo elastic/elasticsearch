@@ -1002,6 +1002,7 @@ public class WildcardFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexVersionCreated).init(this);
     }

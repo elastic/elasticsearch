@@ -61,7 +61,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -92,7 +91,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class PercolatorFieldMapper extends ParametrizedFieldMapper {
+public class PercolatorFieldMapper extends FieldMapper {
 
     static final Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING = Setting.boolSetting(
         "index.percolator.map_unmapped_fields_as_text", false, Setting.Property.IndexScope);
@@ -110,11 +109,11 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
     static final String MINIMUM_SHOULD_MATCH_FIELD_NAME = "minimum_should_match_field";
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), queryShardContext).init(this);
     }
 
-    static class Builder extends ParametrizedFieldMapper.Builder {
+    static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -185,7 +184,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
 
     }
 
-    static class TypeParser implements FieldMapper.TypeParser {
+    static class TypeParser implements Mapper.TypeParser {
 
         @Override
         public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {

@@ -22,17 +22,21 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,10 +45,15 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
+import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
@@ -52,147 +61,19 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         Setting.boolSetting("index.mapping.ignore_malformed", false, Property.IndexScope);
     public static final Setting<Boolean> COERCE_SETTING =
         Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
-    public abstract static class Builder extends Mapper.Builder {
 
-        protected final FieldType fieldType;
-        protected boolean omitNormsSet = false;
-        protected boolean indexOptionsSet = false;
-        protected boolean hasDocValues = true;
-        protected boolean indexed = true;
-        protected final MultiFields.Builder multiFieldsBuilder;
-        protected CopyTo copyTo = CopyTo.empty();
-        protected Map<String, String> meta = Collections.emptyMap();
-        // TODO move to KeywordFieldMapper.Builder
-        protected boolean eagerGlobalOrdinals;
-        // TODO move to text-specific builder base class
-        protected NamedAnalyzer indexAnalyzer;
-        protected NamedAnalyzer searchAnalyzer;
-        protected NamedAnalyzer searchQuoteAnalyzer;
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
 
-        protected Builder(String name, FieldType fieldType) {
-            super(name);
-            this.fieldType = new FieldType(fieldType);
-            multiFieldsBuilder = new MultiFields.Builder();
-        }
-
-        public Builder index(boolean index) {
-            this.indexed = index;
-            if (index == false) {
-                this.fieldType.setIndexOptions(IndexOptions.NONE);
-            }
-            return this;
-        }
-
-        public Builder store(boolean store) {
-            this.fieldType.setStored(store);
-            return this;
-        }
-
-        public FieldMapper.Builder docValues(boolean docValues) {
-            this.hasDocValues = docValues;
-            return this;
-        }
-
-        public Builder storeTermVectors(boolean termVectors) {
-            if (termVectors != this.fieldType.storeTermVectors()) {
-                this.fieldType.setStoreTermVectors(termVectors);
-            } // don't set it to false, it is default and might be flipped by a more specific option
-            return this;
-        }
-
-        public Builder storeTermVectorOffsets(boolean termVectorOffsets) {
-            if (termVectorOffsets) {
-                this.fieldType.setStoreTermVectors(termVectorOffsets);
-            }
-            this.fieldType.setStoreTermVectorOffsets(termVectorOffsets);
-            return this;
-        }
-
-        public Builder storeTermVectorPositions(boolean termVectorPositions) {
-            if (termVectorPositions) {
-                this.fieldType.setStoreTermVectors(termVectorPositions);
-            }
-            this.fieldType.setStoreTermVectorPositions(termVectorPositions);
-            return this;
-        }
-
-        public Builder storeTermVectorPayloads(boolean termVectorPayloads) {
-            if (termVectorPayloads) {
-                this.fieldType.setStoreTermVectors(termVectorPayloads);
-            }
-            this.fieldType.setStoreTermVectorPayloads(termVectorPayloads);
-            return this;
-        }
-
-        public Builder omitNorms(boolean omitNorms) {
-            this.fieldType.setOmitNorms(omitNorms);
-            this.omitNormsSet = true;
-            return this;
-        }
-
-        public Builder indexOptions(IndexOptions indexOptions) {
-            this.fieldType.setIndexOptions(indexOptions);
-            this.indexOptionsSet = true;
-            return this;
-        }
-
-        public Builder indexAnalyzer(NamedAnalyzer indexAnalyzer) {
-            this.indexAnalyzer = indexAnalyzer;
-            return this;
-        }
-
-        public Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
-            this.searchAnalyzer = searchAnalyzer;
-            return this;
-        }
-
-        public Builder searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
-            this.searchQuoteAnalyzer = searchQuoteAnalyzer;
-            return this;
-        }
-
-        public Builder setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
-            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-            return this;
-        }
-
-        public Builder addMultiField(Mapper.Builder mapperBuilder) {
-            multiFieldsBuilder.add(mapperBuilder);
-            return this;
-        }
-
-        public Builder copyTo(CopyTo copyTo) {
-            this.copyTo = copyTo;
-            return this;
-        }
-
-        protected String buildFullName(BuilderContext context) {
-            return context.path().pathAsText(name);
-        }
-
-        /** Set metadata on this field. */
-        public Builder meta(Map<String, String> meta) {
-            this.meta = meta;
-            return this;
-        }
-
-        @Override
-        public abstract FieldMapper build(BuilderContext context);
-    }
-
-    protected FieldType fieldType;
     protected MappedFieldType mappedFieldType;
     protected MultiFields multiFields;
     protected CopyTo copyTo;
 
-    protected FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
                           MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
         if (mappedFieldType.name().isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
         }
-        fieldType.freeze();
-        this.fieldType = fieldType;
         this.mappedFieldType = mappedFieldType;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
@@ -286,15 +167,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     @Override
-    protected FieldMapper clone() {
-        try {
-            return (FieldMapper) super.clone();
-        } catch (CloneNotSupportedException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    @Override
     public final void validate(MappingLookup mappers) {
         if (this.copyTo() != null && this.copyTo().copyToFields().isEmpty() == false) {
             if (mappers.isMultiField(this.name())) {
@@ -337,86 +209,51 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    @Override
-    public FieldMapper merge(Mapper mergeWith) {
-        FieldMapper merged = clone();
-        List<String> conflicts = new ArrayList<>();
-        if (mergeWith instanceof FieldMapper == false) {
-            throw new IllegalArgumentException("mapper [" + mappedFieldType.name() + "] cannot be changed from type ["
-            + contentType() + "] to [" + mergeWith.getClass().getSimpleName() + "]");
-        }
-        FieldMapper toMerge = (FieldMapper) mergeWith;
-        merged.mergeSharedOptions(toMerge, conflicts);
-        merged.mergeOptions(toMerge, conflicts);
-        if (conflicts.isEmpty() == false) {
-            throw new IllegalArgumentException("Mapper for [" + name() +
-                "] conflicts with existing mapping:\n" + conflicts.toString());
-        }
-        merged.multiFields = multiFields.merge(toMerge.multiFields);
-        // apply changeable values
-        merged.mappedFieldType = toMerge.mappedFieldType;
-        merged.fieldType = toMerge.fieldType;
-        merged.copyTo = toMerge.copyTo;
-        return merged;
-    }
-
-    private void mergeSharedOptions(FieldMapper mergeWith, List<String> conflicts) {
-
-        if (Objects.equals(this.contentType(), mergeWith.contentType()) == false) {
-            throw new IllegalArgumentException("mapper [" + fieldType().name() + "] cannot be changed from type [" + contentType()
-                + "] to [" + mergeWith.contentType() + "]");
-        }
-
-        FieldType other = mergeWith.fieldType;
-        MappedFieldType otherm = mergeWith.mappedFieldType;
-
-        boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
-        boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
-        if (indexed != mergeWithIndexed) {
-            conflicts.add("mapper [" + name() + "] has different [index] values");
-        }
-        // TODO: should be validating if index options go "up" (but "down" is ok)
-        if (fieldType.indexOptions() != other.indexOptions()) {
-            conflicts.add("mapper [" + name() + "] has different [index_options] values");
-        }
-        if (fieldType.stored() != other.stored()) {
-            conflicts.add("mapper [" + name() + "] has different [store] values");
-        }
-        if (this.mappedFieldType.hasDocValues() != otherm.hasDocValues()) {
-            conflicts.add("mapper [" + name() + "] has different [doc_values] values");
-        }
-        if (fieldType.omitNorms() && !other.omitNorms()) {
-            conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
-        }
-        if (fieldType.storeTermVectors() != other.storeTermVectors()) {
-            conflicts.add("mapper [" + name() + "] has different [term_vector] values");
-        }
-        if (fieldType.storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
-        }
-        if (fieldType.storeTermVectorPositions() != other.storeTermVectorPositions()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector_positions] values");
-        }
-        if (fieldType.storeTermVectorPayloads() != other.storeTermVectorPayloads()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector_payloads] values");
-        }
-
-        // null and "default"-named index analyzers both mean the default is used
-        if (mappedFieldType.indexAnalyzer() == null || "default".equals(mappedFieldType.indexAnalyzer().name())) {
-            if (otherm.indexAnalyzer() != null && "default".equals(otherm.indexAnalyzer().name()) == false) {
-                conflicts.add("mapper [" + name() + "] has different [analyzer]");
-            }
-        } else if (otherm.indexAnalyzer() == null || "default".equals(otherm.indexAnalyzer().name())) {
-            conflicts.add("mapper [" + name() + "] has different [analyzer]");
-        } else if (mappedFieldType.indexAnalyzer().name().equals(otherm.indexAnalyzer().name()) == false) {
-            conflicts.add("mapper [" + name() + "] has different [analyzer]");
-        }
-    }
-
     /**
-     * Merge type-specific options and check for incompatible settings in mappings to be merged
+     * Returns a {@link Builder} to be used for merging and serialization
+     *
+     * Implement as follows:
+     * {@code return new MyBuilder(simpleName()).init(this); }
      */
-    protected abstract void mergeOptions(FieldMapper other, List<String> conflicts);
+    public abstract Builder getMergeBuilder();
+
+    @Override
+    public final FieldMapper merge(Mapper mergeWith) {
+
+        if (mergeWith instanceof FieldMapper == false) {
+            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
+                + contentType() + "] to [" + mergeWith.getClass().getSimpleName() + "]");
+        }
+        checkIncomingMergeType((FieldMapper)mergeWith);
+
+        Builder builder = getMergeBuilder();
+        if (builder == null) {
+            return (FieldMapper) mergeWith;
+        }
+        Conflicts conflicts = new Conflicts(name());
+        builder.merge((FieldMapper) mergeWith, conflicts);
+        conflicts.check();
+        return builder.build(new BuilderContext(Settings.EMPTY, parentPath(name())));
+    }
+
+    private static ContentPath parentPath(String name) {
+        int endPos = name.lastIndexOf(".");
+        if (endPos == -1) {
+            return new ContentPath(0);
+        }
+        return new ContentPath(name.substring(0, endPos));
+    }
+
+    protected void checkIncomingMergeType(FieldMapper mergeWith) {
+        if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
+            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
+                + contentType() + "] to [" + mergeWith.contentType() + "]");
+        }
+        if (Objects.equals(contentType(), mergeWith.contentType()) == false) {
+            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
+                + contentType() + "] to [" + mergeWith.contentType() + "]");
+        }
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -439,69 +276,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-
         builder.field("type", contentType());
-
-        if (includeDefaults || mappedFieldType.isSearchable() != indexedByDefault()) {
-            builder.field("index", mappedFieldType.isSearchable());
-        }
-        if (includeDefaults || mappedFieldType.hasDocValues() != docValuesByDefault()) {
-            builder.field("doc_values", mappedFieldType.hasDocValues());
-        }
-        if (includeDefaults || fieldType.stored() != storedByDefault()) {
-            builder.field("store", fieldType.stored());
-        }
-
+        getMergeBuilder().toXContent(builder, includeDefaults);
         multiFields.toXContent(builder, params);
         copyTo.toXContent(builder, params);
-
-        if (includeDefaults || fieldType().meta().isEmpty() == false) {
-            builder.field("meta", new TreeMap<>(fieldType().meta())); // ensure consistent order
-        }
-    }
-
-    protected final void doXContentAnalyzers(XContentBuilder builder, boolean includeDefaults) throws IOException {
-        if (fieldType.tokenized() == false) {
-            return;
-        }
-        if (fieldType().indexAnalyzer() == null) {
-            if (includeDefaults) {
-                builder.field("analyzer", "default");
-            }
-        } else {
-            boolean hasDefaultIndexAnalyzer = fieldType().indexAnalyzer().name().equals("default");
-            final String searchAnalyzerName = fieldType().getTextSearchInfo().getSearchAnalyzer() == null
-                ? "default" : fieldType().getTextSearchInfo().getSearchAnalyzer().name();
-            final String searchQuoteAnalyzerName = fieldType().getTextSearchInfo().getSearchQuoteAnalyzer() == null
-                ? searchAnalyzerName : fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name();
-            boolean hasDifferentSearchAnalyzer = searchAnalyzerName.equals(fieldType().indexAnalyzer().name()) == false;
-            boolean hasDifferentSearchQuoteAnalyzer
-                = Objects.equals(searchAnalyzerName, searchQuoteAnalyzerName) == false;
-            if (includeDefaults || hasDefaultIndexAnalyzer == false || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
-                builder.field("analyzer", fieldType().indexAnalyzer().name());
-                if (includeDefaults || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
-                    builder.field("search_analyzer", searchAnalyzerName);
-                    if (includeDefaults || hasDifferentSearchQuoteAnalyzer) {
-                        builder.field("search_quote_analyzer", searchQuoteAnalyzerName);
-                    }
-                }
-            }
-        }
-    }
-
-    protected static String indexOptionToString(IndexOptions indexOption) {
-        switch (indexOption) {
-            case DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS:
-                return TypeParsers.INDEX_OPTIONS_OFFSETS;
-            case DOCS_AND_FREQS:
-                return TypeParsers.INDEX_OPTIONS_FREQS;
-            case DOCS_AND_FREQS_AND_POSITIONS:
-                return TypeParsers.INDEX_OPTIONS_POSITIONS;
-            case DOCS:
-                return TypeParsers.INDEX_OPTIONS_DOCS;
-            default:
-                throw new IllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
-        }
     }
 
     protected abstract String contentType();
@@ -684,6 +462,575 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         public List<String> copyToFields() {
             return copyToFields;
+        }
+    }
+
+    /**
+     * Serializes a parameter
+     */
+    protected interface Serializer<T> {
+        void serialize(XContentBuilder builder, String name, T value) throws IOException;
+    }
+
+    protected interface MergeValidator<T> {
+        boolean canMerge(T previous, T current, Conflicts conflicts);
+    }
+
+    /**
+     * Check on whether or not a parameter should be serialized
+     */
+    protected interface SerializerCheck<T> {
+        /**
+         * Check on whether or not a parameter should be serialized
+         * @param includeDefaults   if defaults have been requested
+         * @param isConfigured      if the parameter has a different value to the default
+         * @param value             the parameter value
+         * @return {@code true} if the value should be serialized
+         */
+        boolean check(boolean includeDefaults, boolean isConfigured, T value);
+    }
+
+    /**
+     * A configurable parameter for a field mapper
+     * @param <T> the type of the value the parameter holds
+     */
+    public static final class Parameter<T> implements Supplier<T> {
+
+        public final String name;
+        private final List<String> deprecatedNames = new ArrayList<>();
+        private final Supplier<T> defaultValue;
+        private final TriFunction<String, ParserContext, Object, T> parser;
+        private final Function<FieldMapper, T> initializer;
+        private boolean acceptsNull = false;
+        private Consumer<T> validator = null;
+        private Serializer<T> serializer = XContentBuilder::field;
+        private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
+        private Function<T, String> conflictSerializer = Objects::toString;
+        private boolean deprecated;
+        private MergeValidator<T> mergeValidator;
+        private T value;
+        private boolean isSet;
+
+        /**
+         * Creates a new Parameter
+         * @param name          the parameter name, used in parsing and serialization
+         * @param updateable    whether the parameter can be updated with a new value during a mapping update
+         * @param defaultValue  the default value for the parameter, used if unspecified in mappings
+         * @param parser        a function that converts an object to a parameter value
+         * @param initializer   a function that reads a parameter value from an existing mapper
+         */
+        public Parameter(String name, boolean updateable, Supplier<T> defaultValue,
+                         TriFunction<String, ParserContext, Object, T> parser, Function<FieldMapper, T> initializer) {
+            this.name = name;
+            this.defaultValue = Objects.requireNonNull(defaultValue);
+            this.value = null;
+            this.parser = parser;
+            this.initializer = initializer;
+            this.mergeValidator = (previous, toMerge, conflicts) -> updateable || Objects.equals(previous, toMerge);
+        }
+
+        /**
+         * Returns the current value of the parameter
+         */
+        public T getValue() {
+            return isSet ? value : defaultValue.get();
+        }
+
+        @Override
+        public T get() {
+            return getValue();
+        }
+
+        /**
+         * Returns the default value of the parameter
+         */
+        public T getDefaultValue() {
+            return defaultValue.get();
+        }
+
+        /**
+         * Sets the current value of the parameter
+         */
+        public void setValue(T value) {
+            this.isSet = true;
+            this.value = value;
+        }
+
+        public boolean isConfigured() {
+            return isSet && Objects.equals(value, defaultValue.get()) == false;
+        }
+
+        /**
+         * Allows the parameter to accept a {@code null} value
+         */
+        public Parameter<T> acceptsNull() {
+            this.acceptsNull = true;
+            return this;
+        }
+
+        /**
+         * Adds a deprecated parameter name.
+         *
+         * If this parameter name is encountered during parsing, a deprecation warning will
+         * be emitted.  The parameter will be serialized with its main name.
+         */
+        public Parameter<T> addDeprecatedName(String deprecatedName) {
+            this.deprecatedNames.add(deprecatedName);
+            return this;
+        }
+
+        /**
+         * Deprecates the entire parameter.
+         *
+         * If this parameter is encountered during parsing, a deprecation warning will
+         * be emitted.
+         */
+        public Parameter<T> deprecated() {
+            this.deprecated = true;
+            return this;
+        }
+
+        /**
+         * Adds validation to a parameter, called after parsing and merging
+         */
+        public Parameter<T> setValidator(Consumer<T> validator) {
+            this.validator = validator;
+            return this;
+        }
+
+        /**
+         * Configure a custom serializer for this parameter
+         */
+        public Parameter<T> setSerializer(Serializer<T> serializer, Function<T, String> conflictSerializer) {
+            this.serializer = serializer;
+            this.conflictSerializer = conflictSerializer;
+            return this;
+        }
+
+        /**
+         * Configure a custom serialization check for this parameter
+         */
+        public Parameter<T> setSerializerCheck(SerializerCheck<T> check) {
+            this.serializerCheck = check;
+            return this;
+        }
+
+        /**
+         * Always serialize this parameter, no matter its value
+         */
+        public Parameter<T> alwaysSerialize() {
+            this.serializerCheck = (id, ic, v) -> true;
+            return this;
+        }
+
+        /**
+         * Never serialize this parameter, no matter its value
+         */
+        public Parameter<T> neverSerialize() {
+            this.serializerCheck = (id, ic, v) -> false;
+            return this;
+        }
+
+        /**
+         * Sets a custom merge validator.  By default, merges are accepted if the
+         * parameter is updateable, or if the previous and new values are equal
+         */
+        public Parameter<T> setMergeValidator(MergeValidator<T> mergeValidator) {
+            this.mergeValidator = mergeValidator;
+            return this;
+        }
+
+        private void validate() {
+            if (validator != null) {
+                validator.accept(getValue());
+            }
+        }
+
+        private void init(FieldMapper toInit) {
+            setValue(initializer.apply(toInit));
+        }
+
+        private void parse(String field, ParserContext context, Object in) {
+            setValue(parser.apply(field, context, in));
+        }
+
+        private void merge(FieldMapper toMerge, Conflicts conflicts) {
+            T value = initializer.apply(toMerge);
+            T current = getValue();
+            if (mergeValidator.canMerge(current, value, conflicts)) {
+                setValue(value);
+            } else {
+                conflicts.addConflict(name, conflictSerializer.apply(current), conflictSerializer.apply(value));
+            }
+        }
+
+        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+            if (serializerCheck.check(includeDefaults, isConfigured(), get())) {
+                serializer.serialize(builder, name, getValue());
+            }
+        }
+
+        /**
+         * Defines a parameter that takes the values {@code true} or {@code false}
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<Boolean> boolParam(String name, boolean updateable,
+                                                   Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
+        }
+
+        /**
+         * Defines a parameter that takes the values {@code true} or {@code false}, and will always serialize
+         * its value if configured.
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<Explicit<Boolean>> explicitBoolParam(String name, boolean updateable,
+                                                                     Function<FieldMapper, Explicit<Boolean>> initializer,
+                                                                     boolean defaultValue) {
+            Explicit<Boolean> defaultExplicit = new Explicit<>(defaultValue, false);
+            return new Parameter<>(name, updateable, () -> defaultExplicit,
+                (n, c, o) -> new Explicit<>(XContentMapValues.nodeBooleanValue(o), true), initializer)
+                .setSerializer((b, n, v) -> b.field(n, v.value()), v -> Boolean.toString(v.value()));
+        }
+
+        /**
+         * Defines a parameter that takes a double value
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<Double> doubleParam(String name, boolean updateable,
+                                                    Function<FieldMapper, Double> initializer, double defaultValue) {
+            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeDoubleValue(o), initializer);
+        }
+
+        /**
+         * Defines a parameter that takes a float value
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<Float> floatParam(String name, boolean updateable,
+                                                  Function<FieldMapper, Float> initializer, float defaultValue) {
+            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeFloatValue(o), initializer);
+        }
+
+        /**
+         * Defines a parameter that takes an integer value
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<Integer> intParam(String name, boolean updateable,
+                                                  Function<FieldMapper, Integer> initializer, int defaultValue) {
+            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeIntegerValue(o), initializer);
+        }
+
+        /**
+         * Defines a parameter that takes a string value
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<String> stringParam(String name, boolean updateable,
+                                                    Function<FieldMapper, String> initializer, String defaultValue) {
+            return new Parameter<>(name, updateable, () -> defaultValue,
+                (n, c, o) -> XContentMapValues.nodeStringValue(o), initializer);
+        }
+
+        @SuppressWarnings("unchecked")
+        public static Parameter<List<String>> stringArrayParam(String name, boolean updateable,
+                                                               Function<FieldMapper, List<String>> initializer, List<String> defaultValue) {
+            return new Parameter<>(name, updateable, () -> defaultValue,
+                (n, c, o) -> {
+                    List<Object> values = (List<Object>) o;
+                    List<String> strValues = new ArrayList<>();
+                    for (Object item : values) {
+                        strValues.add(item.toString());
+                    }
+                    return strValues;
+                }, initializer);
+        }
+
+        /**
+         * Defines a parameter that takes one of a restricted set of string values
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param values        the set of values that the parameter can take.  The first value in the list
+         *                      is the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<String> restrictedStringParam(String name, boolean updateable,
+                                                              Function<FieldMapper, String> initializer, String... values) {
+            assert values.length > 0;
+            Set<String> acceptedValues = new LinkedHashSet<>(Arrays.asList(values));
+            return stringParam(name, updateable, initializer, values[0])
+                .setValidator(v -> {
+                    if (acceptedValues.contains(v)) {
+                        return;
+                    }
+                    throw new MapperParsingException("Unknown value [" + v + "] for field [" + name +
+                        "] - accepted values are " + acceptedValues.toString());
+                });
+        }
+
+        /**
+         * Defines a parameter that takes an analyzer name
+         * @param name              the parameter name
+         * @param updateable        whether the parameter can be changed by a mapping update
+         * @param initializer       a function that reads the parameter value from an existing mapper
+         * @param defaultAnalyzer   the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<NamedAnalyzer> analyzerParam(String name, boolean updateable,
+                                                             Function<FieldMapper, NamedAnalyzer> initializer,
+                                                             Supplier<NamedAnalyzer> defaultAnalyzer) {
+            return new Parameter<>(name, updateable, defaultAnalyzer, (n, c, o) -> {
+                String analyzerName = o.toString();
+                NamedAnalyzer a = c.getIndexAnalyzers().get(analyzerName);
+                if (a == null) {
+                    throw new IllegalArgumentException("analyzer [" + analyzerName + "] has not been configured in mappings");
+                }
+                return a;
+            }, initializer).setSerializer((b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+        }
+
+        /**
+         * Declares a metadata parameter
+         */
+        public static Parameter<Map<String, String>> metaParam() {
+            return new Parameter<>("meta", true, Collections::emptyMap,
+                (n, c, o) -> TypeParsers.parseMeta(n, o), m -> m.fieldType().meta());
+        }
+
+        public static Parameter<Boolean> indexParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            return Parameter.boolParam("index", false, initializer, defaultValue);
+        }
+
+        public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            return Parameter.boolParam("store", false, initializer, defaultValue);
+        }
+
+        public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            return Parameter.boolParam("doc_values", false, initializer, defaultValue);
+        }
+
+    }
+
+    public static final class Conflicts {
+
+        private final String mapperName;
+        private final List<String> conflicts = new ArrayList<>();
+
+        Conflicts(String mapperName) {
+            this.mapperName = mapperName;
+        }
+
+        public void addConflict(String parameter, String conflict) {
+            conflicts.add("Conflict in parameter [" + parameter + "]: " + conflict);
+        }
+
+        void addConflict(String parameter, String existing, String toMerge) {
+            conflicts.add("Cannot update parameter [" + parameter + "] from [" + existing + "] to [" + toMerge + "]");
+        }
+
+        void check() {
+            if (conflicts.isEmpty()) {
+                return;
+            }
+            String message = "Mapper for [" + mapperName + "] conflicts with existing mapper:\n\t"
+                + String.join("\n\t", conflicts);
+            throw new IllegalArgumentException(message);
+        }
+
+    }
+
+    /**
+     * A Builder for a ParametrizedFieldMapper
+     */
+    public abstract static class Builder extends Mapper.Builder {
+
+        protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
+        protected final CopyTo.Builder copyTo = new CopyTo.Builder();
+
+        /**
+         * Creates a new Builder with a field name
+         */
+        protected Builder(String name) {
+            super(name);
+        }
+
+        /**
+         * Initialises all parameters from an existing mapper
+         */
+        public Builder init(FieldMapper initializer) {
+            for (Parameter<?> param : getParameters()) {
+                param.init(initializer);
+            }
+            for (Mapper subField : initializer.multiFields) {
+                multiFieldsBuilder.add(subField);
+            }
+            return this;
+        }
+
+        private void merge(FieldMapper in, Conflicts conflicts) {
+            for (Parameter<?> param : getParameters()) {
+                param.merge(in, conflicts);
+            }
+            for (Mapper newSubField : in.multiFields) {
+                multiFieldsBuilder.update(newSubField, parentPath(newSubField.name()));
+            }
+            this.copyTo.reset(in.copyTo);
+            validate();
+        }
+
+        private void validate() {
+            for (Parameter<?> param : getParameters()) {
+                param.validate();
+            }
+        }
+
+        /**
+         * @return the list of parameters defined for this mapper
+         */
+        protected abstract List<Parameter<?>> getParameters();
+
+        @Override
+        public abstract FieldMapper build(BuilderContext context);
+
+        /**
+         * Builds the full name of the field, taking into account parent objects
+         */
+        protected String buildFullName(BuilderContext context) {
+            return context.path().pathAsText(name);
+        }
+
+        /**
+         * Writes the current builder parameter values as XContent
+         */
+        protected final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+            for (Parameter<?> parameter : getParameters()) {
+                parameter.toXContent(builder, includeDefaults);
+            }
+        }
+
+        /**
+         * Parse mapping parameters from a map of mappings
+         * @param name              the field mapper name
+         * @param parserContext     the parser context
+         * @param fieldNode         the root node of the map of mappings for this field
+         */
+        public final void parse(String name, ParserContext parserContext, Map<String, Object> fieldNode) {
+            Map<String, Parameter<?>> paramsMap = new HashMap<>();
+            Map<String, Parameter<?>> deprecatedParamsMap = new HashMap<>();
+            for (Parameter<?> param : getParameters()) {
+                paramsMap.put(param.name, param);
+                for (String deprecatedName : param.deprecatedNames) {
+                    deprecatedParamsMap.put(deprecatedName, param);
+                }
+            }
+            String type = (String) fieldNode.remove("type");
+            for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
+                final String propName = entry.getKey();
+                final Object propNode = entry.getValue();
+                if (Objects.equals("fields", propName)) {
+                    TypeParsers.parseMultiField(multiFieldsBuilder::add, name, parserContext, propName, propNode);
+                    iterator.remove();
+                    continue;
+                }
+                if (Objects.equals("copy_to", propName)) {
+                    TypeParsers.parseCopyFields(propNode).forEach(copyTo::add);
+                    iterator.remove();
+                    continue;
+                }
+                if (Objects.equals("boost", propName)) {
+                    if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                        deprecationLogger.deprecate(
+                            "boost",
+                            "Parameter [boost] on field [{}] is deprecated and has no effect",
+                            name);
+                        iterator.remove();
+                        continue;
+                    } else {
+                        throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
+                    }
+                }
+                Parameter<?> parameter = deprecatedParamsMap.get(propName);
+                if (parameter != null) {
+                    deprecationLogger.deprecate(propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
+                        propName, name, parameter.name);
+                } else {
+                    parameter = paramsMap.get(propName);
+                }
+                if (parameter == null) {
+                    if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
+                        deprecationLogger.deprecate(propName,
+                            "Parameter [{}] has no effect on type [{}] and will be removed in future", propName, type);
+                        iterator.remove();
+                        continue;
+                    }
+                    throw new MapperParsingException("unknown parameter [" + propName
+                        + "] on mapper [" + name + "] of type [" + type + "]");
+                }
+                if (parameter.deprecated) {
+                    deprecationLogger.deprecate(propName,
+                        "Parameter [{}] is deprecated and will be removed in a future version",
+                        propName);
+                }
+                if (propNode == null && parameter.acceptsNull == false) {
+                    throw new MapperParsingException("[" + propName + "] on mapper [" + name
+                        + "] of type [" + type + "] must not have a [null] value");
+                }
+                parameter.parse(name, parserContext, propNode);
+                iterator.remove();
+            }
+            validate();
+        }
+
+        // These parameters were previously *always* parsed by TypeParsers#parseField(), even if they
+        // made no sense; if we've got here, that means that they're not declared on a current mapper,
+        // and so we emit a deprecation warning rather than failing a previously working mapping.
+        private static final Set<String> DEPRECATED_PARAMS
+            = Set.of("store", "meta", "index", "doc_values", "index_options", "similarity");
+
+        private static boolean isDeprecatedParameter(String propName, Version indexCreatedVersion) {
+            if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+                return false;
+            }
+            return DEPRECATED_PARAMS.contains(propName);
+        }
+    }
+
+    /**
+     * TypeParser implementation that automatically handles parsing
+     */
+    public static final class TypeParser implements Mapper.TypeParser {
+
+        private final BiFunction<String, ParserContext, Builder> builderFunction;
+
+        /**
+         * Creates a new TypeParser
+         * @param builderFunction a function that produces a Builder from a name and parsercontext
+         */
+        public TypeParser(BiFunction<String, ParserContext, Builder> builderFunction) {
+            this.builderFunction = builderFunction;
+        }
+
+        @Override
+        public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            Builder builder = builderFunction.apply(name, parserContext);
+            builder.parse(name, parserContext, node);
+            return builder;
         }
     }
 

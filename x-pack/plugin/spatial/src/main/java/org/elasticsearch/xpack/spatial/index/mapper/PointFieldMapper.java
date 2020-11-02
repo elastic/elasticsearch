@@ -17,7 +17,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
@@ -52,7 +51,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         return ((PointFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
@@ -92,7 +91,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         }
 
         @Override
-        public ParametrizedFieldMapper build(BuilderContext context) {
+        public FieldMapper build(BuilderContext context) {
             CartesianPointParser parser
                 = new CartesianPointParser(name, nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
             PointFieldType ft
@@ -146,7 +145,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
     }
 

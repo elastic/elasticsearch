@@ -69,9 +69,11 @@ public class CacheFile {
 
     /**
      * Indicates whether the cache file has been synchronized with the storage device that contains it, since the last time data
-     * were written in cache (or since the creation of the file if no cached data have been written yet).
+     * were written in cache (or since the creation of the file if no cached data have been written yet). An empty cache file is
+     * considered as fsynced (the initialization value is {@code true}) when it is created; and writing new data to the cache file
+     * will toggle the flag to {@code false}.
      **/
-    private final AtomicBoolean fsynced = new AtomicBoolean();
+    private final AtomicBoolean fsynced = new AtomicBoolean(true);
 
     /**
      * A reference counted holder for the current channel to the physical file backing this cache file instance.

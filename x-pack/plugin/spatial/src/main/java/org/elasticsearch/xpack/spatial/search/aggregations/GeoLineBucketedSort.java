@@ -91,6 +91,8 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
                     assert docSortValues.docValueCount() == 1;
                     docValue = docSortValues.nextValue();
                     return true;
+                } else {
+                    docValue = Long.MIN_VALUE;
                 }
                 return false;
             }

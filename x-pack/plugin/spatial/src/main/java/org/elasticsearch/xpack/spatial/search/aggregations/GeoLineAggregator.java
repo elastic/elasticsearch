@@ -26,13 +26,11 @@ import java.util.Map;
 final class GeoLineAggregator extends MetricsAggregator {
     /** Multiple ValuesSource with field names */
     private final MultiValuesSource.AnyMultiValuesSource valuesSources;
-    static final int MAX_PATH_SIZE = 10000;
 
     private final GeoLineBucketedSort sort;
     private final GeoLineBucketedSort.Extra extra;
     private final boolean includeSorts;
     private final SortOrder sortOrder;
-    private final int size;
 
     GeoLineAggregator(String name, MultiValuesSource.AnyMultiValuesSource valuesSources, SearchContext context,
                       Aggregator parent, Map<String,Object> metaData, boolean includeSorts, SortOrder sortOrder,
@@ -41,14 +39,13 @@ final class GeoLineAggregator extends MetricsAggregator {
         this.valuesSources = valuesSources;
         if (valuesSources != null) {
             this.extra = new GeoLineBucketedSort.Extra(context.bigArrays(), valuesSources);
-            this.sort = new GeoLineBucketedSort(context.bigArrays(), sortOrder, null, MAX_PATH_SIZE, valuesSources, extra);
+            this.sort = new GeoLineBucketedSort(context.bigArrays(), sortOrder, null, size, valuesSources, extra);
         } else {
             this.extra = null;
             this.sort = null;
         }
         this.includeSorts = includeSorts;
         this.sortOrder = sortOrder;
-        this.size = size;
     }
 
     @Override

@@ -33,14 +33,14 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
 
     @Override
     protected InternalGeoLine createTestInstance(String name, Map<String, Object> metadata) {
-        int length = randomIntBetween(2, 2 * GeoLineAggregator.MAX_PATH_SIZE);
+        int length = randomIntBetween(2, 2 * GeoLineAggregationBuilder.MAX_PATH_SIZE);
         long[] points = new long[length];
         double[] sortVals = new double[length];
         for (int i = 0; i < length; i++) {
             points[i] = i;
             sortVals[i] = i;
         }
-        boolean complete = length <= GeoLineAggregator.MAX_PATH_SIZE;
+        boolean complete = length <= GeoLineAggregationBuilder.MAX_PATH_SIZE;
         return new InternalGeoLine(name, points, sortVals, metadata, complete, randomBoolean(), randomFrom(SortOrder.values()));
     }
 

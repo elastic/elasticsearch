@@ -56,7 +56,8 @@ public class GeoLineAggregationBuilder
 
     private boolean includeSort;
     private SortOrder sortOrder = SortOrder.ASC;
-    private int size = GeoLineAggregator.MAX_PATH_SIZE;
+    private int size = MAX_PATH_SIZE;
+    static final int MAX_PATH_SIZE = 10000;
 
     public static void registerUsage(ValuesSourceRegistry.Builder builder) {
         builder.registerUsage(NAME, CoreValuesSourceType.GEOPOINT);
@@ -91,9 +92,9 @@ public class GeoLineAggregationBuilder
     }
 
     public GeoLineAggregationBuilder size(int size) {
-        if (size <= 0 || size > GeoLineAggregator.MAX_PATH_SIZE) {
+        if (size <= 0 || size > MAX_PATH_SIZE) {
             throw new IllegalArgumentException("invalid [size] value [" + size + "] must be a positive integer <= "
-                + GeoLineAggregator.MAX_PATH_SIZE);
+                + MAX_PATH_SIZE);
         }
         this.size = size;
         return this;

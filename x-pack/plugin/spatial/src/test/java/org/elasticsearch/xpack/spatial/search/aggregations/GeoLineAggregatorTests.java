@@ -60,6 +60,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
     }
 
     private void testAggregator(SortOrder sortOrder) throws IOException {
+        int size = randomIntBetween(1, GeoLineAggregationBuilder.MAX_PATH_SIZE);
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
             .setFieldName("value_field")
             .build();
@@ -67,7 +68,8 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name")
             .point(valueConfig)
             .sortOrder(sortOrder)
-            .sort(sortConfig);
+            .sort(sortConfig)
+            .size(size);
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
             .field("group_id")
             .subAggregation(lineAggregationBuilder);
@@ -77,8 +79,8 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         Map<Integer, long[]> indexedPoints = new HashMap<>(numGroups);
         Map<Integer, double[]> indexedSortValues = new HashMap<>(numGroups);
         for (int groupOrd = 0; groupOrd < numGroups; groupOrd++) {
-            int numPoints = randomIntBetween(2, 20000);
-            boolean complete = numPoints < GeoLineAggregator.MAX_PATH_SIZE;
+            int numPoints = randomIntBetween(2, 2 * size);
+            boolean complete = numPoints <= size;
             long[] points = new long[numPoints];
             double[] sortValues = new double[numPoints];
             for (int i = 0; i < numPoints; i++) {
@@ -89,8 +91,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 points[i] = lonLat;
                 sortValues[i] = SortOrder.ASC.equals(sortOrder) ? i : numPoints - i;
             }
-            int lineSize = Math.min(numPoints, GeoLineAggregator.MAX_PATH_SIZE);
-
+            int lineSize = Math.min(numPoints, size);
             // re-sort line to be ascending
             long[] linePoints = Arrays.copyOf(points, lineSize);
             double[] lineSorts = Arrays.copyOf(sortValues, lineSize);

@@ -52,7 +52,7 @@ public class GeoLineAggregationBuilderTests extends AbstractSerializingTestCase<
             lineAggregationBuilder.sortOrder(sortOrder);
         }
         if (randomBoolean()) {
-            lineAggregationBuilder.size(randomIntBetween(1, GeoLineAggregator.MAX_PATH_SIZE));
+            lineAggregationBuilder.size(randomIntBetween(1, GeoLineAggregationBuilder.MAX_PATH_SIZE));
         }
         if (randomBoolean()) {
             lineAggregationBuilder.includeSort(randomBoolean());
@@ -71,6 +71,6 @@ public class GeoLineAggregationBuilderTests extends AbstractSerializingTestCase<
             .sort(sortConfig);
         expectThrows(IllegalArgumentException.class, () -> lineAggregationBuilder.size(0));
         expectThrows(IllegalArgumentException.class,
-            () -> lineAggregationBuilder.size(GeoLineAggregator.MAX_PATH_SIZE + randomIntBetween(1, 10)));
+            () -> lineAggregationBuilder.size(GeoLineAggregationBuilder.MAX_PATH_SIZE + randomIntBetween(1, 10)));
     }
 }

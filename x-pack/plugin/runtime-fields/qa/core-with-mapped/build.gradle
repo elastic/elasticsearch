@@ -1,5 +1,9 @@
 apply plugin: 'elasticsearch.yaml-rest-test'
 
+dependencies {
+  yamlRestTestImplementation xpackProject("plugin:runtime-fields:qa")
+}
+
 restResources {
   restApi {
     includeXpack 'async_search', 'graph', '*_point_in_time'

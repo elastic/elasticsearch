@@ -48,6 +48,8 @@ import java.util.function.Function;
  */
 public final class XContentBuilder implements Closeable, Flushable {
 
+    private byte compatibleMajorVersion;
+
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content.
      * <p>
@@ -1002,6 +1004,15 @@ public final class XContentBuilder implements Closeable, Flushable {
     public XContentBuilder copyCurrentStructure(XContentParser parser) throws IOException {
         generator.copyCurrentStructure(parser);
         return this;
+    }
+
+    public XContentBuilder withCompatibleMajorVersion(byte compatibleMajorVersion){
+        this.compatibleMajorVersion = compatibleMajorVersion;
+        return this;
+    }
+
+    public byte getCompatibleMajorVersion() {
+        return compatibleMajorVersion;
     }
 
     @Override

@@ -656,7 +656,7 @@ public class RestControllerTests extends ESTestCase {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 XContentBuilder xContentBuilder = channel.newBuilder();
-//                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
+                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 

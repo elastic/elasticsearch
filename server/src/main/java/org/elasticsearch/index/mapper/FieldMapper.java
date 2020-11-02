@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
@@ -317,8 +316,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
                     add(toMerge);
                 } else {
-                    Mapper existing = mapperBuilders.get(toMerge.simpleName()).apply(new BuilderContext(Settings.EMPTY, contentPath));
-                    add((FieldMapper)existing.merge(toMerge));
+                    FieldMapper existing
+                        = mapperBuilders.get(toMerge.simpleName()).apply(new BuilderContext(Settings.EMPTY, contentPath));
+                    add(existing.merge(toMerge));
                 }
                 return this;
             }

@@ -471,13 +471,18 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                 Map.of(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO.getStringRep())), XContentType.JSON));
 
         final int numDocs = scaledRandomIntBetween(0, 1_000);
-        final BulkRequestBuilder bulkRequest = leaderClient().prepareBulk(leaderIndex);
-        for (int i = 0; i < numDocs; i++) {
-            bulkRequest.add(new IndexRequest(leaderIndex).id(Integer.toString(i)).source("field", i));
+        if (numDocs > 0) {
+            final BulkRequestBuilder bulkRequest = leaderClient().prepareBulk(leaderIndex);
+            for (int i = 0; i < numDocs; i++) {
+                bulkRequest.add(new IndexRequest(leaderIndex).id(Integer.toString(i)).source("field", i));
+            }
+            assertThat(bulkRequest.get().hasFailures(), is(false));
         }
-        assertThat(bulkRequest.get().hasFailures(), is(false));
 
-        final ForceMergeResponse forceMergeResponse = leaderClient().admin().indices().prepareForceMerge(leaderIndex).setFlush(true).get();
+        final ForceMergeResponse forceMergeResponse = leaderClient().admin().indices().prepareForceMerge(leaderIndex)
+            .setMaxNumSegments(1)
+            .setFlush(true)
+            .get();
         assertThat(forceMergeResponse.getSuccessfulShards(), equalTo(numberOfShards));
         assertThat(forceMergeResponse.getFailedShards(), equalTo(0));
         ensureLeaderGreen(leaderIndex);
@@ -562,7 +567,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     assertThat(snapshotShardSize,
                         equalTo(indexStats.getIndexShards().get(shardId).getPrimary().getStore().getSizeInBytes()));
                 }
-            });
+            }, 60L, TimeUnit.SECONDS);
 
             blockCcrRestore.countDown();
             ensureFollowerGreen(followerIndex);
@@ -676,7 +681,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     final long randomSize = randomNonNegativeLong();
                     assertThat(snapshotShardSizeInfo.getShardSize(primary, randomSize), equalTo(randomSize));
                 }
-            });
+            }, 60L, TimeUnit.SECONDS);
         } finally {
             transportServices.forEach(MockTransportService::clearAllRules);
         }

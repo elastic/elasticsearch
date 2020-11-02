@@ -31,7 +31,6 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -40,6 +39,7 @@ import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class DiscoveryNodeTests extends ESTestCase {
@@ -101,14 +101,6 @@ public class DiscoveryNodeTests extends ESTestCase {
                 return null;
             }
 
-            @Override
-            public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
-                if (nodeVersion.equals(Version.CURRENT)) {
-                    return this;
-                } else {
-                    return DiscoveryNodeRole.DATA_ROLE;
-                }
-            }
         };
 
         DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(),
@@ -122,20 +114,28 @@ public class DiscoveryNodeTests extends ESTestCase {
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
             in.setVersion(Version.CURRENT);
             DiscoveryNode serialized = new DiscoveryNode(in);
-            assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()),
-                equalTo("custom_role"));
+            final Set<DiscoveryNodeRole> roles = serialized.getRoles();
+            assertThat(roles, hasSize(1));
+            @SuppressWarnings("OptionalGetWithoutIsPresent") final DiscoveryNodeRole role = roles.stream().findFirst().get();
+            assertThat(role.roleName(), equalTo("custom_role"));
+            assertThat(role.roleNameAbbreviation(), equalTo("z"));
+            assertTrue(role.canContainData());
         }
 
         {
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setVersion(Version.V_7_10_0);
+            streamOutput.setVersion(Version.V_7_11_0);
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-            in.setVersion(Version.V_7_10_0);
+            in.setVersion(Version.V_7_11_0);
             DiscoveryNode serialized = new DiscoveryNode(in);
-            assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()),
-                equalTo("data"));
+            final Set<DiscoveryNodeRole> roles = serialized.getRoles();
+            assertThat(roles, hasSize(1));
+            @SuppressWarnings("OptionalGetWithoutIsPresent") final DiscoveryNodeRole role = roles.stream().findFirst().get();
+            assertThat(role.roleName(), equalTo("custom_role"));
+            assertThat(role.roleNameAbbreviation(), equalTo("z"));
+            assertTrue(role.canContainData());
         }
 
     }

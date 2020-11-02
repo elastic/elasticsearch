@@ -82,7 +82,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
     }
 
-    static class FakeFieldMapper extends ParametrizedFieldMapper {
+    static class FakeFieldMapper extends FieldMapper {
 
         final String indexedValue;
 

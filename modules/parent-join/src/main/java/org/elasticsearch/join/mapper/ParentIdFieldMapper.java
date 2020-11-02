@@ -28,8 +28,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -45,7 +45,7 @@ import java.util.function.Supplier;
  * A field mapper used internally by the {@link ParentJoinFieldMapper} to index
  * the value that link documents in the index (parent _id or _id if the document is a parent).
  */
-public final class ParentIdFieldMapper extends ParametrizedFieldMapper {
+public final class ParentIdFieldMapper extends FieldMapper {
     static final String CONTENT_TYPE = "parent";
 
     static class Defaults {
@@ -93,11 +93,6 @@ public final class ParentIdFieldMapper extends ParametrizedFieldMapper {
 
     protected ParentIdFieldMapper(String name, boolean eagerGlobalOrdinals) {
         super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), MultiFields.empty(), CopyTo.empty());
-    }
-
-    @Override
-    protected ParentIdFieldMapper clone() {
-        return (ParentIdFieldMapper) super.clone();
     }
 
     @Override

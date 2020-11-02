@@ -60,7 +60,7 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 
 /** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
-public class RangeFieldMapper extends ParametrizedFieldMapper {
+public class RangeFieldMapper extends FieldMapper {
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
@@ -77,7 +77,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         return (RangeFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -296,7 +296,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, coerceByDefault).init(this);
     }
 
@@ -308,11 +308,6 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return fieldType().typeName();
-    }
-
-    @Override
-    protected RangeFieldMapper clone() {
-        return (RangeFieldMapper) super.clone();
     }
 
     @Override

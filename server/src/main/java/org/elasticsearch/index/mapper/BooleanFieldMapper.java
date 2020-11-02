@@ -50,7 +50,7 @@ import java.util.function.Supplier;
 /**
  * A field mapper for boolean fields.
  */
-public class BooleanFieldMapper extends ParametrizedFieldMapper {
+public class BooleanFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 
@@ -74,7 +74,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         return (BooleanFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  true);
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -273,8 +273,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         return Collections.singletonMap(name(), Lucene.KEYWORD_ANALYZER);
     }
 
-    @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 

@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
@@ -68,7 +67,7 @@ import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
 /**
  * A {@link FieldMapper} for indexing fields with version strings.
  */
-public class VersionStringFieldMapper extends ParametrizedFieldMapper {
+public class VersionStringFieldMapper extends FieldMapper {
 
     private static final byte[] MIN_VALUE = new byte[16];
     private static final byte[] MAX_VALUE = new byte[16];
@@ -90,7 +89,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    static class Builder extends ParametrizedFieldMapper.Builder {
+    static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -332,11 +331,6 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected VersionStringFieldMapper clone() {
-        return (VersionStringFieldMapper) super.clone();
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String versionString;
         if (context.externalValueSet()) {
@@ -395,7 +389,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
     };
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

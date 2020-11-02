@@ -79,7 +79,7 @@ import static org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType.hasGa
  *     └── [ PrefixFieldMapper, PrefixFieldType, analysis wrapped with max_shingle_size-shingles and edge-ngrams ]
  * </pre>
  */
-public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
+public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "search_as_you_type";
     private static final int MAX_SHINGLE_SIZE_LOWER_BOUND = 2;
@@ -99,7 +99,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         return ((SearchAsYouTypeFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> builder(m).index.get(), true);
         private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.get(), false);
@@ -397,10 +397,12 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
     static final class PrefixFieldMapper extends FieldMapper {
 
         final NamedAnalyzer analyzer;
+        final FieldType fieldType;
 
         PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType, NamedAnalyzer analyzer) {
-            super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+            super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
             this.analyzer = analyzer;
+            this.fieldType = fieldType;
         }
 
         @Override
@@ -418,8 +420,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+        public Builder getMergeBuilder() {
+            return null;
         }
 
         @Override
@@ -441,10 +443,13 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
     static final class ShingleFieldMapper extends FieldMapper {
 
         final NamedAnalyzer analyzer;
+        private final FieldType fieldType;
+
 
         ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype, NamedAnalyzer analyzer) {
-            super(mappedFieldtype.name(), fieldType, mappedFieldtype, MultiFields.empty(), CopyTo.empty());
+            super(mappedFieldtype.name(), mappedFieldtype, MultiFields.empty(), CopyTo.empty());
             this.analyzer = analyzer;
+            this.fieldType = fieldType;
         }
 
         FieldType getLuceneFieldType() {
@@ -467,8 +472,8 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+        public Builder getMergeBuilder() {
+            return null;
         }
 
         @Override
@@ -580,11 +585,17 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        context.doc().add(new Field(fieldType().name(), value, fieldType().fieldType));
-        for (ShingleFieldMapper subFieldMapper : shingleFields) {
-            context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
+        if (this.builder.index.get() == false && this.builder.store.get() == false) {
+            return;
         }
-        context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
+
+        context.doc().add(new Field(fieldType().name(), value, fieldType().fieldType));
+        if (this.builder.index.get()) {
+            for (ShingleFieldMapper subFieldMapper : shingleFields) {
+                context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
+            }
+            context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
+        }
         if (fieldType().fieldType.omitNorms()) {
             createFieldNamesField(context);
         }
@@ -600,8 +611,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         return Collections.singletonMap(name(), analyzer);
     }
 
-    @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), builder.analyzers.indexAnalyzer::getDefaultValue).init(this);
     }
 

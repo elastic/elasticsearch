@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,14 +38,15 @@ import java.util.Set;
 public class StringTermsTests extends InternalTermsTestCase {
     private BytesRef[] dict;
 
-    @Before
-    public void generateRandomDict() {
-        Set<BytesRef> terms = new HashSet<>();
-        int numTerms = randomIntBetween(2, 100);
-        for (int i = 0; i < numTerms; i++) {
-            terms.add(new BytesRef(randomAlphaOfLength(10)));
+    public synchronized void generateRandomDict() {
+        if (dict == null) {
+            Set<BytesRef> terms = new HashSet<>();
+            int numTerms = randomIntBetween(2, 100);
+            for (int i = 0; i < numTerms; i++) {
+                terms.add(new BytesRef(randomAlphaOfLength(10)));
+            }
+            dict = terms.stream().toArray(BytesRef[]::new);
         }
-        dict = terms.stream().toArray(BytesRef[]::new);
     }
 
     @Override
@@ -53,6 +55,7 @@ public class StringTermsTests extends InternalTermsTestCase {
                                                      InternalAggregations aggregations,
                                                      boolean showTermDocCountError,
                                                      long docCountError) {
+        generateRandomDict();
         BucketOrder order = BucketOrder.count(false);
         long minDocCount = 1;
         int requiredSize = 3;

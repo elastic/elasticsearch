@@ -131,4 +131,5 @@ public class ParsedMediaType {
         // undefined parameters are not allowed
         return false;
     }
+
 }

@@ -116,34 +116,6 @@ public class XContentTypeTests extends ESTestCase {
             equalTo(XContentType.JSON));
         assertThat(XContentType.fromMediaType("APPLICATION/JSON"),
             equalTo(XContentType.JSON));
-
-
-    }
-
-    public void testVersionParsing() {
-        byte version = randomNonNegativeByte();
-        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+json;compatible-with=" + version),
-            equalTo(version));
-        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+cbor;compatible-with=" + version),
-            equalTo(version));
-        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+smile;compatible-with=" + version),
-            equalTo(version));
-        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+x-ndjson;compatible-with=" + version),
-            equalTo(version));
-        assertThat(XContentType.parseVersion("application/json"),
-            nullValue());
-
-
-        assertThat(XContentType.parseVersion("APPLICATION/VND.ELASTICSEARCH+JSON;COMPATIBLE-WITH=" + version),
-            equalTo(version));
-        assertThat(XContentType.parseVersion("APPLICATION/JSON"),
-            nullValue());
-
-        //validation is done when parsing a MediaType
-        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + ".0"),
-            is(nullValue()));
-        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + "_sth"),
-            nullValue());
     }
 
     public void testUnrecognizedParameters() {
@@ -152,7 +124,10 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version),
             is(nullValue()));
 
-        assertThat(XContentType.parseVersion("application/json; sth=123"),
+
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + ".0"),
             is(nullValue()));
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + "_sth"),
+            nullValue());
     }
 }

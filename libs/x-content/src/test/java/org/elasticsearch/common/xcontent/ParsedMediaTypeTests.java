@@ -121,4 +121,7 @@ public class ParsedMediaTypeTests extends ESTestCase {
         // When using curl */* is used a default Accept header when not specified by a user
         assertThat(ParsedMediaType.parseMediaType("*/*"), is(nullValue()));
     }
+
+
+
 }

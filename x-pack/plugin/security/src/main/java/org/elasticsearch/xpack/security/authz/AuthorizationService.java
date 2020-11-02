@@ -191,11 +191,16 @@ public class AuthorizationService {
                 if (isInternalUser(authentication.getUser()) != false) {
                     auditId = AuditUtil.getOrGenerateRequestId(threadContext);
                 } else {
-                    auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);
                     final String message = "Attempt to authorize action [" + action + "] for [" + authentication.getUser().principal()
                             + "] without an existing request-id";
                     assert false : message;
-                    listener.onFailure(new ElasticsearchSecurityException(message));
+                    ElasticsearchSecurityException ese = new ElasticsearchSecurityException(message);
+                    try {
+                        auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);
+                    } catch (Exception e) {
+                        ese.addSuppressed(e);
+                    }
+                    listener.onFailure(ese);
                 }
             }
 
@@ -229,21 +234,36 @@ public class AuthorizationService {
             ActionListener<AuthorizationResult> runAsListener = wrapPreservingContext(ActionListener.wrap(result -> {
                 if (result.isGranted()) {
                     if (result.isAuditable()) {
-                        auditTrail.runAsGranted(requestId, authentication, action, request,
-                            authzInfo.getAuthenticatedUserAuthorizationInfo());
+                        try {
+                            auditTrail.runAsGranted(requestId, authentication, action, request,
+                                    authzInfo.getAuthenticatedUserAuthorizationInfo());
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                            return;
+                        }
                     }
                     authorizeAction(requestInfo, requestId, authzInfo, listener);
                 } else {
+                    ElasticsearchSecurityException denialException = denialException(authentication, action, null);
                     if (result.isAuditable()) {
-                        auditTrail.runAsDenied(requestId, authentication, action, request,
-                            authzInfo.getAuthenticatedUserAuthorizationInfo());
+                        try {
+                            auditTrail.runAsDenied(requestId, authentication, action, request,
+                                    authzInfo.getAuthenticatedUserAuthorizationInfo());
+                        } catch (Exception e) {
+                            denialException.addSuppressed(e);
+                        }
                     }
-                    listener.onFailure(denialException(authentication, action, null));
+                    listener.onFailure(denialException);
                 }
             }, e -> {
-                auditTrail.runAsDenied(requestId, authentication, action, request,
-                    authzInfo.getAuthenticatedUserAuthorizationInfo());
-                listener.onFailure(denialException(authentication, action, null));
+                ElasticsearchSecurityException denialException = denialException(authentication, action, e);
+                try {
+                    auditTrail.runAsDenied(requestId, authentication, action, request,
+                            authzInfo.getAuthenticatedUserAuthorizationInfo());
+                } catch (Exception ex) {
+                    denialException.addSuppressed(ex);
+                }
+                listener.onFailure(denialException);
             }), threadContext);
             authorizeRunAs(requestInfo, authzInfo, runAsListener);
         } else {
@@ -274,12 +294,18 @@ public class AuthorizationService {
                 authorizedIndicesSupplier.getAsync(ActionListener.wrap(authorizedIndices -> {
                     resolveIndexNames(request, metadata, authorizedIndices, resolvedIndicesListener);
                 }, e -> {
-                    auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
+                    final Exception denialException;
                     if (e instanceof IndexNotFoundException) {
-                        listener.onFailure(e);
+                        denialException = e;
                     } else {
-                        listener.onFailure(denialException(authentication, action, e));
+                        denialException = denialException(authentication, action, e);
                     }
+                    try {
+                        auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
+                    } catch (Exception ex) {
+                        denialException.addSuppressed(ex);
+                    }
+                    listener.onFailure(denialException);
                 }));
             });
             authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier,
@@ -289,8 +315,13 @@ public class AuthorizationService {
                     listener::onFailure, requestInfo, requestId, authzInfo), threadContext));
         } else {
             logger.warn("denying access as action [{}] is not an index or cluster action", action);
-            auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-            listener.onFailure(denialException(authentication, action, null));
+            ElasticsearchSecurityException denialException = denialException(authentication, action, null);
+            try {
+                auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
+            } catch (Exception ex) {
+                denialException.addSuppressed(ex);
+            }
+            listener.onFailure(denialException);
         }
     }
 
@@ -401,11 +432,21 @@ public class AuthorizationService {
         if (SystemUser.isAuthorized(action)) {
             threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
             threadContext.putTransient(AUTHORIZATION_INFO_KEY, SYSTEM_AUTHZ_INFO);
-            auditTrail.accessGranted(requestId, authentication, action, request, SYSTEM_AUTHZ_INFO);
+            try {
+                auditTrail.accessGranted(requestId, authentication, action, request, SYSTEM_AUTHZ_INFO);
+            } catch (Exception ex) {
+                listener.onFailure(ex);
+                return;
+            }
             listener.onResponse(null);
         } else {
-            auditTrail.accessDenied(requestId, authentication, action, request, SYSTEM_AUTHZ_INFO);
-            listener.onFailure(denialException(authentication, action, null));
+            ElasticsearchSecurityException denialException = denialException(authentication, action, null);
+            try {
+                auditTrail.accessDenied(requestId, authentication, action, request, SYSTEM_AUTHZ_INFO);
+            } catch (Exception e) {
+                denialException.addSuppressed(e);
+            }
+            listener.onFailure(denialException);
         }
     }
 
@@ -423,14 +464,24 @@ public class AuthorizationService {
             if (isProxyAction && isOriginalRequestProxyRequest == false) {
                 IllegalStateException cause = new IllegalStateException("originalRequest is not a proxy request: [" + originalRequest +
                     "] but action: [" + action + "] is a proxy action");
-                auditTrail.accessDenied(requestId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
-                throw denialException(authentication, action, cause);
+                ElasticsearchSecurityException denialException = denialException(authentication, action, cause);
+                try {
+                    auditTrail.accessDenied(requestId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
+                } catch (Exception ex) {
+                    denialException.addSuppressed(ex);
+                }
+                throw denialException;
             }
             if (TransportActionProxy.isProxyRequest(originalRequest) && TransportActionProxy.isProxyAction(action) == false) {
                 IllegalStateException cause = new IllegalStateException("originalRequest is a proxy request for: [" + request +
                     "] but action: [" + action + "] isn't");
-                auditTrail.accessDenied(requestId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
-                throw denialException(authentication, action, cause);
+                ElasticsearchSecurityException denialException = denialException(authentication, action, cause);
+                try {
+                    auditTrail.accessDenied(requestId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
+                } catch (Exception ex) {
+                    denialException.addSuppressed(ex);
+                }
+                throw denialException;
             }
         }
         return request;
@@ -657,11 +708,11 @@ public class AuthorizationService {
         @Override
         public void onResponse(T result) {
             if (result.isGranted()) {
-                if (result.isAuditable()) {
-                    auditTrailService.get().accessGranted(requestId, requestInfo.getAuthentication(),
-                        requestInfo.getAction(), requestInfo.getRequest(), authzInfo);
-                }
                 try {
+                    if (result.isAuditable()) {
+                        auditTrailService.get().accessGranted(requestId, requestInfo.getAuthentication(),
+                                requestInfo.getAction(), requestInfo.getRequest(), authzInfo);
+                    }
                     responseConsumer.accept(result);
                 } catch (Exception e) {
                     failureConsumer.accept(e);
@@ -677,11 +728,17 @@ public class AuthorizationService {
         }
 
         private void handleFailure(boolean audit, @Nullable String context, @Nullable Exception e) {
+            final ElasticsearchSecurityException denialException = denialException(requestInfo.getAuthentication(), requestInfo.getAction(),
+                    context, e);
             if (audit) {
-                auditTrailService.get().accessDenied(requestId, requestInfo.getAuthentication(), requestInfo.getAction(),
-                    requestInfo.getRequest(), authzInfo);
+                try {
+                    auditTrailService.get().accessDenied(requestId, requestInfo.getAuthentication(), requestInfo.getAction(),
+                            requestInfo.getRequest(), authzInfo);
+                } catch (Exception ex) {
+                    denialException.addSuppressed(ex);
+                }
             }
-            failureConsumer.accept(denialException(requestInfo.getAuthentication(), requestInfo.getAction(), context, e));
+            failureConsumer.accept(denialException);
         }
     }
 

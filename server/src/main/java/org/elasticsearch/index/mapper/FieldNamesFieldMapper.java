@@ -131,7 +131,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(SearchFields searchFields, SearchLookup lookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 

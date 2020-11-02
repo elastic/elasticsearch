@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -42,11 +43,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -78,7 +81,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
@@ -1586,7 +1588,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         public MetadataTimestampFieldMapper(boolean enabled) {
             super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Map.of()) {
                 @Override
-                public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+                public ValueFetcher valueFetcher(SearchFields searchFields, SearchLookup searchLookup, String format) {
                     throw new UnsupportedOperationException();
                 }
 

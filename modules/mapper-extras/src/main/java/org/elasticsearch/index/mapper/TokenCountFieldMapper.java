@@ -92,7 +92,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchFields searchFields, SearchLookup searchLookup, String format) {
             if (hasDocValues() == false) {
                 return lookup -> List.of();
             }

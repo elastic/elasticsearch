@@ -39,17 +39,17 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
 
-    public SourceValueFetcher(String fieldName, MapperService mapperService) {
-        this(fieldName, mapperService, null);
+    public SourceValueFetcher(String fieldName, SearchFields searchFields) {
+        this(fieldName, searchFields, null);
     }
 
     /**
      * @param fieldName The name of the field.
-     * @param mapperService A mapper service.
+     * @param searchFields Lookup for the source paths.
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
-    public SourceValueFetcher(String fieldName, MapperService mapperService, Object nullValue) {
-        this.sourcePaths = mapperService.sourcePath(fieldName);
+    public SourceValueFetcher(String fieldName, SearchFields searchFields, Object nullValue) {
+        this.sourcePaths = searchFields.sourcePath(fieldName);
         this.nullValue = nullValue;
     }
 
@@ -91,11 +91,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     /**
      * Creates a {@link SourceValueFetcher} that passes through source values unmodified.
      */
-    public static SourceValueFetcher identity(String fieldName, MapperService mapperService, String format) {
+    public static SourceValueFetcher identity(String fieldName, SearchFields searchFields, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
-        return new SourceValueFetcher(fieldName, mapperService) {
+        return new SourceValueFetcher(fieldName, searchFields) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value;
@@ -106,11 +106,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     /**
      * Creates a {@link SourceValueFetcher} that converts source values to strings.
      */
-    public static SourceValueFetcher toString(String fieldName, MapperService mapperService, String format) {
+    public static SourceValueFetcher toString(String fieldName, SearchFields searchFields, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
-        return new SourceValueFetcher(fieldName, mapperService) {
+        return new SourceValueFetcher(fieldName, searchFields) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value.toString();

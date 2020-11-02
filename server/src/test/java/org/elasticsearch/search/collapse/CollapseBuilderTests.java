@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.mapper.TestSearchFields;
@@ -233,7 +232,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 }
 
                 @Override
-                public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+                public ValueFetcher valueFetcher(SearchFields searchFields, SearchLookup searchLookup, String format) {
                     throw new UnsupportedOperationException();
                 }
 

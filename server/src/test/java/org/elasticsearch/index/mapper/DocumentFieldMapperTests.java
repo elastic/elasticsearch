@@ -71,7 +71,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchFields searchFields, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
 

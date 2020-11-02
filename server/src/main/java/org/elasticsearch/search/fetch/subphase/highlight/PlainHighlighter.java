@@ -100,12 +100,10 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = context.mapperService().documentMapper().mappers().indexAnalyzer();
+        Analyzer analyzer = context.searchFields().getIndexAnalyzer();
         Integer keywordIgnoreAbove = null;
         if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper mapper = (KeywordFieldMapper) context.mapperService().documentMapper()
-                .mappers().getMapper(fieldContext.fieldName);
-            keywordIgnoreAbove = mapper.ignoreAbove();
+            keywordIgnoreAbove = ((KeywordFieldMapper.KeywordFieldType) fieldContext.fieldType).ignoreAbove();
         }
         final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
 

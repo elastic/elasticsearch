@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
@@ -72,15 +72,15 @@ public class FetchContext {
     /**
      * The mapper service for the index we are fetching documents from
      */
-    public MapperService mapperService() {
-        return searchContext.mapperService();
+    public SearchFields searchFields() {
+        return searchContext.getQueryShardContext().searchFields();
     }
 
     /**
      * The index settings for the index we are fetching documents from
      */
     public IndexSettings getIndexSettings() {
-        return mapperService().getIndexSettings();
+        return searchContext.getQueryShardContext().getIndexSettings();
     }
 
     /**

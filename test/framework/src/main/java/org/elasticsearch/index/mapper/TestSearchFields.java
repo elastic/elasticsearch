@@ -114,4 +114,14 @@ public class TestSearchFields extends SearchFields {
     public Analyzer getIndexAnalyzer() {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public Set<String> sourcePath(String fieldName) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean sourceEnabled() {
+        return true;
+    }
 }

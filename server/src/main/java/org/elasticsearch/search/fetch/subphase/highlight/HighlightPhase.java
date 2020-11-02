@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -104,14 +103,13 @@ public class HighlightPhase implements FetchSubPhase {
             Highlighter highlighter = getHighlighter(field);
             Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
-                fieldNamesToHighlight = context.mapperService().simpleMatchToFullName(field.field());
+                fieldNamesToHighlight = context.searchFields().simpleMatchToIndexNames(field.field());
             } else {
                 fieldNamesToHighlight = Collections.singletonList(field.field());
             }
 
             if (highlightContext.forceSource(field)) {
-                SourceFieldMapper sourceFieldMapper = context.mapperService().documentMapper().sourceMapper();
-                if (sourceFieldMapper.enabled() == false) {
+                if (context.searchFields().sourceEnabled() == false) {
                     throw new IllegalArgumentException("source is forced for fields " + fieldNamesToHighlight
                         + " but _source is disabled");
                 }
@@ -119,7 +117,7 @@ public class HighlightPhase implements FetchSubPhase {
 
             boolean fieldNameContainsWildcards = field.field().contains("*");
             for (String fieldName : fieldNamesToHighlight) {
-                MappedFieldType fieldType = context.mapperService().fieldType(fieldName);
+                MappedFieldType fieldType = context.searchFields().fieldType(fieldName);
                 if (fieldType == null) {
                     continue;
                 }

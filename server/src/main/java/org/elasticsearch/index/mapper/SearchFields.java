@@ -158,4 +158,16 @@ public class SearchFields {
     public Analyzer getIndexAnalyzer() {
         return mapperService.indexAnalyzer();
     }
+
+    public boolean sourceEnabled() {
+        return mapperService.documentMapper().sourceMapper().enabled();
+    }
+
+    public Set<String> sourcePath(String fieldName) {
+        return mapperService.sourcePath(fieldName);
+    }
+
+    public boolean isMetadataField(String field) {
+        return mapperService.isMetadataField(field);
+    }
 }

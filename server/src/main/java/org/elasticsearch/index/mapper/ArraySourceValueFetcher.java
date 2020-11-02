@@ -38,17 +38,17 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
 
-    public ArraySourceValueFetcher(String fieldName, MapperService mapperService) {
-        this(fieldName, mapperService, null);
+    public ArraySourceValueFetcher(String fieldName, SearchFields searchFields) {
+        this(fieldName, searchFields, null);
     }
 
     /**
      * @param fieldName The name of the field.
-     * @param mapperService A mapper service.
+     * @param searchFields Lookup for the source paths.
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
-    public ArraySourceValueFetcher(String fieldName, MapperService mapperService, Object nullValue) {
-        this.sourcePaths = mapperService.sourcePath(fieldName);
+    public ArraySourceValueFetcher(String fieldName, SearchFields searchFields, Object nullValue) {
+        this.sourcePaths = searchFields.sourcePath(fieldName);
         this.nullValue = nullValue;
     }
 

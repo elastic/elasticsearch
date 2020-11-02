@@ -18,7 +18,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -214,7 +214,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+    public ValueFetcher valueFetcher(SearchFields searchFields, SearchLookup lookup, String format) {
         return new DocValueFetcher(docValueFormat(format, null), lookup.doc().getForField(this));
     }
 }

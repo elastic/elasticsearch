@@ -22,7 +22,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -40,7 +40,7 @@ import java.util.Set;
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
 public class FieldFetcher {
-    public static FieldFetcher create(MapperService mapperService,
+    public static FieldFetcher create(SearchFields searchFields,
                                       SearchLookup searchLookup,
                                       Collection<FieldAndFormat> fieldAndFormats) {
 
@@ -50,13 +50,13 @@ public class FieldFetcher {
             String fieldPattern = fieldAndFormat.field;
             String format = fieldAndFormat.format;
 
-            Collection<String> concreteFields = mapperService.simpleMatchToFullName(fieldPattern);
+            Collection<String> concreteFields = searchFields.simpleMatchToIndexNames(fieldPattern);
             for (String field : concreteFields) {
-                MappedFieldType ft = mapperService.fieldType(field);
-                if (ft == null || mapperService.isMetadataField(field)) {
+                MappedFieldType ft = searchFields.fieldType(field);
+                if (ft == null || searchFields.isMetadataField(field)) {
                     continue;
                 }
-                ValueFetcher valueFetcher = ft.valueFetcher(mapperService, searchLookup, format);
+                ValueFetcher valueFetcher = ft.valueFetcher(searchFields, searchLookup, format);
                 fieldContexts.add(new FieldContext(field, valueFetcher));
             }
         }

@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SearchFields;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -402,7 +403,8 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(mapperService, null, fields);
+        // TODO replace this with a test impl. No need for a full "single node test" here.
+        FieldFetcher fieldFetcher = FieldFetcher.create(new SearchFields(mapperService), null, fields);
         return fieldFetcher.fetch(sourceLookup, Set.of());
     }
 

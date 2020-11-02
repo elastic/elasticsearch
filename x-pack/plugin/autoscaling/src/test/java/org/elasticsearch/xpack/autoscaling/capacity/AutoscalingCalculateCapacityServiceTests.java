@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCase {
@@ -213,6 +214,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
 
     public void testValidateSettingValue() {
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
+        String value = randomValueOtherThanMany(s -> Character.isDigit(s.charAt(0)), () -> randomAlphaOfLength(5));
         AutoscalingPolicy policy = new AutoscalingPolicy(
             randomAlphaOfLength(8),
             randomRoles(),
@@ -222,12 +224,20 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                     Settings.builder()
                         .put(
                             FixedAutoscalingDeciderService.STORAGE.getKey(),
-                            randomValueOtherThanMany(s -> Character.isDigit(s.charAt(0)), () -> randomAlphaOfLength(5))
+                            value
                         )
                         .build()
                 )
             )
         );
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
+        assertThat(
+            exception.getMessage(),
+            containsString("[" + value + "]")
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("[" + FixedAutoscalingDeciderService.STORAGE.getKey() + "]")
+        );
     }
 }

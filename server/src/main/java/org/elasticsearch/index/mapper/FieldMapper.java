@@ -946,14 +946,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     iterator.remove();
                     continue;
                 }
-                if (Objects.equals("boost", propName)) {
-                    deprecationLogger.deprecate(
-                        "boost",
-                        "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
-                        name);
-                    iterator.remove();
-                    continue;
-                }
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
                 if (parameter != null) {
                     deprecationLogger.deprecate(propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
@@ -970,6 +962,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     }
                     throw new MapperParsingException("unknown parameter [" + propName
                         + "] on mapper [" + name + "] of type [" + type + "]");
+                }
+                if (Objects.equals("boost", propName)) {
+                    deprecationLogger.deprecate(
+                        "boost",
+                        "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
+                        name);
                 }
                 if (parameter.deprecated) {
                     deprecationLogger.deprecate(propName,

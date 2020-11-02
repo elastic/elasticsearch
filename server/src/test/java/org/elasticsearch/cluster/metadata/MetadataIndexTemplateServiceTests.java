@@ -107,7 +107,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build());
         }
         if (randomBoolean()) {
-            pr.mappings("{}");
+            pr.mappings(Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, "{}"));
         }
         if (randomBoolean()) {
             pr.aliases(Collections.singleton(new Alias("alias")));

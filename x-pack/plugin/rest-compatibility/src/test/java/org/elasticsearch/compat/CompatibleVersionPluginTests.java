@@ -205,8 +205,7 @@ public class CompatibleVersionPluginTests extends ESTestCase {
         );
         assertThat(CompatibleVersionPlugin.parseVersion(ParsedMediaType.parseMediaType("APPLICATION/JSON")), nullValue());
 
-        assertThat(CompatibleVersionPlugin.parseVersion(ParsedMediaType.parseMediaType("application/json; sth=123")),
-            is(nullValue()));
+        assertThat(CompatibleVersionPlugin.parseVersion(ParsedMediaType.parseMediaType("application/json; sth=123")), is(nullValue()));
 
     }
 

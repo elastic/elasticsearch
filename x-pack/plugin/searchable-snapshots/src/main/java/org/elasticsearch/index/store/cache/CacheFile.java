@@ -21,10 +21,12 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
@@ -418,19 +420,19 @@ public class CacheFile {
      * Ensure that all ranges of data written to the cache file are written to the storage device that contains it. This method returns the
      * list of all successfully written ranges of data since the creation of the cache file.
      *
-     * @return the list of ranges of data available in cache at the time this method is invoked
+     * @return a sorted set of ranges of data available in cache at the time calling this method resulted in performing a fsync
      * @throws IOException                       if the cache file failed to be fsync
      * @throws AlreadyClosedException            if the cache file is evicted
      * @throws java.nio.file.NoSuchFileException if the cache file does not exist
      */
-    public List<Tuple<Long, Long>> fsync() throws IOException {
+    public SortedSet<Tuple<Long, Long>> fsync() throws IOException {
         ensureOpen();
         if (refCounter.tryIncRef()) {
             try {
                 // Capture the completed ranges before fsyncing; ranges that are completed after this point won't be considered as
                 // persisted on disk by the caller of this method, even if they are fully written to disk at the time the file
                 // fsync is effectively executed
-                final List<Tuple<Long, Long>> completedRanges = tracker.getCompletedRanges();
+                final SortedSet<Tuple<Long, Long>> completedRanges = tracker.getCompletedRanges();
                 assert completedRanges != null;
 
                 if (fsynced.compareAndSet(false, true)) {
@@ -454,6 +456,6 @@ public class CacheFile {
             assert evicted.get();
             throwAlreadyEvicted();
         }
-        return List.of();
+        return Collections.emptySortedSet();
     }
 }

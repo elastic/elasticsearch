@@ -15,9 +15,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -432,13 +432,13 @@ public class SparseFileTrackerTests extends ESTestCase {
 
         // merge adjacent processed ranges as the SparseFileTracker does internally when a gap is completed
         // in order to check that SparseFileTracker.getCompletedRanges() returns the expected values
-        final List<Tuple<Long, Long>> expectedCompletedRanges = gapsProcessed.stream()
+        final SortedSet<Tuple<Long, Long>> expectedCompletedRanges = gapsProcessed.stream()
             .map(gap -> Tuple.tuple(gap.start(), gap.end()))
-            .collect(LinkedList::new, (gaps, gap) -> {
+            .collect(() -> new TreeSet<>(Comparator.comparingLong(Tuple::v1)), (gaps, gap) -> {
                 if (gaps.isEmpty()) {
                     gaps.add(gap);
                 } else {
-                    final Tuple<Long, Long> previous = gaps.removeLast();
+                    final Tuple<Long, Long> previous = gaps.pollLast();
                     if (previous.v2().equals(gap.v1())) {
                         gaps.add(Tuple.tuple(previous.v1(), gap.v2()));
                     } else {
@@ -448,8 +448,8 @@ public class SparseFileTrackerTests extends ESTestCase {
                 }
             }, (gaps1, gaps2) -> {
                 if (gaps1.isEmpty() == false && gaps2.isEmpty() == false) {
-                    final Tuple<Long, Long> last = gaps1.removeLast();
-                    final Tuple<Long, Long> first = gaps2.removeFirst();
+                    final Tuple<Long, Long> last = gaps1.pollLast();
+                    final Tuple<Long, Long> first = gaps2.pollFirst();
                     if (last.v2().equals(first.v1())) {
                         gaps1.add(Tuple.tuple(last.v1(), first.v2()));
                     } else {
@@ -460,7 +460,7 @@ public class SparseFileTrackerTests extends ESTestCase {
                 gaps1.addAll(gaps2);
             });
 
-        final List<Tuple<Long, Long>> completedRanges = sparseFileTracker.getCompletedRanges();
+        final SortedSet<Tuple<Long, Long>> completedRanges = sparseFileTracker.getCompletedRanges();
         assertThat(completedRanges, hasSize(expectedCompletedRanges.size()));
         assertThat(completedRanges, equalTo(expectedCompletedRanges));
     }

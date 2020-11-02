@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
@@ -211,7 +212,7 @@ public class CacheFileTests extends ESTestCase {
             final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
 
-            List<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
+            SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
             assertNumberOfFSyncs(cacheFile.getFile(), equalTo(1L));
             assertThat(completedRanges, hasSize(0));
             assertTrue(cacheFile.isFSynced());
@@ -277,7 +278,7 @@ public class CacheFileTests extends ESTestCase {
                     waitForGenericThreadPool(threadPool, 1L);
                     assertFalse(cacheFile.isFSynced());
 
-                    final List<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
+                    final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
                     assertNumberOfFSyncs(cacheFile.getFile(), equalTo(1L));
                     assertThat(completedRanges, hasSize(1));
                     assertTrue(cacheFile.isFSynced());
@@ -330,7 +331,7 @@ public class CacheFileTests extends ESTestCase {
 
                 fileSystem.failFSyncs.set(false);
 
-                final List<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
+                final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
                 assertThat(completedRanges.size(), equalTo(hasCompletedRange ? 1 : 0));
                 assertNumberOfFSyncs(cacheFile.getFile(), equalTo(1L));
                 assertTrue(cacheFile.isFSynced());

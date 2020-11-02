@@ -142,7 +142,7 @@ The following parameters are accepted by `text` fields:
 
     Metadata about the field.
 
-[[fielddata]]
+[[fielddata-mapping-param]]
 ==== `fielddata` mapping parameter
 
 `text` fields are searchable by default, but by default are not available for

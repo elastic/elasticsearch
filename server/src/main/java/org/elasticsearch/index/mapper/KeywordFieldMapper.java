@@ -47,7 +47,7 @@ import java.util.function.Supplier;
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
  */
-public final class KeywordFieldMapper extends ParametrizedFieldMapper {
+public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
 
@@ -74,7 +74,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         return (KeywordFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -336,11 +336,6 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected KeywordFieldMapper clone() {
-        return (KeywordFieldMapper) super.clone();
-    }
-
-    @Override
     public KeywordFieldType fieldType() {
         return (KeywordFieldType) super.fieldType();
     }
@@ -410,7 +405,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers).init(this);
     }
 }

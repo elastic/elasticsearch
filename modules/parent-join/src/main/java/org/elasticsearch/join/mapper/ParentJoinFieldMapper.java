@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -62,7 +61,7 @@ import java.util.function.Supplier;
  * This field is only used to ensure that there is a single parent-join field defined in the mapping and
  * cannot be used to index or query any data.
  */
-public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
+public final class ParentJoinFieldMapper extends FieldMapper {
 
     public static final String NAME = "join";
     public static final String CONTENT_TYPE = "join";
@@ -96,7 +95,7 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
         return (ParentJoinFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true,
             m -> toType(m).eagerGlobalOrdinals, true);
@@ -208,11 +207,6 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected ParentJoinFieldMapper clone() {
-        return (ParentJoinFieldMapper) super.clone();
-    }
-
-    @Override
     public JoinFieldType fieldType() {
         return (JoinFieldType) super.fieldType();
     }
@@ -312,7 +306,7 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 

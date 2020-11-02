@@ -526,7 +526,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // and close the shard so no operations are allowed to it
                 if (indexShard != null) {
                     try {
-                        // only flush we are we closed (closed index or shutdown) and if we are not deleted
+                        // only flush if we are closed (closed index or shutdown) and if we are not deleted
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {

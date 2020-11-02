@@ -42,10 +42,8 @@ public class BlobStoreSizeLimitIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> failingSnapshotFuture = startFullSnapshot(repoName, "failing-snapshot");
         final RepositoryException repositoryException = expectThrows(RepositoryException.class, failingSnapshotFuture::actionGet);
         assertThat(repositoryException.getMessage(), Matchers.endsWith(
-                "Can not add another snapshot to this repository as it already contains [" + maxSnapshots +
-                        "] snapshots and is configured to hold up to [" + maxSnapshots + "] snapshots only. "
-                        + "Please increase repository setting [" + BlobStoreRepository.MAX_SNAPSHOTS_SETTING.getKey() +
-                        "] to be able to add additional snapshots to this repository."));
+                "Cannot add another snapshot to this repository as it already contains [" + maxSnapshots +
+                        "] snapshots and is configured to hold up to [" + maxSnapshots + "] snapshots only."));
         assertEquals(repositoryException.repository(), repoName);
         assertAcked(startDeleteSnapshot(repoName, randomFrom(snapshotNames)).get());
         createFullSnapshot(repoName, "last-snapshot");

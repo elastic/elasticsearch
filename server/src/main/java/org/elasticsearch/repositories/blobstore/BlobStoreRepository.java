@@ -1098,8 +1098,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (existingSnapshotCount >= maxSnapshotCount) {
                 listener.onFailure(new RepositoryException(metadata.name(), "Cannot add another snapshot to this repository as it " +
                         "already contains [" + existingSnapshotCount + "] snapshots and is configured to hold up to [" + maxSnapshotCount +
-                        "] snapshots only. Please increase repository setting [" + MAX_SNAPSHOTS_SETTING.getKey() +
-                        "] to be able to add additional snapshots to this repository."));
+                        "] snapshots only."));
                 return;
             }
 

@@ -8,8 +8,7 @@ to ensure that {es} has enough heap available.
 
 {es} will assign the entire heap specified in
 <<jvm-options,jvm.options>> via the `Xms` (minimum heap size) and `Xmx` (maximum
-heap size) settings. You should set these two settings to equal each
-other.
+heap size) settings. These two settings must be equal to each other.
 
 The value for these settings depends on the amount of RAM available on your
 server:

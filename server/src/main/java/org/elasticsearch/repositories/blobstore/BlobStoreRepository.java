@@ -216,6 +216,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final Setting<Boolean> SUPPORT_URL_REPO = Setting.boolSetting("support_url_repo", true, Setting.Property.NodeScope);
 
+    /**
+     * Setting that defines the maximum number of snapshots to which the repository may grow. Trying to create a snapshot into the
+     * repository that would move it above this size will throw an exception.
+     */
+    public static final Setting<Integer> MAX_SNAPSHOTS_SETTING = Setting.intSetting("size_limit", 500, 1, Setting.Property.NodeScope);
+
     protected final boolean supportURLRepo;
 
     private final boolean compress;
@@ -296,6 +302,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     protected final int bufferSize;
 
     /**
+     * Maximum number of snapshots that this repository can hold.
+     */
+    private final int maxSnapshotCount;
+
+    /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
      * @param clusterService ClusterService
@@ -321,6 +332,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         this.namedXContentRegistry = namedXContentRegistry;
         this.basePath = basePath;
+        this.maxSnapshotCount = MAX_SNAPSHOTS_SETTING.get(metadata.settings());
     }
 
     @Override
@@ -1081,6 +1093,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final StepListener<RepositoryData> repoDataListener = new StepListener<>();
         getRepositoryData(repoDataListener);
         repoDataListener.whenComplete(existingRepositoryData -> {
+            final int existingSnapshotCount = existingRepositoryData.getSnapshotIds().size();
+            if (existingSnapshotCount >= maxSnapshotCount) {
+                listener.onFailure(new RepositoryException(metadata.name(), "Can not add another snapshot to this repository as it " +
+                        "already contains [" + existingSnapshotCount + "] snapshots and is configured to hold up to [" + maxSnapshotCount +
+                        "] snapshots only. Please increase repository setting [" + MAX_SNAPSHOTS_SETTING.getKey() +
+                        "] to be able to add additional snapshots to this repository."));
+                return;
+            }
 
             final Map<IndexId, String> indexMetas;
             final Map<String, String> indexMetaIdentifiers;

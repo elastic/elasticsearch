@@ -120,9 +120,6 @@ rem     jvm.options.d/*.options
 rem   - third, JVM options from ES_JAVA_OPTS are applied
 rem   - fourth, ergonomic JVM options are applied
 
-if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
-if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS:;;=;%
-
 @setlocal
 for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.JvmOptionsParser" "!ES_PATH_CONF!" "!ES_HOME!"/plugins ^|^| echo jvm_options_parser_failed`) do set ES_JAVA_OPTS=%%a
 @endlocal & set "MAYBE_JVM_OPTIONS_PARSER_FAILED=%ES_JAVA_OPTS%" & set ES_JAVA_OPTS=%ES_JAVA_OPTS%
@@ -131,7 +128,14 @@ if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
   exit /b 1
 )
 
-if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
+rem The output of the JVM options parses is space-delimited. We need to
+rem convert to semicolon-delimited and avoid doubled semicolons.
+@setlocal
+if not "%ES_JAVA_OPTS%" == "" (
+  set ES_JAVA_OPTS=!ES_JAVA_OPTS: =;!
+  set ES_JAVA_OPTS=!ES_JAVA_OPTS:;;=;!
+)
+@endlocal & set ES_JAVA_OPTS=%ES_JAVA_OPTS%
 
 if "%ES_JAVA_OPTS:~-1%"==";" set ES_JAVA_OPTS=%ES_JAVA_OPTS:~0,-1%
 

@@ -11,8 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
-import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
-
 public class PutAutoscalingPolicyActionRequestWireSerializingTests extends AbstractWireSerializingTestCase<
     PutAutoscalingPolicyAction.Request> {
 
@@ -23,7 +21,7 @@ public class PutAutoscalingPolicyActionRequestWireSerializingTests extends Abstr
 
     @Override
     protected PutAutoscalingPolicyAction.Request createTestInstance() {
-        return new PutAutoscalingPolicyAction.Request(randomAutoscalingPolicy());
+        return TransportPutAutoscalingPolicyActionTests.randomPutAutoscalingPolicyRequest();
     }
 
     @Override

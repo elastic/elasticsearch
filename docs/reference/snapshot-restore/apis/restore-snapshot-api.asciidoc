@@ -101,7 +101,7 @@ Name of the snapshot to restore.
 ==== {api-request-body-title}
 
 `ignore_unavailable`::
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, the request returns an error for any data stream or index that is missing or closed. Defaults to `false`.
 +
 If `true`, the request ignores data streams and indices in `indices` that are missing or closed.
@@ -111,7 +111,7 @@ If `true`, the request ignores data streams and indices in `indices` that are mi
 A comma-separated list of index settings that should not be restored from a snapshot.
 
 `include_aliases`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, index aliases from the original snapshot are restored.
 Defaults to `true`.
 +
@@ -122,7 +122,7 @@ indices.
 `include_global_state`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, the cluster state is not restored. Defaults to `false`.
 
 If `true`, the current cluster state is included in the restore operation.
@@ -160,7 +160,7 @@ argument is provided, the restore operation only includes the specified data str
 
 [[restore-snapshot-api-partial]]
 `partial`::
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, the entire restore operation will fail if one or more indices included in the snapshot do not have all primary shards available. Defaults to `false`.
 +
 If `true`, allows restoring a partial snapshot of indices with unavailable shards. Only shards that were successfully included in the snapshot
@@ -185,7 +185,7 @@ include::{es-ref-dir}/snapshot-restore/restore-snapshot.asciidoc[tag=rename-rest
 Defines the rename replacement string. See <<restore-snapshot-api-rename-pattern,`rename_pattern`>> for more information.
 
 `wait_for_completion`::
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, the request returns a response when the restore operation initializes.
 Defaults to `false`.
 +

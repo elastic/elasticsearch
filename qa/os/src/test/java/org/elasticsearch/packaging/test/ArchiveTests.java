@@ -72,7 +72,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test30MissingBundledJdk() throws Exception {
-        assumeTrue(Platforms.IS_BUNDLED_JDK_SUPPORTED);
         final Installation.Executables bin = installation.executables();
         sh.getEnv().remove("JAVA_HOME");
 

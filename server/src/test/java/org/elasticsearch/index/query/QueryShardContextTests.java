@@ -43,14 +43,21 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -61,6 +68,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -98,6 +106,12 @@ public class QueryShardContextTests extends ESTestCase {
         assertThat(result, notNullValue());
         assertThat(result, instanceOf(TextFieldMapper.TextFieldType.class));
         assertThat(result.name(), equalTo("name"));
+    }
+
+    public void testBuildAnonymousFieldType() {
+        QueryShardContext context = createQueryShardContext("uuid", null);
+        assertThat(context.buildAnonymousFieldType("keyword"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertThat(context.buildAnonymousFieldType("long"), instanceOf(NumberFieldMapper.NumberFieldType.class));
     }
 
     public void testToQueryFails() {
@@ -290,9 +304,21 @@ public class QueryShardContextTests extends ESTestCase {
         );
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
+            Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
+            Collections.emptyMap(), Collections.emptyMap()
+        );
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.index()).thenReturn(indexMetadata.getIndex());
+        when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+        Map<String, Mapper.TypeParser> typeParserMap = IndicesModule.getMappers(Collections.emptyList());
+        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(name -> null, typeParserMap::get,
+            Version.CURRENT, () -> null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
+            () -> {
+                throw new UnsupportedOperationException();
+            });
+        when(mapperService.parserContext()).thenReturn(parserContext);
         if (runtimeDocValues != null) {
             when(mapperService.fieldType(any())).thenAnswer(fieldTypeInv -> {
                 String fieldName = (String)fieldTypeInv.getArguments()[0];
@@ -302,7 +328,7 @@ public class QueryShardContextTests extends ESTestCase {
         final long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(
             0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-                (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null, null),
+                (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
                 mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
             null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
     }
@@ -342,7 +368,7 @@ public class QueryShardContextTests extends ESTestCase {
                 return leafFieldData;
             });
             IndexFieldData.Builder builder = mock(IndexFieldData.Builder.class);
-            when(builder.build(any(), any(), any())).thenAnswer(buildInv -> indexFieldData);
+            when(builder.build(any(), any())).thenAnswer(buildInv -> indexFieldData);
             return builder;
         });
         return fieldType;
@@ -359,7 +385,7 @@ public class QueryShardContextTests extends ESTestCase {
             indexWriter.addDocument(Collections.singletonList(new StringField("indexed_field", "second", Field.Store.NO)));
             try (DirectoryReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType fieldType = queryShardContext.fieldMapper(field);
+                MappedFieldType fieldType = queryShardContext.getFieldType(field);
                 IndexFieldData<?> indexFieldData;
                 if (randomBoolean()) {
                     indexFieldData = queryShardContext.getForField(fieldType);

@@ -32,6 +32,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
@@ -46,7 +47,6 @@ import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -73,6 +73,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 
@@ -232,7 +233,7 @@ public class FetchPhase {
                     continue;
                 }
 
-                Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(fieldNameOrPattern);
+                Collection<String> fieldNames = context.getQueryShardContext().simpleMatchToIndexNames(fieldNameOrPattern);
                 for (String fieldName : fieldNames) {
                     MappedFieldType fieldType = context.fieldType(fieldName);
                     if (fieldType == null) {
@@ -263,7 +264,7 @@ public class FetchPhase {
     }
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
-        if (context.mapperService().hasNested()) {
+        if (context.getQueryShardContext().hasNested()) {
             BitSet bits = context.bitsetFilterCache()
                 .getBitSetProducer(Queries.newNonNestedFilter(context.indexShard().indexSettings().getIndexVersionCreated()))
                 .getBitSet(subReaderContext);
@@ -324,7 +325,7 @@ public class FetchPhase {
             return new HitContext(hit, subReaderContext, subDocId, lookup.source(), sharedCache);
         } else {
             SearchHit hit;
-            loadStoredFields(context.mapperService(), fieldReader, fieldsVisitor, subDocId);
+            loadStoredFields(context::fieldType, context.mapperService().documentMapper(), fieldReader, fieldsVisitor, subDocId);
             Uid uid = fieldsVisitor.uid();
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
@@ -381,8 +382,9 @@ public class FetchPhase {
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(context.mapperService(), storedFieldReader, rootFieldsVisitor, rootDocId);
-            rootFieldsVisitor.postProcess(context.mapperService());
+            DocumentMapper documentMapper = context.mapperService().documentMapper();
+            loadStoredFields(context::fieldType, documentMapper, storedFieldReader, rootFieldsVisitor, rootDocId);
+            rootFieldsVisitor.postProcess(context::fieldType, documentMapper == null ? null : documentMapper.type());
             rootId = rootFieldsVisitor.uid();
 
             if (needSource) {
@@ -397,7 +399,8 @@ public class FetchPhase {
         Map<String, DocumentField> metaFields = emptyMap();
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
-            loadStoredFields(context.mapperService(), storedFieldReader, nestedFieldsVisitor, nestedDocId);
+            loadStoredFields(context::fieldType, context.mapperService().documentMapper(),
+                storedFieldReader, nestedFieldsVisitor, nestedDocId);
             if (nestedFieldsVisitor.fields().isEmpty() == false) {
                 docFields = new HashMap<>();
                 metaFields = new HashMap<>();
@@ -412,7 +415,7 @@ public class FetchPhase {
             = documentMapper.findNestedObjectMapper(nestedDocId, context, subReaderContext);
         assert nestedObjectMapper != null;
         SearchHit.NestedIdentity nestedIdentity =
-                getInternalNestedIdentity(context, nestedDocId, subReaderContext, context.mapperService(), nestedObjectMapper);
+                getInternalNestedIdentity(context, nestedDocId, subReaderContext, context::getObjectMapper, nestedObjectMapper);
 
         SearchHit hit = new SearchHit(nestedTopDocId, rootId.id(), typeText, nestedIdentity, docFields, metaFields);
         HitContext hitContext = new HitContext(
@@ -446,7 +449,7 @@ public class FetchPhase {
                     throw new IllegalStateException("extracted source isn't an object or an array");
                 }
                 if ((nestedParsedSource.get(0) instanceof Map) == false &&
-                    nestedObjectMapper.parentObjectMapperAreNested(context.mapperService()) == false) {
+                    nestedObjectMapper.parentObjectMapperAreNested(context::getObjectMapper) == false) {
                     // When one of the parent objects are not nested then XContentMapValues.extractValue(...) extracts the values
                     // from two or more layers resulting in a list of list being returned. This is because nestedPath
                     // encapsulates two or more object layers in the _source.
@@ -471,10 +474,11 @@ public class FetchPhase {
         return hitContext;
     }
 
-    private SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId,
-                                                               LeafReaderContext subReaderContext,
-                                                               MapperService mapperService,
-                                                               ObjectMapper nestedObjectMapper) throws IOException {
+    private static SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context,
+                                                                      int nestedSubDocId,
+                                                                      LeafReaderContext subReaderContext,
+                                                                      Function<String, ObjectMapper> objectMapperLookup,
+                                                                      ObjectMapper nestedObjectMapper) throws IOException {
         int currentParent = nestedSubDocId;
         ObjectMapper nestedParentObjectMapper;
         ObjectMapper current = nestedObjectMapper;
@@ -483,7 +487,7 @@ public class FetchPhase {
         final IndexSettings indexSettings = context.getQueryShardContext().getIndexSettings();
         do {
             Query parentFilter;
-            nestedParentObjectMapper = current.getParentObjectMapper(mapperService);
+            nestedParentObjectMapper = current.getParentObjectMapper(objectMapperLookup);
             if (nestedParentObjectMapper != null) {
                 if (nestedParentObjectMapper.nested().isNested() == false) {
                     current = nestedParentObjectMapper;
@@ -547,12 +551,13 @@ public class FetchPhase {
         return nestedIdentity;
     }
 
-    private void loadStoredFields(MapperService mapperService,
+    private void loadStoredFields(Function<String, MappedFieldType> fieldTypeLookup,
+                                  @Nullable DocumentMapper documentMapper,
                                   CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader,
                                   FieldsVisitor fieldVisitor, int docId) throws IOException {
         fieldVisitor.reset();
         fieldReader.accept(docId, fieldVisitor);
-        fieldVisitor.postProcess(mapperService);
+        fieldVisitor.postProcess(fieldTypeLookup, documentMapper == null ? null : documentMapper.type());
     }
 
     private static void fillDocAndMetaFields(SearchContext context, FieldsVisitor fieldsVisitor,

@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -38,7 +40,7 @@ import static org.mockito.Mockito.when;
 
 public class DeleteDataStreamTransportActionTests extends ESTestCase {
 
-    private final IndexNameExpressionResolver iner = new IndexNameExpressionResolver();
+    private final IndexNameExpressionResolver iner = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 
     public void testDeleteDataStream() {
         final String dataStreamName = "my-data-stream";
@@ -111,7 +113,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             new Snapshot(repo, new SnapshotId("", "")),
             false,
             partial,
-            SnapshotsInProgress.State.STARTED,
+            SnapshotsInProgress.State.SUCCESS,
             Collections.emptyList(),
             Collections.singletonList(dataStreamName),
             0,

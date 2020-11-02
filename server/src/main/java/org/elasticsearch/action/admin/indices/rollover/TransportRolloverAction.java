@@ -39,14 +39,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -68,21 +66,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                    MetadataRolloverService rolloverService, Client client) {
         super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, RolloverRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, RolloverResponse::new, ThreadPool.Names.SAME);
         this.rolloverService = rolloverService;
         this.client = client;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected RolloverResponse read(StreamInput in) throws IOException {
-        return new RolloverResponse(in);
     }
 
     @Override

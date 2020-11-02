@@ -28,6 +28,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -129,6 +130,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
+
+        @Override
         public Query existsQuery(QueryShardContext context) {
             throw new UnsupportedOperationException("Cannot run exists query on _field_names");
         }
@@ -164,7 +170,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (fieldType().isEnabled() == false) {
                 return;
             }
-            for (ParseContext.Document document : context) {
+            for (ParseContext.Document document : context.docs()) {
                 final List<String> paths = new ArrayList<>(document.getFields().size());
                 String previousPath = ""; // used as a sentinel - field names can't be empty
                 for (IndexableField field : document.getFields()) {

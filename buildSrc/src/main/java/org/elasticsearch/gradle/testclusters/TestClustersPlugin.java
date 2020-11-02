@@ -35,12 +35,16 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
+import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskState;
+import org.gradle.process.ExecOperations;
 
+import javax.inject.Inject;
 import java.io.File;
 
 import static org.elasticsearch.gradle.util.GradleUtils.noop;
@@ -55,6 +59,21 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final String LEGACY_JAVA_VENDOR = "adoptopenjdk";
     private static final String LEGACY_JAVA_VERSION = "8u242+b08";
     private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
+
+    @Inject
+    protected FileSystemOperations getFileSystemOperations() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
+    protected ArchiveOperations getArchiveOperations() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
+    protected ExecOperations getExecOperations() {
+        throw new UnsupportedOperationException();
+    }
 
     @Override
     public void apply(Project project) {
@@ -107,7 +126,16 @@ public class TestClustersPlugin implements Plugin<Project> {
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
             ElasticsearchCluster.class,
-            name -> new ElasticsearchCluster(name, project, reaper, new File(project.getBuildDir(), "testclusters"), bwcJdk)
+            name -> new ElasticsearchCluster(
+                name,
+                project,
+                reaper,
+                new File(project.getBuildDir(), "testclusters"),
+                getFileSystemOperations(),
+                getArchiveOperations(),
+                getExecOperations(),
+                bwcJdk
+            )
         );
         project.getExtensions().add(EXTENSION_NAME, container);
         return container;

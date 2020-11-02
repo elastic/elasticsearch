@@ -283,6 +283,13 @@ public abstract class Engine implements Closeable {
         boolean isThrottled() {
             return lock != NOOP_LOCK;
         }
+
+        boolean throttleLockIsHeldByCurrentThread() { // to be used in assertions and tests only
+            if(isThrottled()) {
+                return lock.isHeldByCurrentThread();
+            }
+            return false;
+        }
     }
 
     /**
@@ -1647,7 +1654,7 @@ public abstract class Engine implements Closeable {
             this.ifPrimaryTerm = primaryTerm;
             return this;
         }
-        
+
         public long getIfPrimaryTerm() {
             return ifPrimaryTerm;
         }

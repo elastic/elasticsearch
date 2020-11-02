@@ -35,43 +35,6 @@ ES_HOME=`dirname "$ES_HOME"`
 # now set the classpath
 ES_CLASSPATH="$ES_HOME/lib/*"
 
-
-# On systems that are built upon glibc, We need to check the version of
-# glibc because Elasticsearch bundles JDK 15, which requires glibc >= 2.14
-check_glibc_version() {
-  local GETCONF="$( getconf GNU_LIBC_VERSION 2>/dev/null )"
-  if [[ $? -ne 0 ]]; then
-    # Must be on a POSIX system that isn't using glibc.
-    return 0
-  fi
-
-  local GLIBC_VERSION="$( echo "$GETCONF" | cut -d' ' -f2 )"
-  local MAJOR="$( echo $GLIBC_VERSION | cut -d. -f1 )"
-  local MINOR="$( echo $GLIBC_VERSION | cut -d. -f2 )"
-
-  local STATUS=pass
-
-  if [[ "$MAJOR" -lt 2 ]]; then
-    STATUS=fail
-  elif [[ "$MAJOR" -eq 2 && "$MINOR" -lt 14  ]]; then
-    STATUS=fail
-  fi
-
-  if [[ "$STATUS" == "fail" ]]; then
-    cat >&2 <<EOF
-
-ERROR: The JDK bundled with Elasticsearch requires glibc >= 2.14, but
-you have version $GLIBC_VERSION. Please set the JAVA_HOME environment variable
-to point to a working JDK installation. For more information, see:
-
-https://www.elastic.co/support/matrix#matrix_jvm
-
-EOF
-    exit 1
-  fi
-}
-
-
 # now set the path to java
 if [ ! -z "$JAVA_HOME" ]; then
   JAVA="$JAVA_HOME/bin/java"
@@ -81,7 +44,6 @@ else
     # macOS has a different structure
     JAVA="$ES_HOME/jdk.app/Contents/Home/bin/java"
   else
-    check_glibc_version
     JAVA="$ES_HOME/jdk/bin/java"
   fi
   JAVA_TYPE="bundled jdk"
@@ -129,6 +91,10 @@ ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 ES_DISTRIBUTION_TYPE=${es.distribution.type}
 ES_BUNDLED_JDK=${es.bundled_jdk}
+
+if [[ "$ES_BUNDLED_JDK" == "false" ]]; then
+  echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
+fi
 
 if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
   # Allow environment variables to be set by creating a file with the

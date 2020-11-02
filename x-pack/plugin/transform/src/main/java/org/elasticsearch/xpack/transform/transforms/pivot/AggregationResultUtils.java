@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt;
 import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.isNumericType;
 
 public final class AggregationResultUtils {
@@ -198,7 +199,7 @@ public final class AggregationResultUtils {
             // If the type is numeric or if the formatted string is the same as simply making the value a string,
             // gather the `value` type, otherwise utilize `getValueAsString` so we don't lose formatted outputs.
             if (isNumericType(fieldType) || aggregation.getValueAsString().equals(String.valueOf(aggregation.value()))) {
-                return aggregation.value();
+                return dropFloatingPointComponentIfTypeRequiresIt(fieldType, aggregation.value());
             } else {
                 return aggregation.getValueAsString();
             }

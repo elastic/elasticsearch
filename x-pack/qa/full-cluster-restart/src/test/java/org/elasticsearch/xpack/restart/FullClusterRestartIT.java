@@ -35,7 +35,7 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -124,7 +124,19 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createRole(true);
         } else {
             waitForYellow(".security");
-            Response settingsResponse = client().performRequest(new Request("GET", "/.security/_settings/index.format"));
+            final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
+            RequestOptions.Builder systemIndexWarningOptions = RequestOptions.DEFAULT.toBuilder();;
+            systemIndexWarningOptions.setWarningsHandler(warnings -> {
+                if (warnings.isEmpty()) {
+                    return false;
+                } else if (warnings.size() > 1) {
+                    return true;
+                } else {
+                    return warnings.get(0).contains("this request accesses system indices:") == false;
+                }
+            });
+            getSettingsRequest.setOptions(systemIndexWarningOptions);
+            Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
             final String concreteSecurityIndex;
@@ -195,7 +207,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             logger.info("checking that the Watches index is the correct version");
 
-            Response settingsResponse = client().performRequest(new Request("GET", "/.watches/_settings/index.format"));
+            final Request getSettingsRequest = new Request("GET", "/.watches/_settings/index.format");
+            getSettingsRequest.setOptions(expectWarnings("this request accesses system indices: [.watches], but in a future major " +
+                "version, direct access to system indices will be prevented by default"));
+            Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
             final String concreteWatchesIndex;
@@ -228,6 +243,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63088")
     @SuppressWarnings("unchecked")
     public void testWatcherWithApiKey() throws Exception {
         assumeTrue("API key is available since 6.7.0", getOldClusterVersion().onOrAfter(Version.V_6_7_0));

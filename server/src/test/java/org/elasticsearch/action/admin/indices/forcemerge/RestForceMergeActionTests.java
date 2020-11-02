@@ -68,6 +68,9 @@ public class RestForceMergeActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         dispatchRequest(request);
         assertWarnings("setting only_expunge_deletes and max_num_segments at the same time is deprecated " +
             "and will be rejected in a future version");

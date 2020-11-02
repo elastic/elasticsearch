@@ -29,12 +29,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 /**
  * Indices exists action.
@@ -46,18 +43,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadAction<
                                         ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
         super(IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesExistsRequest::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        // lightweight in memory check
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected IndicesExistsResponse read(StreamInput in) throws IOException {
-        return new IndicesExistsResponse(in);
+            indexNameExpressionResolver, IndicesExistsResponse::new, ThreadPool.Names.SAME);
     }
 
     @Override

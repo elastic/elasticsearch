@@ -33,11 +33,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,7 +51,6 @@ import org.hamcrest.core.CombinableMatcher;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -69,8 +65,8 @@ import static org.hamcrest.Matchers.is;
 public class CompletionFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("value");
+    protected Object getSampleValueForDocument() {
+        return "value";
     }
 
     @Override
@@ -749,22 +745,6 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         }));
         assertWarnings("You have defined more than [10] completion contexts in the mapping for index [null]. " +
             "The maximum allowed number of completion contexts in a mapping will be limited to [10] starting in version [8.0].");
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
-        CompletionFieldMapper mapper = new CompletionFieldMapper.Builder("completion", defaultAnalyzer, Version.CURRENT).build(context);
-
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(mapper, "value"));
-
-        List<String> list = org.elasticsearch.common.collect.List.of("first", "second");
-        assertEquals(list, fetchSourceValue(mapper, list));
-
-        Map<String, Object> object = org.elasticsearch.common.collect.Map.of(
-            "input", org.elasticsearch.common.collect.List.of("first", "second"), "weight", "2.718");
-        assertEquals(org.elasticsearch.common.collect.List.of(object), fetchSourceValue(mapper, object));
     }
 
     private Matcher<IndexableField> suggestField(String value) {

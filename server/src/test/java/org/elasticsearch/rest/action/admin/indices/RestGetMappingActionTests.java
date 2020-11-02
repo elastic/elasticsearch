@@ -78,6 +78,9 @@ public class RestGetMappingActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         controller().dispatchRequest(request, channel, threadContext);
@@ -97,6 +100,9 @@ public class RestGetMappingActionTests extends RestActionTestCase {
             .withParams(params)
             .withPath("/some_index/_mappings")
             .build();
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

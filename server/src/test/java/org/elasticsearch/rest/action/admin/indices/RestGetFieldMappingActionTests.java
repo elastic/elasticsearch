@@ -50,6 +50,10 @@ public class RestGetFieldMappingActionTests extends RestActionTestCase {
             params.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
             path = "some_index/_mapping/field/some_field";
         }
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.GET)
             .withPath(path)
@@ -75,6 +79,9 @@ public class RestGetFieldMappingActionTests extends RestActionTestCase {
             .withPath("some_index/some_type/_mapping/field/some_field")
             .withParams(params)
             .build();
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

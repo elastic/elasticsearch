@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,28 +37,39 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
+    public static final Version HIDDEN_VERSION = Version.V_7_11_0;
 
     private final String name;
     private final TimestampField timeStampField;
     private final List<Index> indices;
     private final long generation;
+    private final Map<String, Object> metadata;
+    private final boolean hidden;
 
-    public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation) {
+    public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata) {
+        this(name, timeStampField, indices, generation, metadata, false);
+    }
+
+    public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata,
+                      boolean hidden) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = Collections.unmodifiableList(indices);
         this.generation = generation;
+        this.metadata = metadata;
+        this.hidden = hidden;
         assert indices.size() > 0;
         assert indices.get(indices.size() - 1).getName().equals(getDefaultBackingIndexName(name, generation));
     }
 
     public DataStream(String name, TimestampField timeStampField, List<Index> indices) {
-        this(name, timeStampField, indices, indices.size());
+        this(name, timeStampField, indices, indices.size(), null);
     }
 
     public String getName() {
@@ -75,6 +88,15 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return generation;
     }
 
+    @Nullable
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public boolean isHidden() {
+        return hidden;
+    }
+
     /**
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
@@ -87,7 +109,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         assert newWriteIndex.getName().equals(getDefaultBackingIndexName(name, generation + 1));
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(newWriteIndex);
-        return new DataStream(name, timeStampField, backingIndices, generation + 1);
+        return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden);
     }
 
     /**
@@ -101,7 +123,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
-        return new DataStream(name, timeStampField, backingIndices, generation);
+        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden);
     }
 
     /**
@@ -126,7 +148,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                 "it is the write index", existingBackingIndex.getName(), name));
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return new DataStream(name, timeStampField, backingIndices, generation);
+        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden);
     }
 
     /**
@@ -142,7 +164,9 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     public DataStream(StreamInput in) throws IOException {
-        this(in.readString(), new TimestampField(in), in.readList(Index::new), in.readVLong());
+        this(in.readString(), new TimestampField(in), in.readList(Index::new), in.readVLong(),
+            in.getVersion().onOrAfter(Version.V_7_11_0) ? in.readMap(): null,
+            in.getVersion().onOrAfter(HIDDEN_VERSION) && in.readBoolean());
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
@@ -155,22 +179,33 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         timeStampField.writeTo(out);
         out.writeList(indices);
         out.writeVLong(generation);
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            out.writeMap(metadata);
+        }
+        if (out.getVersion().onOrAfter(HIDDEN_VERSION)) {
+            out.writeBoolean(hidden);
+        }
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField GENERATION_FIELD = new ParseField("generation");
+    public static final ParseField METADATA_FIELD = new ParseField("_meta");
+    public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
-        args -> new DataStream((String) args[0], (TimestampField) args[1], (List<Index>) args[2], (Long) args[3]));
+        args -> new DataStream((String) args[0], (TimestampField) args[1], (List<Index>) args[2], (Long) args[3],
+            (Map<String, Object>) args[4], args[5] != null && (boolean) args[5]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), TimestampField.PARSER, TIMESTAMP_FIELD_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -184,6 +219,10 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), timeStampField);
         builder.field(INDICES_FIELD.getPreferredName(), indices);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
+        if (metadata != null) {
+            builder.field(METADATA_FIELD.getPreferredName(), metadata);
+        }
+        builder.field(HIDDEN_FIELD.getPreferredName(), hidden);
         builder.endObject();
         return builder;
     }
@@ -196,12 +235,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return name.equals(that.name) &&
             timeStampField.equals(that.timeStampField) &&
             indices.equals(that.indices) &&
-            generation == that.generation;
+            generation == that.generation &&
+            Objects.equals(metadata, that.metadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampField, indices, generation);
+        return Objects.hash(name, timeStampField, indices, generation, metadata);
     }
 
     public static final class TimestampField implements Writeable, ToXContentObject {

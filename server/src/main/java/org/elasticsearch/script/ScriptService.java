@@ -471,7 +471,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
             @Override
             protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return new AcknowledgedResponse(acknowledged);
+                return AcknowledgedResponse.of(acknowledged);
             }
 
             @Override
@@ -492,7 +492,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
             @Override
             protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return new AcknowledgedResponse(acknowledged);
+                return AcknowledgedResponse.of(acknowledged);
             }
 
             @Override

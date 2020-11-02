@@ -21,11 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -47,8 +44,8 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(123);
+    protected Object getSampleValueForDocument() {
+        return 123;
     }
 
     @Override
@@ -284,23 +281,5 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(),
             containsString("Failed to parse mapping [_doc]: Field [scaling_factor] is required"));
         assertWarnings("Parameter [index_options] has no effect on type [scaled_float] and will be removed in future");
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        ScaledFloatFieldMapper mapper = new ScaledFloatFieldMapper.Builder("field", false, false)
-            .scalingFactor(100)
-            .build(context);
-        assertEquals(org.elasticsearch.common.collect.List.of(3.14), fetchSourceValue(mapper, 3.1415926));
-        assertEquals(org.elasticsearch.common.collect.List.of(3.14), fetchSourceValue(mapper, "3.1415"));
-        assertEquals(org.elasticsearch.common.collect.List.of(), fetchSourceValue(mapper, ""));
-
-        ScaledFloatFieldMapper nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false)
-            .scalingFactor(100)
-            .nullValue(2.71)
-            .build(context);
-        assertEquals(org.elasticsearch.common.collect.List.of(2.71), fetchSourceValue(nullValueMapper, ""));
     }
 }

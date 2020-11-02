@@ -100,6 +100,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -130,6 +131,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -414,10 +416,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         //appropriate test
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-            if (warnings != null && enableJodaDeprecationWarningsCheck() == false) {
-                List<String> filteredWarnings = filterJodaDeprecationWarnings(warnings);
-                assertThat( filteredWarnings, empty());
-
+            if (warnings != null) {
+                List<String> filteredWarnings = new ArrayList<>(warnings);
+                if (enableJodaDeprecationWarningsCheck() == false) {
+                    filteredWarnings = filterJodaDeprecationWarnings(filteredWarnings);
+                }
+                if (JvmInfo.jvmInfo().getBundledJdk() == false) {
+                    // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
+                    filteredWarnings = filteredWarnings
+                        .stream()
+                        .filter(k -> k.contains(
+                            "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release"
+                        ) == false)
+                        .collect(Collectors.toList());
+                }
+                assertThat("unexpected warning headers", filteredWarnings, empty());
             } else {
                 assertNull("unexpected warning headers", warnings);
             }
@@ -924,7 +937,17 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Generate a random valid date formatter pattern.
      */
     public static String randomDateFormatterPattern() {
-        return randomFrom(FormatNames.values()).getSnakeCaseName();
+        //WEEKYEAR should be used instead of WEEK_YEAR
+        EnumSet<FormatNames> formatNamesSet = EnumSet.complementOf(EnumSet.of(FormatNames.WEEK_YEAR));
+        FormatNames formatName = randomFrom(formatNamesSet);
+        if (FormatNames.WEEK_BASED_FORMATS.contains(formatName)) {
+            boolean runtimeJdk8 = JavaVersion.current().getVersion().get(0) == 8;
+            assumeFalse("week based formats won't work in jdk8 " +
+                    "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs." +
+                    "Random format was =" + formatName,
+                runtimeJdk8);
+        }
+        return formatName.getSnakeCaseName();
     }
 
     /**

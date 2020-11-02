@@ -39,9 +39,9 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
-import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.FileMatcher.p664;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
@@ -60,7 +60,7 @@ import static org.junit.Assert.fail;
 public class Docker {
     private static final Log logger = LogFactory.getLog(Docker.class);
 
-    private static final Shell sh = new Shell();
+    static final Shell sh = new Shell();
     private static final DockerShell dockerShell = new DockerShell();
     public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
     public static final int STARTUP_ATTEMPTS_MAX = 10;
@@ -91,42 +91,24 @@ public class Docker {
     }
 
     /**
-     * Runs an Elasticsearch Docker container.
-     * @param distribution details about the docker image being tested.
+     * Runs an Elasticsearch Docker container, and checks that it has started up
+     * successfully.
+     *
+     * @param distribution details about the docker image being tested
      */
     public static Installation runContainer(Distribution distribution) {
-        return runContainer(distribution, null, null);
+        return runContainer(distribution, DockerRun.builder());
     }
 
     /**
-     * Runs an Elasticsearch Docker container, with options for overriding the config directory
-     * through a bind mount, and passing additional environment variables.
+     * Runs an Elasticsearch Docker container, and checks that it has started up
+     * successfully.
      *
-     * @param distribution details about the docker image being tested.
-     * @param volumes a map that declares any volume mappings to apply, or null
-     * @param envVars environment variables to set when running the container, or null
+     * @param distribution details about the docker image being tested
+     * @param builder the command to run
      */
-    public static Installation runContainer(Distribution distribution, Map<Path, Path> volumes, Map<String, String> envVars) {
-        return runContainer(distribution, volumes, envVars, null, null);
-    }
-
-    /**
-     * Runs an Elasticsearch Docker container, with options for overriding the config directory
-     * through a bind mount, and passing additional environment variables.
-     * @param distribution details about the docker image being tested.
-     * @param volumes a map that declares any volume mappings to apply, or null
-     * @param envVars environment variables to set when running the container, or null
-     * @param uid optional UID to run the container under
-     * @param gid optional GID to run the container under
-     */
-    public static Installation runContainer(
-        Distribution distribution,
-        Map<Path, Path> volumes,
-        Map<String, String> envVars,
-        Integer uid,
-        Integer gid
-    ) {
-        executeDockerRun(distribution, volumes, envVars, uid, gid);
+    public static Installation runContainer(Distribution distribution, DockerRun builder) {
+        executeDockerRun(distribution, builder);
 
         waitForElasticsearchToStart();
 
@@ -134,87 +116,26 @@ public class Docker {
     }
 
     /**
-     * Similar to {@link #runContainer(Distribution, Map, Map)} in that it runs an Elasticsearch Docker
+     * Similar to {@link #runContainer(Distribution, DockerRun)} in that it runs an Elasticsearch Docker
      * container, expect that the container expecting it to exit e.g. due to configuration problem.
      *
      * @param distribution details about the docker image being tested.
-     * @param volumes a map that declares any volume mappings to apply, or null
-     * @param envVars environment variables to set when running the container, or null
+     * @param builder the command to run
      * @return the docker logs of the container
      */
-    public static Shell.Result runContainerExpectingFailure(
-        Distribution distribution,
-        Map<Path, Path> volumes,
-        Map<String, String> envVars
-    ) {
-        executeDockerRun(distribution, volumes, envVars, null, null);
+    public static Shell.Result runContainerExpectingFailure(Distribution distribution, DockerRun builder) {
+        executeDockerRun(distribution, builder);
 
         waitForElasticsearchToExit();
 
         return getContainerLogs();
     }
 
-    private static void executeDockerRun(
-        Distribution distribution,
-        Map<Path, Path> volumes,
-        Map<String, String> envVars,
-        Integer uid,
-        Integer gid
-    ) {
+    private static void executeDockerRun(Distribution distribution, DockerRun builder) {
         removeContainer();
 
-        final List<String> args = new ArrayList<>();
+        final String command = builder.distribution(distribution).build();
 
-        args.add("docker run");
-
-        // Run the container in the background
-        args.add("--detach");
-
-        if (envVars != null) {
-            envVars.forEach((key, value) -> args.add("--env " + key + "=\"" + value + "\""));
-        }
-
-        // The container won't run without configuring discovery
-        args.add("--env discovery.type=single-node");
-
-        // Map ports in the container to the host, so that we can send requests
-        args.add("--publish 9200:9200");
-        args.add("--publish 9300:9300");
-
-        // Bind-mount any volumes
-        if (volumes != null) {
-            volumes.forEach((localPath, containerPath) -> {
-                assertThat(localPath, fileExists());
-
-                if (Platforms.WINDOWS == false && System.getProperty("user.name").equals("root") && uid == null) {
-                    // The tests are running as root, but the process in the Docker container runs as `elasticsearch` (UID 1000),
-                    // so we need to ensure that the container process is able to read the bind-mounted files.
-                    //
-                    // NOTE that we don't do this if a UID is specified - in that case, we assume that the caller knows
-                    // what they're doing!
-                    sh.run("chown -R 1000:0 " + localPath);
-                }
-                args.add("--volume \"" + localPath + ":" + containerPath + "\"");
-            });
-        }
-
-        if (uid == null) {
-            if (gid != null) {
-                throw new IllegalArgumentException("Cannot override GID without also overriding UID");
-            }
-        } else {
-            args.add("--user");
-            if (gid != null) {
-                args.add(uid + ":" + gid);
-            } else {
-                args.add(uid.toString());
-            }
-        }
-
-        // Image name
-        args.add(getImageName(distribution));
-
-        final String command = String.join(" ", args);
         logger.info("Running command: " + command);
         containerId = sh.run(command).stdout.trim();
     }
@@ -458,7 +379,7 @@ public class Docker {
         // also don't want any SELinux security context indicator.
         Set<PosixFilePermission> actualPermissions = fromString(permissions.substring(1, 10));
 
-        assertEquals("Permissions of " + path + " are wrong", actualPermissions, expectedPermissions);
+        assertEquals("Permissions of " + path + " are wrong", expectedPermissions, actualPermissions);
         assertThat("File owner of " + path + " is wrong", username, equalTo("elasticsearch"));
         assertThat("File group of " + path + " is wrong", group, equalTo("root"));
     }
@@ -498,12 +419,14 @@ public class Docker {
         final String homeDir = passwdResult.stdout.trim().split(":")[5];
         assertThat(homeDir, equalTo("/usr/share/elasticsearch"));
 
-        Stream.of(es.home, es.data, es.logs, es.config).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
+        Stream.of(es.home, es.data, es.logs, es.config, es.plugins).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
 
-        Stream.of(es.plugins, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
+        Stream.of(es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
-        Stream.of("elasticsearch.keystore", "elasticsearch.yml", "jvm.options", "log4j2.properties")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
+        assertPermissionsAndOwnership(es.config("elasticsearch.keystore"), p660);
+
+        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
+            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
 
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
@@ -550,7 +473,7 @@ public class Docker {
         assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p755);
 
         Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
+            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {

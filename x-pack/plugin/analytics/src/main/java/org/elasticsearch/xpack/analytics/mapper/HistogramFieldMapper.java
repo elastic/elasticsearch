@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -125,23 +124,10 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
-    }
-
     public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, false, false, true, TextSearchInfo.NONE, meta);
         }
 
         @Override
@@ -150,9 +136,14 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), mapperService, format);
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return (cache, breakerService, mapperService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
+            return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                 @Override
                 public LeafHistogramFieldData load(LeafReaderContext context) {
@@ -229,9 +220,8 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "[" + CONTENT_TYPE + "] field do not support searching, " +
-                "use dedicated aggregations instead: ["
-                + name() + "]");
+            throw new IllegalArgumentException("[" + CONTENT_TYPE + "] field do not support searching, " +
+                "use dedicated aggregations instead: [" + name() + "]");
         }
     }
 
@@ -252,23 +242,23 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
             DoubleArrayList values = null;
             IntArrayList counts = null;
             // should be an object
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser()::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             subParser = new XContentSubParser(context.parser());
             token = subParser.nextToken();
             while (token != XContentParser.Token.END_OBJECT) {
                 // should be an field
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
                 String fieldName = subParser.currentName();
                 if (fieldName.equals(VALUES_FIELD.getPreferredName())) {
                     token = subParser.nextToken();
                     // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
                     values = new DoubleArrayList();
                     token = subParser.nextToken();
                     double previousVal = -Double.MAX_VALUE;
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                         double val = subParser.doubleValue();
                         if (val < previousVal) {
                             // values must be in increasing order
@@ -283,12 +273,12 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
                 } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {
                     token = subParser.nextToken();
                     // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
                     counts = new IntArrayList();
                     token = subParser.nextToken();
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                         counts.add(subParser.intValue());
                         token = subParser.nextToken();
                     }

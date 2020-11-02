@@ -251,7 +251,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         @Override
         public DateFieldMapper build(BuilderContext context) {
             DateFieldType ft = new DateFieldType(buildFullName(context), index.getValue(), store.getValue(), docValues.getValue(),
-                buildFormatter(), resolution, meta.getValue());
+                buildFormatter(), resolution, nullValue.getValue(), meta.getValue());
             ft.setBoost(boost.getValue());
             Long nullTimestamp = parseNullValue(ft);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
@@ -273,25 +273,32 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         protected final DateFormatter dateTimeFormatter;
         protected final DateMathParser dateMathParser;
         protected final Resolution resolution;
+        protected final String nullValue;
 
         public DateFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                             DateFormatter dateTimeFormatter, Resolution resolution, Map<String, String> meta) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+                             DateFormatter dateTimeFormatter, Resolution resolution, String nullValue,
+                             Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
+            this.nullValue = nullValue;
         }
 
         public DateFieldType(String name) {
-            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, Collections.emptyMap());
+            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
-            this(name, true, false, true, dateFormatter, Resolution.MILLISECONDS, Collections.emptyMap());
+            this(name, true, false, true, dateFormatter, Resolution.MILLISECONDS, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution) {
-            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, Collections.emptyMap());
+            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, Collections.emptyMap());
+        }
+
+        public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {
+            this(name, true, false, true, dateFormatter, resolution, null, Collections.emptyMap());
         }
 
         @Override
@@ -314,6 +321,24 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         // Visible for testing.
         public long parse(String value) {
             return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            DateFormatter defaultFormatter = dateTimeFormatter();
+            DateFormatter formatter = format != null
+                ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
+                : defaultFormatter;
+
+            return new SourceValueFetcher(name(), mapperService, nullValue) {
+                @Override
+                public String parseSourceValue(Object value) {
+                    String date = value.toString();
+                    long timestamp = parse(date);
+                    ZonedDateTime dateTime = resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
+                    return formatter.format(dateTime);
+                }
+            };
         }
 
         @Override
@@ -416,10 +441,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+        public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
-            return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime);
+            // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
+            return resolution.distanceFeatureQuery(name(), 1.0f, originLong, pivotTime);
         }
 
         @Override
@@ -607,24 +633,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         if (store) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        DateFormatter defaultFormatter = fieldType().dateTimeFormatter();
-        DateFormatter formatter = format != null
-            ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
-            : defaultFormatter;
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValueAsString) {
-            @Override
-            public String parseSourceValue(Object value) {
-                String date = value.toString();
-                long timestamp = fieldType().parse(date);
-                ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
-                return formatter.format(dateTime);
-            }
-        };
     }
 
     public boolean getIgnoreMalformed() {

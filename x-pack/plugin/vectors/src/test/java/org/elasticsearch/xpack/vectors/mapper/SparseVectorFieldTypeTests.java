@@ -39,7 +39,7 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQueryIsNotSupported() {
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType("field", Collections.emptyMap());
-        UnsupportedOperationException exc = expectThrows(UnsupportedOperationException.class, () -> fieldType.termQuery(null, null));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> fieldType.termQuery(null, null));
         assertEquals("Field [field] of type [sparse_vector] doesn't support queries", exc.getMessage());
     }
 }

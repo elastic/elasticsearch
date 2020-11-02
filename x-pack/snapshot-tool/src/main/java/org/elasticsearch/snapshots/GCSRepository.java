@@ -19,6 +19,7 @@ import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -125,10 +126,9 @@ public class GCSRepository extends AbstractRepository {
 
     @Override
     protected boolean isBlobNotFoundException(Exception e) {
-        if (e instanceof StorageException) {
-            if (((StorageException)e).getCode() == HTTP_NOT_FOUND) {
-                return true;
-            }
+        final Throwable unwrapped = ExceptionsHelper.unwrap(e, StorageException.class);
+        if (unwrapped instanceof StorageException) {
+            return ((StorageException) unwrapped).getCode() == HTTP_NOT_FOUND;
         }
         return false;
     }

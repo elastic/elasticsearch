@@ -224,6 +224,11 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             throw new QueryShardException(context, "Percolator fields are not searchable directly, use a percolate query instead");
         }
 
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), mapperService, format);
+        }
+
         Query percolateQuery(String name, PercolateQuery.QueryStore queryStore, List<BytesReference> documents,
                              IndexSearcher searcher, boolean excludeNestedDocuments, Version indexVersion) throws IOException {
             IndexReader indexReader = searcher.getIndexReader();
@@ -365,25 +370,12 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         Rewriteable.rewriteAndFetch(queryBuilder, queryShardContext, future);
         queryBuilder = future.actionGet();
 
-        Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        Version indexVersion = context.indexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
 
         QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new QueryShardContext(queryShardContext));
         Query query = queryBuilderForProcessing.toQuery(queryShardContext);
         processQuery(query, context);
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
     }
 
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,
@@ -419,7 +411,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         ParseContext.Document doc = context.doc();
         PercolatorFieldType pft = (PercolatorFieldType) this.fieldType();
         QueryAnalyzer.Result result;
-        Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        Version indexVersion = context.indexSettings().getIndexVersionCreated();
         result = QueryAnalyzer.analyze(query, indexVersion);
         if (result == QueryAnalyzer.Result.UNKNOWN) {
             doc.add(new Field(pft.extractionResultField.name(), EXTRACTION_FAILED, INDEXED_KEYWORD));
@@ -439,7 +431,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        Version indexVersionCreated = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        Version indexVersionCreated = context.indexSettings().getIndexVersionCreated();
         if (result.matchAllDocs) {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_FAILED, INDEXED_KEYWORD));
             if (result.verified) {

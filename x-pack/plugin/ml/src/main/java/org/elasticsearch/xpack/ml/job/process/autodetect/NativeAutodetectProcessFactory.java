@@ -77,7 +77,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                                                      Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, AutodetectBuilder.AUTODETECT,
-            job.getId(), false, true, true, params.modelSnapshot() != null,
+            job.getId(), null, false, true, true, params.modelSnapshot() != null,
             AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.get(settings) == false);
         createNativeProcess(job, params, processPipes, filesToDelete);
         boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
@@ -127,8 +127,11 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                 autodetectBuilder.quantiles(autodetectParams.quantiles());
             }
             autodetectBuilder.build();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("[{}] Interrupted while launching autodetect", job.getId());
         } catch (IOException e) {
-            String msg = "Failed to launch autodetect for job " + job.getId();
+            String msg = "[" + job.getId() + "] Failed to launch autodetect";
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

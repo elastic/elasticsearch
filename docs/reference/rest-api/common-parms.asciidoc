@@ -14,7 +14,7 @@ end::actions[]
 
 tag::active-only[]
 `active_only`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the response only includes ongoing shard recoveries.
 Defaults to `false`.
@@ -48,13 +48,12 @@ end::target-index-aliases[]
 
 tag::allow-no-indices[]
 `allow_no_indices`::
-(Optional, boolean) If `true`,
-the request does *not* return an error
-if a wildcard expression
-or `_all` value retrieves only missing or closed indices.
-+
-This parameter also applies to <<indices-aliases,index aliases>>
-that point to a missing or closed index.
+(Optional, Boolean)
+If `false`, the request returns an error if any wildcard expression,
+<<indices-aliases,index alias>>, or `_all` value targets only missing or closed
+indices. This behavior applies even if the request targets other open indices.
+For example, a request targeting `foo*,bar*` returns an error if an index
+starts with `foo` but no index starts with `bar`.
 end::allow-no-indices[]
 
 tag::allow-no-match-transforms1[]
@@ -100,7 +99,7 @@ end::analyzer[]
 
 tag::analyze_wildcard[]
 `analyze_wildcard`::
-(Optional, boolean) If `true`, wildcard and prefix queries are
+(Optional, Boolean) If `true`, wildcard and prefix queries are
 analyzed. Defaults to `false`.
 end::analyze_wildcard[]
 
@@ -159,7 +158,11 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}.
+The _destination index_ for the {transform}. The mappings of the destination 
+index are deduced based on the source fields when possible. If alternate 
+mappings are required, use the 
+https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API] 
+prior to starting the {transform}.
 end::dest-index[]
 
 tag::dest-pipeline[]
@@ -168,7 +171,7 @@ end::dest-pipeline[]
 
 tag::detailed[]
 `detailed`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the response includes detailed information about shard recoveries.
 Defaults to `false`.
@@ -254,7 +257,7 @@ end::exponential-avg-documents-processed[]
 
 tag::field_statistics[]
 `field_statistics`::
-(Optional, boolean) If `true`, the response includes the document count, sum of document frequencies,
+(Optional, Boolean) If `true`, the response includes the document count, sum of document frequencies,
 and sum of total term frequencies.
 Defaults to `true`.
 end::field_statistics[]
@@ -290,7 +293,7 @@ end::index-alias-filter[]
 
 tag::flat-settings[]
 `flat_settings`::
-(Optional, boolean) If `true`, returns settings in flat format. Defaults to
+(Optional, Boolean) If `true`, returns settings in flat format. Defaults to
 `false`.
 end::flat-settings[]
 
@@ -362,7 +365,7 @@ end::cat-h[]
 
 tag::help[]
 `help`::
-(Optional, boolean) If `true`, the response includes help information. Defaults
+(Optional, Boolean) If `true`, the response includes help information. Defaults
 to `false`.
 end::help[]
 
@@ -387,13 +390,13 @@ end::if_seq_no[]
 
 tag::ignore_throttled[]
 `ignore_throttled`::
-(Optional, boolean) If `true`, concrete, expanded or aliased indices are
+(Optional, Boolean) If `true`, concrete, expanded or aliased indices are
 ignored when frozen. Defaults to `true`.
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
 `ignore_unavailable`::
-(Optional, boolean) If `true`, missing or closed indices are not included in the
+(Optional, Boolean) If `true`, missing or closed indices are not included in the
 response. Defaults to `false`.
 end::index-ignore-unavailable[]
 
@@ -405,7 +408,7 @@ end::include-defaults[]
 
 tag::include-segment-file-sizes[]
 `include_segment_file_sizes`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the call reports the aggregated disk usage of
 each one  of the Lucene index files (only applies if segment stats are
 requested). Defaults to `false`.
@@ -420,7 +423,7 @@ end::include-type-name[]
 
 tag::include-unloaded-segments[]
 `include_unloaded_segments`::
-(Optional, boolean) If `true`, the response includes information from segments
+(Optional, Boolean) If `true`, the response includes information from segments
 that are **not** loaded into memory. Defaults to `false`.
 end::include-unloaded-segments[]
 
@@ -544,7 +547,7 @@ end::component-template[]
 
 tag::lenient[]
 `lenient`::
-(Optional, boolean) If `true`, format-based query failures (such as
+(Optional, Boolean) If `true`, format-based query failures (such as
 providing text to a numeric field) will be ignored. Defaults to `false`.
 end::lenient[]
 
@@ -566,7 +569,7 @@ end::level[]
 
 tag::local[]
 `local`::
-(Optional, boolean) If `true`, the request retrieves information from the local
+(Optional, Boolean) If `true`, the request retrieves information from the local
 node only. Defaults to `false`, which means information is retrieved from
 the master node.
 end::local[]
@@ -601,7 +604,7 @@ end::memory[]
 
 tag::require-alias[]
 `require_alias`::
-(Optional, boolean) When true, this requires the destination to be an alias.
+(Optional, Boolean) When true, this requires the destination to be an alias.
 Defaults to false.
 end::require-alias[]
 
@@ -627,7 +630,7 @@ end::node-id-query-parm[]
 
 tag::offsets[]
 `<offsets>`::
-(Optional, boolean) If `true`, the response includes term offsets.
+(Optional, Boolean) If `true`, the response includes term offsets.
 Defaults to `true`.
 end::offsets[]
 
@@ -647,7 +650,7 @@ end::parent-task-id[]
 
 tag::payloads[]
 `payloads`::
-(Optional, boolean) If `true`, the response includes term payloads.
+(Optional, Boolean) If `true`, the response includes term payloads.
 Defaults to `true`.
 end::payloads[]
 
@@ -673,7 +676,7 @@ The method for transforming the data. These objects define the pivot function
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following aggregations are 
+Defines how to aggregate the grouped data. The following aggregations are
 supported:
 +
 --
@@ -686,6 +689,7 @@ supported:
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
+* <<search-aggregations-bucket-missing-aggregation,Missing>>
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
 * <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
@@ -695,7 +699,7 @@ supported:
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 
 
-IMPORTANT: {transforms-cap} support a subset of the functionality in 
+IMPORTANT: {transforms-cap} support a subset of the functionality in
 aggregations. See <<transform-limitations>>.
 
 --
@@ -707,7 +711,7 @@ Defines how to group the data. More than one grouping can be defined
 +
 --
 * <<_date_histogram,Date histogram>>
-* <<_geotile_grid,Geotile Grid>> 
+* <<_geotile_grid,Geotile Grid>>
 * <<_histogram,Histogram>>
 * <<_terms,Terms>>
 
@@ -716,7 +720,7 @@ end::pivot-group-by[]
 
 tag::positions[]
 `positions`::
-(Optional, boolean) If `true`, the response includes term positions.
+(Optional, Boolean) If `true`, the response includes term positions.
 Defaults to `true`.
 end::positions[]
 
@@ -747,7 +751,7 @@ end::query[]
 
 tag::realtime[]
 `realtime`::
-(Optional, boolean) If `true`, the request is real-time as opposed to near-real-time.
+(Optional, Boolean) If `true`, the request is real-time as opposed to near-real-time.
 Defaults to `true`. See <<realtime>>.
 end::realtime[]
 
@@ -761,7 +765,7 @@ end::refresh[]
 
 tag::request_cache[]
 `request_cache`::
-(Optional, boolean) If `true`, the request cache is used for this request.
+(Optional, Boolean) If `true`, the request cache is used for this request.
 Defaults to the index-level setting.
 end::request_cache[]
 
@@ -798,7 +802,7 @@ end::scroll[]
 tag::scroll_size[]
 `scroll_size`::
 (Optional, integer) Size of the scroll request that powers the operation.
-Defaults to 100.
+Defaults to 1000.
 end::scroll_size[]
 
 tag::search-failures[]
@@ -949,7 +953,7 @@ end::stats[]
 
 tag::stored_fields[]
 `stored_fields`::
-(Optional, boolean) If `true`, retrieves the document fields stored in the
+(Optional, Boolean) If `true`, retrieves the document fields stored in the
 index rather than the document `_source`. Defaults to `false`.
 end::stored_fields[]
 
@@ -1007,7 +1011,7 @@ end::task-id[]
 
 tag::term_statistics[]
 `term_statistics`::
-(Optional, boolean) If `true`, the response includes term frequency and document frequency.
+(Optional, Boolean) If `true`, the response includes term frequency and document frequency.
 Defaults to `false`.
 end::term_statistics[]
 
@@ -1068,13 +1072,13 @@ end::trigger-count[]
 
 tag::cat-v[]
 `v`::
-(Optional, boolean) If `true`, the response includes column headings.
+(Optional, Boolean) If `true`, the response includes column headings.
 Defaults to `false`.
 end::cat-v[]
 
 tag::version[]
 `version`::
-(Optional, boolean) If `true`, returns the document version as part of a hit.
+(Optional, Boolean) If `true`, returns the document version as part of a hit.
 end::version[]
 
 tag::doc-version[]
@@ -1109,6 +1113,6 @@ end::wait_for_active_shards[]
 
 tag::wait_for_completion[]
 `wait_for_completion`::
-(Optional, boolean) If `true`, the request blocks until the operation is complete.
+(Optional, Boolean) If `true`, the request blocks until the operation is complete.
 Defaults to `true`.
 end::wait_for_completion[]

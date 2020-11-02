@@ -55,7 +55,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (FORK (EQ booleanValue)?)? (by=joinKeys)?
+   : subquery (by=joinKeys)?
    ;
 
 subquery
@@ -65,9 +65,9 @@ subquery
 eventQuery
     : eventFilter
     ;
-    
+
 eventFilter
-    : (ANY | event=identifier) WHERE expression
+    : (ANY | event=eventValue) WHERE expression
     ;
 
 expression
@@ -110,7 +110,11 @@ primaryExpression
     ;
 
 functionExpression
-    : name=IDENTIFIER LP (expression (COMMA expression)*)? RP
+    : name=functionName LP (expression (COMMA expression)*)? RP
+    ;
+
+functionName
+    : IDENTIFIER
     ;
 
 constant
@@ -121,7 +125,7 @@ constant
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : SEQ | EQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
@@ -134,7 +138,7 @@ qualifiedName
 
 identifier
     : IDENTIFIER
-    | ESCAPED_IDENTIFIER
+    | QUOTED_IDENTIFIER
     ;
 
 timeUnit
@@ -154,7 +158,6 @@ AND: 'and';
 ANY: 'any';
 BY: 'by';
 FALSE: 'false';
-FORK: 'fork';
 IN: 'in';
 JOIN: 'join';
 MAXSPAN: 'maxspan';
@@ -169,6 +172,9 @@ WHERE: 'where';
 WITH: 'with';
 
 // Operators
+// dedicated string equality - case-insensitive and supporting * operator
+SEQ : ':';
+// regular operators
 ASGN : '=';
 EQ  : '==';
 NEQ : '!=';
@@ -190,16 +196,12 @@ LP: '(';
 RP: ')';
 PIPE: '|';
 
-
-ESCAPED_IDENTIFIER
-    : '`' ( ~'`' | '``' )* '`'
-    ;
-
 STRING
     : '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
     | '"'   ('\\' [btnfr"'\\] | ~[\r\n"\\])* '"'
     | '?"'  ('\\"' |~["\r\n])* '"'
     | '?\'' ('\\\'' |~['\r\n])* '\''
+    | '"""' (~[\r\n])*? '"""' '"'? '"'?
     ;
 
 INTEGER_VALUE
@@ -216,6 +218,15 @@ DECIMAL_VALUE
 // make @timestamp not require escaping, since @ has no other meaning
 IDENTIFIER
     : (LETTER | '_' | '@') (LETTER | DIGIT | '_')*
+    ;
+
+QUOTED_IDENTIFIER
+    : '`' ( ~'`' | '``' )* '`'
+    ;
+
+eventValue
+    : STRING
+    | IDENTIFIER
     ;
 
 fragment EXPONENT

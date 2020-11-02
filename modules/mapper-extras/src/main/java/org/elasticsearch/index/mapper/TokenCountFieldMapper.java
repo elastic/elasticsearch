@@ -73,14 +73,30 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
             if (analyzer.getValue() == null) {
                 throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
             }
-            MappedFieldType ft = new NumberFieldMapper.NumberFieldType(
+            MappedFieldType ft = new TokenCountFieldType(
                 buildFullName(context),
-                NumberFieldMapper.NumberType.INTEGER,
                 index.getValue(),
                 store.getValue(),
                 hasDocValues.getValue(),
+                nullValue.getValue(),
                 meta.getValue());
             return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+        }
+    }
+
+    static class TokenCountFieldType extends NumberFieldMapper.NumberFieldType {
+
+        TokenCountFieldType(String name, boolean isSearchable, boolean isStored,
+                            boolean hasDocValues, Number nullValue, Map<String, String> meta) {
+            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (hasDocValues() == false) {
+                return lookup -> org.elasticsearch.common.collect.List.of();
+            }
+            return new DocValueFetcher(docValueFormat(format, null), searchLookup.doc().getForField(this));
         }
     }
 
@@ -127,20 +143,6 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
         context.doc().addAll(
             NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, store)
         );
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected String parseSourceValue(Object value) {
-                return value.toString();
-            }
-        };
     }
 
     /**

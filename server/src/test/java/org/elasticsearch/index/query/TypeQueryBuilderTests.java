@@ -19,16 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 
@@ -41,14 +38,10 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
 
     @Override
     protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (createShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
-            assertEquals(new MatchNoDocsQuery(), query);
+        if (createShardContext().typeExists(queryBuilder.type())) {
+            assertThat(query, equalTo(Queries.newNonNestedFilter(context.indexVersionCreated())));
         } else {
-            assertThat(query,
-                anyOf(
-                    equalTo(new TypeFieldMapper.TypesQuery(new BytesRef(queryBuilder.type()))),
-                    equalTo(new MatchAllDocsQuery()))
-            );
+            assertEquals(new MatchNoDocsQuery(), query);
         }
     }
 

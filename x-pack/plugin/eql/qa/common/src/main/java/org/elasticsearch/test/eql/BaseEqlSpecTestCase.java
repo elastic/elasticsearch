@@ -6,10 +6,13 @@
 
 package org.elasticsearch.test.eql;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.client.EqlClient;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
@@ -18,6 +21,8 @@ import org.elasticsearch.client.eql.EqlSearchResponse.Hits;
 import org.elasticsearch.client.eql.EqlSearchResponse.Sequence;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -32,7 +37,7 @@ import static java.util.stream.Collectors.toList;
 
 public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
 
-    protected static final String PARAM_FORMATTING = "%1$s.test -> %2$s";
+    protected static final String PARAM_FORMATTING = "%2$s";
 
     private RestHighLevelClient highLevelClient;
 
@@ -40,7 +45,6 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
     private final String query;
     private final String name;
     private final long[] eventIds;
-    private final boolean caseSensitive;
 
     @Before
     private void setup() throws Exception {
@@ -74,28 +78,22 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
                 name = "" + (counter);
             }
 
-            boolean[] values = spec.caseSensitive() == null ? new boolean[] { true, false } : new boolean[] { spec.caseSensitive() };
-
-            for (boolean sensitive : values) {
-                String prefixed = name + (sensitive ? "-sensitive" : "-insensitive");
-                results.add(new Object[] { spec.query(), prefixed, spec.expectedEventIds(), sensitive });
-            }
+            results.add(new Object[] { spec.query(), name, spec.expectedEventIds() });
         }
 
         return results;
     }
 
-    BaseEqlSpecTestCase(String index, String query, String name, long[] eventIds, boolean caseSensitive) {
+    BaseEqlSpecTestCase(String index, String query, String name, long[] eventIds) {
         this.index = index;
 
         this.query = query;
         this.name = name;
         this.eventIds = eventIds;
-        this.caseSensitive = caseSensitive;
     }
 
     public void test() throws Exception {
-        assertResponse(runQuery(index, query, caseSensitive));
+        assertResponse(runQuery(index, query));
     }
 
     protected void assertResponse(EqlSearchResponse response) {
@@ -111,10 +109,12 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    protected EqlSearchResponse runQuery(String index, String query, boolean isCaseSensitive) throws Exception {
+    protected EqlSearchResponse runQuery(String index, String query) throws Exception {
         EqlSearchRequest request = new EqlSearchRequest(index, query);
-        request.isCaseSensitive(isCaseSensitive);
-        request.tiebreakerField("event.sequence");
+        String tiebreaker = tiebreaker();
+        if (tiebreaker != null) {
+            request.tiebreakerField(tiebreaker());
+        }
         // some queries return more than 10 results
         request.size(50);
         request.fetchSize(randomIntBetween(2, 50));
@@ -144,7 +144,7 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
         final int len = events.size();
         final long[] ids = new long[len];
         for (int i = 0; i < len; i++) {
-            Object field = events.get(i).sourceAsMap().get(sequenceField());
+            Object field = events.get(i).sourceAsMap().get(tiebreaker());
             ids[i] = ((Number) field).longValue();
         }
         return ids;
@@ -175,5 +175,24 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
-    protected abstract String sequenceField();
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+
+        int timeout = Math.toIntExact(timeout().millis());
+        builder.setRequestConfigCallback(
+            requestConfigBuilder -> requestConfigBuilder.setConnectTimeout(timeout)
+                .setConnectionRequestTimeout(timeout)
+                .setSocketTimeout(timeout)
+        );
+        builder.setStrictDeprecationMode(true);
+        return builder.build();
+    }
+
+    protected TimeValue timeout() {
+        return TimeValue.timeValueSeconds(10);
+    }
+
+    protected abstract String tiebreaker();
 }

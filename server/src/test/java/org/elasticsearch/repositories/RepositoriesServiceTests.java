@@ -41,6 +41,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -293,6 +294,12 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
+        public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
+                                       ActionListener<String> listener) {
+
+        }
+
+        @Override
         public Lifecycle.State lifecycleState() {
             return null;
         }
@@ -332,6 +339,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 false,
                 mock(NamedXContentRegistry.class),
                 clusterService,
+                MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 org.elasticsearch.common.collect.Map.of("bucket", "bucket-a"));
         }
@@ -361,6 +369,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 false,
                 mock(NamedXContentRegistry.class),
                 clusterService,
+                MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 org.elasticsearch.common.collect.Map.of("bucket", "bucket-b"));
         }

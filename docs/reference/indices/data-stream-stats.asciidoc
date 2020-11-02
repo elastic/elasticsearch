@@ -73,7 +73,7 @@ To target all data streams in a cluster, omit this parameter or use `*`.
 ==== {api-query-parms-title}
 
 `human`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the response includes statistics in human-readable <<byte-units,byte
 values>>. Defaults to `false`.
 

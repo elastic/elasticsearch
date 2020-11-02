@@ -80,8 +80,8 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         public Builder(String name) {
             super(name);
-            value.setShouldSerialize(() -> value.getValue() != null);
-            value.setMergeValidator((previous, current) -> previous == null || Objects.equals(previous, current));
+            value.setSerializerCheck((id, ic, v) -> v != null);
+            value.setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
         }
 
         @Override
@@ -128,7 +128,18 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new ConstantIndexFieldData.Builder(mapperService -> value, name(), CoreValuesSourceType.BYTES);
+            return new ConstantIndexFieldData.Builder(value, name(), CoreValuesSourceType.BYTES);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return value == null
+                ? lookup -> Collections.emptyList()
+                : lookup -> Collections.singletonList(value);
         }
 
         @Override
@@ -249,17 +260,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
                     "] only accepts values that are equal to the value defined in the mappings [" + fieldType().value() +
                     "], but got [" + value + "]");
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return fieldType().value == null
-            ? lookup -> org.elasticsearch.common.collect.List.of()
-            : lookup -> org.elasticsearch.common.collect.List.of(fieldType().value);
     }
 
     @Override

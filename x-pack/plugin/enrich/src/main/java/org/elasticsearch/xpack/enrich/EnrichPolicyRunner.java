@@ -29,8 +29,10 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -61,6 +63,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public class EnrichPolicyRunner implements Runnable {
 
@@ -116,6 +120,7 @@ public class EnrichPolicyRunner implements Runnable {
         final String[] sourceIndices = policy.getIndices().toArray(new String[0]);
         logger.debug("Policy [{}]: Checking source indices [{}]", policyName, sourceIndices);
         GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndices);
+        // This call does not set the origin to ensure that the user executing the policy has permission to access the source index
         client.admin().indices().getIndex(getIndexRequest, new ActionListener<GetIndexResponse>() {
             @Override
             public void onResponse(GetIndexResponse getIndexResponse) {
@@ -302,7 +307,7 @@ public class EnrichPolicyRunner implements Runnable {
         CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
         createEnrichIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, resolveEnrichMapping(policy));
         logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
-        client.admin().indices().create(createEnrichIndexRequest, new ActionListener<CreateIndexResponse>() {
+        enrichOriginClient().admin().indices().create(createEnrichIndexRequest, new ActionListener<CreateIndexResponse>() {
             @Override
             public void onResponse(CreateIndexResponse createIndexResponse) {
                 prepareReindexOperation(enrichIndexName);
@@ -318,7 +323,7 @@ public class EnrichPolicyRunner implements Runnable {
     private void prepareReindexOperation(final String destinationIndexName) {
         // Check to make sure that the enrich pipeline exists, and create it if it is missing.
         if (EnrichPolicyReindexPipeline.exists(clusterService.state()) == false) {
-            EnrichPolicyReindexPipeline.create(client, new ActionListener<AcknowledgedResponse>() {
+            EnrichPolicyReindexPipeline.create(enrichOriginClient(), new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     transferDataToEnrichIndex(destinationIndexName);
@@ -352,67 +357,80 @@ public class EnrichPolicyRunner implements Runnable {
         reindexRequest.getDestination().source(new BytesArray(new byte[0]), XContentType.SMILE);
         reindexRequest.getDestination().routing("discard");
         reindexRequest.getDestination().setPipeline(EnrichPolicyReindexPipeline.pipelineName());
-        client.execute(ReindexAction.INSTANCE, reindexRequest, new ActionListener<BulkByScrollResponse>() {
-            @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                // Do we want to fail the request if there were failures during the reindex process?
-                if (bulkByScrollResponse.getBulkFailures().size() > 0) {
-                    logger.warn(
-                        "Policy [{}]: encountered [{}] bulk failures. Turn on DEBUG logging for details.",
-                        policyName,
-                        bulkByScrollResponse.getBulkFailures().size()
-                    );
-                    if (logger.isDebugEnabled()) {
-                        for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
-                            logger.debug(
-                                new ParameterizedMessage(
-                                    "Policy [{}]: bulk index failed for index [{}], id [{}]",
-                                    policyName,
-                                    failure.getIndex(),
-                                    failure.getId()
-                                ),
-                                failure.getCause()
-                            );
-                        }
-                    }
-                    listener.onFailure(new ElasticsearchException("Encountered bulk failures during reindex process"));
-                } else if (bulkByScrollResponse.getSearchFailures().size() > 0) {
-                    logger.warn(
-                        "Policy [{}]: encountered [{}] search failures. Turn on DEBUG logging for details.",
-                        policyName,
-                        bulkByScrollResponse.getSearchFailures().size()
-                    );
-                    if (logger.isDebugEnabled()) {
-                        for (ScrollableHitSource.SearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
-                            logger.debug(
-                                new ParameterizedMessage(
-                                    "Policy [{}]: search failed for index [{}], shard [{}] on node [{}]",
-                                    policyName,
-                                    failure.getIndex(),
-                                    failure.getShardId(),
-                                    failure.getNodeId()
-                                ),
-                                failure.getReason()
-                            );
-                        }
-                    }
-                    listener.onFailure(new ElasticsearchException("Encountered search failures during reindex process"));
-                } else {
-                    logger.info(
-                        "Policy [{}]: Transferred [{}] documents to enrich index [{}]",
-                        policyName,
-                        bulkByScrollResponse.getCreated(),
-                        destinationIndexName
-                    );
-                    forceMergeEnrichIndex(destinationIndexName, 1);
-                }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        // The ContextPreservingActionListener here is for the purpose of dropping the response headers, as we need this reindex to run
+        // in the security context of the user (rather than Enrich's security context) to ensure that DLS/FLS is correctly applied, but
+        // the reindex needs to access the `.enrich` index, which causes a deprecation warning. Since we drop the response headers,
+        // the deprecation warning is also dropped - but this is a hack and will not work once full protections of system indices are
+        // enabled.
+        client.execute(
+            ReindexAction.INSTANCE,
+            reindexRequest,
+            new ContextPreservingActionListener<>(
+                client.threadPool().getThreadContext().newRestorableContext(false),
+                new ActionListener<BulkByScrollResponse>() {
+                    @Override
+                    public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+                        // Do we want to fail the request if there were failures during the reindex process?
+                        if (bulkByScrollResponse.getBulkFailures().size() > 0) {
+                            logger.warn(
+                                "Policy [{}]: encountered [{}] bulk failures. Turn on DEBUG logging for details.",
+                                policyName,
+                                bulkByScrollResponse.getBulkFailures().size()
+                            );
+                            if (logger.isDebugEnabled()) {
+                                for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                                    logger.debug(
+                                        new ParameterizedMessage(
+                                            "Policy [{}]: bulk index failed for index [{}], id [{}]",
+                                            policyName,
+                                            failure.getIndex(),
+                                            failure.getId()
+                                        ),
+                                        failure.getCause()
+                                    );
+                                }
+                            }
+                            listener.onFailure(new ElasticsearchException("Encountered bulk failures during reindex process"));
+                        } else if (bulkByScrollResponse.getSearchFailures().size() > 0) {
+                            logger.warn(
+                                "Policy [{}]: encountered [{}] search failures. Turn on DEBUG logging for details.",
+                                policyName,
+                                bulkByScrollResponse.getSearchFailures().size()
+                            );
+                            if (logger.isDebugEnabled()) {
+                                for (ScrollableHitSource.SearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
+                                    logger.debug(
+                                        new ParameterizedMessage(
+                                            "Policy [{}]: search failed for index [{}], shard [{}] on node [{}]",
+                                            policyName,
+                                            failure.getIndex(),
+                                            failure.getShardId(),
+                                            failure.getNodeId()
+                                        ),
+                                        failure.getReason()
+                                    );
+                                }
+                            }
+                            listener.onFailure(new ElasticsearchException("Encountered search failures during reindex process"));
+                        } else {
+                            logger.info(
+                                "Policy [{}]: Transferred [{}] documents to enrich index [{}]",
+                                policyName,
+                                bulkByScrollResponse.getCreated(),
+                                destinationIndexName
+                            );
+                            forceMergeEnrichIndex(destinationIndexName, 1);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                }
+            )
+        );
     }
 
     private void forceMergeEnrichIndex(final String destinationIndexName, final int attempt) {
@@ -423,7 +441,7 @@ public class EnrichPolicyRunner implements Runnable {
             attempt,
             maxForceMergeAttempts
         );
-        client.admin()
+        enrichOriginClient().admin()
             .indices()
             .forceMerge(new ForceMergeRequest(destinationIndexName).maxNumSegments(1), new ActionListener<ForceMergeResponse>() {
                 @Override
@@ -440,7 +458,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void refreshEnrichIndex(final String destinationIndexName, final int attempt) {
         logger.debug("Policy [{}]: Refreshing enrich index [{}]", policyName, destinationIndexName);
-        client.admin().indices().refresh(new RefreshRequest(destinationIndexName), new ActionListener<RefreshResponse>() {
+        enrichOriginClient().admin().indices().refresh(new RefreshRequest(destinationIndexName), new ActionListener<RefreshResponse>() {
             @Override
             public void onResponse(RefreshResponse refreshResponse) {
                 ensureSingleSegment(destinationIndexName, attempt);
@@ -454,60 +472,62 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     protected void ensureSingleSegment(final String destinationIndexName, final int attempt) {
-        client.admin().indices().segments(new IndicesSegmentsRequest(destinationIndexName), new ActionListener<IndicesSegmentResponse>() {
-            @Override
-            public void onResponse(IndicesSegmentResponse indicesSegmentResponse) {
-                IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(destinationIndexName);
-                if (indexSegments == null) {
-                    throw new ElasticsearchException(
-                        "Could not locate segment information for newly created index [{}]",
-                        destinationIndexName
-                    );
-                }
-                Map<Integer, IndexShardSegments> indexShards = indexSegments.getShards();
-                assert indexShards.size() == 1 : "Expected enrich index to contain only one shard";
-                ShardSegments[] shardSegments = indexShards.get(0).getShards();
-                assert shardSegments.length == 1 : "Expected enrich index to contain no replicas at this point";
-                ShardSegments primarySegments = shardSegments[0];
-                if (primarySegments.getSegments().size() > 1) {
-                    int nextAttempt = attempt + 1;
-                    if (nextAttempt > maxForceMergeAttempts) {
-                        listener.onFailure(
-                            new ElasticsearchException(
-                                "Force merging index [{}] attempted [{}] times but did not result in one segment.",
-                                destinationIndexName,
-                                attempt,
-                                maxForceMergeAttempts
-                            )
+        enrichOriginClient().admin()
+            .indices()
+            .segments(new IndicesSegmentsRequest(destinationIndexName), new ActionListener<IndicesSegmentResponse>() {
+                @Override
+                public void onResponse(IndicesSegmentResponse indicesSegmentResponse) {
+                    IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(destinationIndexName);
+                    if (indexSegments == null) {
+                        throw new ElasticsearchException(
+                            "Could not locate segment information for newly created index [{}]",
+                            destinationIndexName
                         );
-                    } else {
-                        logger.debug(
-                            "Policy [{}]: Force merge result contains more than one segment [{}], retrying (attempt {}/{})",
-                            policyName,
-                            primarySegments.getSegments().size(),
-                            nextAttempt,
-                            maxForceMergeAttempts
-                        );
-                        forceMergeEnrichIndex(destinationIndexName, nextAttempt);
                     }
-                } else {
-                    // Force merge down to one segment successful
-                    setIndexReadOnly(destinationIndexName);
+                    Map<Integer, IndexShardSegments> indexShards = indexSegments.getShards();
+                    assert indexShards.size() == 1 : "Expected enrich index to contain only one shard";
+                    ShardSegments[] shardSegments = indexShards.get(0).getShards();
+                    assert shardSegments.length == 1 : "Expected enrich index to contain no replicas at this point";
+                    ShardSegments primarySegments = shardSegments[0];
+                    if (primarySegments.getSegments().size() > 1) {
+                        int nextAttempt = attempt + 1;
+                        if (nextAttempt > maxForceMergeAttempts) {
+                            listener.onFailure(
+                                new ElasticsearchException(
+                                    "Force merging index [{}] attempted [{}] times but did not result in one segment.",
+                                    destinationIndexName,
+                                    attempt,
+                                    maxForceMergeAttempts
+                                )
+                            );
+                        } else {
+                            logger.debug(
+                                "Policy [{}]: Force merge result contains more than one segment [{}], retrying (attempt {}/{})",
+                                policyName,
+                                primarySegments.getSegments().size(),
+                                nextAttempt,
+                                maxForceMergeAttempts
+                            );
+                            forceMergeEnrichIndex(destinationIndexName, nextAttempt);
+                        }
+                    } else {
+                        // Force merge down to one segment successful
+                        setIndexReadOnly(destinationIndexName);
+                    }
                 }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
     private void setIndexReadOnly(final String destinationIndexName) {
         logger.debug("Policy [{}]: Setting new enrich index [{}] to be read only", policyName, destinationIndexName);
         UpdateSettingsRequest request = new UpdateSettingsRequest(destinationIndexName).setPreserveExisting(true)
             .settings(Settings.builder().put("index.auto_expand_replicas", "0-all").put("index.blocks.write", "true"));
-        client.admin().indices().updateSettings(request, new ActionListener<AcknowledgedResponse>() {
+        enrichOriginClient().admin().indices().updateSettings(request, new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 waitForIndexGreen(destinationIndexName);
@@ -522,7 +542,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void waitForIndexGreen(final String destinationIndexName) {
         ClusterHealthRequest request = new ClusterHealthRequest(destinationIndexName).waitForGreenStatus();
-        client.admin().cluster().health(request, new ActionListener<ClusterHealthResponse>() {
+        enrichOriginClient().admin().cluster().health(request, new ActionListener<ClusterHealthResponse>() {
             @Override
             public void onResponse(ClusterHealthResponse clusterHealthResponse) {
                 updateEnrichPolicyAlias(destinationIndexName);
@@ -540,7 +560,7 @@ public class EnrichPolicyRunner implements Runnable {
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, destinationIndexName, enrichIndexBase);
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
         ClusterState clusterState = clusterService.state();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, aliasRequest);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasRequest);
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = clusterState.metadata().findAliases(aliasRequest, concreteIndices);
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
         String[] indices = aliases.keys().toArray(String.class);
@@ -548,7 +568,7 @@ public class EnrichPolicyRunner implements Runnable {
             aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().indices(indices).alias(enrichIndexBase));
         }
         aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(destinationIndexName).alias(enrichIndexBase));
-        client.admin().indices().aliases(aliasToggleRequest, new ActionListener<AcknowledgedResponse>() {
+        enrichOriginClient().admin().indices().aliases(aliasToggleRequest, new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 logger.info("Policy [{}]: Policy execution complete", policyName);
@@ -562,5 +582,13 @@ public class EnrichPolicyRunner implements Runnable {
                 listener.onFailure(e);
             }
         });
+    }
+
+    /**
+     * Use this client to access information at the access level of the Enrich plugin, rather than at the access level of the user.
+     * For example, use this client to access system indices (such as `.enrich*` indices).
+     */
+    private Client enrichOriginClient() {
+        return new OriginSettingClient(client, ENRICH_ORIGIN);
     }
 }

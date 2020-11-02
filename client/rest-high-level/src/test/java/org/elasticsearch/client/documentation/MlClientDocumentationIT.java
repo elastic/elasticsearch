@@ -162,6 +162,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Multiclas
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResult;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric.ConfusionMatrix;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
@@ -201,7 +202,6 @@ import org.elasticsearch.client.ml.job.results.CategoryDefinition;
 import org.elasticsearch.client.ml.job.results.Influencer;
 import org.elasticsearch.client.ml.job.results.OverallBucket;
 import org.elasticsearch.client.ml.job.stats.JobStats;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -229,8 +229,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
@@ -340,6 +343,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-job-request
             GetJobRequest request = new GetJobRequest("get-machine-learning-job1", "get-machine-learning-job*"); // <1>
             request.setAllowNoMatch(true); // <2>
+            request.setExcludeGenerated(false); // <3>
             // end::get-job-request
 
             // tag::get-job-execute
@@ -836,6 +840,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-datafeed-request
             GetDatafeedRequest request = new GetDatafeedRequest(datafeedId); // <1>
             request.setAllowNoMatch(true); // <2>
+            request.setExcludeGenerated(false); // <3>
             // end::get-datafeed-request
 
             // tag::get-datafeed-execute
@@ -2861,6 +2866,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::get-data-frame-analytics-request
             GetDataFrameAnalyticsRequest request = new GetDataFrameAnalyticsRequest("my-analytics-config"); // <1>
+            request.setExcludeGenerated(false); // <2>
             // end::get-data-frame-analytics-request
 
             // tag::get-data-frame-analytics-execute
@@ -3463,34 +3469,33 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                         .endObject()
                     .endObject()
                     .endObject());
-        TriFunction<String, String, Double, IndexRequest> indexRequest = (actualClass, predictedClass, p) -> {
+        BiFunction<String, String[], IndexRequest> indexRequest = (actualClass, topPredictedClasses) -> {
+            assert topPredictedClasses.length > 0;
             return new IndexRequest()
                 .source(XContentType.JSON,
                     "actual_class", actualClass,
-                    "predicted_class", predictedClass,
-                    "ml.top_classes", Arrays.asList(
-                        new HashMap<String, Object>() {{
-                            put("class_name", predictedClass);
-                            put("class_probability", p);
-                        }},
-                        new HashMap<String, Object>() {{
-                            put("class_name", "other");
-                            put("class_probability", 1 - p);
-                        }}));
+                    "predicted_class", topPredictedClasses[0],
+                    "ml.top_classes", IntStream.range(0, topPredictedClasses.length)
+                        // Consecutive assigned probabilities are: 0.5, 0.25, 0.125, etc.
+                        .mapToObj(i -> new HashMap<String, Object>() {{
+                            put("class_name", topPredictedClasses[i]);
+                            put("class_probability", 1.0 / (2 << i));
+                        }})
+                        .collect(toList()));
         };
         BulkRequest bulkRequest =
             new BulkRequest(indexName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .add(indexRequest.apply("cat", "cat", 0.9)) // #0
-                .add(indexRequest.apply("cat", "cat", 0.9)) // #1
-                .add(indexRequest.apply("cat", "cat", 0.9)) // #2
-                .add(indexRequest.apply("cat", "dog", 0.9)) // #3
-                .add(indexRequest.apply("cat", "fox", 0.9)) // #4
-                .add(indexRequest.apply("dog", "cat", 0.9)) // #5
-                .add(indexRequest.apply("dog", "dog", 0.9)) // #6
-                .add(indexRequest.apply("dog", "dog", 0.9)) // #7
-                .add(indexRequest.apply("dog", "dog", 0.9)) // #8
-                .add(indexRequest.apply("ant", "cat", 0.9)); // #9
+                .add(indexRequest.apply("cat", new String[]{"cat", "dog", "ant"})) // #0
+                .add(indexRequest.apply("cat", new String[]{"cat", "dog", "ant"})) // #1
+                .add(indexRequest.apply("cat", new String[]{"cat", "horse", "dog"})) // #2
+                .add(indexRequest.apply("cat", new String[]{"dog", "cat", "mule"})) // #3
+                .add(indexRequest.apply("cat", new String[]{"fox", "cat", "dog"})) // #4
+                .add(indexRequest.apply("dog", new String[]{"cat", "dog", "mule"})) // #5
+                .add(indexRequest.apply("dog", new String[]{"dog", "cat", "ant"})) // #6
+                .add(indexRequest.apply("dog", new String[]{"dog", "cat", "ant"})) // #7
+                .add(indexRequest.apply("dog", new String[]{"dog", "cat", "ant"})) // #8
+                .add(indexRequest.apply("ant", new String[]{"cat", "ant", "wasp"})); // #9
         RestHighLevelClient client = highLevelClient();
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -3528,9 +3533,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <8>
             long otherClassesCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <9>
 
-            AucRocMetric.Result aucRocResult = response.getMetricByName(AucRocMetric.NAME); // <10>
-            double aucRocScore = aucRocResult.getScore(); // <11>
-            Long aucRocDocCount = aucRocResult.getDocCount(); // <12>
+            AucRocResult aucRocResult = response.getMetricByName(AucRocMetric.NAME); // <10>
+            double aucRocScore = aucRocResult.getValue(); // <11>
             // end::evaluate-data-frame-results-classification
 
             assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
@@ -3565,8 +3569,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(otherClassesCount, equalTo(0L));
 
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocScore, equalTo(0.2625));
-            assertThat(aucRocDocCount, equalTo(5L));
+            assertThat(aucRocScore, closeTo(0.6425, 1e-9));
         }
     }
 
@@ -3724,10 +3727,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setPageParams(new PageParams(0, 1)) // <2>
                 .includeDefinition() // <3>
                 .includeTotalFeatureImportance() // <4>
-                .setDecompressDefinition(false) // <5>
-                .setAllowNoMatch(true) // <6>
-                .setTags("regression") // <7>
-                .setForExport(false); // <8>
+                .includeFeatureImportanceBaseline() // <5>
+                .setDecompressDefinition(false) // <6>
+                .setAllowNoMatch(true) // <7>
+                .setTags("regression") // <8>
+                .setExcludeGenerated(false); // <9>
             // end::get-trained-models-request
             request.setTags((List<String>)null);
 
@@ -3901,17 +3905,17 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             putTrainedModel("my-trained-model");
-            // tag::delete-trained-model-request
+            // tag::delete-trained-models-request
             DeleteTrainedModelRequest request = new DeleteTrainedModelRequest("my-trained-model"); // <1>
-            // end::delete-trained-model-request
+            // end::delete-trained-models-request
 
-            // tag::delete-trained-model-execute
+            // tag::delete-trained-models-execute
             AcknowledgedResponse response = client.machineLearning().deleteTrainedModel(request, RequestOptions.DEFAULT);
-            // end::delete-trained-model-execute
+            // end::delete-trained-models-execute
 
-            // tag::delete-trained-model-response
+            // tag::delete-trained-models-response
             boolean deleted = response.isAcknowledged();
-            // end::delete-trained-model-response
+            // end::delete-trained-models-response
 
             assertThat(deleted, is(true));
         }
@@ -3919,7 +3923,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             putTrainedModel("my-trained-model");
             DeleteTrainedModelRequest request = new DeleteTrainedModelRequest("my-trained-model");
 
-            // tag::delete-trained-model-execute-listener
+            // tag::delete-trained-models-execute-listener
             ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
@@ -3931,15 +3935,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            // end::delete-trained-model-execute-listener
+            // end::delete-trained-models-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::delete-trained-model-execute-async
+            // tag::delete-trained-models-execute-async
             client.machineLearning().deleteTrainedModelAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::delete-trained-model-execute-async
+            // end::delete-trained-models-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

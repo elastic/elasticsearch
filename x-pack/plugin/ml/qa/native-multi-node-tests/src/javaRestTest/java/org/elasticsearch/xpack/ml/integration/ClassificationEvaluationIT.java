@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accur
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.PerClassSingleValue;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
 import org.junit.After;
@@ -32,6 +33,7 @@ import java.util.stream.IntStream;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,7 +83,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(
             evaluateDataFrameResponse.getMetrics().stream().map(EvaluationMetricResult::getMetricName).collect(toList()),
-            contains(MulticlassConfusionMatrix.NAME.getPreferredName()));
+            containsInAnyOrder(
+                MulticlassConfusionMatrix.NAME.getPreferredName(),
+                Accuracy.NAME.getPreferredName(),
+                Precision.NAME.getPreferredName(),
+                Recall.NAME.getPreferredName()
+            )
+        );
     }
 
     public void testEvaluate_AllMetrics() {
@@ -130,7 +138,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                     Arrays.asList(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
 
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
-        assertThat(accuracyResult.getClasses(), contains(new Accuracy.PerClassResult("crocodile", 0.0)));
+        assertThat(accuracyResult.getClasses(), contains(new PerClassSingleValue("crocodile", 0.0)));
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.0));
 
         MulticlassConfusionMatrix.Result confusionMatrixResult =
@@ -146,7 +154,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(precisionResult.getAvgPrecision(), is(notANumber()));
 
         Recall.Result recallResult = (Recall.Result) evaluateDataFrameResponse.getMetrics().get(3);
-        assertThat(recallResult.getClasses(), contains(new Recall.PerClassResult("crocodile", 0.0)));
+        assertThat(recallResult.getClasses(), contains(new PerClassSingleValue("crocodile", 0.0)));
         assertThat(recallResult.getAvgRecall(), equalTo(0.0));
     }
 
@@ -166,15 +174,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_AucRoc_DoNotIncludeCurve() {
         AucRoc.Result aucrocResult = evaluateAucRoc(false);
-        assertThat(aucrocResult.getScore(), is(closeTo(0.5, 0.0001)));
-        assertThat(aucrocResult.getDocCount(), is(equalTo(75L)));
+        assertThat(aucrocResult.getValue(), is(closeTo(0.5, 0.0001)));
         assertThat(aucrocResult.getCurve(), hasSize(0));
     }
 
     public void testEvaluate_AucRoc_IncludeCurve() {
         AucRoc.Result aucrocResult = evaluateAucRoc(true);
-        assertThat(aucrocResult.getScore(), is(closeTo(0.5, 0.0001)));
-        assertThat(aucrocResult.getDocCount(), is(equalTo(75L)));
+        assertThat(aucrocResult.getValue(), is(closeTo(0.5, 0.0001)));
         assertThat(aucrocResult.getCurve(), hasSize(greaterThan(0)));
     }
 
@@ -191,13 +197,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Accuracy_KeywordField() {
-        List<Accuracy.PerClassResult> expectedPerClassResults =
+        List<PerClassSingleValue> expectedPerClassResults =
             Arrays.asList(
-                new Accuracy.PerClassResult("ant", 47.0 / 75),
-                new Accuracy.PerClassResult("cat", 47.0 / 75),
-                new Accuracy.PerClassResult("dog", 47.0 / 75),
-                new Accuracy.PerClassResult("fox", 47.0 / 75),
-                new Accuracy.PerClassResult("mouse", 47.0 / 75));
+                new PerClassSingleValue("ant", 47.0 / 75),
+                new PerClassSingleValue("cat", 47.0 / 75),
+                new PerClassSingleValue("dog", 47.0 / 75),
+                new PerClassSingleValue("fox", 47.0 / 75),
+                new PerClassSingleValue("mouse", 47.0 / 75));
         double expectedOverallAccuracy = 5.0 / 75;
 
         Accuracy.Result accuracyResult = evaluateAccuracy(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD);
@@ -211,13 +217,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Accuracy_IntegerField() {
-        List<Accuracy.PerClassResult> expectedPerClassResults =
+        List<PerClassSingleValue> expectedPerClassResults =
             Arrays.asList(
-                new Accuracy.PerClassResult("1", 57.0 / 75),
-                new Accuracy.PerClassResult("2", 54.0 / 75),
-                new Accuracy.PerClassResult("3", 51.0 / 75),
-                new Accuracy.PerClassResult("4", 48.0 / 75),
-                new Accuracy.PerClassResult("5", 45.0 / 75));
+                new PerClassSingleValue("1", 57.0 / 75),
+                new PerClassSingleValue("2", 54.0 / 75),
+                new PerClassSingleValue("3", 51.0 / 75),
+                new PerClassSingleValue("4", 48.0 / 75),
+                new PerClassSingleValue("5", 45.0 / 75));
         double expectedOverallAccuracy = 15.0 / 75;
 
         Accuracy.Result accuracyResult = evaluateAccuracy(NO_LEGS_INTEGER_FIELD, NO_LEGS_PREDICTION_INTEGER_FIELD);
@@ -241,10 +247,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Accuracy_BooleanField() {
-        List<Accuracy.PerClassResult> expectedPerClassResults =
+        List<PerClassSingleValue> expectedPerClassResults =
             Arrays.asList(
-                new Accuracy.PerClassResult("false", 18.0 / 30),
-                new Accuracy.PerClassResult("true", 27.0 / 45));
+                new PerClassSingleValue("false", 18.0 / 30),
+                new PerClassSingleValue("true", 27.0 / 45));
         double expectedOverallAccuracy = 45.0 / 75;
 
         Accuracy.Result accuracyResult = evaluateAccuracy(IS_PREDATOR_BOOLEAN_FIELD, IS_PREDATOR_PREDICTION_BOOLEAN_FIELD);
@@ -270,13 +276,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     public void testEvaluate_Accuracy_FieldTypeMismatch() {
         {
             // When actual and predicted fields have different types, the sets of classes are disjoint
-            List<Accuracy.PerClassResult> expectedPerClassResults =
+            List<PerClassSingleValue> expectedPerClassResults =
                 Arrays.asList(
-                    new Accuracy.PerClassResult("1", 0.8),
-                    new Accuracy.PerClassResult("2", 0.8),
-                    new Accuracy.PerClassResult("3", 0.8),
-                    new Accuracy.PerClassResult("4", 0.8),
-                    new Accuracy.PerClassResult("5", 0.8));
+                    new PerClassSingleValue("1", 0.8),
+                    new PerClassSingleValue("2", 0.8),
+                    new PerClassSingleValue("3", 0.8),
+                    new PerClassSingleValue("4", 0.8),
+                    new PerClassSingleValue("5", 0.8));
             double expectedOverallAccuracy = 0.0;
 
             Accuracy.Result accuracyResult = evaluateAccuracy(NO_LEGS_INTEGER_FIELD, IS_PREDATOR_BOOLEAN_FIELD);
@@ -285,10 +291,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         }
         {
             // When actual and predicted fields have different types, the sets of classes are disjoint
-            List<Accuracy.PerClassResult> expectedPerClassResults =
+            List<PerClassSingleValue> expectedPerClassResults =
                 Arrays.asList(
-                    new Accuracy.PerClassResult("false", 0.6),
-                    new Accuracy.PerClassResult("true", 0.4));
+                    new PerClassSingleValue("false", 0.6),
+                    new PerClassSingleValue("true", 0.4));
             double expectedOverallAccuracy = 0.0;
 
             Accuracy.Result accuracyResult = evaluateAccuracy(IS_PREDATOR_BOOLEAN_FIELD, NO_LEGS_INTEGER_FIELD);
@@ -310,13 +316,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Precision_KeywordField() {
-        List<Precision.PerClassResult> expectedPerClassResults =
+        List<PerClassSingleValue> expectedPerClassResults =
             Arrays.asList(
-                new Precision.PerClassResult("ant", 1.0 / 15),
-                new Precision.PerClassResult("cat", 1.0 / 15),
-                new Precision.PerClassResult("dog", 1.0 / 15),
-                new Precision.PerClassResult("fox", 1.0 / 15),
-                new Precision.PerClassResult("mouse", 1.0 / 15));
+                new PerClassSingleValue("ant", 1.0 / 15),
+                new PerClassSingleValue("cat", 1.0 / 15),
+                new PerClassSingleValue("dog", 1.0 / 15),
+                new PerClassSingleValue("fox", 1.0 / 15),
+                new PerClassSingleValue("mouse", 1.0 / 15));
         double expectedAvgPrecision = 5.0 / 75;
 
         Precision.Result precisionResult = evaluatePrecision(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD);
@@ -327,13 +333,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Precision_IntegerField() {
-        List<Precision.PerClassResult> expectedPerClassResults =
+        List<PerClassSingleValue> expectedPerClassResults =
             Arrays.asList(
-                new Precision.PerClassResult("1", 0.2),
-                new Precision.PerClassResult("2", 0.2),
-                new Precision.PerClassResult("3", 0.2),
-                new Precision.PerClassResult("4", 0.2),
-                new Precision.PerClassResult("5", 0.2));
+                new PerClassSingleValue("1", 0.2),
+                new PerClassSingleValue("2", 0.2),
+                new PerClassSingleValue("3", 0.2),
+                new PerClassSingleValue("4", 0.2),
+                new PerClassSingleValue("5", 0.2));
         double expectedAvgPrecision = 0.2;
 
         Precision.Result precisionResult = evaluatePrecision(NO_LEGS_INTEGER_FIELD, NO_LEGS_PREDICTION_INTEGER_FIELD);
@@ -351,10 +357,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Precision_BooleanField() {
-        List<Precision.PerClassResult> expectedPerClassResults =
+        List<PerClassSingleValue> expectedPerClassResults =
             Arrays.asList(
-                new Precision.PerClassResult("false", 0.5),
-                new Precision.PerClassResult("true", 9.0 / 13));
+                new PerClassSingleValue("false", 0.5),
+                new PerClassSingleValue("true", 9.0 / 13));
         double expectedAvgPrecision = 31.0 / 52;
 
         Precision.Result precisionResult = evaluatePrecision(IS_PREDATOR_BOOLEAN_FIELD, IS_PREDATOR_PREDICTION_BOOLEAN_FIELD);
@@ -410,13 +416,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Recall_KeywordField() {
-        List<Recall.PerClassResult> expectedPerClassResults =
+        List<PerClassSingleValue> expectedPerClassResults =
             Arrays.asList(
-                new Recall.PerClassResult("ant", 1.0 / 15),
-                new Recall.PerClassResult("cat", 1.0 / 15),
-                new Recall.PerClassResult("dog", 1.0 / 15),
-                new Recall.PerClassResult("fox", 1.0 / 15),
-                new Recall.PerClassResult("mouse", 1.0 / 15));
+                new PerClassSingleValue("ant", 1.0 / 15),
+                new PerClassSingleValue("cat", 1.0 / 15),
+                new PerClassSingleValue ("dog", 1.0 / 15),
+                new PerClassSingleValue("fox", 1.0 / 15),
+                new PerClassSingleValue("mouse", 1.0 / 15));
         double expectedAvgRecall = 5.0 / 75;
 
         Recall.Result recallResult = evaluateRecall(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD);
@@ -427,13 +433,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Recall_IntegerField() {
-        List<Recall.PerClassResult> expectedPerClassResults =
+        List<PerClassSingleValue> expectedPerClassResults =
             Arrays.asList(
-                new Recall.PerClassResult("1", 1.0 / 15),
-                new Recall.PerClassResult("2", 2.0 / 15),
-                new Recall.PerClassResult("3", 3.0 / 15),
-                new Recall.PerClassResult("4", 4.0 / 15),
-                new Recall.PerClassResult("5", 5.0 / 15));
+                new PerClassSingleValue("1", 1.0 / 15),
+                new PerClassSingleValue("2", 2.0 / 15),
+                new PerClassSingleValue("3", 3.0 / 15),
+                new PerClassSingleValue("4", 4.0 / 15),
+                new PerClassSingleValue("5", 5.0 / 15));
         double expectedAvgRecall = 3.0 / 15;
 
         Recall.Result recallResult = evaluateRecall(NO_LEGS_INTEGER_FIELD, NO_LEGS_PREDICTION_INTEGER_FIELD);
@@ -451,10 +457,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Recall_BooleanField() {
-        List<Recall.PerClassResult> expectedPerClassResults =
+        List<PerClassSingleValue> expectedPerClassResults =
             Arrays.asList(
-                new Recall.PerClassResult("true", 0.6),
-                new Recall.PerClassResult("false", 0.6));
+                new PerClassSingleValue("true", 0.6),
+                new PerClassSingleValue("false", 0.6));
         double expectedAvgRecall = 0.6;
 
         Recall.Result recallResult = evaluateRecall(IS_PREDATOR_BOOLEAN_FIELD, IS_PREDATOR_PREDICTION_BOOLEAN_FIELD);
@@ -474,13 +480,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     public void testEvaluate_Recall_FieldTypeMismatch() {
         {
             // When actual and predicted fields have different types, the sets of classes are disjoint, hence 0.0 results here
-            List<Recall.PerClassResult> expectedPerClassResults =
+            List<PerClassSingleValue> expectedPerClassResults =
                 Arrays.asList(
-                    new Recall.PerClassResult("1", 0.0),
-                    new Recall.PerClassResult("2", 0.0),
-                    new Recall.PerClassResult("3", 0.0),
-                    new Recall.PerClassResult("4", 0.0),
-                    new Recall.PerClassResult("5", 0.0));
+                    new PerClassSingleValue("1", 0.0),
+                    new PerClassSingleValue("2", 0.0),
+                    new PerClassSingleValue("3", 0.0),
+                    new PerClassSingleValue("4", 0.0),
+                    new PerClassSingleValue("5", 0.0));
             double expectedAvgRecall = 0.0;
 
             Recall.Result recallResult = evaluateRecall(NO_LEGS_INTEGER_FIELD, IS_PREDATOR_BOOLEAN_FIELD);
@@ -489,10 +495,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         }
         {
             // When actual and predicted fields have different types, the sets of classes are disjoint, hence 0.0 results here
-            List<Recall.PerClassResult> expectedPerClassResults =
+            List<PerClassSingleValue> expectedPerClassResults =
                 Arrays.asList(
-                    new Recall.PerClassResult("true", 0.0),
-                    new Recall.PerClassResult("false", 0.0));
+                    new PerClassSingleValue("true", 0.0),
+                    new PerClassSingleValue("false", 0.0));
             double expectedAvgRecall = 0.0;
 
             Recall.Result recallResult = evaluateRecall(IS_PREDATOR_BOOLEAN_FIELD, NO_LEGS_INTEGER_FIELD);

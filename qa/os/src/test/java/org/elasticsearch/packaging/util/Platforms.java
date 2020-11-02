@@ -19,8 +19,6 @@
 
 package org.elasticsearch.packaging.util;
 
-import org.elasticsearch.common.Booleans;
-
 import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.FileUtils.slurp;
@@ -31,10 +29,6 @@ public class Platforms {
     public static final boolean WINDOWS = OS_NAME.startsWith("Windows");
     public static final boolean DARWIN = OS_NAME.startsWith("Mac OS X");
     public static final PlatformAction NO_ACTION = () -> {};
-
-    public static final boolean IS_BUNDLED_JDK_SUPPORTED = Booleans.parseBoolean(
-        System.getProperty("tests.is_bundled_jdk_supported", "true")
-    );
 
     public static String getOsRelease() {
         if (LINUX) {

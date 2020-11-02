@@ -264,10 +264,10 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject());
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test").mapperService();
         for (String m : Arrays.asList(mapping, dynamicMapping)) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> parser.parse("type", new CompressedXContent(m)));
+                    () -> mapperService.parse("type", new CompressedXContent(m), false));
             assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
         }
     }
@@ -281,9 +281,9 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject());
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test").mapperService();
         MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> parser.parse("type", new CompressedXContent(mapping)));
+            () -> mapperService.parse("type", new CompressedXContent(mapping), false));
         assertEquals("Dynamic template syntax error. An array of named objects is expected.", e.getMessage());
     }
 
@@ -368,7 +368,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
         assertThat(mapper.mappingSource().toString(), containsString("\"analyzer\":\"foobar\""));
         assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{" +
-            "\"analyzer\":\"foobar\",\"type\":\"text\"}}], caused by [analyzer [foobar] not found for field [__dynamic__my_template]]");
+            "\"analyzer\":\"foobar\",\"type\":\"text\"}}], caused by [analyzer [foobar] has not been configured in mappings]");
     }
 
     public void testIllegalDynamicTemplateNoMappingType() throws Exception {

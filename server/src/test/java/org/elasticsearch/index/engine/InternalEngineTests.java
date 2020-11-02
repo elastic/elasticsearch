@@ -37,6 +37,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexWriterMaxDocsChanger;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -210,7 +211,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class InternalEngineTests extends EngineTestCase {
@@ -4383,7 +4387,7 @@ public class InternalEngineTests extends EngineTestCase {
                     localCheckpoint);
             EngineConfig noopEngineConfig = copy(engine.config(), new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD,
                 () -> new MatchAllDocsQuery(), engine.config().getMergePolicy()));
-            noOpEngine = new InternalEngine(noopEngineConfig, supplier) {
+            noOpEngine = new InternalEngine(noopEngineConfig, IndexWriter.MAX_DOCS, supplier) {
                 @Override
                 protected long doGenerateSeqNoForOperation(Operation operation) {
                     throw new UnsupportedOperationException();
@@ -5800,7 +5804,8 @@ public class InternalEngineTests extends EngineTestCase {
                     put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)).build());
             try (InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null))) {
                 AssertionError error = expectThrows(AssertionError.class,
-                    () -> engine.newChangesSnapshot("test", createMapperService("test"), 0, randomNonNegativeLong(), randomBoolean()));
+                    () -> engine.newChangesSnapshot("test", createMapperService("test"),
+                        0, randomNonNegativeLong(), randomBoolean()));
                 assertThat(error.getMessage(), containsString("does not have soft-deletes enabled"));
             }
         }
@@ -6153,6 +6158,33 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testIndexThrottling() throws Exception {
+        final Engine.Index indexWithThrottlingCheck = spy(indexForDoc(createParsedDoc("1", null)));
+        final Engine.Index indexWithoutThrottlingCheck = spy(indexForDoc(createParsedDoc("2", null)));
+        doAnswer(invocation -> {
+            try {
+                assertTrue(engine.throttleLockIsHeldByCurrentThread());
+                return invocation.callRealMethod();
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        }).when(indexWithThrottlingCheck).startTime();
+        doAnswer(invocation -> {
+            try {
+                assertFalse(engine.throttleLockIsHeldByCurrentThread());
+                return invocation.callRealMethod();
+            } catch (InterruptedException ex) {
+                throw new RuntimeException(ex);
+            }
+        }).when(indexWithoutThrottlingCheck).startTime();
+        engine.activateThrottling();
+        engine.index(indexWithThrottlingCheck);
+        engine.deactivateThrottling();
+        engine.index(indexWithoutThrottlingCheck);
+        verify(indexWithThrottlingCheck, atLeastOnce()).startTime();
+        verify(indexWithoutThrottlingCheck, atLeastOnce()).startTime();
+    }
+
     public void testRealtimeGetOnlyRefreshIfNeeded() throws Exception {
         final AtomicInteger refreshCount = new AtomicInteger();
         final ReferenceManager.RefreshListener refreshListener = new ReferenceManager.RefreshListener() {
@@ -6318,6 +6350,69 @@ public class InternalEngineTests extends EngineTestCase {
                 SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
                 assertNotNull(lf.getSequentialStoredFieldsReader());
             }
+        }
+    }
+
+    public void testMaxDocsOnPrimary() throws Exception {
+        engine.close();
+        final boolean softDeleteEnabled = engine.config().getIndexSettings().isSoftDeleteEnabled();
+        int maxDocs = randomIntBetween(1, 100);
+        IndexWriterMaxDocsChanger.setMaxDocs(maxDocs);
+        try {
+            engine = new InternalTestEngine(engine.config(), maxDocs, LocalCheckpointTracker::new);
+            int numDocs = between(maxDocs + 1, maxDocs * 2);
+            List<Engine.Operation> operations = new ArrayList<>(numDocs);
+            for (int i = 0; i < numDocs; i++) {
+                final String id;
+                if (softDeleteEnabled == false || randomBoolean()) {
+                    id = Integer.toString(randomInt(numDocs));
+                    operations.add(indexForDoc(createParsedDoc(id, null)));
+                } else {
+                    id = "not_found";
+                    operations.add(new Engine.Delete("_doc", id, newUid(id), primaryTerm.get()));
+                }
+            }
+            for (int i = 0; i < numDocs; i++) {
+                final long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
+                final Engine.Result result = applyOperation(engine, operations.get(i));
+                if (i < maxDocs) {
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                    assertNull(result.getFailure());
+                    assertThat(engine.getLocalCheckpointTracker().getMaxSeqNo(), equalTo(maxSeqNo + 1L));
+                } else {
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+                    assertNotNull(result.getFailure());
+                    assertThat(result.getFailure().getMessage(),
+                        containsString("Number of documents in the index can't exceed [" + maxDocs + "]"));
+                    assertThat(result.getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+                    assertThat(engine.getLocalCheckpointTracker().getMaxSeqNo(), equalTo(maxSeqNo));
+                }
+                assertFalse(engine.isClosed.get());
+            }
+        } finally {
+            IndexWriterMaxDocsChanger.restoreMaxDocs();
+        }
+    }
+
+    public void testMaxDocsOnReplica() throws Exception {
+        assumeTrue("Deletes do not add documents to Lucene with soft-deletes disabled",
+            engine.config().getIndexSettings().isSoftDeleteEnabled());
+        engine.close();
+        int maxDocs = randomIntBetween(1, 100);
+        IndexWriterMaxDocsChanger.setMaxDocs(maxDocs);
+        try {
+            engine = new InternalTestEngine(engine.config(), maxDocs, LocalCheckpointTracker::new);
+            int numDocs = between(maxDocs + 1, maxDocs * 2);
+            List<Engine.Operation> operations = generateHistoryOnReplica(numDocs, randomBoolean(), randomBoolean(), randomBoolean());
+            final IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
+                for (Engine.Operation op : operations) {
+                    applyOperation(engine, op);
+                }
+            });
+            assertThat(error.getMessage(), containsString("number of documents in the index cannot exceed " + maxDocs));
+            assertTrue(engine.isClosed.get());
+        } finally {
+            IndexWriterMaxDocsChanger.restoreMaxDocs();
         }
     }
 }

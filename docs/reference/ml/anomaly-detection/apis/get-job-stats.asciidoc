@@ -47,7 +47,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-defaul
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 [role="child_attributes"]
@@ -143,7 +143,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=sparse-bucket-count]
 //End data_counts
 
 `deleting`::
-(boolean)
+(Boolean)
 Indicates that the process of deleting the job is in progress but not yet 
 completed. It is only reported when `true`.
 

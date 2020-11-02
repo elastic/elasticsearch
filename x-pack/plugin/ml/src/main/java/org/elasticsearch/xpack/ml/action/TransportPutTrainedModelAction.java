@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -60,21 +59,11 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                                           IndexNameExpressionResolver indexNameExpressionResolver, Client client,
                                           TrainedModelProvider trainedModelProvider, NamedXContentRegistry xContentRegistry) {
         super(PutTrainedModelAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected Response read(StreamInput in) throws IOException {
-        return new Response(in);
     }
 
     @Override

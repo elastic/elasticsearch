@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.index.store.SearchableSnapshotDirectoryTests;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -44,7 +45,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
 import static java.util.Collections.singletonList;
@@ -60,7 +61,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
-    public void testRandomReads() throws IOException {
+    public void testRandomReads() throws Exception {
         final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
         try (CacheService cacheService = createCacheService(random())) {
             cacheService.start();
@@ -152,14 +153,22 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         ((CountingBlobContainer) blobContainer).totalBytes.sum(),
                         equalTo((long) input.length)
                     );
+                    // busy assert that closing of all streams happened because they are closed on background fetcher threads
+                    assertBusy(
+                        () -> assertEquals(
+                            "All open streams should have been closed",
+                            0,
+                            ((CountingBlobContainer) blobContainer).openStreams.get()
+                        )
+                    );
                 }
             }
         } finally {
-            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+            SearchableSnapshotDirectoryTests.terminateSafely(threadPool);
         }
     }
 
-    public void testThrowsEOFException() throws IOException {
+    public void testThrowsEOFException() throws Exception {
         try (CacheService cacheService = createCacheService(random())) {
             cacheService.start();
 
@@ -223,7 +232,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     }
                 }
             } finally {
-                terminate(threadPool);
+                SearchableSnapshotDirectoryTests.terminateSafely(threadPool);
             }
         }
     }
@@ -269,6 +278,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
         private final LongAdder totalBytes = new LongAdder();
         private final LongAdder totalOpens = new LongAdder();
 
+        private final AtomicInteger openStreams = new AtomicInteger(0);
+
         private final int rangeSize;
 
         CountingBlobContainer(BlobContainer in, int rangeSize) {
@@ -301,7 +312,6 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
         private final CountingBlobContainer container;
 
-        private long bytesRead = 0L;
         private long position = 0L;
         private long start = Long.MAX_VALUE;
         private long end = Long.MIN_VALUE;
@@ -310,6 +320,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             super(input);
             this.container = Objects.requireNonNull(container);
             this.container.totalOpens.increment();
+            this.container.openStreams.incrementAndGet();
         }
 
         @Override
@@ -322,7 +333,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             if (result == -1) {
                 return result;
             }
-            bytesRead += 1L;
+            this.container.totalBytes.increment();
             position += 1L;
 
             if (position > end) {
@@ -338,7 +349,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             }
 
             final int result = in.read(b, offset, len);
-            bytesRead += len;
+            this.container.totalBytes.add(len);
             position += len;
 
             if (position > end) {
@@ -349,8 +360,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
         @Override
         public void close() throws IOException {
-            in.close();
-            this.container.totalBytes.add(bytesRead);
+            super.close();
+            this.container.openStreams.decrementAndGet();
         }
     }
 }

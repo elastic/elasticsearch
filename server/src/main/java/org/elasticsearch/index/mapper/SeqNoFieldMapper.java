@@ -97,7 +97,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         private static final SeqNoFieldType INSTANCE = new SeqNoFieldType();
 
         private SeqNoFieldType() {
-            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, Collections.emptyMap());
         }
 
         @Override
@@ -120,6 +120,11 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                 value = ((BytesRef) value).utf8ToString();
             }
             return Long.parseLong(value.toString());
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
@@ -175,7 +180,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
+    public void preParse(ParseContext context) {
         // see InternalEngine.innerIndex to see where the real version value is set
         // also see ParsedDocument.updateSeqID (called by innerIndex)
         SequenceIDFields seqID = SequenceIDFields.emptySeqID();
@@ -194,7 +199,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         // we share the parent docs fields to ensure good compression
         SequenceIDFields seqID = context.seqID();
         assert seqID != null;
-        final Version versionCreated = context.mapperService().getIndexSettings().getIndexVersionCreated();
+        final Version versionCreated = context.indexSettings().getIndexVersionCreated();
         final boolean includePrimaryTerm = versionCreated.before(Version.V_6_1_0);
         for (Document doc : context.nonRootDocuments()) {
             doc.add(seqID.seqNo);

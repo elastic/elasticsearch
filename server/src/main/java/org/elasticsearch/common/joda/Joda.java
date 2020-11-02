@@ -157,6 +157,11 @@ public class Joda {
             formatter = ISODateTimeFormat.weekDateTime();
         } else if (FormatNames.WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
             formatter = ISODateTimeFormat.weekDateTimeNoMillis();
+        } else if (FormatNames.WEEKYEAR.matches(input)) {
+            getDeprecationLogger()
+                .deprecate("week_year_format_name", "Format name \"week_year\" is deprecated and will be removed in a future version. " +
+                    "Use \"weekyear\" format instead");
+            formatter = ISODateTimeFormat.weekyear();
         } else if (FormatNames.WEEK_YEAR.matches(input)) {
             formatter = ISODateTimeFormat.weekyear();
         } else if (FormatNames.WEEK_YEAR_WEEK.matches(input)) {

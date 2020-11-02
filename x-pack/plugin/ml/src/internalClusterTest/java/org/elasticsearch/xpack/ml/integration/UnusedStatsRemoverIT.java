@@ -10,13 +10,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
@@ -53,7 +53,8 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
     public void createComponents() {
         client = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client(), clusterService().state(), new IndexNameExpressionResolver(), future);
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client(), clusterService().state(),
+            new IndexNameExpressionResolver(client.threadPool().getThreadContext()), future);
         future.actionGet();
     }
 
@@ -63,7 +64,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(new DataFrameAnalyticsConfig.Builder()
             .setId("analytics-with-stats")
-            .setModelMemoryLimit(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .setModelMemoryLimit(ByteSizeValue.ofGb(1))
             .setSource(new DataFrameAnalyticsSource(new String[]{"foo"}, null, null))
             .setDest(new DataFrameAnalyticsDest("bar", null))
             .setAnalysis(new Regression("prediction"))
@@ -116,7 +117,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
         client().admin().indices().prepareRefresh(MlStatsIndex.indexPattern()).get();
 
         PlainActionFuture<Boolean> deletionListener = new PlainActionFuture<>();
-        UnusedStatsRemover statsRemover = new UnusedStatsRemover(client);
+        UnusedStatsRemover statsRemover = new UnusedStatsRemover(client, new TaskId("test", 0L));
         statsRemover.remove(10000.0f, deletionListener, () -> false);
         deletionListener.actionGet();
 

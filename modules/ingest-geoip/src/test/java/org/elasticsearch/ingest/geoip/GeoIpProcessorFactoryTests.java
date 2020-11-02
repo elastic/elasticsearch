@@ -189,7 +189,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("properties", Collections.singletonList(cityProperty));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + cityProperty +
-            "]. valid values are [IP, ASN, ORGANIZATION_NAME]"));
+            "]. valid values are [IP, ASN, ORGANIZATION_NAME, NETWORK]"));
     }
 
     public void testBuildNonExistingDbFile() throws Exception {

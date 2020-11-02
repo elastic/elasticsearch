@@ -200,7 +200,7 @@ public class CoreTestsWithRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
 
     private static final Map<String, String> PAINLESS_TO_EMIT = org.elasticsearch.common.collect.Map.of(
         BooleanFieldMapper.CONTENT_TYPE,
-        "emit(parse(value));",
+        "emit(Boolean.parseBoolean(value.toString()));",
         DateFieldMapper.CONTENT_TYPE,
         "emit(parse(value.toString()));",
         NumberType.DOUBLE.typeName(),

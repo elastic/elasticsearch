@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-geotilegrid-aggregation]]
-=== GeoTile Grid Aggregation
+=== Geotile grid aggregation
+++++
+<titleabbrev>Geotile grid</titleabbrev>
+++++
 
 A multi-bucket aggregation that works on `geo_point` fields and groups points into
 buckets that represent cells in a grid. The resulting grid can be sparse and only

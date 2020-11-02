@@ -50,6 +50,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -99,6 +100,15 @@ public abstract class MappedFieldType {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
+    /**
+     * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
+     *
+     * New field types must implement this method in order to support the search 'fields' option. Except
+     * for metadata fields, field types should not throw {@link UnsupportedOperationException} since this
+     * could cause a search retrieving multiple fields (like "fields": ["*"]) to fail.
+     */
+    public abstract ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, @Nullable String format);
+
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
 
@@ -129,6 +139,15 @@ public abstract class MappedFieldType {
 
     public void setIndexAnalyzer(NamedAnalyzer analyzer) {
         this.indexAnalyzer = analyzer;
+    }
+
+    /**
+     * Returns the collapse type of the field
+     * CollapseType.NONE means the field can'be used for collapsing.
+     * @return collapse type of the field
+     */
+    public CollapseType collapseType() {
+        return CollapseType.NONE;
     }
 
     /** Given a value that comes from the stored fields API, convert it to the
@@ -286,7 +305,7 @@ public abstract class MappedFieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+    public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
         throw new IllegalArgumentException("Illegal data type of [" + typeName() + "]!"+
             "[" + DistanceFeatureQueryBuilder.NAME + "] query can only be run on a date, date_nanos or geo_point field type!");
     }
@@ -371,10 +390,6 @@ public abstract class MappedFieldType {
         while (termQuery instanceof BoostQuery) {
             termQuery = ((BoostQuery) termQuery).getQuery();
         }
-        if (termQuery instanceof TypeFieldMapper.TypesQuery) {
-            assert ((TypeFieldMapper.TypesQuery) termQuery).getTerms().length == 1;
-            return new Term(TypeFieldMapper.NAME, ((TypeFieldMapper.TypesQuery) termQuery).getTerms()[0]);
-        }
         if (termQuery instanceof TermInSetQuery) {
             TermInSetQuery tisQuery = (TermInSetQuery) termQuery;
             PrefixCodedTerms terms = tisQuery.getTermData();
@@ -402,11 +417,19 @@ public abstract class MappedFieldType {
      * Returns information on how any text in this field is indexed
      *
      * Fields that do not support any text-based queries should return
-     * {@link TextSearchInfo#NONE}.  Some fields (eg numeric) may support
+     * {@link TextSearchInfo#NONE}.  Some fields (eg keyword) may support
      * only simple match queries, and can return
-     * {@link TextSearchInfo#SIMPLE_MATCH_ONLY}
+     * {@link TextSearchInfo#SIMPLE_MATCH_ONLY}; other fields may support
+     * simple match queries without using the terms index, and can return
+     * {@link TextSearchInfo#SIMPLE_MATCH_WITHOUT_TERMS}
      */
     public TextSearchInfo getTextSearchInfo() {
         return textSearchInfo;
+    }
+
+    public enum CollapseType {
+        NONE, // this field is not collapsable
+        KEYWORD,
+        NUMERIC
     }
 }

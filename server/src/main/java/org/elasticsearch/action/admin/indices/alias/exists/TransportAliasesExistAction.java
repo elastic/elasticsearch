@@ -28,11 +28,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 public class TransportAliasesExistAction extends TransportMasterNodeReadAction<GetAliasesRequest, AliasesExistResponse> {
 
@@ -41,18 +38,7 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadAction<G
                                        ThreadPool threadPool, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
         super(AliasesExistAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        // very lightweight operation, no need to fork
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AliasesExistResponse read(StreamInput in) throws IOException {
-        return new AliasesExistResponse(in);
+            indexNameExpressionResolver, AliasesExistResponse::new, ThreadPool.Names.SAME);
     }
 
     @Override

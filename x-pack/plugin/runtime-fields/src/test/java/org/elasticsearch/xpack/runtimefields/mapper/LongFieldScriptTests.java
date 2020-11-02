@@ -11,14 +11,12 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class LongFieldScriptTests extends FieldScriptTestCase<LongFieldScript.Factory> {
     public static final LongFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new LongFieldScript(
@@ -50,7 +48,7 @@ public class LongFieldScriptTests extends FieldScriptTestCase<LongFieldScript.Fa
                 LongFieldScript script = new LongFieldScript(
                     "test",
                     org.elasticsearch.common.collect.Map.of(),
-                    new SearchLookup(mock(MapperService.class), (ft, lookup) -> null, null),
+                    new SearchLookup(field -> null, (ft, lookup) -> null, null),
                     reader.leaves().get(0)
                 ) {
                     @Override

@@ -9,7 +9,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
@@ -43,7 +42,7 @@ public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleVal
         super(name, context, parent, metadata);
         this.valuesSource = config.hasValues() ? (HistogramValuesSource.Histogram) config.getValuesSource() : null;
         if (valuesSource != null) {
-            maxes = context.bigArrays().newDoubleArray(1, false);
+            maxes = bigArrays().newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
         this.formatter = config.format();
@@ -65,7 +64,6 @@ public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleVal
             }
         }
 
-        final BigArrays bigArrays = context.bigArrays();
         final HistogramValues values = valuesSource.getHistogramValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
 
@@ -73,7 +71,7 @@ public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleVal
             public void collect(int doc, long bucket) throws IOException {
                 if (bucket >= maxes.size()) {
                     long from = maxes.size();
-                    maxes = bigArrays.grow(maxes, bucket + 1);
+                    maxes = bigArrays().grow(maxes, bucket + 1);
                     maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
                 }
                 if (values.advanceExact(doc)) {

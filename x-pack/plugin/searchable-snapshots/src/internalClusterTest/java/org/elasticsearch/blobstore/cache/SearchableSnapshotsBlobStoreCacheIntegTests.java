@@ -31,8 +31,10 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
@@ -43,13 +45,11 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -59,6 +59,7 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_SHARD_SNAPSHOT_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.DATA_TIERS_PREFERENCE;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -118,9 +119,9 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final Path repositoryLocation = randomRepoPath();
-        createFsRepository(repositoryName, repositoryLocation);
+        createRepository(repositoryName, "fs", repositoryLocation);
 
-        final SnapshotId snapshot = createSnapshot(repositoryName, org.elasticsearch.common.collect.List.of(indexName));
+        final SnapshotId snapshot = createSnapshot(repositoryName, "test-snapshot", Collections.singletonList(indexName)).snapshotId();
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         // extract the list of blobs per shard from the snapshot directory on disk
@@ -168,6 +169,16 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
 
         logger.info("--> verifying cached documents in system index [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
         assertCachedBlobsInSystemIndex(repositoryName, blobsInSnapshot);
+
+        logger.info("--> verifying system index [{}] data tiers preference", SNAPSHOT_BLOB_CACHE_INDEX);
+        assertThat(
+            systemClient().admin()
+                .indices()
+                .prepareGetSettings(SNAPSHOT_BLOB_CACHE_INDEX)
+                .get()
+                .getSetting(SNAPSHOT_BLOB_CACHE_INDEX, DataTierAllocationDecider.INDEX_ROUTING_PREFER),
+            equalTo(DATA_TIERS_PREFERENCE)
+        );
 
         final long numberOfCachedBlobs = systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).get().getHits().getTotalHits().value;
         final long numberOfCacheWrites = systemClient().admin()
@@ -327,25 +338,21 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
      */
     private Map<String, BlobStoreIndexShardSnapshot> blobsInSnapshot(Path repositoryLocation, String snapshotId) throws IOException {
         final Map<String, BlobStoreIndexShardSnapshot> blobsPerShard = new HashMap<>();
-        Files.walkFileTree(repositoryLocation.resolve("indices"), new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                final String fileName = file.getFileName().toString();
-                if (fileName.equals("snap-" + snapshotId + ".dat")) {
-                    blobsPerShard.put(
-                        String.join(
-                            "/",
-                            snapshotId,
-                            file.getParent().getParent().getFileName().toString(),
-                            file.getParent().getFileName().toString()
-                        ),
-                        INDEX_SHARD_SNAPSHOT_FORMAT.deserialize(fileName, xContentRegistry(), Streams.readFully(Files.newInputStream(file)))
-                    );
-                }
-                return FileVisitResult.CONTINUE;
+        forEachFileRecursively(repositoryLocation.resolve("indices"), ((file, basicFileAttributes) -> {
+            final String fileName = file.getFileName().toString();
+            if (fileName.equals(BlobStoreRepository.SNAPSHOT_FORMAT.blobName(snapshotId))) {
+                blobsPerShard.put(
+                    String.join(
+                        "/",
+                        snapshotId,
+                        file.getParent().getParent().getFileName().toString(),
+                        file.getParent().getFileName().toString()
+                    ),
+                    INDEX_SHARD_SNAPSHOT_FORMAT.deserialize(fileName, xContentRegistry(), Streams.readFully(Files.newInputStream(file)))
+                );
             }
-        });
-        return org.elasticsearch.common.collect.Map.copyOf(blobsPerShard);
+        }));
+        return Collections.unmodifiableMap(blobsPerShard);
     }
 
     private void assertCachedBlobsInSystemIndex(final String repositoryName, final Map<String, BlobStoreIndexShardSnapshot> blobsInSnapshot)

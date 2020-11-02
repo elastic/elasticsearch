@@ -30,13 +30,16 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 public final class DataStreamTestHelper {
 
@@ -103,7 +106,12 @@ public final class DataStreamTestHelper {
         long generation = indices.size() + ESTestCase.randomLongBetween(1, 128);
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(LuceneTestCase.random())));
-        return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation);
+        Map<String, Object> metadata = null;
+        if (randomBoolean()) {
+            metadata = new HashMap<>();
+            metadata.put("key", "value");
+        }
+        return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, metadata, randomBoolean());
     }
 
     /**
@@ -127,7 +135,8 @@ public final class DataStreamTestHelper {
                 dsTuple.v1(),
                 createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
-                dsTuple.v2()
+                dsTuple.v2(),
+                null
             );
             builder.put(ds);
         }

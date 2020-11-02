@@ -62,6 +62,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final boolean hasNativeController;
     private final PluginType type;
     private final String javaOpts;
+    private final boolean isLicensed;
 
     /**
      * Construct plugin info.
@@ -76,10 +77,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param hasNativeController   whether or not the plugin has a native controller
      * @param type                  the type of the plugin. Expects "bootstrap" or "isolated".
      * @param javaOpts              any additional JVM CLI parameters added by this plugin
+     * @param isLicensed            whether is this a licensed plugin
      */
     public PluginInfo(String name, String description, String version, Version elasticsearchVersion, String javaVersion,
                       String classname, List<String> extendedPlugins, boolean hasNativeController,
-                      PluginType type, String javaOpts) {
+                      PluginType type, String javaOpts, boolean isLicensed) {
         this.name = name;
         this.description = description;
         this.version = version;
@@ -90,6 +92,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.hasNativeController = hasNativeController;
         this.type = type;
         this.javaOpts = javaOpts;
+        this.isLicensed = isLicensed;
     }
 
     /**
@@ -115,6 +118,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             type = PluginType.ISOLATED;
             javaOpts = null;
         }
+
+        this.isLicensed = in.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT) ? in.readBoolean() : false;
     }
 
     @Override
@@ -131,6 +136,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
             out.writeString(type.name());
             out.writeOptionalString(javaOpts);
+        }
+        if (out.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
+            out.writeBoolean(this.isLicensed);
         }
     }
 
@@ -204,8 +212,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
             );
         }
 
-        if (esVersion.onOrAfter(Version.V_6_8_14)) {
-            propsMap.remove("licensed");
+        boolean isLicensed = false;
+        if (esVersion.onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
+            isLicensed = parseBooleanValue(name, "licensed", propsMap.remove("licensed"));
         }
 
         if (propsMap.isEmpty() == false) {
@@ -213,7 +222,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
 
         return new PluginInfo(name, description, version, esVersion, javaVersionString,
-                              classname, extendedPlugins, hasNativeController, type, javaOpts);
+                              classname, extendedPlugins, hasNativeController, type, javaOpts, isLicensed);
     }
 
     private static PluginType getPluginType(String name, String rawType) {
@@ -352,6 +361,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public String getJavaOpts() {
         return javaOpts;
+    }
+
+    /**
+     * Whether a license must be accepted before this plugin can be installed.
+     *
+     * @return {@code true} if a license must be accepted.
+     */
+    public boolean isLicensed() {
+        return isLicensed;
     }
 
     @Override

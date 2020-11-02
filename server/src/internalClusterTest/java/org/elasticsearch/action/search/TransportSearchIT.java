@@ -593,8 +593,5 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public void preCollection() throws IOException {}
-
-        @Override
-        public void postCollection() throws IOException {}
     }
 }

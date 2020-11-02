@@ -94,11 +94,7 @@ public class GetAutoscalingPolicyAction extends ActionType<GetAutoscalingPolicyA
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field("policy", policy);
-            }
-            builder.endObject();
+            policy.toXContent(builder, params);
             return builder;
         }
 

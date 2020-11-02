@@ -278,11 +278,11 @@ final class DefaultSearchContext extends SearchContext {
             filters.add(typeFilter);
         }
 
-        NestedHelper nestedHelper = new NestedHelper(mapperService()::getObjectMapper, field -> mapperService().fieldType(field) != null);
-        if (mapperService().hasNested()
-            && nestedHelper.mightMatchNestedDocs(query)
-            && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
-            filters.add(Queries.newNonNestedFilter(mapperService().getIndexSettings().getIndexVersionCreated()));
+        NestedHelper nestedHelper = new NestedHelper(queryShardContext::getObjectMapper, queryShardContext::isFieldMapped);
+        if (queryShardContext.hasNested()
+                && nestedHelper.mightMatchNestedDocs(query)
+                && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
+            filters.add(Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()));
         }
 
         if (aliasFilter != null) {
@@ -775,12 +775,12 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public MappedFieldType fieldType(String name) {
-        return mapperService().fieldType(name);
+        return queryShardContext.getFieldType(name);
     }
 
     @Override
     public ObjectMapper getObjectMapper(String name) {
-        return mapperService().getObjectMapper(name);
+        return queryShardContext.getObjectMapper(name);
     }
 
     @Override

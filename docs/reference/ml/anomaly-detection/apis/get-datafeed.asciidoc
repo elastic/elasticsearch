@@ -54,11 +54,11 @@ all {dfeeds}.
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
 `exclude_generated`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-generated]
 
 [[ml-get-datafeed-results]]

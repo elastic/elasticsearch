@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,6 +50,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
+    private static final Version LICENSED_PLUGINS = Version.V_6_8_14;
+
     private final String name;
     private final String description;
     private final String version;
@@ -57,6 +60,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String classname;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
+    private final boolean isLicensed;
 
     /**
      * Construct plugin info.
@@ -71,7 +75,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param hasNativeController   whether or not the plugin has a native controller
      */
     public PluginInfo(String name, String description, String version, Version elasticsearchVersion, String javaVersion,
-                      String classname, List<String> extendedPlugins, boolean hasNativeController) {
+                      String classname, List<String> extendedPlugins, boolean hasNativeController, boolean isLicensed) {
         this.name = name;
         this.description = description;
         this.version = version;
@@ -80,6 +84,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.classname = classname;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
+        this.isLicensed = isLicensed;
     }
 
     /**
@@ -119,6 +124,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
              */
             in.readBoolean();
         }
+
+        this.isLicensed = in.getVersion().onOrAfter(LICENSED_PLUGINS) ? in.readBoolean() : false;
     }
 
     @Override
@@ -143,6 +150,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
              * serialized into the plugin info. Therefore, we have to write out a value for this boolean.
              */
             out.writeBoolean(false);
+        }
+        if (out.getVersion().onOrAfter(LICENSED_PLUGINS)) {
+            out.writeBoolean(this.isLicensed);
         }
     }
 
@@ -207,36 +217,16 @@ public class PluginInfo implements Writeable, ToXContentObject {
             extendedPlugins = Arrays.asList(Strings.delimitedListToStringArray(extendedString, ","));
         }
 
-        final String hasNativeControllerValue = propsMap.remove("has.native.controller");
-        final boolean hasNativeController;
-        if (hasNativeControllerValue == null) {
-            hasNativeController = false;
-        } else {
-            switch (hasNativeControllerValue) {
-                case "true":
-                    hasNativeController = true;
-                    break;
-                case "false":
-                    hasNativeController = false;
-                    break;
-                default:
-                    final String message = String.format(
-                            Locale.ROOT,
-                            "property [%s] must be [%s], [%s], or unspecified but was [%s]",
-                            "has_native_controller",
-                            "true",
-                            "false",
-                            hasNativeControllerValue);
-                    throw new IllegalArgumentException(message);
-            }
-        }
+        final boolean hasNativeController = parseBooleanValue(name, "has.native.controller",
+            propsMap.remove("has.native.controller"));
 
         if (esVersion.before(Version.V_6_3_0) && esVersion.onOrAfter(Version.V_6_0_0_beta2)) {
             propsMap.remove("requires.keystore");
         }
 
-        if (esVersion.onOrAfter(Version.V_6_8_14)) {
-            propsMap.remove("licensed");
+        boolean isLicensed = false;
+        if (esVersion.onOrAfter(LICENSED_PLUGINS)) {
+            isLicensed = parseBooleanValue(name, "licensed", propsMap.remove("licensed"));
         }
 
         if (propsMap.isEmpty() == false) {
@@ -244,8 +234,24 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
 
         return new PluginInfo(name, description, version, esVersion, javaVersionString,
-                              classname, extendedPlugins, hasNativeController);
+                              classname, extendedPlugins, hasNativeController, isLicensed);
     }
+
+    private static boolean parseBooleanValue(String pluginName, String name, String rawValue) {
+        try {
+            return Booleans.parseBoolean(rawValue, false);
+        } catch (IllegalArgumentException e) {
+            final String message = String.format(
+                Locale.ROOT,
+                "property [%s] must be [true], [false], or unspecified but was [%s] for plugin [%s]",
+                name,
+                rawValue,
+                pluginName
+            );
+            throw new IllegalArgumentException(message);
+        }
+    }
+
 
     /**
      * The name of the plugin.
@@ -317,6 +323,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public boolean hasNativeController() {
         return hasNativeController;
+    }
+
+    /**
+     * Whether a license must be accepted before this plugin can be installed.
+     *
+     * @return {@code true} if a license must be accepted.
+     */
+    public boolean isLicensed() {
+        return isLicensed;
     }
 
     @Override

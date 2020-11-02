@@ -76,7 +76,7 @@ import java.util.Set;
  *  This field can also be extended to add search criteria to suggestions
  *  for query-time filtering and boosting (see {@link ContextMappings}
  */
-public class CompletionFieldMapper extends ParametrizedFieldMapper {
+public class CompletionFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "completion";
 
     /**
@@ -85,7 +85,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     static final int COMPLETION_CONTEXTS_LIMIT = 10;
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), defaultAnalyzer, indexVersionCreated).init(this);
     }
 
@@ -118,7 +118,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     /**
      * Builder for {@link CompletionFieldMapper}
      */
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<NamedAnalyzer> analyzer;
         private final Parameter<NamedAnalyzer> searchAnalyzer;

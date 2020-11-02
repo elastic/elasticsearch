@@ -61,7 +61,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         return ((GeoShapeFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
 
@@ -130,7 +130,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
 
     @SuppressWarnings("deprecation")
     public static Mapper.TypeParser PARSER = (name, node, parserContext) -> {
-        ParametrizedFieldMapper.Builder builder;
+        FieldMapper.Builder builder;
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
         if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
@@ -165,7 +165,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(
             simpleName(),
             builder.ignoreMalformed.getDefaultValue().value(),

@@ -48,6 +48,7 @@ Use this setting if you create a new index that contains old data and
 want to use the original creation date to calculate the index age. 
 Specified as a Unix epoch value in milliseconds.
 
+[[index-lifecycle-parse-origination-date]]
 `index.lifecycle.parse_origination_date`::
 (<<indices-update-settings,Dynamic>>, Boolean) 
 Set to `true` to parse the origination date from the index name. 

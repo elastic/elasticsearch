@@ -51,7 +51,7 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for ip addresses. */
-public class IpFieldMapper extends ParametrizedFieldMapper {
+public class IpFieldMapper extends FieldMapper {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IpFieldMapper.class);
 
@@ -61,7 +61,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         return (IpFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -388,11 +388,6 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected IpFieldMapper clone() {
-        return (IpFieldMapper) super.clone();
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         Object addressAsObject;
         if (context.externalValueSet()) {
@@ -440,7 +435,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
 }

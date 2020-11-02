@@ -21,6 +21,19 @@
         }
       ]
     },
-    "params":{}
+    "params":{
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default":"open",
+        "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+      }
+    }
   }
 }

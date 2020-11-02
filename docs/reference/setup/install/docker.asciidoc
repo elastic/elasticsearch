@@ -222,7 +222,8 @@ which runs containers using an arbitrarily assigned user ID.
 Openshift presents persistent volumes with the gid set to `0`, which works without any adjustments.
 
 If you are bind-mounting a local directory or file, it must be readable by the `elasticsearch` user.
-In addition, this user must have write access to the <<path-settings,data and log dirs>>.
+In addition, this user must have write access to the <<path-settings,config, data and log dirs>>
+({es} needs write access to the `config` directory so that it can generate a keystore).
 A good strategy is to grant group access to gid `0` for the local directory.
 
 For example, to prepare a local directory for storing data through a bind-mount:
@@ -233,6 +234,12 @@ mkdir esdatadir
 chmod g+rwx esdatadir
 chgrp 0 esdatadir
 --------------------------------------------
+
+You can also run an {es} container using both a custom UID and GID. Unless you
+bind-mount each of the `config`, data` and `logs` directories, you must pass
+the command line option `--group-add 0` to `docker run`. This ensures that the user
+under which {es} is running is also a member of the `root` (GID 0) group inside the
+container.
 
 ===== Increase ulimits for nofile and nproc
 

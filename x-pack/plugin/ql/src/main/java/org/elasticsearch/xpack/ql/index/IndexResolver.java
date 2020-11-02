@@ -158,7 +158,7 @@ public class IndexResolver {
             EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE), EnumSet.of(WildcardStates.OPEN));
 
 
-    private static final List<String> FIELD_NAMES_BLACKLIST = Arrays.asList("_size");
+    private static final List<String> FIELD_NAMES_BLACKLIST = Arrays.asList("_size", "_doc_count");
     private static final String UNMAPPED = "unmapped";
 
     private final Client client;

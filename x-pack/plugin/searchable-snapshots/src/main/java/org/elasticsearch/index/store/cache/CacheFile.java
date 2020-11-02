@@ -436,7 +436,7 @@ public class CacheFile {
                     try {
                         // check again if the file is evicted before doing expensive I/O
                         ensureOpen();
-                        IOUtils.fsync(file, false); // TODO don't forget to fsync parent directory
+                        IOUtils.fsync(file, false, false); // TODO don't forget to fsync parent directory
                         success = true;
                     } finally {
                         if (success == false) {

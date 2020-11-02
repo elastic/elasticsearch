@@ -76,7 +76,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         @Override
         public String familyTypeName() {
-            return NumberFieldMapper.NumberType.INTEGER.typeName();
+            return NumberFieldMapper.NumberType.LONG.typeName();
         }
 
         @Override

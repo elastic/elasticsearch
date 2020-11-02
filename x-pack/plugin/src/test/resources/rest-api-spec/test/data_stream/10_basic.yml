@@ -27,16 +27,6 @@ setup:
                   type: date_nanos
           data_stream: {}
 
-  - do:
-      allowed_warnings:
-        - "index template [my-template3] has index patterns [.hidden-data-stream,hidden-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template3] will take precedence during new index creation"
-      indices.put_index_template:
-        name: my-template3
-        body:
-          index_patterns: [.hidden-data-stream,hidden-data-stream]
-          data_stream:
-            hidden: true
-
 ---
 "Create data stream":
   - skip:
@@ -116,8 +106,17 @@ setup:
 ---
 "Create hidden data stream":
   - skip:
-      version: " - 7.99.99"
-      reason: "re-enable in 7.11 when backported"
+      version: " - 7.10.99"
+      reason: "hidden data streams only available in 7.11"
+  - do:
+      allowed_warnings:
+        - "index template [my-template3] has index patterns [.hidden-data-stream,hidden-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template3] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template3
+        body:
+          index_patterns: [ .hidden-data-stream,hidden-data-stream ]
+          data_stream:
+            hidden: true
   - do:
       indices.create_data_stream:
         name: hidden-data-stream
@@ -196,6 +195,9 @@ setup:
         name: .hidden-data-stream
   - is_true: acknowledged
 
+  - do:
+      indices.delete_index_template:
+        name: my-template3
 ---
 "Create data stream with invalid name":
   - skip:

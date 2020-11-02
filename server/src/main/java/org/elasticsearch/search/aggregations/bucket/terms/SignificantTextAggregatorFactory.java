@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -59,7 +60,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     private static final int MEMORY_GROWTH_REPORTING_INTERVAL_BYTES = 5000;
 
     private final IncludeExclude includeExclude;
-    private final String indexedFieldName;
     private final MappedFieldType fieldType;
     private final String[] sourceFieldNames;
     private final QueryBuilder backgroundFilter;
@@ -82,22 +82,27 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         super(name, context, parent, subFactoriesBuilder, metadata);
 
         this.fieldType = context.getFieldType(fieldName);
-        if (fieldType == null ) {
+        if (fieldType == null) {
             throw new IllegalArgumentException("Field [" + fieldName + "] does not exist, SignificantText " +
                 "requires an analyzed field");
-        }        
-        if (fieldType != null && fieldType.indexAnalyzer() == null) {
+        }
+        if (supportsAgg(fieldType) == false) {
             throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no analyzer, but SignificantText " +
                 "requires an analyzed field");
         }
-        this.indexedFieldName = fieldType != null ? fieldType.name() : fieldName;
-        this.sourceFieldNames = sourceFieldNames == null ? new String[] { indexedFieldName } : sourceFieldNames;
+        String indexedFieldName = fieldType.name();
+        this.sourceFieldNames = sourceFieldNames == null ? new String[] {indexedFieldName} : sourceFieldNames;
 
         this.includeExclude = includeExclude;
         this.backgroundFilter = backgroundFilter;
         this.filterDuplicateText = filterDuplicateText;
         this.bucketCountThresholds = bucketCountThresholds;
         this.significanceHeuristic = significanceHeuristic;
+    }
+
+    private static boolean supportsAgg(MappedFieldType ft) {
+        return ft.getTextSearchInfo() != TextSearchInfo.NONE
+            && ft.getTextSearchInfo() != TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
     }
 
     @Override

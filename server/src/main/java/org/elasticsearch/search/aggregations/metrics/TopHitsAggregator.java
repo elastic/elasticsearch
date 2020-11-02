@@ -56,6 +56,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 class TopHitsAggregator extends MetricsAggregator {
@@ -72,6 +73,7 @@ class TopHitsAggregator extends MetricsAggregator {
         }
     }
 
+    private final List<RescoreContext> rescore;
     private final FetchPhase fetchPhase;
     private final SubSearchContext subSearchContext;
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
@@ -79,6 +81,7 @@ class TopHitsAggregator extends MetricsAggregator {
     TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, SearchContext context,
             Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
+        this.rescore = context.rescore();
         this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(1, context.bigArrays());
         this.subSearchContext = subSearchContext;
@@ -122,7 +125,7 @@ class TopHitsAggregator extends MetricsAggregator {
                     SortAndFormats sort = subSearchContext.sort();
                     int topN = subSearchContext.from() + subSearchContext.size();
                     if (sort == null) {
-                        for (RescoreContext rescoreContext : context.rescore()) {
+                        for (RescoreContext rescoreContext : rescore) {
                             topN = Math.max(rescoreContext.getWindowSize(), topN);
                         }
                     }
@@ -167,9 +170,9 @@ class TopHitsAggregator extends MetricsAggregator {
         TopDocs topDocs = topDocsCollector.topDocs();
         float maxScore = Float.NaN;
         if (subSearchContext.sort() == null) {
-            for (RescoreContext ctx : context().rescore()) {
+            for (RescoreContext ctx : rescore) {
                 try {
-                    topDocs = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
+                    topDocs = ctx.rescorer().rescore(topDocs, searcher(), ctx);
                 } catch (IOException e) {
                     throw new ElasticsearchException("Rescore TopHits Failed", e);
                 }

@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-geocentroid-aggregation]]
-=== Geo Centroid Aggregation
+=== Geo-centroid aggregation
+++++
+<titleabbrev>Geo-centroid</titleabbrev>
+++++
 
 A metric aggregation that computes the weighted {wikipedia}/Centroid[centroid] from all coordinate values for geo fields.
 

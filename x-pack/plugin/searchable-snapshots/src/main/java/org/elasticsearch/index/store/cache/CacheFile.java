@@ -54,6 +54,7 @@ public class CacheFile {
     private final AbstractRefCounted refCounter = new AbstractRefCounted("CacheFile") {
         @Override
         protected void closeInternal() {
+            assert evicted.get();
             assert assertNoPendingListeners();
             try {
                 Files.deleteIfExists(file);
@@ -106,7 +107,7 @@ public class CacheFile {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } finally {
-                refCounter.decRef();
+                decrementRefCount();
             }
         }
     }
@@ -158,7 +159,7 @@ public class CacheFile {
                 success = true;
             } finally {
                 if (success == false) {
-                    refCounter.decRef();
+                    decrementRefCount();
                 }
             }
         } else {
@@ -188,7 +189,7 @@ public class CacheFile {
             success = true;
         } finally {
             if (success) {
-                refCounter.decRef();
+                decrementRefCount();
             }
         }
         assert invariant();
@@ -202,6 +203,11 @@ public class CacheFile {
         return true;
     }
 
+    private void decrementRefCount() {
+        final boolean released = refCounter.decRef();
+        assert released == false || (evicted.get() && Files.notExists(file));
+    }
+
     /**
      * Evicts this file from the cache. Once this method has been called, subsequent use of this class with throw exceptions.
      */
@@ -211,7 +217,7 @@ public class CacheFile {
             synchronized (listeners) {
                 evictionListeners = new HashSet<>(listeners);
             }
-            refCounter.decRef();
+            decrementRefCount();
             evictionListeners.forEach(listener -> listener.onEviction(this));
         }
         assert invariant();
@@ -221,7 +227,6 @@ public class CacheFile {
         synchronized (listeners) {
             if (listeners.isEmpty()) {
                 assert channelRef == null;
-                assert evicted.get() == false || refCounter.refCount() != 0 || Files.notExists(file);
             } else {
                 assert channelRef != null;
                 assert refCounter.refCount() > 0;

@@ -220,7 +220,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Setting that defines the maximum number of snapshots to which the repository may grow. Trying to create a snapshot into the
      * repository that would move it above this size will throw an exception.
      */
-    public static final Setting<Integer> MAX_SNAPSHOTS_SETTING = Setting.intSetting("size_limit", 500, 1, Setting.Property.NodeScope);
+    public static final Setting<Integer> MAX_SNAPSHOTS_SETTING =
+            Setting.intSetting("max_number_of_snapshots", 500, 1, Setting.Property.NodeScope);
 
     protected final boolean supportURLRepo;
 

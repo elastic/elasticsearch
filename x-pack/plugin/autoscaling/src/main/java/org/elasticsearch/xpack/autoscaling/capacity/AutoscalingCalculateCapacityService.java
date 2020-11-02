@@ -17,6 +17,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.action.PolicyValidator;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -86,7 +88,6 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
     }
 
     public SortedMap<String, AutoscalingDeciderResults> calculate(ClusterState state, ClusterInfo clusterInfo) {
-
         AutoscalingMetadata autoscalingMetadata = state.metadata().custom(AutoscalingMetadata.NAME);
         if (autoscalingMetadata != null) {
             return new TreeMap<>(
@@ -102,13 +103,27 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
     }
 
     private AutoscalingDeciderResults calculateForPolicy(AutoscalingPolicy policy, ClusterState state, ClusterInfo clusterInfo) {
-        DefaultAutoscalingDeciderContext context = new DefaultAutoscalingDeciderContext(policy.name(), state, clusterInfo);
+        if (hasUnknownRoles(policy)) {
+            return new AutoscalingDeciderResults(
+                AutoscalingCapacity.ZERO,
+                new TreeMap<>(Map.of("_unknown_role", new AutoscalingDeciderResult(null, null)))
+            );
+        }
+        DefaultAutoscalingDeciderContext context = new DefaultAutoscalingDeciderContext(policy.roles(), state, clusterInfo);
         SortedMap<String, AutoscalingDeciderResult> results = policy.deciders()
             .entrySet()
             .stream()
             .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getKey(), entry.getValue(), context)))
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new UnsupportedOperationException(); }, TreeMap::new));
         return new AutoscalingDeciderResults(context.currentCapacity, results);
+    }
+
+    /**
+     * Check if the policy has unknown roles. This can only happen in mixed clusters, where one master can accept a policy but if it fails
+     * over to an older master before it is also upgraded, one of the roles might not be known.
+     */
+    private boolean hasUnknownRoles(AutoscalingPolicy policy) {
+        return DiscoveryNode.getPossibleRoleNames().containsAll(policy.roles()) == false;
     }
 
     private AutoscalingDeciderResult calculateForDecider(String name, Settings configuration, AutoscalingDeciderContext context) {
@@ -119,14 +134,14 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
     static class DefaultAutoscalingDeciderContext implements AutoscalingDeciderContext {
 
-        private final String tier;
+        private final SortedSet<DiscoveryNodeRole> roles;
         private final ClusterState state;
         private final ClusterInfo clusterInfo;
         private final AutoscalingCapacity currentCapacity;
         private final boolean currentCapacityAccurate;
 
-        DefaultAutoscalingDeciderContext(String tier, ClusterState state, ClusterInfo clusterInfo) {
-            this.tier = tier;
+        DefaultAutoscalingDeciderContext(SortedSet<String> roles, ClusterState state, ClusterInfo clusterInfo) {
+            this.roles = roles.stream().map(DiscoveryNode::getRoleFromRoleName).collect(Sets.toUnmodifiableSortedSet());
             Objects.requireNonNull(state);
             Objects.requireNonNull(clusterInfo);
             this.state = state;
@@ -149,9 +164,14 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             }
         }
 
+        @Override
+        public Set<DiscoveryNode> nodes() {
+            return StreamSupport.stream(state.nodes().spliterator(), false).filter(this::rolesFilter).collect(Collectors.toSet());
+        }
+
         private boolean calculateCurrentCapacityAccurate() {
             return StreamSupport.stream(state.nodes().spliterator(), false)
-                .filter(this::informalTierFilter)
+                .filter(this::rolesFilter)
                 .allMatch(this::nodeHasAccurateCapacity);
         }
 
@@ -162,7 +182,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
         private AutoscalingCapacity calculateCurrentCapacity() {
             return StreamSupport.stream(state.nodes().spliterator(), false)
-                .filter(this::informalTierFilter)
+                .filter(this::rolesFilter)
                 .map(this::resourcesFor)
                 .map(c -> new AutoscalingCapacity(c, c))
                 .reduce(
@@ -192,9 +212,8 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             return diskUsage != null ? diskUsage.getTotalBytes() : -1;
         }
 
-        private boolean informalTierFilter(DiscoveryNode discoveryNode) {
-            return discoveryNode.getRoles().stream().map(DiscoveryNodeRole::roleName).anyMatch(tier::equals)
-                || tier.equals(discoveryNode.getAttributes().get("data"));
+        private boolean rolesFilter(DiscoveryNode discoveryNode) {
+            return discoveryNode.getRoles().equals(roles);
         }
     }
 }

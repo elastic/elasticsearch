@@ -1,5 +1,8 @@
 [[search-aggregations-matrix-stats-aggregation]]
 === Matrix stats aggregation
+++++
+<titleabbrev>Matrix stats</titleabbrev>
+++++
 
 The `matrix_stats` aggregation is a numeric aggregation that computes the following statistics over a set of document fields:
 

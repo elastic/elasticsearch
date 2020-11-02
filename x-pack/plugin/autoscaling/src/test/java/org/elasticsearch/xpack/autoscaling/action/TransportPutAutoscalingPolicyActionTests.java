@@ -57,7 +57,7 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
             )
             .build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
-        final ClusterBlockException e = action.checkBlock(new PutAutoscalingPolicyAction.Request(randomAutoscalingPolicy()), state);
+        final ClusterBlockException e = action.checkBlock(randomPutAutoscalingPolicyRequest(), state);
         assertThat(e, not(nullValue()));
     }
 
@@ -72,7 +72,7 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         );
         final ClusterBlocks blocks = ClusterBlocks.builder().build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
-        final ClusterBlockException e = action.checkBlock(new PutAutoscalingPolicyAction.Request(randomAutoscalingPolicy()), state);
+        final ClusterBlockException e = action.checkBlock(randomPutAutoscalingPolicyRequest(), state);
         assertThat(e, nullValue());
     }
 
@@ -86,11 +86,11 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
             currentState = builder.build();
         }
         // put an entirely new policy
-        final AutoscalingPolicy policy = randomAutoscalingPolicy();
+        final PutAutoscalingPolicyAction.Request request = randomPutAutoscalingPolicyRequest();
         final Logger mockLogger = mock(Logger.class);
         final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
             currentState,
-            policy,
+            request,
             NO_VALIDATION,
             mockLogger
         );
@@ -98,9 +98,14 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         // ensure the new policy is in the updated cluster state
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
-        assertThat(metadata.policies(), hasKey(policy.name()));
-        assertThat(metadata.policies().get(policy.name()).policy(), equalTo(policy));
-        verify(mockLogger).info("adding autoscaling policy [{}]", policy.name());
+        assertThat(metadata.policies(), hasKey(request.name()));
+        assertThat(metadata.policies().get(request.name()).policy().roles(), equalTo(request.roles()));
+        if (request.deciders() != null) {
+            assertThat(metadata.policies().get(request.name()).policy().deciders(), equalTo(request.deciders()));
+        } else {
+            assertThat(metadata.policies().get(request.name()).policy().deciders(), equalTo(Map.of()));
+        }
+        verify(mockLogger).info("adding autoscaling policy [{}]", request.name());
         verifyNoMoreInteractions(mockLogger);
 
         // ensure that existing policies were preserved
@@ -111,6 +116,24 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
                 assertThat(metadata.policies().get(entry.getKey()).policy(), equalTo(entry.getValue().policy()));
             }
         }
+    }
+
+    public void testAddPolicyWithNoRoles() {
+        PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            randomAlphaOfLength(8),
+            null,
+            randomAutoscalingDeciders()
+        );
+
+        final Logger mockLogger = mock(Logger.class);
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(ClusterState.EMPTY_STATE, request, NO_VALIDATION, mockLogger)
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("new policy " + request.name() + " with no roles defined, must provide empty list for " + "no roles")
+        );
     }
 
     public void testUpdatePolicy() {
@@ -125,14 +148,20 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
         final String name = randomFrom(currentMetadata.policies().keySet());
         // add to the existing deciders, to ensure the policy has changed
-        final AutoscalingPolicy policy = new AutoscalingPolicy(
+        final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             name,
+            randomBoolean() ? randomRoles() : null,
             mutateAutoscalingDeciders(currentMetadata.policies().get(name).policy().deciders())
+        );
+        final AutoscalingPolicy expectedPolicy = new AutoscalingPolicy(
+            name,
+            request.roles() != null ? request.roles() : currentMetadata.policies().get(name).policy().roles(),
+            request.deciders()
         );
         final Logger mockLogger = mock(Logger.class);
         final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
             currentState,
-            policy,
+            request,
             NO_VALIDATION,
             mockLogger
         );
@@ -140,9 +169,9 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         // ensure the updated policy is in the updated cluster state
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
-        assertThat(metadata.policies(), hasKey(policy.name()));
-        assertThat(metadata.policies().get(policy.name()).policy(), equalTo(policy));
-        verify(mockLogger).info("updating autoscaling policy [{}]", policy.name());
+        assertThat(metadata.policies(), hasKey(request.name()));
+        assertThat(metadata.policies().get(request.name()).policy(), equalTo(expectedPolicy));
+        verify(mockLogger).info("updating autoscaling policy [{}]", request.name());
         verifyNoMoreInteractions(mockLogger);
 
         // ensure that existing policies were otherwise preserved
@@ -167,10 +196,15 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         // randomly put an existing policy
         final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
         final AutoscalingPolicy policy = randomFrom(currentMetadata.policies().values()).policy();
+        final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            policy.name(),
+            randomBoolean() ? policy.roles() : null,
+            randomBoolean() ? policy.deciders() : null
+        );
         final Logger mockLogger = mock(Logger.class);
         final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
             currentState,
-            policy,
+            request,
             NO_VALIDATION,
             mockLogger
         );
@@ -181,18 +215,30 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
     }
 
     public void testPolicyValidator() {
-        final AutoscalingPolicy policy = new AutoscalingPolicy(randomAlphaOfLength(8), Collections.emptySortedMap());
+        final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            randomAlphaOfLength(8),
+            randomRoles(),
+            Collections.emptySortedMap()
+        );
         final Logger mockLogger = mock(Logger.class);
         expectThrows(
             IllegalArgumentException.class,
             () -> TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
                 ClusterState.EMPTY_STATE,
-                policy,
+                request,
                 p -> { throw new IllegalArgumentException(); },
                 mockLogger
             )
         );
 
         verifyNoMoreInteractions(mockLogger);
+    }
+
+    static PutAutoscalingPolicyAction.Request randomPutAutoscalingPolicyRequest() {
+        return new PutAutoscalingPolicyAction.Request(
+            randomAlphaOfLength(8),
+            randomRoles(),
+            randomBoolean() ? randomAutoscalingDeciders() : null
+        );
     }
 }

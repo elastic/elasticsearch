@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.transport.actions.service;
+package org.elasticsearch.xpack.watcher.transport.actions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -71,8 +71,7 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
     private void setWatcherMetadataAndWait(boolean manuallyStopped, final ActionListener<AcknowledgedResponse> listener) {
         String source = manuallyStopped ? "update_watcher_manually_stopped" : "update_watcher_manually_started";
 
-        clusterService.submitStateUpdateTask(source,
-                new AckedClusterStateUpdateTask<AcknowledgedResponse>(ackedRequest, listener) {
+        clusterService.submitStateUpdateTask(source, new AckedClusterStateUpdateTask<>(ackedRequest, listener) {
 
                     @Override
                     protected AcknowledgedResponse newResponse(boolean acknowledged) {

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.transport.actions.ack;
+package org.elasticsearch.xpack.watcher.transport.actions;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -16,7 +16,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,7 +32,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.watcher.ClockHolder;
-import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 
 import java.time.Clock;
@@ -51,17 +49,15 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
     private final Clock clock;
     private final WatchParser parser;
     private final Client client;
-    private final ClusterService clusterService;
 
     @Inject
     public TransportAckWatchAction(TransportService transportService, ActionFilters actionFilters,
                                    ClockHolder clockHolder, XPackLicenseState licenseState, WatchParser parser,
-                                   Client client, ClusterService clusterService) {
+                                   Client client) {
         super(AckWatchAction.NAME, transportService, actionFilters, licenseState, AckWatchRequest::new);
         this.clock = clockHolder.clock;
         this.parser = parser;
         this.client = client;
-        this.clusterService = clusterService;
     }
 
     @Override

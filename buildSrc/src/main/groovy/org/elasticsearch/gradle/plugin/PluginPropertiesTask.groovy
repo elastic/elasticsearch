@@ -81,7 +81,8 @@ class PluginPropertiesTask extends Copy {
             'classname': extension.classname,
             'extendedPlugins': extension.extendedPlugins.join(','),
             'hasNativeController': extension.hasNativeController,
-            'requiresKeystore': extension.requiresKeystore
+            'requiresKeystore': extension.requiresKeystore,
+            'licensed': extension.isLicensed
         ]
     }
 }

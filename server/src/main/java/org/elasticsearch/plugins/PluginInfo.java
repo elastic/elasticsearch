@@ -235,6 +235,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
             propsMap.remove("requires.keystore");
         }
 
+        if (esVersion.onOrAfter(Version.V_6_8_14)) {
+            propsMap.remove("licensed");
+        }
+
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
         }

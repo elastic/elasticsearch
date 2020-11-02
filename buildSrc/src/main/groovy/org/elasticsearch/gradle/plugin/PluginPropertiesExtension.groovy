@@ -64,6 +64,10 @@ class PluginPropertiesExtension {
      */
     private File noticeFile = null
 
+    /** Indicates whether the user must accept the license agreement before installing the plugin */
+    @Input
+    boolean isLicensed = false
+
     Project project = null
 
     PluginPropertiesExtension(Project project) {
@@ -90,5 +94,13 @@ class PluginPropertiesExtension {
     void setNoticeFile(File noticeFile) {
         project.ext.noticeFile = noticeFile
         this.noticeFile = noticeFile
+    }
+
+    boolean isLicensed() {
+        return this.isLicensed
+    }
+
+    void setLicensed(boolean isLicensed) {
+        this.isLicensed = isLicensed
     }
 }

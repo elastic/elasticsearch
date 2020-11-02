@@ -115,7 +115,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder().init(this);
     }
 }

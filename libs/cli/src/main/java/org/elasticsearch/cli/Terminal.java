@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
 import java.util.Locale;
 
 /**
@@ -41,6 +42,9 @@ public abstract class Terminal {
 
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
     public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
+
+    /** Display the specified file through {@code more}. Does not check if the file exists. */
+    public abstract void pageFile(Path path) throws IOException, InterruptedException;
 
     /** Defines the available verbosity levels of messages to be printed. */
     public enum Verbosity {
@@ -143,6 +147,12 @@ public abstract class Terminal {
         public char[] readSecret(String prompt) {
             return CONSOLE.readPassword("%s", prompt);
         }
+
+        @Override
+        public void pageFile(Path path) throws IOException, InterruptedException {
+            final Process process = new ProcessBuilder("more", path.toString()).inheritIO().start();
+            process.waitFor();
+        }
     }
 
     private static class SystemTerminal extends Terminal {
@@ -181,6 +191,12 @@ public abstract class Terminal {
         @Override
         public char[] readSecret(String text) {
             return readText(text).toCharArray();
+        }
+
+        @Override
+        public void pageFile(Path path) throws IOException, InterruptedException {
+            final Process process = new ProcessBuilder("more", path.toString()).inheritIO().start();
+            process.waitFor();
         }
     }
 }

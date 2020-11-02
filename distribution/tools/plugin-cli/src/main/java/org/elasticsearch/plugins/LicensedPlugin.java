@@ -29,32 +29,37 @@ import java.nio.file.Path;
 
 public class LicensedPlugin {
 
-    static void confirmInstallation(Terminal terminal, Path pluginRoot) throws Exception {
+    static void confirmInstallation(Terminal terminal, Path pluginRoot, boolean isBatch) throws Exception {
         terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
         terminal.println(Verbosity.NORMAL, "@     WARNING: You must accept the license to continue    @");
         terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
         terminal.println(Verbosity.NORMAL, "");
-        terminal.println(Verbosity.NORMAL, "This plugin requires that you accept the terms of its license");
-        terminal.println(Verbosity.NORMAL, "before continuing with the installation. Press <Enter> to view");
-        terminal.println(Verbosity.NORMAL, "the license.");
 
-        // Wait for the user to hit enter
-        terminal.readText("");
-        printLicense(pluginRoot);
+        if (isBatch) {
+            terminal.println(Verbosity.NORMAL, "This plugin requires that you accept the terms of its license");
+            terminal.println(Verbosity.NORMAL, "before continuing with the installation. Since --batch was specified,");
+            terminal.println(Verbosity.NORMAL, "installation will assume you accept the license and continue.");
+        } else {
+            terminal.println(Verbosity.NORMAL, "This plugin requires that you accept the terms of its license");
+            terminal.println(Verbosity.NORMAL, "before continuing with the installation. Press <Enter> to view");
+            terminal.println(Verbosity.NORMAL, "the license.");
 
-        terminal.println(Verbosity.NORMAL, "");
-        final String text = terminal.readText("Continue with installation? [y/N]");
-        if (!text.equalsIgnoreCase("y")) {
-            throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
+            // Wait for the user to hit enter
+            terminal.readText("");
+            printLicense(terminal, pluginRoot);
+
+            terminal.println(Verbosity.NORMAL, "");
+            final String text = terminal.readText("Continue with installation? [y/N]");
+            if (!text.equalsIgnoreCase("y")) {
+                throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
+            }
         }
     }
 
-    private static void printLicense(Path pluginRoot) throws IOException, InterruptedException {
+    private static void printLicense(Terminal terminal, Path pluginRoot) throws IOException, InterruptedException {
         // Assumption - the license file exists and always has this name.
-        final Path licenseFile = pluginRoot.resolve("LICENSE.TXT");
+        final Path licenseFile = pluginRoot.resolve("LICENSE.txt");
 
-        final Process process = new ProcessBuilder("more", licenseFile.toString()).inheritIO().start();
-
-        process.waitFor();
+        terminal.pageFile(licenseFile);
     }
 }

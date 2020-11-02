@@ -851,8 +851,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         throws Exception {
         final PluginInfo info = loadPluginInfo(terminal, tmpRoot, env);
 
-        if (isBatch == false && info.isLicensed()) {
-            LicensedPlugin.confirmInstallation(terminal, tmpRoot);
+        if (info.isLicensed()) {
+            LicensedPlugin.confirmInstallation(terminal, tmpRoot, isBatch);
         }
 
         PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot);

@@ -110,7 +110,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -886,14 +888,14 @@ public class InstallPluginCommandTests extends ESTestCase {
         );
     }
 
-    private void installPlugin(MockTerminal terminal, boolean isBatch) throws Exception {
+    private void installPlugin(MockTerminal terminal, boolean isBatch, String... additionalProperties) throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         // if batch is enabled, we also want to add a security policy
         if (isBatch) {
             writePluginSecurityPolicy(pluginDir, "setFactory");
         }
-        String pluginZip = createPlugin("fake", pluginDir).toUri().toURL().toString();
+        String pluginZip = createPlugin("fake", pluginDir, additionalProperties).toUri().toURL().toString();
         skipJarHellCommand.execute(terminal, List.of(pluginZip), isBatch, env.v2());
     }
 
@@ -1502,4 +1504,24 @@ public class InstallPluginCommandTests extends ESTestCase {
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake-with-deps", pluginDir, env.v2());
     }
+
+    public void testLicenseCheck() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        terminal.addTextInput("");
+        terminal.addTextInput("y");
+        installPlugin(terminal, false, "licensed", "true");
+        assertThat(terminal.getOutput(), containsString("WARNING: You must accept the license to continue"));
+        assertThat(terminal.getOutput(), containsString("Press <Enter> to view"));
+        assertThat(terminal.getPagedFiles(), hasSize(1));
+        assertThat(terminal.getPagedFiles().get(0).getFileName().toString(), equalTo("LICENSE.txt"));
+    }
+
+    public void testBatchFlagSkipsLicenseCheck() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        installPlugin(terminal, true, "licensed", "true");
+        assertThat(terminal.getOutput(), containsString("WARNING: You must accept the license to continue"));
+        assertThat(terminal.getOutput(), containsString("installation will assume you accept the license and continue"));
+        assertThat(terminal.getPagedFiles(), empty());
+    }
+
 }

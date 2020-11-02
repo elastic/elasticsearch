@@ -26,6 +26,7 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -51,6 +52,9 @@ public abstract class Terminal {
     private static PrintWriter newErrorWriter() {
         return new PrintWriter(System.err);
     }
+
+    /** Display the specified file through {@code more}. Does not check if the file exists. */
+    public abstract void pageFile(Path path) throws IOException, InterruptedException;
 
     /** Defines the available verbosity levels of messages to be printed. */
     public enum Verbosity {
@@ -233,6 +237,12 @@ public abstract class Terminal {
         public char[] readSecret(String prompt) {
             return CONSOLE.readPassword("%s", prompt);
         }
+
+        @Override
+        public void pageFile(Path path) throws IOException, InterruptedException {
+            final Process process = new ProcessBuilder("more", path.toString()).inheritIO().start();
+            process.waitFor();
+        }
     }
 
     /** visible for testing */
@@ -287,6 +297,12 @@ public abstract class Terminal {
         public char[] readSecret(String text, int maxLength) {
             getErrorWriter().println(text);
             return readLineToCharArray(getReader(), maxLength);
+        }
+
+        @Override
+        public void pageFile(Path path) throws IOException, InterruptedException {
+            final Process process = new ProcessBuilder("more", path.toString()).inheritIO().start();
+            process.waitFor();
         }
     }
 }

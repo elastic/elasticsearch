@@ -24,6 +24,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,6 +35,17 @@ import java.util.Map;
 import java.util.Set;
 
 public class StringTermsTests extends InternalTermsTestCase {
+    private BytesRef[] dict;
+
+    @Before
+    public void generateRandomDict() {
+        Set<BytesRef> terms = new HashSet<>();
+        int numTerms = randomIntBetween(2, 100);
+        for (int i = 0; i < numTerms; i++) {
+            terms.add(new BytesRef(randomAlphaOfLength(10)));
+        }
+        dict = terms.stream().toArray(BytesRef[]::new);
+    }
 
     @Override
     protected InternalTerms<?, ?> createTestInstance(String name,
@@ -51,11 +63,14 @@ public class StringTermsTests extends InternalTermsTestCase {
         final int numBuckets = randomNumberOfBuckets();
         Set<BytesRef> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
-            BytesRef term = randomValueOtherThanMany(b -> terms.add(b) == false, () -> new BytesRef(randomAlphaOfLength(10)));
-            int docCount = randomIntBetween(1, 100);
-            buckets.add(new StringTerms.Bucket(term, docCount, aggregations, showTermDocCountError, docCountError, format));
+            BytesRef term = dict[randomIntBetween(0, dict.length-1)];
+            if (terms.add(term)) {
+                int docCount = randomIntBetween(1, 100);
+                buckets.add(new StringTerms.Bucket(term, docCount, aggregations, showTermDocCountError, docCountError, format));
+            }
         }
-        BucketOrder reduceOrder = rarely() ? order : BucketOrder.key(true);
+        BucketOrder reduceOrder = randomBoolean() ?
+            BucketOrder.compound(BucketOrder.key(true), BucketOrder.count(false)) : BucketOrder.key(true);
         Collections.sort(buckets, reduceOrder.comparator());
         return new StringTerms(name, reduceOrder, order, requiredSize, minDocCount,
                 metadata, format, shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);

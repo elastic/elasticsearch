@@ -27,7 +27,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -61,7 +60,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /** A {@link FieldMapper} for a field containing aggregate metrics such as min/max/value_count etc. */
-public class AggregateDoubleMetricFieldMapper extends ParametrizedFieldMapper {
+public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "aggregate_metric_double";
     public static final String SUBFIELD_SEPARATOR = ".";
@@ -105,7 +104,7 @@ public class AggregateDoubleMetricFieldMapper extends ParametrizedFieldMapper {
         public static final Metric DEFAULT_METRIC = Metric.max;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -218,7 +217,7 @@ public class AggregateDoubleMetricFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final ParametrizedFieldMapper.TypeParser PARSER = new TypeParser(
+    public static final FieldMapper.TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()))
     );
 
@@ -406,8 +405,7 @@ public class AggregateDoubleMetricFieldMapper extends ParametrizedFieldMapper {
                     XFieldComparatorSource.Nested nested,
                     boolean reverse
                 ) {
-                    SortField sortField = new SortedNumericSortField(delegateFieldType().name(), SortField.Type.DOUBLE, reverse);
-                    return sortField;
+                    return new SortedNumericSortField(delegateFieldType().name(), SortField.Type.DOUBLE, reverse);
                 }
 
                 @Override
@@ -434,12 +432,12 @@ public class AggregateDoubleMetricFieldMapper extends ParametrizedFieldMapper {
 
     private final EnumMap<Metric, NumberFieldMapper> metricFieldMappers;
 
-    private boolean ignoreMalformed;
+    private final boolean ignoreMalformed;
 
     private final boolean ignoreMalformedByDefault;
 
     /** A set of metrics supported */
-    private Set<Metric> metrics;
+    private final Set<Metric> metrics;
 
     /** The default metric to be when querying this field type */
     protected Metric defaultMetric;
@@ -474,11 +472,6 @@ public class AggregateDoubleMetricFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    protected AggregateDoubleMetricFieldMapper clone() {
-        return (AggregateDoubleMetricFieldMapper) super.clone();
     }
 
     @Override
@@ -595,7 +588,7 @@ public class AggregateDoubleMetricFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault).init(this);
     }
 }

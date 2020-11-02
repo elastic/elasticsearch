@@ -160,7 +160,8 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
     }
 
     public void testXContentHashSetSerialization() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("key", Set.of("value")));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(),
+            org.elasticsearch.common.collect.Map.of("key", org.elasticsearch.common.collect.Set.of("value")));
         final WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(ingestDocument);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();

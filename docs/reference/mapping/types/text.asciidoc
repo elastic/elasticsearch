@@ -143,7 +143,7 @@ The following parameters are accepted by `text` fields:
     Metadata about the field.
 
 [[fielddata]]
-==== `fielddata`
+==== `fielddata` mapping parameter
 
 `text` fields are searchable by default, but by default are not available for
 aggregations, sorting, or scripting. If you try to sort, aggregate, or access
@@ -216,7 +216,7 @@ PUT my-index-000001/_mapping
     mapping for that field, plus the `fielddata` parameter.
 
 [[field-data-filtering]]
-==== `fielddata_frequency_filter`
+==== `fielddata_frequency_filter` mapping parameter
 
 Fielddata filtering can be used to reduce the number of terms loaded into
 memory, and thus reduce memory usage. Terms can be filtered by _frequency_:

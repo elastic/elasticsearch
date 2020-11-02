@@ -539,6 +539,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     + defaultMillis(PUBLISH_TIMEOUT_SETTING)
                     // there might be a term bump causing another election
                     + DEFAULT_ELECTION_DELAY
+                    // in clusters with 5 nodes the chances of concurrent elections
+                    // increase, meaning that it takes longer to get a leader elected
+                    // so we should take into account those cases to ensure that the
+                    // cluster stabilises over time. See #63918 for a really messy scenario.
+                    + DEFAULT_ELECTION_DELAY
 
                     // then wait for both of:
                     + Math.max(

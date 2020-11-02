@@ -41,10 +41,6 @@ public class AttributeMapTests extends ESTestCase {
     public void testAttributeMapWithSameAliasesCanResolveAttributes() {
         Alias param1 = createIntParameterAlias(1, 100);
         Alias param2 = createIntParameterAlias(2, 100);
-        System.out.println(param1.toString());
-        System.out.println(param1.toAttribute().toString());
-        System.out.println(param2.toString());
-        System.out.println(param2.toAttribute().toString());
         assertTrue(param1.equals(param2));
         assertTrue(param1.semanticEquals(param2));
         // equality on literals

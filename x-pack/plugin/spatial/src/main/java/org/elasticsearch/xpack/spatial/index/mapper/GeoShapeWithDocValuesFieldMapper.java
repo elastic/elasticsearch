@@ -26,7 +26,6 @@ import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
@@ -69,7 +68,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         return ((GeoShapeWithDocValuesFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         final Parameter<Boolean> hasDocValues;
@@ -169,7 +168,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     @SuppressWarnings("deprecation")
     public static Mapper.TypeParser PARSER = (name, node, parserContext) -> {
-        ParametrizedFieldMapper.Builder builder;
+        FieldMapper.Builder builder;
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
         if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
@@ -206,7 +205,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(
             simpleName(),
             builder.version,

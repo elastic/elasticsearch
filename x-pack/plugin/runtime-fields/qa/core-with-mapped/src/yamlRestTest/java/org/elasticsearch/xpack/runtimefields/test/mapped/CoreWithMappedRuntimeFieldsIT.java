@@ -14,9 +14,14 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.xpack.runtimefields.test.CoreTestTranslater;
 
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Runs elasticsearch's core rest tests replacing all field mappings with runtime fields
+ * that load from {@code _source}. Tests that configure the field in a way that are not
+ * supported by runtime fields are skipped.
+ */
 public class CoreWithMappedRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
     public CoreWithMappedRuntimeFieldsIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -27,28 +32,35 @@ public class CoreWithMappedRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
         return new MappingRuntimeFieldTranslater().parameters();
     }
 
-    /**
-     * Builds test parameters similarly to {@link ESClientYamlSuiteTestCase#createParameters()},
-     * replacing all fields with runtime fields that load from {@code _source} if possible. Tests
-     * that configure the field in a way that are not supported by runtime fields are skipped.
-     */
     private static class MappingRuntimeFieldTranslater extends CoreTestTranslater {
         @Override
-        protected List<Map<String, Object>> dynamicTemplates() {
-            return dynamicTemplatesToAddRuntimeFieldsToMappings();
+        protected Map<String, Object> indexTemplate() {
+            return indexTemplateToAddRuntimeFieldsToMappings();
         }
 
         @Override
         protected Suite suite(ClientYamlTestCandidate candidate) {
             return new Suite(candidate) {
                 @Override
-                protected boolean modifyMappingProperties(String index, Map<?, ?> properties) {
-                    return runtimeifyMappingProperties(properties);
-                }
-
-                @Override
-                protected void modifyMapping(Map<String, Object> mapping) {
-                    // The top level mapping is fine for runtime fields defined in the mapping
+                protected boolean modifyMapping(String index, Map<String, Object> mapping) {
+                    Object properties = mapping.get("properties");
+                    if (properties == null || false == (properties instanceof Map)) {
+                        return true;
+                    }
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> propertiesMap = (Map<String, Object>) properties;
+                    Map<String, Object> newProperties = new HashMap<>(propertiesMap.size());
+                    Map<String, Map<String, Object>> runtimeProperties = new HashMap<>(propertiesMap.size());
+                    if (false == runtimeifyMappingProperties(propertiesMap, newProperties, runtimeProperties)) {
+                        return false;
+                    }
+                    for (Map.Entry<String, Map<String, Object>> runtimeProperty : runtimeProperties.entrySet()) {
+                        runtimeProperty.getValue().put("runtime_type", runtimeProperty.getValue().get("type"));
+                        runtimeProperty.getValue().put("type", "runtime");
+                        newProperties.put(runtimeProperty.getKey(), runtimeProperty.getValue());
+                    }
+                    mapping.put("properties", newProperties);
+                    return true;
                 }
 
                 @Override

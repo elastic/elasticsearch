@@ -39,7 +39,7 @@ public abstract class CoreTestTranslater {
         for (Object[] orig : ESClientYamlSuiteTestCase.createParameters()) {
             assert orig.length == 1;
             ClientYamlTestCandidate candidate = (ClientYamlTestCandidate) orig[0];
-            Suite suite = suites.computeIfAbsent(candidate.getTestPath(), k -> suite(candidate));
+            Suite suite = suites.computeIfAbsent(candidate.getSuitePath(), k -> suite(candidate));
             if (suite.modified == null) {
                 // The setup section contains an unsupported option
                 continue;
@@ -99,13 +99,13 @@ public abstract class CoreTestTranslater {
         )
     );
 
-    protected abstract List<Map<String, Object>> dynamicTemplates();
+    protected abstract Map<String, Object> indexTemplate();
 
-    protected static List<Map<String, Object>> dynamicTemplatesToDisableAllFields() {
-        return List.of(Map.of("disable_all", Map.of("enabled", false)));
+    protected static Map<String, Object> indexTemplateToDisableAllFields() {
+        return Map.of("settings", Map.of(), "mappings", Map.of("dynamic", false));
     }
 
-    protected static List<Map<String, Object>> dynamicTemplatesToAddRuntimeFieldsToMappings() {
+    protected static Map<String, Object> indexTemplateToAddRuntimeFieldsToMappings() {
         List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
         for (String type : PAINLESS_TO_EMIT.keySet()) {
             if (type.equals("ip")) {
@@ -130,10 +130,10 @@ public abstract class CoreTestTranslater {
                 dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", type, "mapping", mapping)));
             }
         }
-        return dynamicTemplates;
+        return Map.of("settings", Map.of(), "mappings", Map.of("dynamic_templates", dynamicTemplates));
     }
 
-    private final ExecutableSection addTemplate() {
+    private final ExecutableSection addIndexTemplate() {
         return new ExecutableSection() {
             @Override
             public XContentLocation getLocation() {
@@ -142,12 +142,12 @@ public abstract class CoreTestTranslater {
 
             @Override
             public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
-                Map<String, String> params = Map.of("name", "convert_to_source_only", "create", "true");
+                Map<String, String> params = Map.of("name", "hack_dynamic_mappings", "create", "true");
                 List<Map<String, Object>> bodies = List.of(
                     Map.ofEntries(
                         Map.entry("index_patterns", "*"),
                         Map.entry("priority", Integer.MAX_VALUE - 1),
-                        Map.entry("template", Map.of("settings", Map.of(), "mappings", Map.of("dynamic_templates", dynamicTemplates())))
+                        Map.entry("template", indexTemplate())
                     )
                 );
                 ClientYamlTestResponse response = executionContext.callApi("indices.put_index_template", params, bodies, Map.of());
@@ -174,7 +174,7 @@ public abstract class CoreTestTranslater {
              * expect them.
              */
             List<ExecutableSection> setup = new ArrayList<>(candidate.getSetupSection().getExecutableSections().size() + 1);
-            setup.add(addTemplate());
+            setup.add(addIndexTemplate());
             setup.addAll(candidate.getSetupSection().getExecutableSections());
             modified = new ClientYamlTestSuite(
                 candidate.getApi(),
@@ -191,18 +191,19 @@ public abstract class CoreTestTranslater {
          *
          * @return true if the section is appropriate for testing with runtime fields
          */
-        public final boolean modifySections(List<ExecutableSection> executables) {
+        public boolean modifySections(List<ExecutableSection> executables) {
             for (ExecutableSection section : executables) {
                 if (false == (section instanceof DoSection)) {
                     continue;
                 }
                 DoSection doSection = (DoSection) section;
-                if (doSection.getApiCallSection().getApi().equals("indices.create")) {
+                String api = doSection.getApiCallSection().getApi();
+                if (api.equals("indices.create")) {
                     if (false == modifyCreateIndex(doSection.getApiCallSection())) {
                         return false;
                     }
                 }
-                if (doSection.getApiCallSection().getApi().equals("search")) {
+                if (api.equals("search") || api.equals("async_search.submit")) {
                     if (false == modifySearch(doSection.getApiCallSection())) {
                         return false;
                     }
@@ -234,25 +235,28 @@ public abstract class CoreTestTranslater {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> mappingMap = (Map<String, Object>) mapping;
-                Object properties = mappingMap.get("properties");
-                if (false == (properties instanceof Map)) {
-                    continue;
-                }
-                if (false == modifyMappingProperties(index, (Map<?, ?>) properties)) {
+                if (false == modifyMapping(index, mappingMap)) {
                     return false;
                 }
-                modifyMapping(mappingMap);
             }
             return true;
         }
 
-        protected abstract boolean modifyMappingProperties(String index, Map<?, ?> properties);
+        protected abstract boolean modifyMapping(String index, Map<String, Object> mapping);
 
-        protected abstract void modifyMapping(Map<String, Object> mapping);
-
-        protected final boolean runtimeifyMappingProperties(Map<?, ?> properties) {
-            for (Map.Entry<?, ?> property : properties.entrySet()) {
+        /**
+         * Modify the provided map in place, translating all fields into
+         * runtime fields that load from source.
+         * @return true if this mapping supports runtime fields, false otherwise
+         */
+        protected final boolean runtimeifyMappingProperties(
+            Map<String, Object> properties,
+            Map<String, Object> untouchedProperties,
+            Map<String, Map<String, Object>> runtimeProperties
+        ) {
+            for (Map.Entry<String, Object> property : properties.entrySet()) {
                 if (false == property.getValue() instanceof Map) {
+                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 @SuppressWarnings("unchecked")
@@ -265,35 +269,49 @@ public abstract class CoreTestTranslater {
                 }
                 if ("false".equals(Objects.toString(propertyMap.get("doc_values")))) {
                     // If doc_values is false we can't emulate with scripts. So we keep the old definition. `null` and `true` are fine.
+                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 if ("false".equals(Objects.toString(propertyMap.get("index")))) {
                     // If index is false we can't emulate with scripts
+                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 if ("true".equals(Objects.toString(propertyMap.get("store")))) {
                     // If store is true we can't emulate with scripts
+                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 if (propertyMap.containsKey("ignore_above")) {
                     // Scripts don't support ignore_above so we skip those fields
+                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 if (propertyMap.containsKey("ignore_malformed")) {
                     // Our source reading script doesn't emulate ignore_malformed
+                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 String toLoad = painlessToLoadFromSource(name, type);
                 if (toLoad == null) {
+                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
-                propertyMap.put("type", "runtime");
-                propertyMap.put("runtime_type", type);
-                propertyMap.put("script", toLoad);
-                propertyMap.remove("store");
-                propertyMap.remove("index");
-                propertyMap.remove("doc_values");
+                Map<String, Object> runtimeConfig = new HashMap<>(propertyMap);
+                runtimeConfig.put("script", toLoad);
+                runtimeConfig.remove("store");
+                runtimeConfig.remove("index");
+                runtimeConfig.remove("doc_values");
+                runtimeProperties.put(property.getKey(), runtimeConfig);
             }
+            /*
+             * Its tempting to return false here if we didn't make any runtime
+             * fields, skipping the test. But that would cause us to skip any
+             * test uses dynamic mappings. Disaster! Instead we use a dynamic
+             * template to make the dynamic mappings into runtime fields too.
+             * The downside is that we can run tests that don't use runtime
+             * fields at all. That's unfortunate, but its ok.
+             */
             return true;
         }
     }

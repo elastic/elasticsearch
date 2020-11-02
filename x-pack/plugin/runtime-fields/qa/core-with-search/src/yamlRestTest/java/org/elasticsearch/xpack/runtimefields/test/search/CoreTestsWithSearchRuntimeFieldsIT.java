@@ -9,20 +9,33 @@ package org.elasticsearch.xpack.runtimefields.test.search;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
+import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xpack.runtimefields.test.CoreTestTranslater;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.Matchers.hasSize;
 
+/**
+ * Runs elasticsearch's core rest tests disabling all mappings and replacing them
+ * with runtime fields defined on the search request that load from {@code _source}. Tests
+ * that configure the field in a way that are not supported by runtime fields are skipped.
+ */
 public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
     public CoreTestsWithSearchRuntimeFieldsIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+    }
+
+    @Override
+    protected boolean randomizeContentType() { // NOCOMMIT remove me
+        return false;
     }
 
     @ParametersFactory
@@ -30,53 +43,93 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
         return new SearchRequestRuntimeFieldTranslater().parameters();
     }
 
-    /**
-     * Builds test parameters similarly to {@link ESClientYamlSuiteTestCase#createParameters()},
-     * replacing all fields with runtime fields that load from {@code _source} if possible. Tests
-     * that configure the field in a way that are not supported by runtime fields are skipped.
-     */
     private static class SearchRequestRuntimeFieldTranslater extends CoreTestTranslater {
         @Override
-        protected List<Map<String, Object>> dynamicTemplates() {
-            return dynamicTemplatesToDisableAllFields();
+        protected Map<String, Object> indexTemplate() {
+            return indexTemplateToDisableAllFields();
         }
 
         @Override
         protected Suite suite(ClientYamlTestCandidate candidate) {
             return new Suite(candidate) {
-                private final Map<String, Map<?, ?>> runtimeMappings = new HashMap<>();;
+                private Map<String, Map<?, ?>> runtimeMappingsAfterSetup;
+                private Map<String, Map<?, ?>> runtimeMappings;
 
                 @Override
-                protected boolean modifyMappingProperties(String index, Map<?, ?> properties) {
-                    Map<?, ?> indexRuntimeMappings = new HashMap<>(properties);
-                    if (false == runtimeifyMappingProperties(properties)) {
+                public boolean modifySections(List<ExecutableSection> executables) {
+                    if (runtimeMappingsAfterSetup == null) {
+                        if (candidate.toString().contains("50_filter")) {
+                            LogManager.getLogger().error("init");
+                        }
+                        // We're modifying the setup section
+                        runtimeMappings = new HashMap<>();
+                        if (false == super.modifySections(executables)) {
+                            return false;
+                        }
+                        runtimeMappingsAfterSetup = unmodifiableMap(runtimeMappings);
+                        runtimeMappings = null;
+                        return true;
+                    }
+                    runtimeMappings = new HashMap<>(runtimeMappingsAfterSetup);
+                    return super.modifySections(executables);
+                }
+
+                @Override
+                protected boolean modifyMapping(String index, Map<String, Object> mapping) {
+                    Object properties = mapping.get("properties");
+                    if (properties == null || false == (properties instanceof Map)) {
+                        return true;
+                    }
+                    mapping.put("dynamic", false);
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> propertiesMap = (Map<String, Object>) properties;
+                    Map<String, Object> untouchedMapping = new HashMap<>();
+                    Map<String, Map<String, Object>> runtimeMapping = new HashMap<>();
+                    if (false == runtimeifyMappingProperties(propertiesMap, untouchedMapping, runtimeMapping)) {
                         return false;
                     }
-                    runtimeMappings.put(index, indexRuntimeMappings);
+                    mapping.put("properties", untouchedMapping);
+                    if (candidate.toString().contains("50_filter")) {
+                        LogManager.getLogger().error("untouched " + untouchedMapping);
+                        LogManager.getLogger().error("runtime " + runtimeMapping);
+                    }
+                    runtimeMappings.put(index, runtimeMapping);
                     return true;
                 }
 
                 @Override
-                protected void modifyMapping(Map<String, Object> mapping) {
-                    mapping.clear();
-                    mapping.put("dynamic", false);
-                }
-
-                @Override
                 protected boolean modifySearch(ApiCallSection search) {
-                    assertThat(search.getBodies(), hasSize(1));
-                    Map<String, Object> body = search.getBodies().get(0);
-                    Object index = body.get("index");
-                    if (index == null) {
-                        // NOCOMMIT hack together a mapping based on merging everything
-                        return false;
+                    if (candidate.toString().contains("50_filter")) {
+                        LogManager.getLogger().error("toString " + candidate);
+                        LogManager.getLogger().error("runtimeMappingsAfterSetup " + runtimeMappingsAfterSetup);
+                        LogManager.getLogger().error("runtimeMappings " + runtimeMappings);
                     }
-                    Map<?, ?> runtimeMapping = runtimeMappings.get(index);
+                    Map<String, Object> body;
+                    if (search.getBodies().isEmpty()) {
+                        body = new HashMap<>();
+                        search.addBody(body);
+                    } else {
+                        body = search.getBodies().get(0);
+                        assertThat(search.getBodies(), hasSize(1));
+                    }
+                    Object index = body.get("index");
+                    Map<?, ?> runtimeMapping = runtimeMappings(index);
                     if (runtimeMapping == null) {
                         return false;
                     }
                     search.getBodies().get(0).put("runtime_mappings", runtimeMapping);
                     return true;
+                }
+
+                private Map<?, ?> runtimeMappings(Object index) {
+                    if (index != null) {
+                        return runtimeMappings.get(index);
+                    }
+                    // No mapping index specified in the search, if there is just one index we can just us it
+                    if (runtimeMappings.size() == 1) {
+                        return runtimeMappings.values().iterator().next();
+                    }
+                    return null;
                 }
             };
         }

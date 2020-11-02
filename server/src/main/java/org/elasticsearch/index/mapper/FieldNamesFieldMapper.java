@@ -47,7 +47,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_field_names";
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(indexVersionCreated).init(this);
     }
 

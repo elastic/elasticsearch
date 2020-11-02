@@ -50,9 +50,9 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canRebalance(shardRouting, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -72,14 +72,14 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canAllocate(shardRouting, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Can not allocate [{}] on node [{}] due to [{}]",
                         shardRouting, node.node(), allocationDecider.getClass().getSimpleName());
                 }
                 // short circuit only if debugging is not enabled
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -102,13 +102,13 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canRemain(shardRouting, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Shard [{}] can not remain on node [{}] due to [{}]",
                         shardRouting, node.nodeId(), allocationDecider.getClass().getSimpleName());
                 }
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -125,9 +125,9 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canAllocate(indexMetadata, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -144,9 +144,9 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.shouldAutoExpandToNode(indexMetadata, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -163,9 +163,9 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canAllocate(shardRouting, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -182,9 +182,9 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canRebalance(allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -206,13 +206,13 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider decider : allocations) {
             Decision decision = decider.canForceAllocatePrimary(shardRouting, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Shard [{}] can not be forcefully allocated to node [{}] due to [{}].",
                         shardRouting.shardId(), node.nodeId(), decider.getClass().getSimpleName());
                 }
                 if (!allocation.debugDecision()) {
-                    return decision;
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }

@@ -194,8 +194,8 @@ public class SchedulerEngine {
         private final Schedule schedule;
         private final long startTime;
 
-        private volatile ScheduledFuture<?> future;
-        private volatile long scheduledTime;
+        private ScheduledFuture<?> future;
+        private long scheduledTime;
 
         ActiveSchedule(String name, Schedule schedule, long startTime) {
             this.name = name;
@@ -228,7 +228,11 @@ public class SchedulerEngine {
             if (scheduledTime != -1) {
                 long delay = Math.max(0, scheduledTime - currentTime);
                 try {
-                    future = scheduler.schedule(this, delay, TimeUnit.MILLISECONDS);
+                    synchronized (this) {
+                        if (future == null || future.isCancelled() == false) {
+                            future = scheduler.schedule(this, delay, TimeUnit.MILLISECONDS);
+                        }
+                    }
                 } catch (RejectedExecutionException e) {
                     // ignoring rejections if the scheduler has been shut down already
                     if (scheduler.isShutdown() == false) {
@@ -238,7 +242,7 @@ public class SchedulerEngine {
             }
         }
 
-        public void cancel() {
+        public synchronized void cancel() {
             FutureUtils.cancel(future);
         }
     }

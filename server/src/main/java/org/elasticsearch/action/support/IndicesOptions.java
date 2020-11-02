@@ -225,6 +225,13 @@ public class IndicesOptions implements ToXContentFragment {
         return EnumSet.copyOf(expandWildcards);
     }
 
+    /**
+     * @return a copy of the {@link Option}s that these indices options will use
+     */
+    public EnumSet<Option> getOptions() {
+        return EnumSet.copyOf(options);
+    }
+
     public void writeIndicesOptions(StreamOutput out) throws IOException {
         out.writeEnumSet(options);
         out.writeEnumSet(expandWildcards);

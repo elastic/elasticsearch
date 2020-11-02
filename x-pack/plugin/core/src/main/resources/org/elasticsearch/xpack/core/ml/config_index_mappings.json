@@ -399,15 +399,6 @@
       },
       "version" : {
         "type" : "keyword"
-      },
-      "message": {
-        "type": "text",
-        "fields": {
-          "raw": {
-            "type": "keyword",
-            "ignore_above": 1024
-          }
-        }
       }
     }
   }

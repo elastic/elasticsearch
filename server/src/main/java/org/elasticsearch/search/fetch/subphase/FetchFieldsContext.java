@@ -25,12 +25,18 @@ import java.util.List;
  */
 public class FetchFieldsContext {
     private final List<FieldAndFormat> fields;
+    private final boolean includeUnmapped;
 
-    public FetchFieldsContext(List<FieldAndFormat> fields) {
+    public FetchFieldsContext(List<FieldAndFormat> fields, boolean includeUnmapped) {
         this.fields = fields;
+        this.includeUnmapped = includeUnmapped;
     }
 
     public List<FieldAndFormat> fields() {
         return fields;
+    }
+
+    public boolean includeUnmapped() {
+        return includeUnmapped;
     }
 }

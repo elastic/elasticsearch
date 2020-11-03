@@ -973,7 +973,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.docValuesContext(docValuesContext);
         }
         if (source.fetchFields() != null) {
-            FetchFieldsContext fetchFieldsContext = new FetchFieldsContext(source.fetchFields());
+            // TODO make "includeUnmapped configurable?
+            FetchFieldsContext fetchFieldsContext = new FetchFieldsContext(source.fetchFields(), true);
             context.fetchFieldsContext(fetchFieldsContext);
         }
         if (source.highlighter() != null) {

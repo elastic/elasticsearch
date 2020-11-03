@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTe
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<SnapshotLifecyclePolicy> {
 
@@ -70,6 +71,13 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
                 containsInAnyOrder("invalid policy id [_my_policy]: must not start with '_'",
                     "invalid snapshot name [mySnap]: must be lowercase",
                     "invalid schedule [ ]: must not be empty"));
+        }
+
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("my_policy", "my_snap",
+                "0 0/30 * * * ?", "repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
+            ValidationException e = policy.validate();
+            assertThat(e, nullValue());
         }
     }
 

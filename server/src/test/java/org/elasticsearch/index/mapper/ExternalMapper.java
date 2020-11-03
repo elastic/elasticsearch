@@ -41,7 +41,7 @@ import java.util.List;
  * .point GeoPoint type
  * .shape GeoShape type
  */
-public class ExternalMapper extends ParametrizedFieldMapper {
+public class ExternalMapper extends FieldMapper {
 
     public static class Names {
         public static final String FIELD_BIN = "bin";
@@ -50,7 +50,7 @@ public class ExternalMapper extends ParametrizedFieldMapper {
         public static final String FIELD_SHAPE = "shape";
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private final BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
@@ -173,7 +173,7 @@ public class ExternalMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), generatedValue, mapperName);
     }
 

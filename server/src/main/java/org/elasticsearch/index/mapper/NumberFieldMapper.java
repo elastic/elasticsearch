@@ -64,7 +64,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
-public class NumberFieldMapper extends ParametrizedFieldMapper {
+public class NumberFieldMapper extends FieldMapper {
 
     public static final Setting<Boolean> COERCE_SETTING =
             Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
@@ -73,7 +73,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         return (NumberFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -1048,11 +1048,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected NumberFieldMapper clone() {
-        return (NumberFieldMapper) super.clone();
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Object value;
@@ -1100,7 +1095,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, ignoreMalformedByDefault, coerceByDefault).init(this);
     }
 }

@@ -154,41 +154,48 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             indexDocuments(w);
 
-            String [] excludeValues = {"duplicate"};
-            String [] includeValues = {"duplicate"};
-
-            boolean inclusive = randomBoolean();
-            if (inclusive) {
-                excludeValues = null;
-            } else {
-                includeValues = null;                
-            }
-            
-            SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").
-                includeExclude(new IncludeExclude(includeValues, excludeValues));
-            if(randomBoolean()){
-                sigAgg.sourceFieldNames(Arrays.asList(new String [] {"json_only_field"}));
-            }
-            SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler")
-                    .subAggregation(sigAgg);
+            String [] incExcValues = {"duplicate"};
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
+                
+                // Inclusive of values
+                {
+                    SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").
+                        includeExclude(new IncludeExclude(incExcValues, null));
+                    SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler")
+                        .subAggregation(sigAgg);
+                    if(randomBoolean()){
+                        sigAgg.sourceFieldNames(Arrays.asList(new String [] {"json_only_field"}));
+                    }
+                    // Search "even" which should have duplication
+                    InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType);
+                    SignificantTerms terms = sampler.getAggregations().get("sig_text");
 
-                // Search "even" which should have duplication
-                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType);
-                SignificantTerms terms = sampler.getAggregations().get("sig_text");
-
-                if (inclusive) {
                     assertNull(terms.getBucketByKey("even"));
                     assertNotNull(terms.getBucketByKey("duplicate"));
-                } else {
+                    assertTrue(AggregationInspectionHelper.hasValue(sampler));
+                    
+                }
+                // Exclusive of values
+                {
+                    SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").
+                        includeExclude(new IncludeExclude(null, incExcValues));
+                    SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler")
+                        .subAggregation(sigAgg);
+                    if(randomBoolean()){
+                        sigAgg.sourceFieldNames(Arrays.asList(new String [] {"json_only_field"}));
+                    }
+                    // Search "even" which should have duplication
+                    InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType);
+                    SignificantTerms terms = sampler.getAggregations().get("sig_text");
+
                     assertNotNull(terms.getBucketByKey("even"));
                     assertNull(terms.getBucketByKey("duplicate"));                    
+                    assertTrue(AggregationInspectionHelper.hasValue(sampler));
+                    
                 }
-
-                assertTrue(AggregationInspectionHelper.hasValue(sampler));
             }
         }
     }    

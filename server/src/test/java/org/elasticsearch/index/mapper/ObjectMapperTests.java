@@ -26,171 +26,118 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
-import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ObjectMapperTests extends ESSingleNodeTestCase {
-    public void testDifferentInnerObjectTokenFailure() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject());
+public class ObjectMapperTests extends MapperServiceTestCase {
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            defaultMapper.parse(new SourceToParse("test", "1", new BytesArray(" {\n" +
-                "      \"object\": {\n" +
-                "        \"array\":[\n" +
-                "        {\n" +
-                "          \"object\": { \"value\": \"value\" }\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"object\":\"value\"\n" +
-                "        }\n" +
-                "        ]\n" +
-                "      },\n" +
-                "      \"value\":\"value\"\n" +
-                "    }"),
-                    XContentType.JSON));
-        });
+    public void testDifferentInnerObjectTokenFailure() throws Exception {
+        DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {}));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> defaultMapper.parse(new SourceToParse("test", "1", new BytesArray(" {\n" +
+            "      \"object\": {\n" +
+            "        \"array\":[\n" +
+            "        {\n" +
+            "          \"object\": { \"value\": \"value\" }\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"object\":\"value\"\n" +
+            "        }\n" +
+            "        ]\n" +
+            "      },\n" +
+            "      \"value\":\"value\"\n" +
+            "    }"),
+                XContentType.JSON)));
         assertTrue(e.getMessage(), e.getMessage().contains("cannot be changed from type"));
     }
 
     public void testEmptyArrayProperties() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startArray("properties").endArray()
-                .endObject().endObject());
-        createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
+        createMapperService(topMapping(b -> b.startArray("properties").endArray()));
     }
 
     public void testEmptyFieldsArrayMultiFields() throws Exception {
-        String mapping =
-            Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("tweet")
-                        .startObject("properties")
-                            .startObject("name")
-                                .field("type", "text")
-                                .startArray("fields")
-                                .endArray()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject());
-        createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
+        createMapperService(mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startArray("fields").endArray();
+            b.endObject();
+        }));
     }
 
-    public void testFieldsArrayMultiFieldsShouldThrowException() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("tweet")
-                        .startObject("properties")
-                            .startObject("name")
-                                .field("type", "text")
-                                .startArray("fields")
-                                    .startObject().field("test", "string").endObject()
-                                    .startObject().field("test2", "string").endObject()
-                                .endArray()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject());
-        try {
-            createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
-            fail("Expected MapperParsingException");
-        } catch(MapperParsingException e) {
-            assertThat(e.getMessage(), containsString("expected map for property [fields]"));
-            assertThat(e.getMessage(), containsString("but got a class java.util.ArrayList"));
-        }
+    public void testFieldsArrayMultiFieldsShouldThrowException() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("name");
+            {
+                b.field("type", "text");
+                b.startArray("fields");
+                {
+                    b.startObject().field("test", "string").endObject();
+                    b.startObject().field("test2", "string").endObject();
+                }
+                b.endArray();
+            }
+            b.endObject();
+        })));
+
+        assertThat(e.getMessage(), containsString("expected map for property [fields]"));
+        assertThat(e.getMessage(), containsString("but got a class java.util.ArrayList"));
     }
 
     public void testEmptyFieldsArray() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("tweet")
-                        .startObject("properties")
-                            .startArray("fields")
-                            .endArray()
-                        .endObject()
-                    .endObject()
-                .endObject());
-        createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
+        createMapperService(mapping(b -> b.startArray("fields").endArray()));
     }
 
-    public void testFieldsWithFilledArrayShouldThrowException() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("tweet")
-                        .startObject("properties")
-                            .startArray("fields")
-                                .startObject().field("test", "string").endObject()
-                                .startObject().field("test2", "string").endObject()
-                            .endArray()
-                        .endObject()
-                    .endObject()
-                .endObject());
-        try {
-            createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
-            fail("Expected MapperParsingException");
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), containsString("Expected map for property [fields]"));
-        }
+    public void testFieldsWithFilledArrayShouldThrowException() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startArray("fields");
+            {
+                b.startObject().field("test", "string").endObject();
+                b.startObject().field("test2", "string").endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(e.getMessage(), containsString("Expected map for property [fields]"));
     }
 
     public void testFieldPropertiesArray() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("tweet")
-                        .startObject("properties")
-                            .startObject("name")
-                                .field("type", "text")
-                                .startObject("fields")
-                                    .startObject("raw")
-                                        .field("type", "keyword")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject());
-        createIndex("test").mapperService().parse("tweet", new CompressedXContent(mapping));
+        // TODO this isn't actually testing an array?
+        createMapperService(mapping(b -> {
+            b.startObject("name");
+            {
+                b.field("type", "text");
+                b.startObject("fields");
+                {
+                    b.startObject("raw").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
     }
 
     public void testMerge() throws IOException {
         MergeReason reason = randomFrom(MergeReason.values());
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("foo")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
-                .endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), reason);
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
+        DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.root().dynamic());
-        String update = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .field("dynamic", "strict")
-                .endObject().endObject());
-        mapper = mapperService.merge("type", new CompressedXContent(update), reason);
-        assertEquals(Dynamic.STRICT, mapper.root().dynamic());
+        merge(mapperService, reason, topMapping(b -> b.field("dynamic", "strict")));
+        assertEquals(Dynamic.STRICT, mapperService.documentMapper().root().dynamic());
     }
 
     public void testMergeEnabledForIndexTemplates() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("object")
-                    .field("type", "object")
-                    .field("enabled", false)
-                .endObject()
-            .endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        merge(mapperService, MergeReason.INDEX_TEMPLATE, mapping(b -> {
+            b.startObject("object");
+            {
+                b.field("type", "object");
+                b.field("enabled", false);
+            }
+            b.endObject();
+        }));
+
+        DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.root().dynamic());
 
         // If we don't explicitly set 'enabled', then the mapping should not change.
@@ -223,7 +170,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldReplacementForIndexTemplates() throws IOException {
-        MapperService mapperService = createIndex("test").mapperService();
+        MapperService mapperService = createMapperService(mapping(b -> {}));
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
                 .startObject("object")
@@ -281,7 +228,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDisallowFieldReplacementForIndexTemplates() throws IOException {
-        MapperService mapperService = createIndex("test").mapperService();
+        MapperService mapperService = createMapperService(mapping(b -> {}));
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
                 .startObject("object")
@@ -341,14 +288,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         // Empty name not allowed in index created after 5.0
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            createIndex("test").mapperService().parse("", new CompressedXContent(mapping));
-        });
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
     }
 }

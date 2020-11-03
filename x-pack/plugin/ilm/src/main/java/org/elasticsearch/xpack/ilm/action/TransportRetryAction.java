@@ -46,7 +46,7 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Res
     @Override
     protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
         clusterService.submitStateUpdateTask("ilm-re-run",
-            new AckedClusterStateUpdateTask<Response>(request, listener) {
+            new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return indexLifecycleService.moveClusterStateToPreviouslyFailedStep(currentState, request.indices());

@@ -50,7 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
+public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "icu_collation_keyword";
 
@@ -186,7 +186,7 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
         return (ICUCollationKeywordFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -441,7 +441,7 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 

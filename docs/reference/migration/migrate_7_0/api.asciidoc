@@ -30,8 +30,8 @@ to the new method, follow these steps:
 . <<reindex-upgrade,Reindex>> any indices created before 6.0. This ensures
 documents in those indices have sequence numbers.
 +
-Use the <<indices-get-index,get index API>> with the `human` parameter to get
-the version in which an index was created:
+To get the {es} version in which an index was created, use the
+<<indices-get-index,get index API>> with the `human` parameter:
 +
 --
 .*API Example*

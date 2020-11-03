@@ -77,6 +77,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         return Map.of("min", -10.1, "max", 50.0, "value_count", 14);
     }
 
+    @Override
+    protected Object getSampleValueForQuery() {
+        return 50.0;
+    }
+
     /**
      * Test parsing field mapping and adding simple field
      */

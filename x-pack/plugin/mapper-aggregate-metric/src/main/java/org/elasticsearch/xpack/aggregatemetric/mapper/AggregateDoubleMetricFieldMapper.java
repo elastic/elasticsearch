@@ -231,7 +231,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         public AggregateDoubleMetricFieldType(String name, Map<String, String> meta) {
-            super(name, true, false, false, TextSearchInfo.NONE, meta);
+            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         }
 
         /**

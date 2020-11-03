@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
-    protected AggregateDoubleMetricFieldType createDefaultFieldType(String name, Map<String, String> meta) {
+    protected AggregateDoubleMetricFieldType createDefaultFieldType(String name, Map<String, String> meta, Metric defaultMetric) {
         AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(name, meta);
         for (AggregateDoubleMetricFieldMapper.Metric m : List.of(
             AggregateDoubleMetricFieldMapper.Metric.min,
@@ -39,31 +39,39 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
             );
             fieldType.addMetricField(m, subfield);
         }
-        fieldType.setDefaultMetric(Metric.max);
+        fieldType.setDefaultMetric(defaultMetric);
         return fieldType;
     }
 
     public void testTermQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
+        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
         Query query = fieldType.termQuery(55.2, null);
         assertThat(query, equalTo(DoublePoint.newRangeQuery("foo.max", 55.2, 55.2)));
     }
 
     public void testTermsQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
+        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
         Query query = fieldType.termsQuery(asList(55.2, 500.3), null);
         assertThat(query, equalTo(DoublePoint.newSetQuery("foo.max", 55.2, 500.3)));
     }
 
-    public void testRangeQuery() throws Exception {
-        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
+    public void testRangeQuery() {
+        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
         Query query = fieldType.rangeQuery(10.1, 100.1, true, true, null, null, null, null);
         assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
     }
 
-    public void testFetchSourceValue() throws IOException {
-        final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap());
-        Map<String, Object> metric = Collections.singletonMap("min", 14.2);
-        assertEquals(List.of(metric), fetchSourceValue(fieldType, metric));
+    public void testFetchSourceValueWithOneMetric() throws IOException {
+        final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.min);
+        final double defaultValue = 45.8;
+        final Map<String, Object> metric = Collections.singletonMap("min", defaultValue);
+        assertEquals(List.of(defaultValue), fetchSourceValue(fieldType, metric));
+    }
+
+    public void testFetchSourceValueWithMultipleMetrics() throws IOException {
+        final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.max);
+        final double defaultValue = 45.8;
+        final Map<String, Object> metric = Map.of("min", 14.2, "max", defaultValue);
+        assertEquals(List.of(defaultValue), fetchSourceValue(fieldType, metric));
     }
 }

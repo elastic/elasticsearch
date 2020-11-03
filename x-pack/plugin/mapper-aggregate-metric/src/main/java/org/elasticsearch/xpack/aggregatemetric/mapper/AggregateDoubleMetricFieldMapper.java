@@ -100,7 +100,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     public static class Defaults {
         public static final Set<Metric> METRICS = Collections.emptySet();
-        public static final Metric DEFAULT_METRIC = Metric.max;
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -131,19 +130,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         /**
          * Set the default metric so that query operations are delegated to it.
          */
-        private final Parameter<Metric> defaultMetric = new Parameter<>(
-            Names.DEFAULT_METRIC,
-            true,
-            () -> Defaults.DEFAULT_METRIC,
-            (n, c, o) -> {
-                try {
-                    return Metric.valueOf(o.toString());
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Metric [" + o.toString() + "] is not supported.", e);
-                }
-            },
-            m -> toType(m).defaultMetric
-        );
+        private final Parameter<Metric> defaultMetric = new Parameter<>(Names.DEFAULT_METRIC, false, () -> null, (n, c, o) -> {
+            try {
+                return Metric.valueOf(o.toString());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Metric [" + o.toString() + "] is not supported.", e);
+            }
+        }, m -> toType(m).defaultMetric);
 
         public Builder(String name, Boolean ignoreMalformedByDefault) {
             super(name);
@@ -425,7 +418,18 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return new SourceValueFetcher(name(), mapperService) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected Object parseSourceValue(Object value) {
+                    Map<String, Double> metrics = (Map<String, Double>) value;
+                    return metrics.get(defaultMetric.name());
+                }
+            };
         }
     }
 

@@ -219,6 +219,7 @@
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max]
+                default_metric: max
 
   - do:
       index:

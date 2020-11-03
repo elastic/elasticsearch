@@ -47,7 +47,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max", "value_count" });
+        b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max", "value_count" }).field(DEFAULT_METRIC, "max");
     }
 
     @Override
@@ -56,20 +56,33 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
             b -> b.field(IGNORE_MALFORMED_FIELD, true),
             m -> assertTrue(((AggregateDoubleMetricFieldMapper) m).ignoreMalformed())
         );
-        checker.registerUpdateCheck(
-            b -> b.field(DEFAULT_METRIC, "min"),
-            m -> assertEquals(AggregateDoubleMetricFieldMapper.Metric.min, ((AggregateDoubleMetricFieldMapper) m).defaultMetric())
+
+        checker.registerConflictCheck(
+            DEFAULT_METRIC,
+            fieldMapping(this::minimalMapping),
+            fieldMapping(
+                b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "min"); }
+            )
         );
 
         checker.registerConflictCheck(
             METRICS_FIELD,
             fieldMapping(this::minimalMapping),
-            fieldMapping(b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }); })
+            fieldMapping(
+                b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "max"); }
+            )
         );
+
         checker.registerConflictCheck(
             METRICS_FIELD,
             fieldMapping(this::minimalMapping),
-            fieldMapping(b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" }); })
+            fieldMapping(
+                b -> {
+                    b.field("type", CONTENT_TYPE)
+                        .field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" })
+                        .field(DEFAULT_METRIC, "min");
+                }
+            )
         );
     }
 
@@ -139,6 +152,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", CONTENT_TYPE)
                     .field(METRICS_FIELD, new String[] { "min", "max", "value_count" })
                     .field("ignore_malformed", true)
+                    .field(DEFAULT_METRIC, "max")
             )
         );
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").endObject()));
@@ -181,7 +195,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testUnmappedMetricWithIgnoreMalformed() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field("ignore_malformed", true)
+                b -> b.field("type", CONTENT_TYPE)
+                    .field(METRICS_FIELD, new String[] { "min", "max" })
+                    .field("ignore_malformed", true)
+                    .field(DEFAULT_METRIC, "max")
             )
         );
 
@@ -215,7 +232,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testMissingMetricWithIgnoreMalformed() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field("ignore_malformed", true)
+                b -> b.field("type", CONTENT_TYPE)
+                    .field(METRICS_FIELD, new String[] { "min", "max" })
+                    .field("ignore_malformed", true)
+                    .field(DEFAULT_METRIC, "max")
             )
         );
 
@@ -249,7 +269,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testInvalidMetricValueIgnoreMalformed() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field("ignore_malformed", true)
+                b -> b.field("type", CONTENT_TYPE)
+                    .field(METRICS_FIELD, new String[] { "min", "max" })
+                    .field("ignore_malformed", true)
+                    .field(DEFAULT_METRIC, "max")
             )
         );
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("min", "10.0").field("max", 50.0).endObject()));
@@ -446,6 +469,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                     .startObject("subfield")
                     .field("type", CONTENT_TYPE)
                     .field(METRICS_FIELD, new String[] { "min", "max", "sum", "value_count" })
+                    .field(DEFAULT_METRIC, "max")
                     .endObject()
                     .endObject()
             )

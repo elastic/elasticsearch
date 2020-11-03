@@ -8,26 +8,16 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.PolygonBuilder;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -148,32 +138,4 @@ public class GeoTileGroupSource extends SingleGroupSource {
         return GeoShapeFieldMapper.CONTENT_TYPE;
     }
 
-    @Override
-    public Object transformBucketKey(Object key) {
-        assert key instanceof String;
-        Rectangle rectangle = GeoTileUtils.toBoundingBox(key.toString());
-        final Map<String, Object> geoShape = new HashMap<>();
-        geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), PolygonBuilder.TYPE.shapeName());
-        geoShape.put(
-            ShapeParser.FIELD_COORDINATES.getPreferredName(),
-            Collections.singletonList(
-                Arrays.asList(
-                    new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() },
-                    new Double[] { rectangle.getMinLon(), rectangle.getMinLat() },
-                    new Double[] { rectangle.getMinLon(), rectangle.getMaxLat() },
-                    new Double[] { rectangle.getMaxLon(), rectangle.getMaxLat() },
-                    new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() }
-                )
-            )
-        );
-        return geoShape;
-    }
-
-    private GeoBoundingBoxQueryBuilder toGeoQuery(Rectangle rectangle) {
-        return QueryBuilders.geoBoundingBoxQuery(field)
-            .setCorners(
-                new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
-                new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
-            );
-    }
 }

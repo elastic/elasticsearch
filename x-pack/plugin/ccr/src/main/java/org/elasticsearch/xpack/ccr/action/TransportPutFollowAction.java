@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -193,7 +194,7 @@ public final class TransportPutFollowAction
         final ActionListener<PutFollowAction.Response> listener;
         if (ActiveShardCount.NONE.equals(request.waitForActiveShards())) {
             originalListener.onResponse(new PutFollowAction.Response(true, false, false));
-            listener = new ActionListener<>() {
+            listener = new ActionListener<PutFollowAction.Response>() {
 
                 @Override
                 public void onResponse(PutFollowAction.Response response) {
@@ -250,7 +251,7 @@ public final class TransportPutFollowAction
             // The data stream and the backing indices have been created and validated in the remote cluster,
             // just copying the data stream is in this case safe.
             return new DataStream(remoteDataStream.getName(), remoteDataStream.getTimeStampField(),
-                List.of(backingIndexToFollow), remoteDataStream.getGeneration(), remoteDataStream.getMetadata());
+                Collections.singletonList(backingIndexToFollow), remoteDataStream.getGeneration(), remoteDataStream.getMetadata());
         } else {
             List<Index> backingIndices = new ArrayList<>(localDataStream.getIndices());
             backingIndices.add(backingIndexToFollow);

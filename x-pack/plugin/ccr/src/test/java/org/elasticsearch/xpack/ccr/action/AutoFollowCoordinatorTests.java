@@ -199,7 +199,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
         followedLeaderIndexUUIDS.put("remote", new ArrayList<>());
         Map<String, Map<String, String>> autoFollowHeaders = new HashMap<>();
-        autoFollowHeaders.put("remote", Map.of("key", "val"));
+        autoFollowHeaders.put("remote", Collections.singletonMap("key", "val"));
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
 
         ClusterState currentState = ClusterState.builder(new ClusterName("name"))
@@ -2109,7 +2109,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
         DataStream dataStream = new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp"),
-            List.of(indexMetadata.getIndex()));
+            Collections.singletonList(indexMetadata.getIndex()));
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder()
                 .put(indexMetadata, true)

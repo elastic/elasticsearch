@@ -106,7 +106,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         this.relativeMillisTimeProvider = relativeMillisTimeProvider;
         this.absoluteMillisTimeProvider = absoluteMillisTimeProvider;
         this.executor = Objects.requireNonNull(executor);
-        this.recentAutoFollowErrors = new LinkedHashMap<>() {
+        this.recentAutoFollowErrors = new LinkedHashMap<String, Tuple<Long, ElasticsearchException>>() {
             @Override
             protected boolean removeEldestEntry(final Map.Entry<String, Tuple<Long, ElasticsearchException>> eldest) {
                 return size() > MAX_AUTO_FOLLOW_ERRORS;

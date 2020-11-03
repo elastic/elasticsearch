@@ -42,7 +42,7 @@ import java.util.function.Function;
 /**
  * Base field mapper class for all spatial field types
  */
-public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends ParametrizedFieldMapper {
+public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends FieldMapper {
 
     public static Parameter<Explicit<Boolean>> ignoreMalformedParam(Function<FieldMapper, Explicit<Boolean>> initializer,
                                                                     boolean ignoreMalformedByDefault) {

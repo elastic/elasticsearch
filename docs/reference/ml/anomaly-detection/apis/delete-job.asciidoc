@@ -47,11 +47,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 == {api-query-parms-title}
 
 `force`::
-  (Optional, boolean) Use to forcefully delete an opened job; this method is
+  (Optional, Boolean) Use to forcefully delete an opened job; this method is
   quicker than closing and deleting the job.
 
 `wait_for_completion`::
-  (Optional, boolean) Specifies whether the request should return immediately or
+  (Optional, Boolean) Specifies whether the request should return immediately or
   wait until the job deletion completes. Defaults to `true`.
 
 [[ml-delete-job-example]]

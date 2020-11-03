@@ -23,7 +23,11 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
 
     public void testDeletePolicy() {
         final AutoscalingPolicy policy = randomAutoscalingPolicy();
-        final PutAutoscalingPolicyAction.Request putRequest = new PutAutoscalingPolicyAction.Request(policy);
+        final PutAutoscalingPolicyAction.Request putRequest = new PutAutoscalingPolicyAction.Request(
+            policy.name(),
+            policy.roles(),
+            policy.deciders()
+        );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, putRequest).actionGet());
         // we trust that the policy is in the cluster state since we have tests for putting policies
         final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(policy.name());

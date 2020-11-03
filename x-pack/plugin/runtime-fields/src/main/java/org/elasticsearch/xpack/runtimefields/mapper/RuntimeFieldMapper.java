@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -27,7 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
+public final class RuntimeFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "runtime";
 
@@ -58,7 +57,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new RuntimeFieldMapper.Builder(simpleName(), scriptCompiler).init(this);
     }
 
@@ -72,7 +71,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
         return CONTENT_TYPE;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         static final Map<String, BiFunction<Builder, BuilderContext, AbstractScriptFieldType<?>>> FIELD_TYPE_RESOLVER = Map.of(
             BooleanFieldMapper.CONTENT_TYPE,

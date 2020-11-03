@@ -1,6 +1,9 @@
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.testclusters'
 test.enabled = false
+
+import org.elasticsearch.gradle.testclusters.RunTask
 
 restResources {
   restApi {
@@ -19,14 +22,19 @@ dependencies {
 
 File serviceAccountFile = (System.getenv("eql_test_credentials_file") ?: System.getProperty("eql.test.credentials.file")) as File
 
-testClusters.all {
-  plugin ':plugins:repository-gcs'
-  if (serviceAccountFile) {
-    keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
+testClusters {
+  all {
+    plugin ':plugins:repository-gcs'
+    if (serviceAccountFile) {
+      keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
+    }
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'basic'
+    jvmArgs '-Xms4g', '-Xmx4g'
   }
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'basic'
-  jvmArgs '-Xms4g', '-Xmx4g'
+  runTask {
+    jvmArgs '-Xms8g', '-Xmx8g'
+  }
 }
 
 tasks.named('javaRestTest').configure {
@@ -35,4 +43,9 @@ tasks.named('javaRestTest').configure {
   testLogging {
     showStandardStreams = true
   }
+}
+
+tasks.register("runEqlCorrectnessNode", RunTask) {
+  useCluster testClusters.runTask;
+  description = 'Runs elasticsearch in the foreground with gcs plugin and keystore credentials'
 }

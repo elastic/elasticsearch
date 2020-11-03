@@ -16,6 +16,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -24,7 +25,9 @@ import org.elasticsearch.xpack.core.ilm.StopILMRequest;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -36,11 +39,19 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class ILMHistoryTests extends ESIntegTestCase {
+
+    public static final String[] DATA_STREAM_NAMES = {ILM_HISTORY_DATA_STREAM};
+
+    @After
+    public void cleanUp() {
+        client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(DATA_STREAM_NAMES)).actionGet();
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -61,7 +72,7 @@ public class ILMHistoryTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, DataStreamsPlugin.class);
     }
 
     private void putTestPolicy() throws InterruptedException, java.util.concurrent.ExecutionException {
@@ -110,7 +121,7 @@ public class ILMHistoryTests extends ESIntegTestCase {
             assertThat(status.getMode(), is(OperationMode.STOPPED));
         });
 
-        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(ILMHistoryStore.ILM_HISTORY_ALIAS).get();
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(ILM_HISTORY_DATA_STREAM).get();
 
         assertTrue(rolloverResponse.isAcknowledged());
         assertThat(rolloverResponse.getNewIndex(), is(secondIndex));

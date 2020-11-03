@@ -181,7 +181,7 @@ public class BlobStoreCacheService {
     }
 
     private static class EnsureBlobStoreCacheIndexService extends EnsureIndexService {
-        public EnsureBlobStoreCacheIndexService(ClusterService clusterService, String index, Client client) {
+        private EnsureBlobStoreCacheIndexService(ClusterService clusterService, String index, Client client) {
             super(clusterService, index, client);
         }
 

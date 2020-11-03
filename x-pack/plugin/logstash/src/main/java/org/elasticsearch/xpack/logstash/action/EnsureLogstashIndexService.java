@@ -22,9 +22,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
-public class EnsureLogstashIndexService extends EnsureIndexService {
+class EnsureLogstashIndexService extends EnsureIndexService {
 
-    public EnsureLogstashIndexService(ClusterService clusterService, Client client) {
+    EnsureLogstashIndexService(ClusterService clusterService, Client client) {
         super(clusterService, Logstash.LOGSTASH_CONCRETE_INDEX_NAME, client);
     }
 

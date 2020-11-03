@@ -27,11 +27,15 @@ public class TransportPutPipelineAction extends HandledTransportAction<PutPipeli
     private final EnsureIndexService ensureIndexService;
 
     @Inject
-    public TransportPutPipelineAction(TransportService transportService, ActionFilters actionFilters, Client client,
-                                      ClusterService clusterService) {
+    public TransportPutPipelineAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        ClusterService clusterService
+    ) {
         super(PutPipelineAction.NAME, transportService, actionFilters, PutPipelineRequest::new);
         this.client = new OriginSettingClient(client, LOGSTASH_MANAGEMENT_ORIGIN);
-        this.ensureIndexService = new EnsureLogstashIndexService(clusterService, client) ;
+        this.ensureIndexService = new EnsureLogstashIndexService(clusterService, client);
     }
 
     @Override

@@ -330,7 +330,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     private static class EnsureAsyncTaskIndexService extends EnsureIndexService {
-        public EnsureAsyncTaskIndexService(ClusterService clusterService, String index, Client client) {
+        EnsureAsyncTaskIndexService(ClusterService clusterService, String index, Client client) {
             super(clusterService, index, client);
         }
 

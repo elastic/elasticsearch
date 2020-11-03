@@ -19,12 +19,15 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -429,7 +432,13 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
     }
 
     private static QueryShardContext createQueryShardContext(MapperService mapperService) {
-        return new QueryShardContext(0, null, null, null, null, mapperService, null, null, null, null, null, null, null, null, null,
-            null, null);
+        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT)
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        return new QueryShardContext(0, indexSettings, null, null, null, mapperService, null, null, null, null, null, null, null, null,
+            null, null, null);
     }
 }

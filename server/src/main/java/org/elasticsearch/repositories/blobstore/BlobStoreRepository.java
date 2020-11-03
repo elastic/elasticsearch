@@ -1435,8 +1435,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return new RepositoryException(metadata.name(),
             "Could not read repository data because the contents of the repository do not match its " +
                 "expected state. This is likely the result of either concurrently modifying the contents of the " +
-                "repository by a process other than this cluster or an issue with the repository's underlying" +
-                "storage. The repository has been disabled to prevent corrupting its contents. To re-enable it " +
+                "repository by a process other than this cluster or an issue with the repository's underlying storage. " +
+                "The repository has been disabled to prevent corrupting its contents. To re-enable it " +
                 "and continue using it please remove the repository from the cluster and add it again to make " +
                 "the cluster recover the known state of the repository from its physical contents.", cause);
     }

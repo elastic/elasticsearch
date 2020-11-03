@@ -87,7 +87,7 @@ import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for full-text fields. */
-public class TextFieldMapper extends ParametrizedFieldMapper {
+public class TextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
@@ -237,7 +237,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Version indexCreatedVersion;
 
@@ -569,8 +569,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     private static final class PhraseFieldMapper extends FieldMapper {
 
+        private final FieldType fieldType;
+
         PhraseFieldMapper(FieldType fieldType, PhraseFieldType mappedFieldType) {
-            super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+            super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+            this.fieldType = fieldType;
         }
 
         @Override
@@ -579,8 +582,8 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+        public Builder getMergeBuilder() {
+            return null;
         }
 
         @Override
@@ -591,8 +594,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     private static final class PrefixFieldMapper extends FieldMapper {
 
+        private final FieldType fieldType;
+
         protected PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
-            super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+            super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+            this.fieldType = fieldType;
         }
 
         void addField(ParseContext context, String value) {
@@ -605,8 +611,8 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+        public Builder getMergeBuilder() {
+            return null;
         }
 
         @Override
@@ -850,12 +856,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected TextFieldMapper clone() {
-        return (TextFieldMapper) super.clone();
-    }
-
-    @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzer::getDefaultValue).init(this);
     }
 

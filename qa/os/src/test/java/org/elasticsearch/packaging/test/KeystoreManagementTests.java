@@ -43,6 +43,7 @@ import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
+import static org.elasticsearch.packaging.util.DockerRun.builder;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
@@ -280,7 +281,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // restart ES with password and mounted keystore
         Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
         Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password);
-        runContainer(distribution(), volumes, envVars);
+        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation);
         ServerUtils.runElasticsearchTests();
     }
@@ -309,7 +310,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore, tempDir, Path.of("/run/secrets"));
             Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
-            runContainer(distribution(), volumes, envVars);
+            runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 
             waitForElasticsearch(installation);
             ServerUtils.runElasticsearchTests();
@@ -334,7 +335,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // restart ES with password and mounted keystore
         Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
         Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", "wrong");
-        Shell.Result r = runContainerExpectingFailure(distribution(), volumes, envVars);
+        Shell.Result r = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
         assertThat(r.stderr, containsString(ERROR_INCORRECT_PASSWORD));
     }
 
@@ -362,7 +363,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Files.write(tempDirectory.resolve("set-pass.sh"), setPasswordScript);
 
-        runContainer(distribution(), volumes, null);
+        runContainer(distribution(), builder().volumes(volumes));
         try {
             waitForPathToExist(dockerTemp);
             waitForPathToExist(dockerKeystore);

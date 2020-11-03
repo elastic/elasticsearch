@@ -93,6 +93,18 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
         exit(new SamlMetadataCommand().main(args, Terminal.DEFAULT));
     }
 
+    public static EntityDescriptor buildEntityDescriptorFromSamlRealm(SamlRealm samlRealm) throws Exception {
+        final SpConfiguration spConfig = samlRealm.getLogoutHandler().getSpConfiguration();
+        final Locale locale = Locale.getDefault();
+        final SamlSpMetadataBuilder builder = new SamlSpMetadataBuilder(locale, spConfig.getEntityId())
+            .assertionConsumerServiceUrl(spConfig.getAscUrl())
+            .singleLogoutServiceUrl(spConfig.getLogoutUrl())
+            .encryptionCredentials(spConfig.getEncryptionCredentials())
+            .signingCredential(spConfig.getSigningConfiguration().getCredential())
+            .authnRequestsSigned(spConfig.getSigningConfiguration().shouldSign(AuthnRequest.DEFAULT_ELEMENT_LOCAL_NAME));
+        return builder.build();
+    }
+
     public SamlMetadataCommand() {
         this((environment) -> {
             KeyStoreWrapper ksWrapper = KeyStoreWrapper.load(environment.configFile());

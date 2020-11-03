@@ -22,6 +22,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -467,6 +468,19 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getField("field.subfield.min"), notNullValue());
     }
 
+    /**
+     *  subfields of aggregate_metric_double should not be searchable or exposed in field_caps
+     */
+    public void testNoSubFieldsIterated() throws IOException {
+        AggregateDoubleMetricFieldMapper.Metric[] values = AggregateDoubleMetricFieldMapper.Metric.values();
+        List<AggregateDoubleMetricFieldMapper.Metric> subset = randomSubsetOf(randomIntBetween(1, values.length), values);
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, subset).field(DEFAULT_METRIC, subset.get(0)))
+        );
+        Iterator<Mapper> iterator = mapper.mappers().getMapper("field").iterator();
+        assertFalse(iterator.hasNext());
+    }
+
     /*
      * Since all queries for aggregate_metric_double fields are delegated to their default_metric numeric
      *  sub-field, we override this method so that testExistsQueryMinimalMapping() passes successfully.
@@ -479,5 +493,4 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertDocValuesField(fields, "field." + defaultMetric);
         assertNoFieldNamesField(fields);
     }
-
 }

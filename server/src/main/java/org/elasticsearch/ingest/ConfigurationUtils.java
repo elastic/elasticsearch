@@ -402,8 +402,14 @@ public final class ConfigurationUtils {
             normalizedScript.put(ScriptType.INLINE.getParseField().getPreferredName(), config);
             return readProcessor(processorFactories, scriptService, type, normalizedScript);
         } else {
-            throw newConfigurationException(type, null, null,
-                "property isn't a map, but of type [" + config.getClass().getName() + "]");
+            if (config == null) {
+                throw newConfigurationException(type, null, null,
+                    "property isn't a map, but of type [null]");
+            } else {
+                throw newConfigurationException(type, null, null,
+                    "property isn't a map, but of type [" + config.getClass().getName() + "]");
+            }
+
         }
     }
 

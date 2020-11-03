@@ -223,6 +223,12 @@ public class ConfigurationUtilsTests extends ESTestCase {
         ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
             () -> ConfigurationUtils.readProcessor(registry, scriptService, "unknown_processor", invalidConfig));
         assertThat(ex.getMessage(), equalTo("property isn't a map, but of type [" + invalidConfig.getClass().getName() + "]"));
+
+        Object nullConfig = null;
+
+        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readProcessor(registry, scriptService, "unknown_processor", nullConfig));
+        assertThat(exception.getMessage(), equalTo("property isn't a map, but of type [null]"));
     }
 
     public void testNoScriptCompilation() {

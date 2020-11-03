@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -270,53 +271,69 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }
     }
 
+    private static IndexableFieldType fieldType(ParsedDocument doc, String field) {
+        return doc.rootDoc().getField(field).fieldType();
+    }
+
     public void testIndexOptions() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "search_as_you_type").field("index_options", "offsets"))
         );
 
-        assertThat(getRootFieldMapper(mapper, "field").fieldType().fieldType.indexOptions(),
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
+
+        assertThat(fieldType(doc, "field").indexOptions(),
             equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS));
 
         Stream.of(
-            getPrefixFieldMapper(mapper, "field._index_prefix"),
-            getShingleFieldMapper(mapper, "field._2gram"),
-            getShingleFieldMapper(mapper, "field._3gram")
-        ).forEach(m -> assertThat("for " + m.name(),
-            m.fieldType.indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS)));
+            fieldType(doc, "field._index_prefix"),
+            fieldType(doc, "field._2gram"),
+            fieldType(doc, "field._3gram")
+        ).forEach(ft -> assertThat(ft.indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS)));
     }
 
     public void testStore() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type").field("store", true)));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
 
-        assertTrue(getRootFieldMapper(mapper, "field").fieldType().fieldType.stored());
+        assertTrue(fieldType(doc, "field").stored());
         Stream.of(
-            getPrefixFieldMapper(mapper, "field._index_prefix"),
-            getShingleFieldMapper(mapper, "field._2gram"),
-            getShingleFieldMapper(mapper, "field._3gram")
-        ).forEach(m -> assertFalse("for " + m.name(), m.fieldType.stored()));
+            fieldType(doc, "field._index_prefix"),
+            fieldType(doc, "field._2gram"),
+            fieldType(doc, "field._3gram")
+        ).forEach(ft -> assertFalse(ft.stored()));
     }
 
     public void testIndex() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type").field("index", false)));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
+        assertNull(doc.rootDoc().getField("field"));
+    }
 
-        Stream.of(
-            getRootFieldMapper(mapper, "field"),
-            getPrefixFieldMapper(mapper, "field._index_prefix"),
-            getShingleFieldMapper(mapper, "field._2gram"),
-            getShingleFieldMapper(mapper, "field._3gram")
-        ).forEach(m -> assertThat("for " + m.name(), m.fieldType.indexOptions(), equalTo(IndexOptions.NONE)));
+    public void testStoredOnly() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "search_as_you_type");
+            b.field("index", false);
+            b.field("store", true);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
+        assertTrue(fieldType(doc, "field").stored());
+        assertThat(fieldType(doc, "field").indexOptions(), equalTo(IndexOptions.NONE));
+        assertNull(doc.rootDoc().getField("field._index_prefix"));
+        assertNull(doc.rootDoc().getField("field._2gram"));
+        assertNull(doc.rootDoc().getField("field._3gram"));
     }
 
     public void testTermVectors() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type").field("term_vector", "yes")));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
 
-        assertTrue(getRootFieldMapper(mapper, "field").fieldType().fieldType.storeTermVectors());
+        assertTrue(fieldType(doc, "field").storeTermVectors());
 
         Stream.of(
-            getShingleFieldMapper(mapper, "field._2gram"),
-            getShingleFieldMapper(mapper, "field._3gram")
-        ).forEach(m -> assertTrue("for " + m.name(), m.fieldType.storeTermVectors()));
+            fieldType(doc, "field._2gram"),
+            fieldType(doc, "field._3gram")
+        ).forEach(ft -> assertTrue(ft.storeTermVectors()));
 
         PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(mapper, "field._index_prefix");
         assertFalse(prefixFieldMapper.fieldType.storeTermVectors());
@@ -326,12 +343,13 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         // default setting
         {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+            ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
 
             Stream.of(
-                getRootFieldMapper(mapper, "field"),
-                getShingleFieldMapper(mapper, "field._2gram"),
-                getShingleFieldMapper(mapper, "field._3gram")
-            ).forEach(m -> assertFalse("for " + m.name(), m.fieldType.omitNorms()));
+                fieldType(doc, "field"),
+                fieldType(doc, "field._2gram"),
+                fieldType(doc, "field._3gram")
+            ).forEach(ft -> assertFalse(ft.omitNorms()));
 
             PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(mapper, "field._index_prefix");
             assertTrue(prefixFieldMapper.fieldType.omitNorms());
@@ -340,14 +358,15 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         // can disable norms on search_as_you_type fields
         {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type").field("norms", false)));
+            ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
 
-            assertTrue(getRootFieldMapper(mapper, "field").fieldType().fieldType.omitNorms());
+            assertTrue(fieldType(doc, "field").omitNorms());
 
             Stream.of(
-                getPrefixFieldMapper(mapper, "field._index_prefix"),
-                getShingleFieldMapper(mapper, "field._2gram"),
-                getShingleFieldMapper(mapper, "field._3gram")
-            ).forEach(m -> assertTrue("for " + m.name(), m.fieldType.omitNorms()));
+                fieldType(doc, "field._index_prefix"),
+                fieldType(doc, "field._2gram"),
+                fieldType(doc, "field._3gram")
+            ).forEach(ft -> assertTrue(ft.omitNorms()));
         }
     }
 

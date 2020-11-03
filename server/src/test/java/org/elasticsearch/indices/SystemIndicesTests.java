@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
@@ -27,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -95,7 +95,7 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {
         Map<String, Collection<SystemIndexDescriptor>> pluginMap = Map.of(
-            TaskResultsService.class.getSimpleName(), List.of(new SystemIndexDescriptor(TASK_INDEX, "Task Result Index"))
+            TASKS_FEATURE_NAME, List.of(new SystemIndexDescriptor(TASK_INDEX, "Task Result Index"))
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
         assertThat(e.getMessage(), containsString("plugin or module attempted to define the same source"));

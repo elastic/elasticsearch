@@ -28,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.tasks.TaskResultsService;
 
 import java.util.Collection;
 import java.util.Comparator;
@@ -39,6 +38,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
+import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 
 /**
@@ -48,20 +48,16 @@ import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
  */
 public class SystemIndices {
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = Map.of(
-        TaskResultsService.class.getSimpleName(), List.of(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index"))
+        TASKS_FEATURE_NAME, List.of(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index"))
     );
 
     private final CharacterRunAutomaton runAutomaton;
-    private final Collection<SystemIndexDescriptor> systemIndexDescriptors;
+    private final Map<String, Collection<SystemIndexDescriptor>> featureSystemIndexDescriptors;
 
     public SystemIndices(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
-        final Map<String, Collection<SystemIndexDescriptor>> descriptorsMap = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
-        checkForOverlappingPatterns(descriptorsMap);
-        this.systemIndexDescriptors = descriptorsMap.values()
-            .stream()
-            .flatMap(Collection::stream)
-            .collect(Collectors.toUnmodifiableList());
-        this.runAutomaton = buildCharacterRunAutomaton(systemIndexDescriptors);
+        featureSystemIndexDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
+        checkForOverlappingPatterns(featureSystemIndexDescriptors);
+        this.runAutomaton = buildCharacterRunAutomaton(featureSystemIndexDescriptors);
     }
 
     /**
@@ -89,7 +85,8 @@ public class SystemIndices {
      * @throws IllegalStateException if multiple descriptors match the name
      */
     public @Nullable SystemIndexDescriptor findMatchingDescriptor(String name) {
-        final List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
+        final List<SystemIndexDescriptor> matchingDescriptors = featureSystemIndexDescriptors.values().stream()
+            .flatMap(Collection::stream)
             .filter(descriptor -> descriptor.matchesIndexPattern(name))
             .collect(toUnmodifiableList());
 
@@ -112,8 +109,19 @@ public class SystemIndices {
         }
     }
 
-    private static CharacterRunAutomaton buildCharacterRunAutomaton(Collection<SystemIndexDescriptor> descriptors) {
-        Optional<Automaton> automaton = descriptors.stream()
+    /**
+     * Gets all system index descriptors, collected by feature.
+     * @return A Map of feature name to system index descriptors
+     */
+    public Map<String, Collection<SystemIndexDescriptor>> getSystemIndexDescriptorsByFeature() {
+        // GWB-> I don't like exposing this as public, but we also need to be able to get the merged list of plugin/module features
+        //   plus internal/built-in ones (i.e. tasks)
+        return featureSystemIndexDescriptors;
+    }
+
+    private static CharacterRunAutomaton buildCharacterRunAutomaton(Map<String, Collection<SystemIndexDescriptor>> descriptors) {
+        Optional<Automaton> automaton = descriptors.values().stream()
+            .flatMap(Collection::stream)
             .map(descriptor -> Regex.simpleMatchToAutomaton(descriptor.getIndexPattern()))
             .reduce(Operations::union);
         return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(Automata.makeEmpty()), Integer.MAX_VALUE));

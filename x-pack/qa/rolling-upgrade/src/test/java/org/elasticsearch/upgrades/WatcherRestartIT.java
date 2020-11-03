@@ -11,10 +11,17 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -38,7 +45,6 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
         // v7.7.0 contains a Watch history template (version 11) that can't be used unless all nodes in the cluster are >=7.7.0, so
         // in a mixed cluster with some nodes <7.7.0 it will install template version 10, but if all nodes are <=7.7.0 template v11
         // is used.
-        final String expectedFinalTemplate = templatePrefix + "12";
         // In 7.10 watcher templates were converted to composable index templates, so we only
         // check legacy templates if we upgraded from a version that had legacy templates.
         if (UPGRADE_FROM_VERSION.before(Version.V_7_10_0)) {
@@ -52,13 +58,35 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
                 Response response = client().performRequest(request);
                 assertThat(response.getStatusLine().getStatusCode(), is(200));
             } else if (ClusterType.UPGRADED == CLUSTER_TYPE) {
-                Response response = client().performRequest(new Request("HEAD", "/_index_template/" + expectedFinalTemplate));
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
+                final String expectedFinalTemplate = templatePrefix + "13";
+
+                Response response = client().performRequest(new Request("GET", "/_index_template"));
+                assertOK(response);
+
+                checkTemplateExists(response, expectedFinalTemplate);
             }
         } else {
-            Response response = client().performRequest(new Request("HEAD", "/_index_template/" + expectedFinalTemplate));
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
+            final String expectedFinalTemplate = templatePrefix + "13";
+            Response response = client().performRequest(new Request("GET", "/_index_template"));
+            assertOK(response);
+
+            checkTemplateExists(response, expectedFinalTemplate);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void checkTemplateExists(Response response, String expectedFinalTemplate) throws IOException {
+        final Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), true);
+
+        List<Map<String,Object>> templates = (List<Map<String,Object>>) responseMap.get("index_templates");
+
+        final List<String> templateNames = templates.stream().map(each -> (String) each.get("name")).collect(Collectors.toList());
+
+        assertThat(
+            "Template " + expectedFinalTemplate + " not found in: " + templateNames,
+            templateNames,
+            hasItem(expectedFinalTemplate)
+        );
     }
 
     private void ensureWatcherStopped() throws Exception {

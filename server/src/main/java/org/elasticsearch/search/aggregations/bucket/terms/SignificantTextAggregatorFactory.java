@@ -263,7 +263,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                             scratch.clear();
                             scratch.copyChars(termAtt);
                             BytesRef bytes = scratch.get();
-                            if (includeExclude != null && includeExclude.accept(bytes)) {
+                            if (includeExclude != null && false == includeExclude.accept(bytes)) {
                                 continue;
                             }
                             if (inDocTerms.add(bytes) < 0) {

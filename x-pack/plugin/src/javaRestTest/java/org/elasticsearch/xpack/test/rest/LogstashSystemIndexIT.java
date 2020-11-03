@@ -41,15 +41,6 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
             .build();
     }
 
-    public void testTemplateIsPut() throws Exception {
-        assertBusy(
-            () -> assertThat(
-                client().performRequest(new Request("HEAD", "/_template/.logstash-management")).getStatusLine().getStatusCode(),
-                is(200)
-            )
-        );
-    }
-
     public void testPipelineCRUD() throws Exception {
         // put pipeline
         final String pipelineJson = getPipelineJson();

@@ -27,6 +27,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
@@ -51,7 +52,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING =
@@ -292,7 +292,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected abstract String contentType();
 
-    public static class MultiFields implements Iterable<FieldMapper> {
+    public static class MultiFields implements Iterable<FieldMapper>, ToXContent {
 
         public static MultiFields empty() {
             return new MultiFields(Collections.emptyMap());
@@ -335,7 +335,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         mappers.put(key, mapper);
                     }
                     context.path().remove();
-                    return new MultiFields(mappers);
+                    return new MultiFields(Collections.unmodifiableMap(mappers));
                 }
             }
         }
@@ -373,7 +373,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     newMappers.put(merged.simpleName(), merged); // override previous definition
                 }
             }
-            return new MultiFields(newMappers);
+            return new MultiFields(Collections.unmodifiableMap(newMappers));
         }
 
         @Override
@@ -381,12 +381,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return mappers.values().iterator();
         }
 
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (!mappers.isEmpty()) {
                 // sort the mappers so we get consistent serialization format
-                List<Mapper> sortedMappers = mappers.values().stream()
-                    .sorted(Comparator.comparing(FieldMapper::name))
-                    .collect(Collectors.toList());
+                List<FieldMapper> sortedMappers = new ArrayList<>(mappers.values());
+                sortedMappers.sort(Comparator.comparing(FieldMapper::name));
                 builder.startObject("fields");
                 for (Mapper mapper : sortedMappers) {
                     mapper.toXContent(builder, params);

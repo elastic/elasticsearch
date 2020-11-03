@@ -29,10 +29,10 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DynamicKeyFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -94,7 +94,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         return ((FlattenedFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Integer> depthLimit
             = Parameter.intParam("depth_limit", true, m -> builder(m).depthLimit.get(), Defaults.DEPTH_LIMIT)
@@ -426,11 +426,6 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    protected FlattenedFieldMapper clone() {
-        return (FlattenedFieldMapper) super.clone();
-    }
-
     int depthLimit() {
         return builder.depthLimit.get();
     }
@@ -473,7 +468,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

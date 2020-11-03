@@ -185,7 +185,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                     .field("type", "keyword")
                     .endObject()
                     .startObject("stars")
-                    .field("type", "integer")
+                    .field("type", randomFrom("integer", "long")) // gh#64347 unsigned_long disabled
                     .endObject()
                     .startObject("location")
                     .field("type", "geo_point")

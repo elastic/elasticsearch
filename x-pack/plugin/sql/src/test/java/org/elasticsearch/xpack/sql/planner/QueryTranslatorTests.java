@@ -113,7 +113,7 @@ public class QueryTranslatorTests extends ESTestCase {
         private Optimizer optimizer;
         private Planner planner;
 
-        public TestContext(String mappingFile) {
+        TestContext(String mappingFile) {
             parser = new SqlParser();
             sqlFunctionRegistry = new SqlFunctionRegistry();
 

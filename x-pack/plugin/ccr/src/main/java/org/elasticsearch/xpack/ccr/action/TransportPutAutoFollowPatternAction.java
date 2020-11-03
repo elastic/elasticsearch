@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -200,7 +201,8 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         List<String> followedIndexUUIDS) {
 
         for (final IndexMetadata indexMetadata : leaderMetadata) {
-            if (AutoFollowPattern.match(patterns, indexMetadata.getIndex().getName())) {
+            IndexAbstraction indexAbstraction = leaderMetadata.getIndicesLookup().get(indexMetadata.getIndex().getName());
+            if (AutoFollowPattern.match(patterns, indexAbstraction)) {
                 followedIndexUUIDS.add(indexMetadata.getIndexUUID());
             }
         }

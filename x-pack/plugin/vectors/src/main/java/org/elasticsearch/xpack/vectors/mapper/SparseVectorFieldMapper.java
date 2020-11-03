@@ -13,7 +13,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -34,14 +33,14 @@ import java.util.Map;
  * TODO: remove in 9.0.
  */
 @Deprecated
-public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
+public class SparseVectorFieldMapper extends FieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SparseVectorFieldMapper.class);
     static final String ERROR_MESSAGE = "The [sparse_vector] field type is no longer supported.";
     static final String ERROR_MESSAGE_7X = "The [sparse_vector] field type is no longer supported. Old 7.x indices are allowed to " +
         "contain [sparse_vector] fields, but they cannot be indexed or searched.";
     public static final String CONTENT_TYPE = "sparse_vector";
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -110,11 +109,6 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected SparseVectorFieldMapper clone() {
-        return (SparseVectorFieldMapper) super.clone();
-    }
-
-    @Override
     public SparseVectorFieldType fieldType() {
         return (SparseVectorFieldType) super.fieldType();
     }
@@ -135,7 +129,7 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

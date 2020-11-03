@@ -76,7 +76,11 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void checkTemplateExists(Response response, String expectedFinalTemplate) throws IOException {
-        final Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), true);
+        final Map<String, Object> responseMap = XContentHelper.convertToMap(
+            JsonXContent.jsonXContent,
+            response.getEntity().getContent(),
+            true
+        );
 
         List<Map<String,Object>> templates = (List<Map<String,Object>>) responseMap.get("index_templates");
 

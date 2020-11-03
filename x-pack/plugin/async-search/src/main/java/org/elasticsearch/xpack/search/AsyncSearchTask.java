@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -345,6 +346,15 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             // we cancel expired search task even if they are still running
             cancelTask(() -> {}, "async search has expired");
         }
+    }
+
+    /**
+     * Returns the status of {@link AsyncSearchTask}
+     */
+    public AsyncStatusResponse getStatusResponse() {
+        MutableSearchResponse mutableSearchResponse = searchResponse.get();
+        assert mutableSearchResponse != null;
+        return mutableSearchResponse.toStatusResponse(searchId.getEncoded(), getStartTime(), expirationTimeMillis);
     }
 
     class Listener extends SearchProgressActionListener {

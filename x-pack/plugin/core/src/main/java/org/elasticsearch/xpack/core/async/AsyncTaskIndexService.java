@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -49,6 +50,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -305,6 +307,37 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                             ActionListener<R> listener) {
         getEncodedResponse(asyncExecutionId, restoreResponseHeaders, ActionListener.wrap(
             (t) -> listener.onResponse(decodeResponse(t.v1()).withExpirationTime(t.v2())),
+            listener::onFailure
+        ));
+    }
+
+
+    /**
+     * Gets the status response of the async search from the index
+     * @param asyncExecutionId – id of the async search
+     * @param statusProducer – a producer of the status from the stored async search response and expirationTime
+     * @param listener – listener to report result to
+     */
+    public void getStatusResponse(
+        AsyncExecutionId asyncExecutionId,
+            BiFunction<R, Long, AsyncStatusResponse> statusProducer, ActionListener<AsyncStatusResponse> listener) {
+        GetRequest internalGet = new GetRequest(index)
+            .preference(asyncExecutionId.getEncoded())
+            .id(asyncExecutionId.getDocId());
+        client.get(internalGet, ActionListener.wrap(
+            get -> {
+                if (get.isExists() == false) {
+                    listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
+                    return;
+                }
+                String encoded = (String) get.getSource().get(RESULT_FIELD);
+                if (encoded != null) {
+                    Long expirationTime = (Long) get.getSource().get(EXPIRATION_TIME_FIELD);
+                    listener.onResponse(statusProducer.apply(decodeResponse(encoded), expirationTime));
+                } else {
+                    listener.onResponse(null);
+                }
+            },
             listener::onFailure
         ));
     }

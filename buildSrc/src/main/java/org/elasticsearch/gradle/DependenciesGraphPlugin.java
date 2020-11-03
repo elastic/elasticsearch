@@ -30,9 +30,6 @@ public class DependenciesGraphPlugin implements Plugin<Project> {
     public void apply(Project project) {
         final String url = System.getenv("SCA_URL");
         final String token = System.getenv("SCA_TOKEN");
-        if (null == url || null == token) {
-            throw new GradleException("The environment variables SCA_URL and SCA_TOKEN need to be set before this task is run");
-        }
         TaskProvider<DependenciesGraphTask> depsGraph = project.getTasks().register("dependenciesGraph", DependenciesGraphTask.class);
         depsGraph.configure(t -> {
             project.getPlugins().withType(JavaPlugin.class, p -> {
@@ -40,6 +37,14 @@ public class DependenciesGraphPlugin implements Plugin<Project> {
                 t.setToken(token);
                 t.setUrl(url);
             });
+        });
+
+        project.getGradle().getTaskGraph().whenReady(graph -> {
+            if (graph.getAllTasks().stream().anyMatch(t -> t instanceof DependenciesGraphTask)) {
+                if (url == null || token == null) {
+                    throw new GradleException("The environment variables SCA_URL and SCA_TOKEN need to be set before this task is run");
+                }
+            }
         });
     }
 }

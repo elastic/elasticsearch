@@ -21,11 +21,12 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.collect.Tuple;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Abstracts a <a href="http://en.wikipedia.org/wiki/Internet_media_type">Media Type</a> and a format parameter.
+ * Abstracts a <a href="http://en.wikipedia.org/wiki/Internet_media_type">Media Type</a> and a query parameter <code>format</code>.
  * Media types are used as values on Content-Type and Accept headers
  * format is an URL parameter, specifies response media type.
  */
@@ -40,19 +41,23 @@ public interface MediaType {
     String queryParameter();
 
     /**
-     * Returns a set of MediaTypeValues - allowed media type values on Accept or Content-Type headers
-     * Also defines parameters for validation.
+     * Returns a set of HeaderValues - allowed media type values on Accept or Content-Type headers
+     * Also defines media type parameters for validation.
      */
-    Set<MediaTypeValue> mediaTypeValues();
+    Set<HeaderValue> headerValues();
 
     /**
      * A class to represent supported mediaType values i.e. application/json and parameters to be validated.
      * Parameters for validation is a map where a key is a parameter name, value is a parameter regex which is used for validation.
      * Regex will be applied with case insensitivity.
      */
-    class MediaTypeValue extends Tuple<String, Map<String, String>> {
-        public MediaTypeValue(String mediaTypeValue, Map<String, String> parametersForValidation) {
-            super(mediaTypeValue, parametersForValidation);
+    class HeaderValue extends Tuple<String, Map<String, String>> {
+        public HeaderValue(String headerValue, Map<String, String> parametersForValidation) {
+            super(headerValue, parametersForValidation);
+        }
+
+        public HeaderValue(String headerValue) {
+            this(headerValue, Collections.emptyMap());
         }
     }
 }

@@ -105,11 +105,11 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public Set<MediaType.MediaTypeValue> mediaTypeValues() {
+        public Set<HeaderValue> headerValues() {
             return Set.of(
-                new MediaType.MediaTypeValue(CONTENT_TYPE_TXT,
+                new HeaderValue(CONTENT_TYPE_TXT,
                     Map.of("header", "present|absent", "charset", "utf-8")),
-                new MediaType.MediaTypeValue(VENDOR_CONTENT_TYPE_TXT,
+                new HeaderValue(VENDOR_CONTENT_TYPE_TXT,
                     Map.of("header", "present|absent", "charset", "utf-8", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
 
@@ -229,12 +229,12 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public Set<MediaType.MediaTypeValue> mediaTypeValues() {
+        public Set<HeaderValue> headerValues() {
             return Set.of(
-                new MediaType.MediaTypeValue(CONTENT_TYPE_CSV,
+                new HeaderValue(CONTENT_TYPE_CSV,
                     Map.of("header", "present|absent", "charset", "utf-8",
                         "delimiter", ".+")),// more detailed parsing is in TextFormat.CSV#delimiter
-                new MediaType.MediaTypeValue(VENDOR_CONTENT_TYPE_CSV,
+                new HeaderValue(VENDOR_CONTENT_TYPE_CSV,
                     Map.of("header", "present|absent", "charset", "utf-8",
                         "delimiter", ".+",
                         COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
@@ -291,11 +291,11 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public  Set<MediaType.MediaTypeValue> mediaTypeValues() {
+        public  Set<HeaderValue> headerValues() {
             return Set.of(
-                new MediaType.MediaTypeValue(CONTENT_TYPE_TSV,
+                new HeaderValue(CONTENT_TYPE_TSV,
                     Map.of("header", "present|absent", "charset", "utf-8")),
-                new MediaType.MediaTypeValue(VENDOR_CONTENT_TYPE_TSV,
+                new HeaderValue(VENDOR_CONTENT_TYPE_TSV,
                     Map.of("header", "present|absent", "charset", "utf-8",
                         COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }

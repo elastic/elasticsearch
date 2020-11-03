@@ -38,7 +38,6 @@ import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
@@ -51,10 +50,8 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
-import org.elasticsearch.xpack.security.authc.saml.SamlSpMetadataBuilder.ContactInfo;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.io.MarshallingException;
-import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorMarshaller;
 import org.opensaml.security.credential.Credential;
@@ -91,18 +88,6 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
 
     public static void main(String[] args) throws Exception {
         exit(new SamlMetadataCommand().main(args, Terminal.DEFAULT));
-    }
-
-    public static EntityDescriptor buildEntityDescriptorFromSamlRealm(SamlRealm samlRealm) throws Exception {
-        final SpConfiguration spConfig = samlRealm.getLogoutHandler().getSpConfiguration();
-        final Locale locale = Locale.getDefault();
-        final SamlSpMetadataBuilder builder = new SamlSpMetadataBuilder(locale, spConfig.getEntityId())
-            .assertionConsumerServiceUrl(spConfig.getAscUrl())
-            .singleLogoutServiceUrl(spConfig.getLogoutUrl())
-            .encryptionCredentials(spConfig.getEncryptionCredentials())
-            .signingCredential(spConfig.getSigningConfiguration().getCredential())
-            .authnRequestsSigned(spConfig.getSigningConfiguration().shouldSign(AuthnRequest.DEFAULT_ELEMENT_LOCAL_NAME));
-        return builder.build();
     }
 
     public SamlMetadataCommand() {
@@ -170,81 +155,19 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
 
         final RealmConfig realm = findRealm(terminal, options, env);
         final Settings realmSettings = realm.settings().getByPrefix(RealmSettings.realmSettingPrefix(realm.identifier()));
+        final String serviceName = option(serviceNameSpec, options, env.settings().get("cluster.name"));
+        final String orgName = options.has(orgNameSpec)? orgNameSpec.value(options): null;
+        final String orgUrl = options.has(orgUrlSpec)? orgUrlSpec.value(options): null;
+        final String  orgDisplayName = option(orgDisplayNameSpec, options, orgName);
         terminal.println(Terminal.Verbosity.VERBOSE,
                 "Using realm configuration\n=====\n" + realmSettings.toDelimitedString('\n') + "=====");
         final Locale locale = findLocale(options);
         terminal.println(Terminal.Verbosity.VERBOSE, "Using locale: " + locale.toLanguageTag());
 
-        final SpConfiguration spConfig = SamlRealm.getSpConfiguration(realm);
-        final SamlSpMetadataBuilder builder = new SamlSpMetadataBuilder(locale, spConfig.getEntityId())
-                .assertionConsumerServiceUrl(spConfig.getAscUrl())
-                .singleLogoutServiceUrl(spConfig.getLogoutUrl())
-                .encryptionCredentials(spConfig.getEncryptionCredentials())
-                .signingCredential(spConfig.getSigningConfiguration().getCredential())
-                .authnRequestsSigned(spConfig.getSigningConfiguration().shouldSign(AuthnRequest.DEFAULT_ELEMENT_LOCAL_NAME))
-                .nameIdFormat(realm.getSetting(SamlRealmSettings.NAMEID_FORMAT))
-                .serviceName(option(serviceNameSpec, options, env.settings().get("cluster.name")));
+        final SamlEntityDescriptorBuilder samlEntityDescriptorBuilder = new SamlEntityDescriptorBuilder(realm, batch, serviceName, orgName,
+            orgUrl, orgDisplayName, options.has(contactsSpec), locale, getAttributeNames(options, realm), terminal);
 
-        Map<String, String> attributes = getAttributeNames(options, realm);
-        for (String attr : attributes.keySet()) {
-            final String name;
-            String friendlyName;
-            final String settingName = attributes.get(attr);
-            final String attributeSource = settingName == null ? "command line" : '"' + settingName + '"';
-            if (attr.contains(":")) {
-                name = attr;
-                if (batch) {
-                    friendlyName = settingName;
-                } else {
-                    friendlyName = terminal.readText("What is the friendly name for " +
-                            attributeSource
-                            + " attribute \"" + attr + "\" [default: " +
-                            (settingName == null ? "none" : settingName) +
-                            "] ");
-                    if (Strings.isNullOrEmpty(friendlyName)) {
-                        friendlyName = settingName;
-                    }
-                }
-            } else {
-                if (batch) {
-                    throw new UserException(ExitCodes.CONFIG, "Option " + batchSpec.toString() + " is specified, but attribute "
-                            + attr + " appears to be a FriendlyName value");
-                }
-                friendlyName = attr;
-                name = requireText(terminal,
-                        "What is the standard (urn) name for " + attributeSource + " attribute \"" + attr + "\" (required): ");
-            }
-            terminal.println(Terminal.Verbosity.VERBOSE, "Requesting attribute '" + name + "' (FriendlyName: '" + friendlyName + "')");
-            builder.withAttribute(friendlyName, name);
-        }
-
-        if (options.has(orgNameSpec) && options.has(orgUrlSpec)) {
-            String name = orgNameSpec.value(options);
-            builder.organization(name, option(orgDisplayNameSpec, options, name), orgUrlSpec.value(options));
-        }
-
-        if (options.has(contactsSpec)) {
-            terminal.println("\nPlease enter the personal details for each contact to be included in the metadata");
-            do {
-                final String givenName = requireText(terminal, "What is the given name for the contact: ");
-                final String surName = requireText(terminal, "What is the surname for the contact: ");
-                final String displayName = givenName + ' ' + surName;
-                final String email = requireText(terminal, "What is the email address for " + displayName + ": ");
-                String type;
-                while (true) {
-                    type = requireText(terminal, "What is the contact type for " + displayName + ": ");
-                    if (ContactInfo.TYPES.containsKey(type)) {
-                        break;
-                    } else {
-                        terminal.errorPrintln("Type '" + type + "' is not valid. Valid values are "
-                                + Strings.collectionToCommaDelimitedString(ContactInfo.TYPES.keySet()));
-                    }
-                }
-                builder.withContact(type, givenName, surName, email);
-            } while (terminal.promptYesNo("Enter details for another contact", true));
-        }
-
-        return builder.build();
+        return samlEntityDescriptorBuilder.getEntityDescriptor();
     }
 
     // package-protected for testing
@@ -384,14 +307,6 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
     @SuppressForbidden(reason = "CLI tool working from current directory")
     private Path resolvePath(String name) {
         return PathUtils.get(name).normalize();
-    }
-
-    private String requireText(Terminal terminal, String prompt) {
-        String value = null;
-        while (Strings.isNullOrEmpty(value)) {
-            value = terminal.readText(prompt);
-        }
-        return value;
     }
 
     private <T> T option(OptionSpec<T> spec, OptionSet options, T defaultValue) {

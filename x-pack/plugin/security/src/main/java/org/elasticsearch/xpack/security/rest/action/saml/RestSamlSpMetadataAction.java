@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -18,9 +17,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.security.action.saml.SamlSPMetadataAction;
-import org.elasticsearch.xpack.core.security.action.saml.SamlSPMetadataRequest;
-import org.elasticsearch.xpack.core.security.action.saml.SamlSPMetadataResponse;
+import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
+import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataRequest;
+import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,30 +27,19 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestSamlSPMetadataAction extends SamlBaseRestHandler {
+public class RestSamlSpMetadataAction extends SamlBaseRestHandler {
 
-    static class Input {
-        String realm;
-        void setRealm(String realm) {
-            this.realm = realm;
-        }
-    }
+    static final ObjectParser<SamlSpMetadataRequest, Void> PARSER = new ObjectParser<>("security_saml_metadata",
+        SamlSpMetadataRequest::new);
 
-    static final ObjectParser<SamlSPMetadataRequest, Void> PARSER = new ObjectParser<>("security_saml_metadata",
-        SamlSPMetadataRequest::new);
-
-    static {
-        PARSER.declareStringOrNull(SamlSPMetadataRequest::setRealmName, new ParseField("realm"));
-    }
-
-    public RestSamlSPMetadataAction(Settings settings, XPackLicenseState licenseState) {
+    public RestSamlSpMetadataAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
 
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(GET, "/_security/saml/metadata"));
+            new Route(GET, "/_security/saml/metadata/{realm}"));
     }
 
     @Override
@@ -62,13 +50,14 @@ public class RestSamlSPMetadataAction extends SamlBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            final SamlSPMetadataRequest SamlSPRequest = PARSER.parse(parser, null);
-            return channel -> client.execute(SamlSPMetadataAction.INSTANCE, SamlSPRequest,
-                new RestBuilderListener<SamlSPMetadataResponse>(channel) {
+            final SamlSpMetadataRequest SamlSpRequest = PARSER.parse(parser, null);
+            SamlSpRequest.setRealmName(request.param("realm"));
+            return channel -> client.execute(SamlSpMetadataAction.INSTANCE, SamlSpRequest,
+                new RestBuilderListener<SamlSpMetadataResponse>(channel) {
                 @Override
-                public RestResponse buildResponse(SamlSPMetadataResponse response, XContentBuilder builder) throws Exception {
+                public RestResponse buildResponse(SamlSpMetadataResponse response, XContentBuilder builder) throws Exception {
                     builder.startObject();
-                    builder.field("xml_metadata", response.getXMLString());
+                    builder.field("metadata", response.getXMLString());
                     builder.endObject();
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }

@@ -15,28 +15,28 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class SamlSPMetadataRequestTests  extends ESTestCase {
+public class SamlSpMetadataRequestTests extends ESTestCase {
 
     public void testValidateFailsWhenRealmNotSet() {
-        final SamlSPMetadataRequest samlSPMetadataRequest = new SamlSPMetadataRequest();
+        final SamlSpMetadataRequest samlSPMetadataRequest = new SamlSpMetadataRequest();
         final ActionRequestValidationException validationException = samlSPMetadataRequest.validate();
-        assertThat(validationException.getMessage(), containsString("realm may not be empty"));
+        assertThat(validationException.getMessage(), containsString("Realm name may not be empty"));
     }
 
     public void testValidateSerialization()  throws IOException {
-        final SamlSPMetadataRequest samlSPMetadataRequest = new SamlSPMetadataRequest();
+        final SamlSpMetadataRequest samlSPMetadataRequest = new SamlSpMetadataRequest();
         samlSPMetadataRequest.setRealmName("saml1");
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             samlSPMetadataRequest.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                final SamlSPMetadataRequest serialized = new SamlSPMetadataRequest(in);
+                final SamlSpMetadataRequest serialized = new SamlSpMetadataRequest(in);
                 assertEquals(samlSPMetadataRequest.getRealmName(), serialized.getRealmName());
             }
         }
     }
 
     public void testValidateToString() {
-        final SamlSPMetadataRequest samlSPMetadataRequest = new SamlSPMetadataRequest();
+        final SamlSpMetadataRequest samlSPMetadataRequest = new SamlSpMetadataRequest();
         samlSPMetadataRequest.setRealmName("saml1");
         assertThat(samlSPMetadataRequest.toString(), containsString("{realmName=saml1}"));
     }

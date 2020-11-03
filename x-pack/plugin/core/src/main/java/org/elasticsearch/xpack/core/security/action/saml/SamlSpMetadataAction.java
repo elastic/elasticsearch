@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionType;
 
-public class SamlSPMetadataAction extends ActionType<SamlSPMetadataResponse> {
+public class SamlSpMetadataAction extends ActionType<SamlSpMetadataResponse> {
     public static final String NAME = "cluster:admin/xpack/security/saml/metadata";
-    public static final SamlSPMetadataAction INSTANCE = new SamlSPMetadataAction();
+    public static final SamlSpMetadataAction INSTANCE = new SamlSpMetadataAction();
 
-    private SamlSPMetadataAction() {
-        super(NAME, SamlSPMetadataResponse::new);
+    private SamlSpMetadataAction() {
+        super(NAME, SamlSpMetadataResponse::new);
     }
 }

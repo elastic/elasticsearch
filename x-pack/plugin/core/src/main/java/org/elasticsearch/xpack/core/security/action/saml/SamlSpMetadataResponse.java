@@ -15,19 +15,19 @@ import java.io.IOException;
 /**
  * Response containing a SAML SP metadata for a specific realm as XML.
  */
-public class SamlSPMetadataResponse extends ActionResponse {
+public class SamlSpMetadataResponse extends ActionResponse {
     public String getXMLString() {
         return XMLString;
     }
 
     private String XMLString;
 
-    public SamlSPMetadataResponse(StreamInput in) throws IOException {
+    public SamlSpMetadataResponse(StreamInput in) throws IOException {
         super(in);
         XMLString = in.readString();
     }
 
-    public SamlSPMetadataResponse(String XMLString) {
+    public SamlSpMetadataResponse(String XMLString) {
         this.XMLString = XMLString;
     }
 

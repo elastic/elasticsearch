@@ -16,23 +16,23 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class SamlSPMetadataRequest extends ActionRequest {
+public class SamlSpMetadataRequest extends ActionRequest {
 
     String realmName;
 
-    public SamlSPMetadataRequest(StreamInput in) throws IOException {
+    public SamlSpMetadataRequest(StreamInput in) throws IOException {
         super(in);
         realmName = in.readOptionalString();
     }
 
-    public SamlSPMetadataRequest() {
+    public SamlSpMetadataRequest() {
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (Strings.hasText(realmName) == false) {
-            validationException = addValidationError("realm may not be empty", validationException);
+            validationException = addValidationError("Realm name may not be empty", validationException);
         }
         return validationException;
     }

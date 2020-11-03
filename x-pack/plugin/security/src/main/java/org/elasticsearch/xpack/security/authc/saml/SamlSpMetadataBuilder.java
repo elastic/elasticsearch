@@ -96,6 +96,22 @@ public class SamlSpMetadataBuilder {
     }
 
     /**
+     * @param samlRealm   SamlRealm for which SP Metadata is built
+     */
+    public SamlSpMetadataBuilder(SamlRealm samlRealm) {
+        final SpConfiguration spConfig = samlRealm.getLogoutHandler().getSpConfiguration();
+        this.locale = Locale.getDefault();
+        this.entityId = spConfig.getEntityId();
+        this.attributeNames = null;
+        this.contacts = null;
+        this.serviceName = "Elasticsearch";
+        this.nameIdFormat = null;
+        this.authnRequestsSigned = Boolean.FALSE;
+        this.assertionConsumerServiceUrl = spConfig.getAscUrl();
+        this.singleLogoutServiceUrl = spConfig.getLogoutUrl();
+    }
+
+    /**
      * The format that the service provider expects for incoming NameID element.
      */
     public SamlSpMetadataBuilder nameIdFormat(String nameIdFormat) {

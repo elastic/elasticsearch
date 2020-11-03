@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.ccr.AutoFollowIT.verifyDataStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -121,6 +122,41 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         e = expectThrows(ResponseException.class, () -> followIndex("non-existing-index", "non-existing-index"));
         assertThat(e.getMessage(), containsString("no such index [non-existing-index]"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
+    public void testFollowDataStreamFails() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+
+        final String dataStreamName = "logs-syslog-prod";
+        try (RestClient leaderClient = buildLeaderClient()) {
+            Request request = new Request("PUT", "/_data_stream/" + dataStreamName);
+            assertOK(leaderClient.performRequest(request));
+            verifyDataStream(leaderClient, dataStreamName, ".ds-logs-syslog-prod-000001");
+        }
+
+        ResponseException failure = expectThrows(ResponseException.class, () -> followIndex(dataStreamName, dataStreamName));
+        assertThat(failure.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(failure.getMessage(), containsString("cannot follow [logs-syslog-prod], because it is a DATA_STREAM"));
+    }
+
+    public void testChangeBackingIndexNameFails() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+
+        final String dataStreamName = "logs-foobar-prod";
+        try (RestClient leaderClient = buildLeaderClient()) {
+            Request request = new Request("PUT", "/_data_stream/" + dataStreamName);
+            assertOK(leaderClient.performRequest(request));
+            verifyDataStream(leaderClient, dataStreamName, ".ds-logs-foobar-prod-000001");
+        }
+
+        ResponseException failure = expectThrows(ResponseException.class,
+            () -> followIndex(".ds-logs-foobar-prod-000001", ".ds-logs-barbaz-prod-000001"));
+        assertThat(failure.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(failure.getMessage(), containsString("a backing index name in the local and remote cluster must remain the same"));
     }
 
 }

@@ -370,9 +370,9 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                     }
                 };
 
-                mergeBuckets(numClusters, mergeMap);
+                rewriteBuckets(numClusters, mergeMap);
                 if (deferringCollector != null) {
-                    deferringCollector.mergeBuckets(mergeMap);
+                    deferringCollector.rewriteBuckets(mergeMap);
                 }
             }
         }
@@ -506,7 +506,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     }
 
     @Override
-    public DeferringBucketCollector getDeferringCollector() {
+    public DeferringBucketCollector buildDeferringCollector() {
         deferringCollector = new MergingBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
         return deferringCollector;
     }

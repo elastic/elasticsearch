@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.datastreams;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DataStreamsStatsAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
@@ -24,6 +25,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.datastreams.action.DataStreamsStatsTransportAction;
+import org.elasticsearch.xpack.datastreams.action.MigrateToDataStreamTransportAction;
 import org.elasticsearch.xpack.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.xpack.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.xpack.datastreams.rest.RestDeleteDataStreamAction;
@@ -56,7 +58,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
         var dsStatsAction = new ActionHandler<>(DataStreamsStatsAction.INSTANCE, DataStreamsStatsTransportAction.class);
         var dsUsageAction = new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class);
         var dsInfoAction = new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class);
-        return List.of(createDsAction, deleteDsInfoAction, getDsAction, dsStatsAction, dsUsageAction, dsInfoAction);
+        var migrateAction = new ActionHandler<>(MigrateToDataStreamAction.INSTANCE, MigrateToDataStreamTransportAction.class);
+        return List.of(createDsAction, deleteDsInfoAction, getDsAction, dsStatsAction, dsUsageAction, dsInfoAction, migrateAction);
     }
 
     @Override

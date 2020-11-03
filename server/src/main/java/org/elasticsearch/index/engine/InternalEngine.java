@@ -630,8 +630,10 @@ public class InternalEngine extends Engine {
             assert inMemoryReader.isLoaded() == false;
             searcher.close();
             final TranslogLeafReader translogLeafReader = new TranslogLeafReader(index);
-            return new GetResult(searcher, new VersionsAndSeqNoResolver.DocIdAndVersion(0, index.version(), index.seqNo(),
-                index.primaryTerm(), translogLeafReader, 0), true);
+            return new GetResult(new Engine.Searcher("realtime_get", translogLeafReader,
+                IndexSearcher.getDefaultSimilarity(), null, IndexSearcher.getDefaultQueryCachingPolicy(), translogLeafReader),
+                new VersionsAndSeqNoResolver.DocIdAndVersion(
+                    0, index.version(), index.seqNo(), index.primaryTerm(), translogLeafReader, 0), true);
         } else {
             assert inMemoryReader.isLoaded();
             return getFromSearcher(get, wrappedSearcher);

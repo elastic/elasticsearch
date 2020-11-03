@@ -47,6 +47,26 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
         assertThat(p.calculateNextExecution(), equalTo(4078864860000L));
     }
 
+    public void testCalculateNextInterval() {
+        {
+            SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "0 0/5 * * * ?", "repo", Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY);
+            assertThat(p.calculateNextInterval(), equalTo(300000L));
+        }
+
+        {
+            SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", "repo", Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY);
+            assertThat(p.calculateNextInterval(), equalTo(-1L));
+        }
+
+        {
+            SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "* * * 31 FEB ? *", "repo", Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY);
+            assertThat(p.calculateNextInterval(), equalTo(-1L));
+        }
+    }
+
     public void testValidation() {
         {
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("a,b", "<my, snapshot-{now/M}>",

@@ -124,8 +124,7 @@ PUT my-index-000001/_doc/4?routing=1&refresh
 
 The join field shouldn't be used like joins in a relation database. In Elasticsearch the key to good performance
 is to de-normalize your data into documents. Each join field, `has_child` or `has_parent` query adds a
-significant tax to your query performance. It also increases the usage of the JVM heap on the
-<<modules-fielddata, field data cache>>.
+significant tax to your query performance. It can also trigger <<eager-global-ordinals, global ordinals>> to be built.
 
 The only case where the join field makes sense is if your data contains a one-to-many relationship where
 one entity significantly outnumbers the other entity. An example of such case is a use case with products

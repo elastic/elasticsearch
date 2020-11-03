@@ -35,11 +35,9 @@ to be enabled.
 `has_child` queries and `parent` aggregations.
 
 NOTE: The global ordinal mapping use heap memory as part of the
-<<modules-fielddata, field data cache>>. Aggregations that include high
-cardinality values can use a significant amount of heap memory, and
-could exceed the threshold of the
-<<fielddata-circuit-breaker, field data circuit breaker>>.
-It is recommended to set a specific limit for the field data cache size.
+<<modules-fielddata, field data cache>>. Aggregations on high cardinality fields
+can use a significant amount of heap memory, and could exceed the threshold
+of the <<fielddata-circuit-breaker, field data circuit breaker>>.
 
 ==== Loading global ordinals
 

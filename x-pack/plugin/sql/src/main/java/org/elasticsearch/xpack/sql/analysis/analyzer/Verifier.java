@@ -189,8 +189,7 @@ public final class Verifier {
             plan.forEachExpressionsUp(e -> {
                 if (e instanceof Alias) {
                     Alias a = (Alias) e;
-                    Attribute attr = a.toAttribute();
-                    collectRefs.put(attr, a.child());
+                    collectRefs.put(a.toAttribute(), a.child());
                 }
             });
 

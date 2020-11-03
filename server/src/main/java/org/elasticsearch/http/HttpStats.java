@@ -112,9 +112,9 @@ public class HttpStats implements Writeable, ToXContentFragment {
         String lastUri;
         long openedTimeMillis;
         long closedTimeMillis = -1;
-        long lastRequestTimeMillis = -1;
-        long requestCount;
-        long requestSizeBytes;
+        volatile long lastRequestTimeMillis = -1;
+        volatile long requestCount;
+        volatile long requestSizeBytes;
 
         ClientStats(HttpChannel httpChannel, long openedTimeMillis) {
             this.localAddress = httpChannel.getLocalAddress().toString();

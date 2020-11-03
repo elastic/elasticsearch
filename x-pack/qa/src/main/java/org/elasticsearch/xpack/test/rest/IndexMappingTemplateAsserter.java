@@ -191,6 +191,7 @@ public class IndexMappingTemplateAsserter {
 
         SortedSet<String> keysInTemplateMissingFromIndex = new TreeSet<>(flatTemplateMap.keySet());
         keysInTemplateMissingFromIndex.removeAll(flatIndexMap.keySet());
+        keysInTemplateMissingFromIndex.removeAll(exceptions);
 
         SortedSet<String> keysInIndexMissingFromTemplate = new TreeSet<>(flatIndexMap.keySet());
         keysInIndexMissingFromTemplate.removeAll(flatTemplateMap.keySet());

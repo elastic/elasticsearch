@@ -87,7 +87,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),
-                new AckedClusterStateUpdateTask<Response>(request, listener) {
+                new AckedClusterStateUpdateTask(request, listener) {
                     @Override
                     protected Response newResponse(boolean acknowledged) {
                         return new Response(acknowledged);

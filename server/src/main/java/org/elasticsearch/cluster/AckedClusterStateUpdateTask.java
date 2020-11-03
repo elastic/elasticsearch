@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -29,18 +30,20 @@ import org.elasticsearch.common.unit.TimeValue;
  * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
  * all the nodes have acknowledged a cluster state update request
  */
-public abstract class AckedClusterStateUpdateTask<Response> extends ClusterStateUpdateTask implements AckedClusterStateTaskListener {
+public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask implements AckedClusterStateTaskListener {
 
-    private final ActionListener<Response> listener;
+    private final ActionListener<AcknowledgedResponse> listener;
     private final AckedRequest request;
 
-    protected AckedClusterStateUpdateTask(AckedRequest request, ActionListener<Response> listener) {
+    protected AckedClusterStateUpdateTask(AckedRequest request, ActionListener<? extends AcknowledgedResponse> listener) {
         this(Priority.NORMAL, request, listener);
     }
 
-    protected AckedClusterStateUpdateTask(Priority priority, AckedRequest request, ActionListener<Response> listener) {
+    @SuppressWarnings("unchecked")
+    protected AckedClusterStateUpdateTask(Priority priority, AckedRequest request,
+                                          ActionListener<? extends AcknowledgedResponse> listener) {
         super(priority, request.masterNodeTimeout());
-        this.listener = listener;
+        this.listener = (ActionListener<AcknowledgedResponse>) listener;
         this.request = request;
     }
 
@@ -64,7 +67,9 @@ public abstract class AckedClusterStateUpdateTask<Response> extends ClusterState
         listener.onResponse(newResponse(e == null));
     }
 
-    protected abstract Response newResponse(boolean acknowledged);
+    protected AcknowledgedResponse newResponse(boolean acknowledged) {
+        return AcknowledgedResponse.of(acknowledged);
+    }
 
     /**
      * Called once the acknowledgement timeout defined by

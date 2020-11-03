@@ -71,12 +71,11 @@ public class CacheFile {
     private final Set<EvictionListener> listeners = new HashSet<>();
 
     /**
-     * Indicates whether the cache file has been synchronized with the storage device that contains it, since the last time data
-     * were written in cache (or since the creation of the file if no cached data have been written yet). An empty cache file is
-     * considered as fsynced (the initialization value is {@code true}) when it is created; and writing new data to the cache file
-     * will toggle the flag to {@code false}.
+     * Indicates whether the cache file requires to be synchronized with the storage device that contains it in order to persist in a
+     * durable manner its ranges of cached data. An empty cache file does not need to be fsync; and writing new data to the cache file
+     * will toggle the flag to {@code true}.
      **/
-    private final AtomicBoolean fsynced = new AtomicBoolean(true);
+    private final AtomicBoolean needsFsync = new AtomicBoolean();
 
     /**
      * A reference counted holder for the current channel to the physical file backing this cache file instance.
@@ -321,7 +320,7 @@ public class CacheFile {
                             reference.decRef();
                         }
                         gap.onCompletion();
-                        fsynced.set(false);
+                        needsFsync.set(true);
                     }
 
                     @Override
@@ -417,8 +416,8 @@ public class CacheFile {
     }
 
     // used in tests
-    boolean isFSynced() {
-        return fsynced.get();
+    boolean needsFsync() {
+        return needsFsync.get();
     }
 
     /**
@@ -435,7 +434,7 @@ public class CacheFile {
     public SortedSet<Tuple<Long, Long>> fsync() throws IOException {
         if (refCounter.tryIncRef()) {
             try {
-                if (fsynced.compareAndSet(false, true)) {
+                if (needsFsync.compareAndSet(true, false)) {
                     boolean success = false;
                     try {
                         // Capture the completed ranges before fsyncing; ranges that are completed after this point won't be considered as
@@ -450,7 +449,7 @@ public class CacheFile {
                         return completedRanges;
                     } finally {
                         if (success == false) {
-                            fsynced.set(false);
+                            needsFsync.set(true);
                         }
                     }
                 }

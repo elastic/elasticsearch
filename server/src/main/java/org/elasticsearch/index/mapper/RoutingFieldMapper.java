@@ -34,7 +34,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_routing";
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder().init(this);
     }
 

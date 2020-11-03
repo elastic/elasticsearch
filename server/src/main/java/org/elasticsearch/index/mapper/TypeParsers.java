@@ -19,23 +19,18 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 public class TypeParsers {
@@ -63,18 +58,18 @@ public class TypeParsers {
     public static Map<String, String> parseMeta(String name, Object metaObject) {
         if (metaObject instanceof Map == false) {
             throw new MapperParsingException("[meta] must be an object, got " + metaObject.getClass().getSimpleName() +
-                    "[" + metaObject + "] for field [" + name +"]");
+                "[" + metaObject + "] for field [" + name + "]");
         }
         @SuppressWarnings("unchecked")
         Map<String, ?> meta = (Map<String, ?>) metaObject;
         if (meta.size() > 5) {
             throw new MapperParsingException("[meta] can't have more than 5 entries, but got " + meta.size() + " on field [" +
-                    name + "]");
+                name + "]");
         }
         for (String key : meta.keySet()) {
             if (key.codePointCount(0, key.length()) > 20) {
                 throw new MapperParsingException("[meta] keys can't be longer than 20 chars, but got [" + key +
-                        "] for field [" + name + "]");
+                    "] for field [" + name + "]");
             }
         }
         for (Object value : meta.values()) {
@@ -82,13 +77,13 @@ public class TypeParsers {
                 String sValue = (String) value;
                 if (sValue.codePointCount(0, sValue.length()) > 50) {
                     throw new MapperParsingException("[meta] values can't be longer than 50 chars, but got [" + value +
-                            "] for field [" + name + "]");
+                        "] for field [" + name + "]");
                 }
             } else if (value == null) {
                 throw new MapperParsingException("[meta] values can't be null (field [" + name + "])");
             } else {
                 throw new MapperParsingException("[meta] values can only be strings, but got " +
-                        value.getClass().getSimpleName() + "[" + value + "] for field [" + name + "]");
+                    value.getClass().getSimpleName() + "[" + value + "] for field [" + name + "]");
             }
         }
         Map<String, String> sortedMeta = new TreeMap<>();
@@ -98,60 +93,7 @@ public class TypeParsers {
         return Collections.unmodifiableMap(sortedMeta);
     }
 
-    /**
-     * Parse common field attributes such as {@code doc_values} or {@code store}.
-     */
-    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
-                                  Mapper.TypeParser.ParserContext parserContext) {
-        for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
-            Map.Entry<String, Object> entry = iterator.next();
-            final String propName = entry.getKey();
-            final Object propNode = entry.getValue();
-            checkNull(propName, propNode);
-            if (propName.equals("store")) {
-                builder.store(XContentMapValues.nodeBooleanValue(propNode, name + ".store"));
-                iterator.remove();
-            } else if (propName.equals("meta")) {
-                builder.meta(parseMeta(name, propNode));
-                iterator.remove();
-            } else if (propName.equals("index")) {
-                builder.index(XContentMapValues.nodeBooleanValue(propNode, name + ".index"));
-                iterator.remove();
-            } else if (propName.equals(DOC_VALUES)) {
-                builder.docValues(XContentMapValues.nodeBooleanValue(propNode, name + "." + DOC_VALUES));
-                iterator.remove();
-            } else if (propName.equals("boost")) {
-                builder.boost(nodeFloatValue(propNode));
-                deprecationLogger.deprecate(
-                    "boost",
-                    "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
-                    name);
-                iterator.remove();
-            } else if (propName.equals("index_options")) {
-                builder.indexOptions(nodeIndexOptionValue(propNode));
-                iterator.remove();
-            } else if (propName.equals("similarity")) {
-                deprecationLogger.deprecate("similarity",
-                    "The [similarity] parameter has no effect on field [" + name + "] and will be removed in 8.0");
-                iterator.remove();
-            } else if (parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
-                iterator.remove();
-            } else if (propName.equals("copy_to")) {
-                if (parserContext.isWithinMultiField()) {
-                    throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field [" + name + "] " +
-                        "which is within a multi field.");
-                } else {
-                    List<String> copyFields = parseCopyFields(propNode);
-                    FieldMapper.CopyTo.Builder cpBuilder = new FieldMapper.CopyTo.Builder();
-                    copyFields.forEach(cpBuilder::add);
-                    builder.copyTo(cpBuilder.build());
-                }
-                iterator.remove();
-            }
-        }
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({"unchecked"})
     public static boolean parseMultiField(Consumer<Mapper.Builder> multiFieldsBuilder, String name,
                                           Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("fields")) {
@@ -195,8 +137,8 @@ public class TypeParsers {
                     throw new MapperParsingException("no type specified for property [" + multiFieldName + "]");
                 }
                 if (type.equals(ObjectMapper.CONTENT_TYPE)
-                        || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)
-                        || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
+                    || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)
+                    || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
                     throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
                 }
 
@@ -211,21 +153,6 @@ public class TypeParsers {
             return true;
         }
         return false;
-    }
-
-    private static IndexOptions nodeIndexOptionValue(final Object propNode) {
-        final String value = propNode.toString();
-        if (INDEX_OPTIONS_OFFSETS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS;
-        } else if (INDEX_OPTIONS_POSITIONS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
-        } else if (INDEX_OPTIONS_FREQS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS_AND_FREQS;
-        } else if (INDEX_OPTIONS_DOCS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS;
-        } else {
-            throw new ElasticsearchParseException("failed to parse index option [{}]", value);
-        }
     }
 
     public static DateFormatter parseDateTimeFormatter(Object node) {

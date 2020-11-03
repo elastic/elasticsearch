@@ -57,7 +57,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -82,7 +81,7 @@ import java.util.function.Supplier;
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
  */
-public class WildcardFieldMapper extends ParametrizedFieldMapper {
+public class WildcardFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "wildcard";
     public static short MAX_CLAUSES_IN_APPROXIMATION_QUERY = 10;
@@ -188,7 +187,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         return (WildcardFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Integer> ignoreAbove
             = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Defaults.IGNORE_ABOVE)
@@ -951,11 +950,6 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected WildcardFieldMapper clone() {
-        return (WildcardFieldMapper) super.clone();
-    }
-
-    @Override
     public WildcardFieldType fieldType() {
         return (WildcardFieldType) super.fieldType();
     }
@@ -1008,7 +1002,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexVersionCreated).init(this);
     }
 }

@@ -4,11 +4,36 @@
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy
         body:
-          policy:
-            deciders:
-              fixed: {}
+          roles: [ master ]
 
   - match: { "acknowledged": true }
+
+  # update deciders
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          deciders:
+            fixed: {}
+
+  - do:
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy
+  - match: { roles: [ master ] }
+  - match: { deciders.fixed: {} }
+
+  # update roles
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          roles: [ data ]
+
+  - do:
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy
+  - match: { roles: [ data ] }
+  - match: { deciders.fixed: {} }
 
   # test cleanup
   - do:
@@ -16,13 +41,51 @@
         name: my_autoscaling_policy
 
 ---
+"Test add autoscaling policy with deciders":
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          roles: [ master ]
+          deciders:
+            fixed: {}
+
+  - match: { "acknowledged": true }
+
+  - do:
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy
+  - match: { roles: [ master ] }
+  - match: { deciders.fixed: {} }
+
+  # test cleanup
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: my_autoscaling_policy
+---
 "Test put autoscaling policy with non-existent decider":
   - do:
       catch: bad_request
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy
         body:
-          policy:
-            deciders:
-              does_not_exist: {}
+          roles: [ master ]
+          deciders:
+            does_not_exist: {}
 
+---
+"Test put autoscaling policy with non-existent roles":
+  - do:
+      catch: bad_request
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          roles: [ non-existing ]
+
+---
+"Test add autoscaling policy with no roles":
+  - do:
+      catch: bad_request
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body: {}

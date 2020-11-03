@@ -10,9 +10,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-public class DataStreamsRestIT extends ESClientYamlSuiteTestCase {
+public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public DataStreamsRestIT(final ClientYamlTestCandidate testCandidate) {
+    public DataStreamsClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

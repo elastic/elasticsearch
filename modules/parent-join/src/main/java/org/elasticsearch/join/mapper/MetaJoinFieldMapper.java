@@ -95,11 +95,6 @@ public class MetaJoinFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected MetaJoinFieldMapper clone() {
-        return (MetaJoinFieldMapper) super.clone();
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         throw new IllegalStateException("Should never be called");
     }

@@ -519,6 +519,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private void wipeCluster() throws Exception {
 
+        if (hasXPack) {
+            adminClient().performRequest(new Request("POST", "/_ilm/stop"));
+        }
+
         // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
         // for a bulk to finish against a non-existing index (and then fail tests)
@@ -641,6 +645,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
+
+        if (hasXPack) {
+            adminClient().performRequest(new Request("POST", "/_ilm/start"));
+        }
     }
 
     protected static void wipeAllIndices() throws IOException {

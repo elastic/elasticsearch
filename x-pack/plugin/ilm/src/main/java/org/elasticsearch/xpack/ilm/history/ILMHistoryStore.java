@@ -51,7 +51,6 @@ import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.IND
 public class ILMHistoryStore implements Closeable {
     private static final Logger logger = LogManager.getLogger(ILMHistoryStore.class);
 
-    public static final String ILM_HISTORY_INDEX_PREFIX = "ilm-history-" + INDEX_TEMPLATE_VERSION + "-";
     public static final String ILM_HISTORY_DATA_STREAM = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
     private final boolean ilmHistoryEnabled;
@@ -166,5 +165,9 @@ public class ILMHistoryStore implements Closeable {
         } catch (InterruptedException e) {
             logger.warn("failed to shut down ILM history bulk processor after 10 seconds", e);
         }
+    }
+
+    public void flush(){
+        processor.flush();
     }
 }

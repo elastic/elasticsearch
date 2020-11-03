@@ -175,6 +175,7 @@ public class IndexLifecycleService
             }
 
             if (safeToStop && OperationMode.STOPPING == currentMode) {
+                ilmHistoryStore.flush();
                 submitOperationModeUpdate(OperationMode.STOPPED);
             }
         }
@@ -345,6 +346,7 @@ public class IndexLifecycleService
         }
 
         if (safeToStop && OperationMode.STOPPING == currentMode) {
+            ilmHistoryStore.flush();
             submitOperationModeUpdate(OperationMode.STOPPED);
         }
     }

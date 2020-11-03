@@ -26,20 +26,29 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 
 public class HttpStats implements Writeable, ToXContentFragment {
 
     private final long serverOpen;
     private final long totalOpen;
+    private final Collection<ClientStats> clientStats;
 
-    public HttpStats(long serverOpen, long totalOpened) {
+    public HttpStats(Collection<ClientStats> clientStats, long serverOpen, long totalOpened) {
+        this.clientStats = clientStats;
         this.serverOpen = serverOpen;
         this.totalOpen = totalOpened;
+    }
+
+    public HttpStats(long serverOpen, long totalOpened) {
+        this(null, serverOpen, totalOpened);
     }
 
     public HttpStats(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
         totalOpen = in.readVLong();
+        clientStats = List.of();
     }
 
     @Override
@@ -60,6 +69,16 @@ public class HttpStats implements Writeable, ToXContentFragment {
         static final String HTTP = "http";
         static final String CURRENT_OPEN = "current_open";
         static final String TOTAL_OPENED = "total_opened";
+        static final String CLIENTS = "clients";
+        static final String CLIENT_AGENT = "agent";
+        static final String CLIENT_LOCAL_ADDRESS = "local_address";
+        static final String CLIENT_REMOTE_ADDRESS = "remote_address";
+        static final String CLIENT_LAST_URI = "last_uri";
+        static final String CLIENT_OPENED_TIME_MILLIS = "opened_time_millis";
+        static final String CLIENT_CLOSED_TIME_MILLIS = "closed_time_millis";
+        static final String CLIENT_LAST_REQUEST_TIME_MILLIS = "last_request_time_millis";
+        static final String CLIENT_REQUEST_COUNT = "request_count";
+        static final String CLIENT_REQUEST_SIZE_BYTES = "request_size_bytes";
     }
 
     @Override
@@ -67,7 +86,40 @@ public class HttpStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.HTTP);
         builder.field(Fields.CURRENT_OPEN, serverOpen);
         builder.field(Fields.TOTAL_OPENED, totalOpen);
+        builder.startArray(Fields.CLIENTS);
+        for (ClientStats clientStats : this.clientStats) {
+            builder.startObject();
+            builder.field(Fields.CLIENT_AGENT, clientStats.agent);
+            builder.field(Fields.CLIENT_LOCAL_ADDRESS, clientStats.localAddress);
+            builder.field(Fields.CLIENT_REMOTE_ADDRESS, clientStats.remoteAddress);
+            builder.field(Fields.CLIENT_LAST_URI, clientStats.lastUri);
+            builder.field(Fields.CLIENT_OPENED_TIME_MILLIS, clientStats.openedTimeMillis);
+            builder.field(Fields.CLIENT_CLOSED_TIME_MILLIS, clientStats.closedTimeMillis);
+            builder.field(Fields.CLIENT_LAST_REQUEST_TIME_MILLIS, clientStats.lastRequestTimeMillis);
+            builder.field(Fields.CLIENT_REQUEST_COUNT, clientStats.requestCount);
+            builder.field(Fields.CLIENT_REQUEST_SIZE_BYTES, clientStats.requestSizeBytes);
+            builder.endObject();
+        }
+        builder.endArray();
         builder.endObject();
         return builder;
+    }
+
+    static class ClientStats {
+        String agent;
+        String localAddress;
+        String remoteAddress;
+        String lastUri;
+        long openedTimeMillis;
+        long closedTimeMillis = -1;
+        long lastRequestTimeMillis = -1;
+        long requestCount;
+        long requestSizeBytes;
+
+        ClientStats(HttpChannel httpChannel, long openedTimeMillis) {
+            this.localAddress = httpChannel.getLocalAddress().toString();
+            this.remoteAddress = httpChannel.getRemoteAddress().toString();
+            this.openedTimeMillis = openedTimeMillis;
+        }
     }
 }

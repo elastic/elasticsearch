@@ -54,8 +54,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -87,6 +89,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
     private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Map<Integer, HttpStats.ClientStats> httpChannelStats = new ConcurrentHashMap<>();
 
     private final HttpTracer tracer;
 
@@ -132,7 +135,19 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     @Override
     public HttpStats stats() {
-        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get());
+        pruneClientStats();
+        return new HttpStats(httpChannelStats.values(), httpChannels.size(), totalChannelsAccepted.get());
+    }
+
+    void pruneClientStats() {
+        // prune stale entries
+        long nowMillis = threadPool.absoluteTimeInMillis();
+        for (var statsEntry : httpChannelStats.entrySet()) {
+            long closedTimeMillis = statsEntry.getValue().closedTimeMillis;
+            if (closedTimeMillis > 0 && (nowMillis - closedTimeMillis > TimeUnit.MINUTES.toMillis(5))) {
+                httpChannelStats.remove(statsEntry.getKey());
+            }
+        }
     }
 
     protected void bindServer() {
@@ -295,7 +310,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         boolean addedOnThisCall = httpChannels.add(httpChannel);
         assert addedOnThisCall : "Channel should only be added to http channel set once";
         totalChannelsAccepted.incrementAndGet();
-        httpChannel.addCloseListener(ActionListener.wrap(() -> httpChannels.remove(httpChannel)));
+        httpChannelStats.put(httpChannel.hashCode(), new HttpStats.ClientStats(httpChannel, threadPool.absoluteTimeInMillis()));
+        httpChannel.addCloseListener(ActionListener.wrap(() -> {
+            httpChannels.remove(httpChannel);
+            HttpStats.ClientStats clientStats = httpChannelStats.get(httpChannel.hashCode());
+            if (clientStats != null) {
+                clientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
+            }
+        }));
         logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
     }
 
@@ -306,7 +328,25 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
+        updateClientStats(httpRequest, httpChannel);
         handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+    }
+
+    void updateClientStats(final HttpRequest httpRequest, final HttpChannel httpChannel) {
+        HttpStats.ClientStats clientStats = httpChannelStats.get(httpChannel.hashCode());
+        if (clientStats != null) {
+            if (clientStats.agent == null) {
+                if (httpRequest.getHeaders().containsKey("x-elastic-product-origin")) {
+                    clientStats.agent = httpRequest.getHeaders().get("x-elastic-product-origin").get(0);
+                } else if (httpRequest.getHeaders().containsKey("User-Agent")) {
+                    clientStats.agent = httpRequest.getHeaders().get("User-Agent").get(0);
+                }
+            }
+            clientStats.lastRequestTimeMillis = threadPool.absoluteTimeInMillis();
+            clientStats.lastUri = httpRequest.uri();
+            clientStats.requestCount++;
+            clientStats.requestSizeBytes += httpRequest.content().length();
+        }
     }
 
     // Visible for testing

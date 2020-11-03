@@ -158,14 +158,14 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             String [] includeValues = {"duplicate"};
 
             boolean inclusive = randomBoolean();
-            inclusive = true;
             if (inclusive) {
                 excludeValues = null;
             } else {
                 includeValues = null;                
             }
             
-            SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").includeExclude(new IncludeExclude(includeValues, excludeValues));
+            SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").
+                includeExclude(new IncludeExclude(includeValues, excludeValues));
             if(randomBoolean()){
                 sigAgg.sourceFieldNames(Arrays.asList(new String [] {"json_only_field"}));
             }

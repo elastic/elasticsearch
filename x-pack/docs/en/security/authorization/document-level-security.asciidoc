@@ -14,7 +14,8 @@ privileges specified for the data streams and indices.
 The specified document `query`:
 
 * Expects the same format as if it was defined in the search request
-* Supports <<templating-role-query,templating>> for `_user` variables
+* Supports <<templating-role-query,templating a role query>> that can access
+the details of the currently authenticated user
 * Accepts queries written as either string values or nested JSON
 * Supports the majority of the {es}
 <<query-dsl,Query Domain Specific Language (DSL)>>, with <<field-document-limitations,some limitations>> for field and document level security
@@ -47,12 +48,8 @@ POST _security/role/click_role
 {
   "indices": [
     {
-      "names": [
-        "events-*"
-      ],
-      "privileges": [
-        "read"
-      ],
+      "names": [ "events-*" ],
+      "privileges": [ "read" ],
       "query": {
         "match": {
           "category": "click"
@@ -81,5 +78,3 @@ POST /_security/role/dept_role
   ]
 }
 ----
-
-For more information, see <<field-and-document-access-control>>.

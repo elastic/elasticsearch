@@ -22,6 +22,7 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -117,8 +118,8 @@ public class HttpStats implements Writeable, ToXContentFragment {
         volatile long requestSizeBytes;
 
         ClientStats(HttpChannel httpChannel, long openedTimeMillis) {
-            this.localAddress = httpChannel.getLocalAddress().toString();
-            this.remoteAddress = httpChannel.getRemoteAddress().toString();
+            this.localAddress = NetworkAddress.format(httpChannel.getLocalAddress());
+            this.remoteAddress = NetworkAddress.format(httpChannel.getRemoteAddress());
             this.openedTimeMillis = openedTimeMillis;
         }
     }

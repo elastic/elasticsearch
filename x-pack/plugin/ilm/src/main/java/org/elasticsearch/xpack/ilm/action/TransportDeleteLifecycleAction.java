@@ -50,7 +50,7 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         clusterService.submitStateUpdateTask("delete-lifecycle-" + request.getPolicyName(),
-                new AckedClusterStateUpdateTask<Response>(request, listener) {
+                new AckedClusterStateUpdateTask(request, listener) {
                     @Override
                     protected Response newResponse(boolean acknowledged) {
                         return new Response(acknowledged);

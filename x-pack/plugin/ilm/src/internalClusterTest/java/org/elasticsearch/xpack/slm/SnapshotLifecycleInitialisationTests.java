@@ -65,7 +65,7 @@ public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
 
         client().execute(PutSnapshotLifecycleAction.INSTANCE,
             new Request("snapshot-policy", new SnapshotLifecyclePolicy("test-policy", "snap",
-                "*/1 * * * * ?", "repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY))
+                "0 0/15 * * * ?", "repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY))
         ).get(10, TimeUnit.SECONDS);
 
         ClusterState state = getInstanceFromNode(ClusterService.class).state();

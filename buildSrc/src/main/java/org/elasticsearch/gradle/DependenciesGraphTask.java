@@ -31,6 +31,7 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.DependencySet;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
 
@@ -51,24 +52,34 @@ import java.util.Set;
 public class DependenciesGraphTask extends DefaultTask {
 
     private Configuration runtimeConfiguration;
-    private Configuration compileOnlyConfiguration;
+    private String token;
+    private String url;
+
+    @Input
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    @Input
+    public String getToken() {
+        return token;
+    }
+
+    public void setToken(String token) {
+        this.token = token;
+    }
 
     @InputFiles
     public Configuration getRuntimeConfiguration() {
         return runtimeConfiguration;
     }
 
-    @InputFiles
-    public Configuration getCompileOnlyConfiguration() {
-        return compileOnlyConfiguration;
-    }
-
     public void setRuntimeConfiguration(Configuration runtimeConfiguration) {
         this.runtimeConfiguration = runtimeConfiguration;
-    }
-
-    public void setCompileOnlyConfiguration(Configuration compileOnlyConfiguration) {
-        this.compileOnlyConfiguration = compileOnlyConfiguration;
     }
 
     @TaskAction
@@ -77,11 +88,7 @@ public class DependenciesGraphTask extends DefaultTask {
         if (getProject().getGradle().getStartParameter().isOffline()) {
             throw new GradleException("Must run in online mode in order to submit the dependency graph to the SCA service");
         }
-        final String url = System.getenv("SCA_URL");
-        final String token = System.getenv("SCA_TOKEN");
-        if (null == url || null == token) {
-            throw new GradleException("The environment variables SCA_URL and SCA_TOKEN need to be set before this task is run");
-        }
+
         final DependencySet runtimeDependencies = runtimeConfiguration.getAllDependencies();
         final Set<String> packages = new HashSet<>();
         final Set<String> nodes = new HashSet<>();

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
+import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPlugin;
@@ -28,14 +28,17 @@ import org.gradle.api.tasks.TaskProvider;
 public class DependenciesGraphPlugin implements Plugin<Project> {
 
     public void apply(Project project) {
-        project.getPlugins().apply(CompileOnlyResolvePlugin.class);
+        final String url = System.getenv("SCA_URL");
+        final String token = System.getenv("SCA_TOKEN");
+        if (null == url || null == token) {
+            throw new GradleException("The environment variables SCA_URL and SCA_TOKEN need to be set before this task is run");
+        }
         TaskProvider<DependenciesGraphTask> depsGraph = project.getTasks().register("dependenciesGraph", DependenciesGraphTask.class);
         depsGraph.configure(t -> {
             project.getPlugins().withType(JavaPlugin.class, p -> {
                 t.setRuntimeConfiguration(project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME));
-                t.setCompileOnlyConfiguration(
-                    project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
-                );
+                t.setToken(token);
+                t.setUrl(url);
             });
         });
     }

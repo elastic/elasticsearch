@@ -65,8 +65,8 @@ final class SingleDocDirectoryReader extends DirectoryReader {
         this.leafReader = leafReader;
     }
 
-    boolean isLoaded() {
-        return leafReader.isLoaded();
+    boolean assertMemorySegmentStatus(boolean loaded) {
+        return leafReader.assertMemorySegmentStatus(loaded);
     }
 
     private static UnsupportedOperationException unsupported() {
@@ -251,13 +251,19 @@ final class SingleDocDirectoryReader extends DirectoryReader {
             return 1;
         }
 
-        boolean isLoaded() {
-            return delegate.get() != null;
+        synchronized boolean assertMemorySegmentStatus(boolean loaded) {
+            if (loaded && delegate.get() == null) {
+                assert false : "Expected an in memory segment was loaded; but it wasn't. Please check the reader wrapper implementation";
+            }
+            if (loaded == false && delegate.get() != null) {
+                assert false : "Expected an in memory segment wasn't loaded; but it was. Please check the reader wrapper implementation";
+            }
+            return true;
         }
 
         @Override
         public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            assert isLoaded() : "In memory segment is not loaded";
+            assert assertMemorySegmentStatus(true);
             getDelegate().document(docID, visitor);
         }
 

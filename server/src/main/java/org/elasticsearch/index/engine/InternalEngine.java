@@ -627,15 +627,15 @@ public class InternalEngine extends Engine {
             config().getSimilarity(), config().getQueryCache(), config().getQueryCachingPolicy(), inMemoryReader);
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
         if (wrappedSearcher == searcher) {
-            assert inMemoryReader.isLoaded() == false;
             searcher.close();
+            assert inMemoryReader.assertMemorySegmentStatus(false);
             final TranslogLeafReader translogLeafReader = new TranslogLeafReader(index);
             return new GetResult(new Engine.Searcher("realtime_get", translogLeafReader,
                 IndexSearcher.getDefaultSimilarity(), null, IndexSearcher.getDefaultQueryCachingPolicy(), translogLeafReader),
                 new VersionsAndSeqNoResolver.DocIdAndVersion(
                     0, index.version(), index.seqNo(), index.primaryTerm(), translogLeafReader, 0), true);
         } else {
-            assert inMemoryReader.isLoaded();
+            assert inMemoryReader.assertMemorySegmentStatus(true);
             return getFromSearcher(get, wrappedSearcher);
         }
     }

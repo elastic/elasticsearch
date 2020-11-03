@@ -142,7 +142,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     @SuppressWarnings("rawtypes")
     public static final AttributeMap EMPTY = new AttributeMap<>();
-
+    
     @SuppressWarnings("unchecked")
     public static final <E> AttributeMap<E> emptyAttributeMap() {
         return EMPTY;

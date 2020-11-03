@@ -622,16 +622,18 @@ public class InternalEngine extends Engine {
     private GetResult getFromTranslog(Get get, Translog.Index index, DocumentMapper mapper,
                                       Function<Searcher, Searcher> searcherWrapper) throws IOException {
         assert get.isReadFromTranslog();
-        final SingleDocLeafReader leafReader =
-            new SingleDocLeafReader(shardId, index, mapper, config().getAnalyzer());
-        final DirectoryReader reader = ElasticsearchDirectoryReader.wrap(new SingleDocDirectoryReader(leafReader), shardId);
-        final Engine.Searcher searcher = new Engine.Searcher(
-            "realtime_get", reader, config().getSimilarity(), config().getQueryCache(), config().getQueryCachingPolicy(), reader);
+        final SingleDocDirectoryReader inMemoryReader = new SingleDocDirectoryReader(shardId, index, mapper, config().getAnalyzer());
+        final Engine.Searcher searcher = new Engine.Searcher("realtime_get", ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
+            config().getSimilarity(), config().getQueryCache(), config().getQueryCachingPolicy(), inMemoryReader);
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
         if (wrappedSearcher == searcher) {
-            return new GetResult(searcher,
-                new VersionsAndSeqNoResolver.DocIdAndVersion(0, index.version(), index.seqNo(), index.primaryTerm(), leafReader, 0), true);
+            assert inMemoryReader.isLoaded() == false;
+            searcher.close();
+            final TranslogLeafReader translogLeafReader = new TranslogLeafReader(index);
+            return new GetResult(searcher, new VersionsAndSeqNoResolver.DocIdAndVersion(0, index.version(), index.seqNo(),
+                index.primaryTerm(), translogLeafReader, 0), true);
         } else {
+            assert inMemoryReader.isLoaded();
             return getFromSearcher(get, wrappedSearcher);
         }
     }

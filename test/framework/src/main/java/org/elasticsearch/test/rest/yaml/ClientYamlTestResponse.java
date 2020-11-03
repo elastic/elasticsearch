@@ -54,7 +54,8 @@ public class ClientYamlTestResponse {
         if (response.getEntity() != null) {
             String contentType = response.getHeader("Content-Type");
             //Do not know about sql media types. relies on null
-            this.bodyContentType = getContentTypeIgnoreExceptions(contentType);            try {
+            this.bodyContentType = getContentTypeIgnoreExceptions(contentType);
+            try {
                 byte[] bytes = EntityUtils.toByteArray(response.getEntity());
                 //skip parsing if we got text back (e.g. if we called _cat apis)
                 if (bodyContentType != null) {

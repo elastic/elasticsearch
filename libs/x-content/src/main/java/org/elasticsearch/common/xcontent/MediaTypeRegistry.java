@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.collect.Tuple;
-
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -28,21 +26,29 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * A registry of mappings between String typeWithSubtype to a MediaType instances. For instance application/json to XContentType.JSON
- * Defines parameters that are allowed for media types and a regex to validate them.
- * Specifies format path parameter values that are used to specify requested response Content-Type.
+ * A registry for quick media type lookup.
+ * It allows to find media type by specified header value - typeWithSubtype aka mediaType without parameters.
+ * I.e. application/json will return XContentType.JSON
+ * Also allows to find media type by a specified path parameter <code>format</code>.
+ * I.e. txt used in path _sql?format=txt will return TextFormat.PLAIN_TEXT
+ *
+ * Note: there might be multiple typeWithSubtype mapping to the same MediaType,
+ * but there is only one format path param mapping to the MediaType.
+ *
+ * The registry also specifies parameters values for validation.
+ * Parameter value is a String regex which will be parsed in a case-insensitive manner.
  */
 public class MediaTypeRegistry<T extends MediaType> {
 
-    private Map<String, T> formatToMediaType = new HashMap<>();
+    private Map<String, T> queryParamToMediaType = new HashMap<>();
     private Map<String, T> typeWithSubtypeToMediaType = new HashMap<>();
     private Map<String, Map<String, Pattern>> parametersMap = new HashMap<>();
 
-    public T formatToMediaType(String format) {
+    public T queryParamToMediaType(String format) {
         if(format == null) {
             return null;
         }
-        return formatToMediaType.get(format.toLowerCase(Locale.ROOT));
+        return queryParamToMediaType.get(format.toLowerCase(Locale.ROOT));
     }
 
     public T typeWithSubtypeToMediaType(String typeWithSubtype) {
@@ -55,11 +61,11 @@ public class MediaTypeRegistry<T extends MediaType> {
 
     public MediaTypeRegistry<T> register(T[] mediaTypes ) {
         for (T mediaType : mediaTypes) {
-            Set<Tuple<String, Map<String, String>>> tuples = mediaType.mediaTypeMappings();
-            for (Tuple<String, Map<String, String>> tuple : tuples) {
-                formatToMediaType.put(mediaType.formatPathParameter(),mediaType);
-                typeWithSubtypeToMediaType.put(tuple.v1(), mediaType);
-                parametersMap.put(tuple.v1(), convertPatterns(tuple.v2()));
+            Set<MediaType.MediaTypeValue> tuples = mediaType.mediaTypeValues();
+            for (MediaType.MediaTypeValue mediaTypeValue : tuples) {
+                queryParamToMediaType.put(mediaType.queryParameter(),mediaType);
+                typeWithSubtypeToMediaType.put(mediaTypeValue.v1(), mediaType);
+                parametersMap.put(mediaTypeValue.v1(), convertPatterns(mediaTypeValue.v2()));
             }
         }
         return this;

@@ -33,17 +33,26 @@ public interface MediaType {
     String COMPATIBLE_WITH_PARAMETER_NAME = "compatible-with";
     String VERSION_PATTERN = "\\d+";
 
+    /**
+     * Returns a corresponding format path parameter for a MediaType.
+     * i.e. ?format=txt for plain/text media type
+     */
+    String queryParameter();
 
     /**
-     * Returns a corresponding format for a MediaType. i.e. json for application/json media type
-     * Can differ from the MediaType's subtype i.e plain/text has a subtype of text but format is txt
+     * returns a set of MediaTypeValues - allowed media type values on Accept or Content-Type headers
+     * Also defines parameters for validation.
      */
-    String formatPathParameter();
+    Set<MediaTypeValue> mediaTypeValues();
 
     /**
-     * returns a set of Tuples where a key is a sting - MediaType's type with subtype i.e application/json
-     * and a value is a map of parameters to be validated.
-     * Map's key is a parameter name, value is a parameter regex which is used for validation
+     * A class to represent supported mediaType values i.e. application/json and parameters to be validated.
+     * Parameters for validation is a map where a key is a parameter name, value is a parameter regex which is used for validation.
+     * Regex will be applied with case insensitivity.
      */
-    Set<Tuple<String, Map<String,String>>> mediaTypeMappings();
+    class MediaTypeValue extends Tuple<String, Map<String, String>> {
+        public MediaTypeValue(String mediaTypeValue, Map<String, String> parametersForValidation) {
+            super(mediaTypeValue, parametersForValidation);
+        }
+    }
 }

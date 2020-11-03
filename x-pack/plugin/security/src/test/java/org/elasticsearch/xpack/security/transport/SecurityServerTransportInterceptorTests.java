@@ -20,7 +20,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transport.Connection;
 import org.elasticsearch.transport.TransportException;
@@ -369,7 +368,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadContext.putTransient("foo", "different_bar");
             threadContext.putHeader("key", "value2");
             TransportResponseHandler<Empty> handler = new TransportService.ContextRestoreResponseHandler<>(
-                    threadContext.wrapRestorable(storedContext), new DirectTransportResponseHandler.Empty() {
+                    threadContext.wrapRestorable(storedContext), new TransportResponseHandler.Empty() {
                 @Override
                 public void handleResponse(TransportResponse.Empty response) {
                     assertEquals("bar", threadContext.getTransient("foo"));
@@ -397,7 +396,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadContext.putTransient("foo", "different_bar");
             threadContext.putHeader("key", "value2");
             handler = new TransportService.ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true),
-                    new DirectTransportResponseHandler.Empty() {
+                    new TransportResponseHandler.Empty() {
                         @Override
                         public void handleResponse(TransportResponse.Empty response) {
                             assertEquals("different_bar", threadContext.getTransient("foo"));

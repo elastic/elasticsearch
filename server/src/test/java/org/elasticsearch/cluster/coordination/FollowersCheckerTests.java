@@ -37,11 +37,11 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -423,7 +423,7 @@ public class FollowersCheckerTests extends ESTestCase {
         followersChecker.updateFastResponseState(followerTerm, Mode.FOLLOWER);
         final AtomicReference<TransportException> receivedException = new AtomicReference<>();
         transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(leaderTerm, leader),
-            new DirectTransportResponseHandler.Empty() {
+            new TransportResponseHandler.Empty() {
                 @Override
                 public void handleResponse(TransportResponse.Empty response) {
                     fail("unexpected success");
@@ -492,7 +492,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
             final AtomicReference<TransportException> receivedException = new AtomicReference<>();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(leaderTerm, leader),
-                new DirectTransportResponseHandler.Empty() {
+                new TransportResponseHandler.Empty() {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("unexpected success");
@@ -546,7 +546,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
             final AtomicReference<TransportException> receivedException = new AtomicReference<>();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term, leader),
-                new DirectTransportResponseHandler.Empty() {
+                new TransportResponseHandler.Empty() {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("unexpected success");
@@ -621,7 +621,7 @@ public class FollowersCheckerTests extends ESTestCase {
         return settingsBuilder.build();
     }
 
-    private static class ExpectsSuccess extends DirectTransportResponseHandler.Empty {
+    private static class ExpectsSuccess extends TransportResponseHandler.Empty {
         private final AtomicBoolean responseReceived = new AtomicBoolean();
 
         @Override

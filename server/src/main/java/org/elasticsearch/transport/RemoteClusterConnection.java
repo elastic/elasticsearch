@@ -129,7 +129,7 @@ final class RemoteClusterConnection implements Closeable {
                 request.local(true); // run this on the node that gets the request it's as good as any other
                 Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
                 transportService.sendRequest(connection, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
-                    new DirectTransportResponseHandler<ClusterStateResponse>() {
+                    new TransportResponseHandler<ClusterStateResponse>() {
 
                         @Override
                         public ClusterStateResponse read(StreamInput in) throws IOException {

@@ -40,7 +40,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -189,7 +188,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
 
     private TransportResponseHandler<ClearVotingConfigExclusionsResponse> responseHandler(
         Consumer<ClearVotingConfigExclusionsResponse> onResponse, Consumer<TransportException> onException) {
-        return new DirectTransportResponseHandler<>() {
+        return new TransportResponseHandler<ClearVotingConfigExclusionsResponse>() {
             @Override
             public void handleResponse(ClearVotingConfigExclusionsResponse response) {
                 onResponse.accept(response);

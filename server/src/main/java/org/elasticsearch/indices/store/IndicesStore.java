@@ -52,12 +52,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -219,7 +219,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         }
     }
 
-    private class ShardActiveResponseHandler extends DirectTransportResponseHandler<ShardActiveResponse> {
+    private class ShardActiveResponseHandler implements TransportResponseHandler<ShardActiveResponse> {
 
         private final ShardId shardId;
         private final int expectedActiveCopies;

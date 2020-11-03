@@ -31,9 +31,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -163,7 +163,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
 
     private void sendRequest(TransportService source, TransportService target, CountDownLatch latch) {
         source.sendRequest(target.getLocalNode(), ClusterHealthAction.NAME, new ClusterHealthRequest(),
-            new DirectTransportResponseHandler<>() {
+            new TransportResponseHandler<>() {
                 private AtomicBoolean responded = new AtomicBoolean();
                 @Override
                 public void handleResponse(TransportResponse response) {

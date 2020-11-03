@@ -54,7 +54,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
@@ -183,7 +182,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 // node2 doesn't really exist, but we are performing some trickery in mockIndicesService() to pretend that node1 holds both
                 // the primary and the replica, so redirect the request back to node1.
                 transportService.sendRequest(transportService.getLocalNode(), action, request,
-                    new DirectTransportResponseHandler<TransportReplicationAction.ReplicaResponse>() {
+                    new TransportResponseHandler<TransportReplicationAction.ReplicaResponse>() {
                         @Override
                         public TransportReplicationAction.ReplicaResponse read(StreamInput in) throws IOException {
                             return new TransportReplicationAction.ReplicaResponse(in);

@@ -44,10 +44,10 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -176,7 +176,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 // just execute it on the local node
                 final Writeable.Reader<Response> reader = getResponseReader();
                 transportService.sendRequest(clusterService.localNode(), transportShardAction, internalRequest.request(),
-                    new DirectTransportResponseHandler<Response>() {
+                    new TransportResponseHandler<Response>() {
                     @Override
                     public Response read(StreamInput in) throws IOException {
                         return reader.read(in);
@@ -239,7 +239,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 }
                 final Writeable.Reader<Response> reader = getResponseReader();
                 transportService.sendRequest(node, transportShardAction, internalRequest.request(),
-                    new DirectTransportResponseHandler<Response>() {
+                    new TransportResponseHandler<Response>() {
 
                         @Override
                         public Response read(StreamInput in) throws IOException {

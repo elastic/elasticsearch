@@ -43,8 +43,8 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -163,7 +163,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
             parentTask,
             transportOptions,
-            new DirectTransportResponseHandler<ResyncReplicationResponse>() {
+            new TransportResponseHandler<ResyncReplicationResponse>() {
                 @Override
                 public ResyncReplicationResponse read(StreamInput in) throws IOException {
                     return newResponseInstance(in);

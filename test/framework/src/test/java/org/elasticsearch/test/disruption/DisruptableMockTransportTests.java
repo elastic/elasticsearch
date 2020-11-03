@@ -33,7 +33,6 @@ import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStat
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -186,7 +185,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
     }
 
     private TransportResponseHandler<TransportResponse> responseHandlerShouldNotBeCalled() {
-        return new DirectTransportResponseHandler<>() {
+        return new TransportResponseHandler<>() {
             @Override
             public TransportResponse read(StreamInput in) {
                 throw new AssertionError("should not be called");
@@ -205,7 +204,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
     }
 
     private TransportResponseHandler<TransportResponse.Empty> responseHandlerShouldBeCalledNormally(Runnable onCalled) {
-        return new DirectTransportResponseHandler.Empty() {
+        return new TransportResponseHandler.Empty() {
             @Override
             public void handleResponse(TransportResponse.Empty response) {
                 onCalled.run();
@@ -219,7 +218,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
     }
 
     private TransportResponseHandler<TransportResponse> responseHandlerShouldBeCalledExceptionally(Consumer<TransportException> onCalled) {
-        return new DirectTransportResponseHandler<>() {
+        return new TransportResponseHandler<>() {
             @Override
             public TransportResponse read(StreamInput in) {
                 throw new AssertionError("should not be called");

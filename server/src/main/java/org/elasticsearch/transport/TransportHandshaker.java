@@ -108,7 +108,7 @@ final class TransportHandshaker {
         return numHandshakes.count();
     }
 
-    private class HandshakeResponseHandler extends DirectTransportResponseHandler<HandshakeResponse> {
+    private class HandshakeResponseHandler  implements TransportResponseHandler<HandshakeResponse> {
 
         private final long requestId;
         private final Version currentVersion;

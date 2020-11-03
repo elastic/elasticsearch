@@ -32,13 +32,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -211,7 +211,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                     }
 
                     transportService.sendRequest(node, getTransportNodeAction(node), nodeRequest, builder.build(),
-                            new DirectTransportResponseHandler<NodeResponse>() {
+                            new TransportResponseHandler<NodeResponse>() {
                                 @Override
                                 public NodeResponse read(StreamInput in) throws IOException {
                                     return newNodeResponse(in);

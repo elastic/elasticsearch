@@ -30,10 +30,10 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.DirectTransportResponseHandler;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
@@ -281,7 +281,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         final AtomicReference<TransportException> exceptionRef = new AtomicReference<>();
 
         transportService.sendRequest(localNode, REQUEST_PRE_VOTE_ACTION_NAME, preVoteRequest,
-            new DirectTransportResponseHandler<PreVoteResponse>() {
+            new TransportResponseHandler<PreVoteResponse>() {
                 @Override
                 public PreVoteResponse read(StreamInput in) throws IOException {
                     return new PreVoteResponse(in);

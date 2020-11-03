@@ -60,7 +60,7 @@ public final class TransportActionProxy {
         }
     }
 
-    private static class ProxyResponseHandler<T extends TransportResponse> extends DirectTransportResponseHandler<T> {
+    private static class ProxyResponseHandler<T extends TransportResponse>  implements TransportResponseHandler<T> {
 
         private final Writeable.Reader<T> reader;
         private final TransportChannel channel;

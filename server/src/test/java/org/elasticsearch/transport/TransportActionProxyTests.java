@@ -110,7 +110,7 @@ public class TransportActionProxyTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("internal:test"), TransportActionProxy.wrapRequest(nodeC,
-            new SimpleTestRequest("TS_A")), new DirectTransportResponseHandler<SimpleTestResponse>() {
+            new SimpleTestRequest("TS_A")), new TransportResponseHandler<SimpleTestResponse>() {
                 @Override
                 public SimpleTestResponse read(StreamInput in) throws IOException {
                     return new SimpleTestResponse(in);
@@ -163,7 +163,7 @@ public class TransportActionProxyTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("internal:test"), TransportActionProxy.wrapRequest(nodeC,
-            new SimpleTestRequest("TS_A")), new DirectTransportResponseHandler<SimpleTestResponse>() {
+            new SimpleTestRequest("TS_A")), new TransportResponseHandler<SimpleTestResponse>() {
                 @Override
                 public SimpleTestResponse read(StreamInput in) throws IOException {
                     return new SimpleTestResponse(in);

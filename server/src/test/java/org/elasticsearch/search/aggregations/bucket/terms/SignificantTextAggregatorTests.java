@@ -141,6 +141,58 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    /**
+     * Uses the significant text aggregation to find the keywords in text fields and include/exclude selected terms
+     */
+    public void testIncludeExcludes() throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text");
+        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
+        
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            indexDocuments(w);
+
+            String [] excludeValues = {"duplicate"};
+            String [] includeValues = {"duplicate"};
+
+            boolean inclusive = randomBoolean();
+            inclusive = true;
+            if (inclusive) {
+                excludeValues = null;
+            } else {
+                includeValues = null;                
+            }
+            
+            SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").includeExclude(new IncludeExclude(includeValues, excludeValues));
+            if(randomBoolean()){
+                sigAgg.sourceFieldNames(Arrays.asList(new String [] {"json_only_field"}));
+            }
+            SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler")
+                    .subAggregation(sigAgg);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("test expects a single segment", 1, reader.leaves().size());
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                // Search "even" which should have duplication
+                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType);
+                SignificantTerms terms = sampler.getAggregations().get("sig_text");
+
+                if (inclusive) {
+                    assertNull(terms.getBucketByKey("even"));
+                    assertNotNull(terms.getBucketByKey("duplicate"));
+                } else {
+                    assertNotNull(terms.getBucketByKey("even"));
+                    assertNull(terms.getBucketByKey("duplicate"));                    
+                }
+
+                assertTrue(AggregationInspectionHelper.hasValue(sampler));
+            }
+        }
+    }    
+    
     
     public void testMissingField() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");

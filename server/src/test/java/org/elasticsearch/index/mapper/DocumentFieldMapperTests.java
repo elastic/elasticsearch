@@ -81,7 +81,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
     }
 
-    static class FakeFieldMapper extends ParametrizedFieldMapper {
+    static class FakeFieldMapper extends FieldMapper {
 
         FakeFieldMapper(FakeFieldType fieldType) {
             super(fieldType.name(), fieldType, MultiFields.empty(), CopyTo.empty());

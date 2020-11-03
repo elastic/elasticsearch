@@ -41,7 +41,7 @@
             exists:
               field: metric.min
 
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 0 }
 
   - do:
       search:
@@ -125,9 +125,7 @@
               metric.min:
                 value: 50
 
-  - match: { hits.total.value: 1 }
-  - length: { hits.hits: 1 }
-  - match: { hits.hits.0._id: "2" }
+  - match: { hits.total.value: 0 }
 
 
 ---
@@ -204,9 +202,7 @@
                 gte: 10
                 lte: 40
 
-  - match: { hits.total.value: 1 }
-  - length: { hits.hits: 1 }
-  - match: { hits.hits.0._id: "1" }
+  - match: { hits.total.value: 0 }
 
 ---
 "Sort":
@@ -277,23 +273,15 @@
   - match: { hits.hits.2._id: "2" }
 
   - do:
+      catch: bad_request
       search:
         index: test
         body:
           sort: [ { metric.max: asc } ]
 
-  - match: { "hits.total.value": 3 }
-  - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.2._id: "3" }
-
   - do:
+      catch: bad_request
       search:
         index: test
         body:
           sort: [ { metric.min: desc } ]
-
-  - match: { "hits.total.value": 3 }
-  - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "1" }

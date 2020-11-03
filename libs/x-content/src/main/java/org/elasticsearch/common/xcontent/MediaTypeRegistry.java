@@ -27,9 +27,9 @@ import java.util.regex.Pattern;
 
 /**
  * A registry for quick media type lookup.
- * It allows to find media type by specified header value - typeWithSubtype aka mediaType without parameters.
+ * It allows to find media type by a header value - typeWithSubtype aka mediaType without parameters.
  * I.e. application/json will return XContentType.JSON
- * Also allows to find media type by a specified path parameter <code>format</code>.
+ * Also allows to find media type by a path parameter <code>format</code>.
  * I.e. txt used in path _sql?format=txt will return TextFormat.PLAIN_TEXT
  *
  * Note: there might be multiple typeWithSubtype mapping to the same MediaType,

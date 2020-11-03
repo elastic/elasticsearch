@@ -63,8 +63,10 @@ public class ParsedMediaType {
 
     /**
      * Parses a header value into it's parts.
+     * Note: parsing can return null, but it will throw exceptions once https://github.com/elastic/elasticsearch/issues/63080 is done
+     * Do not rely on nulls
      *
-     * @return a {@link ParsedMediaType} if the header could be parsed. TODO: don't return null
+     * @return a {@link ParsedMediaType} if the header could be parsed.
      * @throws IllegalArgumentException if the header is malformed
      */
     public static ParsedMediaType parseMediaType(String headerValue) {

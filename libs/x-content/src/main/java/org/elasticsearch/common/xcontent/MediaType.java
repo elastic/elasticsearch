@@ -40,7 +40,7 @@ public interface MediaType {
     String queryParameter();
 
     /**
-     * returns a set of MediaTypeValues - allowed media type values on Accept or Content-Type headers
+     * Returns a set of MediaTypeValues - allowed media type values on Accept or Content-Type headers
      * Also defines parameters for validation.
      */
     Set<MediaTypeValue> mediaTypeValues();

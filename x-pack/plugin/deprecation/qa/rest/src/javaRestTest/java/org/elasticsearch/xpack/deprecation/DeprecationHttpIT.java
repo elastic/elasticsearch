@@ -309,7 +309,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             });
         } finally {
             configureWriteDeprecationLogsToIndex(null);
-            client().performRequest(new Request("DELETE", "_data_stream/.logs-deprecation-elasticsearch"));
+            client().performRequest(new Request("DELETE", "/_data_stream/.logs-deprecation-elasticsearch?expand_wildcards=hidden"));
         }
     }
 

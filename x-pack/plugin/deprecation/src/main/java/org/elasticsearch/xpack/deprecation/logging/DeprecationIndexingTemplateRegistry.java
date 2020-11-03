@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
@@ -72,17 +74,17 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<IndexTemplateConfig> getComponentTemplateConfigs() {
-        return List.of(DEPRECATION_INDEXING_MAPPINGS, DEPRECATION_INDEXING_SETTINGS);
+        return Arrays.asList(DEPRECATION_INDEXING_MAPPINGS, DEPRECATION_INDEXING_SETTINGS);
     }
 
     @Override
     protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
-        return List.of(DEPRECATION_INDEXING_INDEX_TEMPLATE);
+        return Collections.singletonList(DEPRECATION_INDEXING_INDEX_TEMPLATE);
     }
 
     @Override
     protected List<LifecyclePolicyConfig> getPolicyConfigs() {
-        return List.of(DEPRECATION_INDEXING_HISTORY_POLICY);
+        return Collections.singletonList(DEPRECATION_INDEXING_HISTORY_POLICY);
     }
 
     @Override

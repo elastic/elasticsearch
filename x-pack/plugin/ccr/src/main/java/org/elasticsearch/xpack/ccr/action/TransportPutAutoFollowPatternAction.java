@@ -90,7 +90,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
                 if (e == null) {
                     clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getRemoteCluster(),
-                        new AckedClusterStateUpdateTask<>(request, listener) {
+                        new AckedClusterStateUpdateTask(request, listener) {
                             @Override
                             public ClusterState execute(ClusterState currentState) {
                                 return innerPut(request, filteredHeaders, currentState, remoteClusterState.getState());

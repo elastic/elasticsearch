@@ -107,7 +107,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 finalListener::onFailure
             );
             clusterService.submitStateUpdateTask("auto create [" + request.index() + "]",
-                new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
+                new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {

@@ -254,7 +254,7 @@ public class JobManagerTests extends ESTestCase {
         PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
 
         doAnswer(invocation -> {
-            ((AckedClusterStateUpdateTask<?>) invocation.getArguments()[1]).onAllNodesAcked(null);
+            ((AckedClusterStateUpdateTask) invocation.getArguments()[1]).onAllNodesAcked(null);
             return null;
         }).when(clusterService).submitStateUpdateTask(Matchers.eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
 

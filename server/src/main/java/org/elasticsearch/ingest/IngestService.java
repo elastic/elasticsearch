@@ -248,7 +248,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      */
     public void delete(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(),
-            new AckedClusterStateUpdateTask<>(request, listener) {
+            new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerDelete(request, currentState);
@@ -331,7 +331,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // validates the pipeline and processor configuration before submitting a cluster update task:
         validatePipeline(ingestInfos, request);
         clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
-            new AckedClusterStateUpdateTask<>(request, listener) {
+            new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerPut(request, currentState);

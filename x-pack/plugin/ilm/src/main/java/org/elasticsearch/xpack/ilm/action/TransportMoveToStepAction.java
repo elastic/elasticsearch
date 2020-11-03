@@ -48,7 +48,7 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
             return;
         }
         clusterService.submitStateUpdateTask("index[" + request.getIndex() + "]-move-to-step",
-            new AckedClusterStateUpdateTask<Response>(request, listener) {
+            new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return indexLifecycleService.moveClusterStateToStep(currentState, indexMetadata.getIndex(), request.getCurrentStepKey(),

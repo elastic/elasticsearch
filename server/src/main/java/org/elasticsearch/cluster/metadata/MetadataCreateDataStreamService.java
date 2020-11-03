@@ -88,7 +88,7 @@ public class MetadataCreateDataStreamService {
             finalListener::onFailure
         );
         clusterService.submitStateUpdateTask("create-data-stream [" + request.name + "]",
-            new AckedClusterStateUpdateTask<>(Priority.HIGH, request, listener) {
+            new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);

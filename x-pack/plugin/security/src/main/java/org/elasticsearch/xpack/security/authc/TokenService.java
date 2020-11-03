@@ -2139,7 +2139,7 @@ public final class TokenService {
                 }, listener::onFailure)));
     }
 
-    private static final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask<AcknowledgedResponse> {
+    private static final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask {
 
         private final TokenMetadata tokenMetadata;
 

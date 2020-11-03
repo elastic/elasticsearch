@@ -125,7 +125,7 @@ public final class TransportFreezeIndexAction extends
     private void toggleFrozenSettings(final Index[] concreteIndices, final FreezeRequest request,
                                       final ActionListener<FreezeResponse> listener) {
         clusterService.submitStateUpdateTask("toggle-frozen-settings",
-            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, new ActionListener<AcknowledgedResponse>() {
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()

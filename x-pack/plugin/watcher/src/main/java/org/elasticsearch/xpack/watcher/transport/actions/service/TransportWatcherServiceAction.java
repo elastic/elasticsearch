@@ -71,7 +71,7 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
     private void setWatcherMetadataAndWait(boolean manuallyStopped, final ActionListener<AcknowledgedResponse> listener) {
         String source = manuallyStopped ? "update_watcher_manually_stopped" : "update_watcher_manually_started";
 
-        clusterService.submitStateUpdateTask(source, new AckedClusterStateUpdateTask<>(ackedRequest, listener) {
+        clusterService.submitStateUpdateTask(source, new AckedClusterStateUpdateTask(ackedRequest, listener) {
             @Override
             public ClusterState execute(ClusterState clusterState) {
                 XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);

@@ -77,7 +77,7 @@ public class MetadataIndexAliasesService {
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request,
                                final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("index-aliases",
-            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return applyAliasActions(currentState, request.actions());

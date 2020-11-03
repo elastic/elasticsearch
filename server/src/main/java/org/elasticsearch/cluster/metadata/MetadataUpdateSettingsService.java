@@ -116,7 +116,7 @@ public class MetadataUpdateSettingsService {
         final boolean preserveExisting = request.isPreserveExisting();
 
         clusterService.submitStateUpdateTask("update-settings " + Arrays.toString(request.indices()),
-                new AckedClusterStateUpdateTask<>(Priority.URGENT, request,
+                new AckedClusterStateUpdateTask(Priority.URGENT, request,
                     wrapPreservingContext(listener, threadPool.getThreadContext())) {
 
             @Override
@@ -321,7 +321,7 @@ public class MetadataUpdateSettingsService {
     public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request,
                                      final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("update-index-compatibility-versions",
-            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, wrapPreservingContext(listener, threadPool.getThreadContext())) {
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, wrapPreservingContext(listener, threadPool.getThreadContext())) {
 
             @Override
             public ClusterState execute(ClusterState currentState) {

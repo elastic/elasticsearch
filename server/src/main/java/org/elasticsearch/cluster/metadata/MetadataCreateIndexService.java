@@ -292,7 +292,7 @@ public class MetadataCreateIndexService {
         normalizeRequestSetting(request);
         clusterService.submitStateUpdateTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {

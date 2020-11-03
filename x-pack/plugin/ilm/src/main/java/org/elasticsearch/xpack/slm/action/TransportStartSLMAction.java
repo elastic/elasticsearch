@@ -36,7 +36,7 @@ public class TransportStartSLMAction extends AcknowledgedTransportMasterNodeActi
     @Override
     protected void masterOperation(Task task, StartSLMAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("slm_operation_mode_update", new AckedClusterStateUpdateTask<>(request, listener) {
+        clusterService.submitStateUpdateTask("slm_operation_mode_update", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return (OperationModeUpdateTask.slmMode(OperationMode.RUNNING)).execute(currentState);

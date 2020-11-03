@@ -421,7 +421,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]", exception);
         }
 
-        clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask<>(request, listener) {
+        clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
@@ -436,7 +436,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
                                    ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete-script-" + request.id(),
-            new AckedClusterStateUpdateTask<>(request, listener) {
+            new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);

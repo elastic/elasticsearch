@@ -38,7 +38,7 @@ public class TransportStopILMAction extends AcknowledgedTransportMasterNodeActio
     @Override
     protected void masterOperation(Task task, StopILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("ilm_operation_mode_update",
-            new AckedClusterStateUpdateTask<>(Priority.IMMEDIATE, request, listener) {
+            new AckedClusterStateUpdateTask(Priority.IMMEDIATE, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return (OperationModeUpdateTask.ilmMode(OperationMode.STOPPING)).execute(currentState);

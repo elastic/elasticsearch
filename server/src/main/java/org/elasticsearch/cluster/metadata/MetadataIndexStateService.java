@@ -803,7 +803,7 @@ public class MetadataIndexStateService {
 
         final String indicesAsString = Arrays.toString(request.indices());
         clusterService.submitStateUpdateTask("open-indices " + indicesAsString,
-            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
                     final ClusterState updatedState = openIndices(request.indices(), currentState);

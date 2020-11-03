@@ -150,7 +150,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
 
         clusterService.submitStateUpdateTask("put_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask<>(request, registrationListener) {
+            new AckedClusterStateUpdateTask(request, registrationListener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -214,7 +214,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      */
     public void unregisterRepository(final DeleteRepositoryRequest request, final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask<>(request, listener) {
+            new AckedClusterStateUpdateTask(request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {

@@ -62,7 +62,7 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask("put-autoscaling-policy", new AckedClusterStateUpdateTask<>(request, listener) {
+        clusterService.submitStateUpdateTask("put-autoscaling-policy", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
                 return putAutoscalingPolicy(currentState, request, logger);

@@ -44,7 +44,7 @@ public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTranspor
                                    ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getName(),
-            new AckedClusterStateUpdateTask<>(request, listener) {
+            new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerDelete(request, currentState);

@@ -72,7 +72,7 @@ public class MetadataDeleteIndexService {
         }
 
         clusterService.submitStateUpdateTask("delete-index " + Arrays.toString(request.indices()),
-            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
                     return deleteIndices(currentState, Sets.newHashSet(request.indices()));

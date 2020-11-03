@@ -4,12 +4,12 @@
 include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 
 You can use {es}'s application logs to monitor your cluster and diagnose issues.
-If your run {es} as a service, the default logs location varies based on your
-platform and installation method:
+If you run {es} as a service, the default location of the logs varies based on
+your platform and installation method:
 
 include::{es-repo-dir}/tab-widgets/logging-widget.asciidoc[]
 
-If your run {es} from the command line, {es} prints logs to the standard output
+If you run {es} from the command line, {es} prints logs to the standard output
 (`stdout`).
 
 [discrete]

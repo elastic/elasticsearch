@@ -179,7 +179,7 @@ public final class Verifier {
 
         if (failures.isEmpty()) {
             Set<Failure> localFailures = new LinkedHashSet<>();
-            AttributeMap.Builder<Expression> collectRefs = new AttributeMap.Builder<>();
+            AttributeMap.Builder<Expression> collectRefs = AttributeMap.builder();
 
             checkFullTextSearchInSelect(plan, localFailures);
 
@@ -190,7 +190,7 @@ public final class Verifier {
                 if (e instanceof Alias) {
                     Alias a = (Alias) e;
                     Attribute attr = a.toAttribute();
-                    collectRefs.add(attr, a.child());
+                    collectRefs.put(attr, a.child());
                 }
             });
 

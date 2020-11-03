@@ -2260,6 +2260,23 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
         assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
         assertThat(p.output().get(2).toString(), startsWith("?{r}#"));
+        assertNotEquals(p.output().get(1).id(), p.output().get(2).id());
+    }
+
+    public void testSameAliasForParamAndField() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, int as \"?\" FROM test",
+            new SqlTypedParamValue("integer", 100)));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
+        assertNotEquals(p.output().get(0).id(), p.output().get(1).id());
+    }
+
+    public void testSameAliasOnSameField() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT int as \"int\", int as \"int\" FROM test"));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("int{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("int{r}#"));
     }
 
     public void testFoldingWithMixedParamsWithoutAlias() {

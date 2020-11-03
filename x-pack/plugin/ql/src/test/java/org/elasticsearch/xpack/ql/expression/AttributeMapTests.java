@@ -62,9 +62,9 @@ public class AttributeMapTests extends ESTestCase {
         assertTrue(attributeMap.containsKey(param1.toAttribute()));
         assertFalse(attributeMap.containsKey(param2.toAttribute())); // results in unknown attribute exception
 
-        AttributeMap.Builder<Expression> mapBuilder = new AttributeMap.Builder<>();
+        AttributeMap.Builder<Expression> mapBuilder = AttributeMap.builder();
         for (Alias a : List.of(param1, param2)) {
-            mapBuilder.add(a.toAttribute(), a.child());
+            mapBuilder.put(a.toAttribute(), a.child());
         }
         AttributeMap<Expression> newAttributeMap = mapBuilder.build();
 

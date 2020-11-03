@@ -68,12 +68,12 @@ public class ParamLiteralTests extends ESTestCase {
     public void testParamLiteralsWithUnresolvedAliasesAndMixedTypes() {
         LogicalPlan logicalPlan = parse("SELECT ?, ? FROM test",
             new SqlTypedParamValue("integer", 100),
-            new SqlTypedParamValue("text", "200")
+            new SqlTypedParamValue("text", "100")
         );
         List<? extends NamedExpression> projections = ((Project) logicalPlan.children().get(0)).projections();
         assertThat(projections, everyItem(instanceOf(UnresolvedAlias.class)));
         assertThat(projections.get(0).toString(), startsWith("100 AS ?"));
-        assertThat(projections.get(1).toString(), startsWith("200 AS ?"));
+        assertThat(projections.get(1).toString(), startsWith("100 AS ?"));
     }
 
     public void testParamLiteralsWithResolvedAndUnresolvedAliases() {

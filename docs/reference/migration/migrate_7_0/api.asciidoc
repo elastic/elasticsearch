@@ -22,9 +22,76 @@ while handling a write operation, it may expose a version that will then be reus
 new primary.
 
 Due to that issue, internal versioning can no longer be used and is replaced by a new
-method based on sequence numbers. See <<optimistic-concurrency-control>> for more details.
+method based on <<optimistic-concurrency-control,sequence numbers>>. To switch
+to the new method, follow these steps:
 
-Note that the `external` versioning type is still fully supported.
+. Perform a <<rolling-upgrades,rolling upgrade>> to 6.8.
+
+. <<reindex-upgrade,Reindex>> any indices created before 6.0. This ensures
+documents in those indices have sequence numbers.
++
+Use the <<indices-get-index,get index API>> with the `human` parameter to get
+the version in which an index was created:
++
+--
+.*API Example*
+[%collapsible]
+====
+[source,console]
+----
+GET /*?human
+----
+// TEST[setup:my_index]
+
+The response returns a `settings.index.version.created_string` property for
+each index:
+
+[source,console-response]
+----
+{
+  "my-index-000001": {
+    ...
+    "settings": {
+      "index": {
+        "creation_date_string": "2099-01-01T00:00:00.000Z",
+        "routing": {
+          "allocation": {
+            "include": {
+              "_tier_preference": "data_content"
+            }
+          }
+        },
+        "number_of_shards": "1",
+        "provided_name": "my-index-000001",
+        "creation_date": "4070908800",
+        "number_of_replicas": "1",
+        "uuid": "c89-MHh8RwKwS1r7Turg2g",
+        "version": {
+          "created_string": "6.0.0",           <1>
+          "created": "6000099"
+        }
+      }
+    }
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"aliases": $body.my-index-000001.aliases, "mappings": $body.my-index-000001.mappings,/]
+// TESTRESPONSE[s/"creation_date_string": "2099-01-01T00:00:00.000Z"/"creation_date_string": $body.my-index-000001.settings.index.creation_date_string/]
+// TESTRESPONSE[s/"creation_date": "4070908800"/"creation_date": $body.my-index-000001.settings.index.creation_date/]
+// TESTRESPONSE[s/"uuid": "c89-MHh8RwKwS1r7Turg2g"/"uuid": $body.my-index-000001.settings.index.uuid/]
+// TESTRESPONSE[s/"created_string": "6.0.0"/"created_string": $body.my-index-000001.settings.index.version.created_string/]
+// TESTRESPONSE[s/"created": "6000099"/"created": $body.my-index-000001.settings.index.version.created/]
+
+<1> This index was created in {es} 6.0.0.
+====
+--
+
+. Update your application or workflow to use
+<<optimistic-concurrency-control,sequence numbers>> for concurrency control.
+
+. Perform a rolling upgrade to {version}.
+
+NOTE: The `external` versioning type is still fully supported.
 
 [discrete]
 ==== Camel case and underscore parameters deprecated in 6.x have been removed

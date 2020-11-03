@@ -25,6 +25,20 @@ setup:
             location: "my-snaps"
 
   - do:
+      catch: bad_request
+      slm.put_lifecycle:
+        policy_id: "daily-snapshots"
+        body: |
+          {
+            "schedule": "0 * * * * ?",
+            "name": "<production-snap-{now/d}>",
+            "repository": "repo",
+            "config": {
+              "indices": ["*"]
+            }
+          }
+
+  - do:
       slm.put_lifecycle:
         policy_id: "daily-snapshots"
         body: |

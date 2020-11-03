@@ -161,9 +161,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 }
 
                 QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.fields(),
-                        queryC.aliases().combine(aliases.build()),
+                        aliases.build(),
                         queryC.pseudoFunctions(),
-                        queryC.scalarFunctions().combine(processors.build()),
+                        processors.build(),
                         queryC.sort(),
                         queryC.limit(),
                         queryC.shouldTrackHits(),

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -42,15 +41,13 @@ public class ReadOnlyActionTests extends AbstractActionTestCase<ReadOnlyAction> 
         StepKey expectedFirstStepKey = new StepKey(phase, ReadOnlyAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey expectedSecondStepKey = new StepKey(phase, ReadOnlyAction.NAME, ReadOnlyAction.NAME);
         CheckNotDataStreamWriteIndexStep firstStep = (CheckNotDataStreamWriteIndexStep) steps.get(0);
-        UpdateSettingsStep secondStep = (UpdateSettingsStep) steps.get(1);
+        ReadOnlyStep secondStep = (ReadOnlyStep) steps.get(1);
 
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
         assertThat(firstStep.getNextStepKey(), equalTo(expectedSecondStepKey));
 
         assertThat(secondStep.getKey(), equalTo(expectedSecondStepKey));
         assertThat(secondStep.getNextStepKey(), equalTo(nextStepKey));
-        assertThat(secondStep.getSettings().size(), equalTo(1));
-        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(secondStep.getSettings()));
     }
 
 }

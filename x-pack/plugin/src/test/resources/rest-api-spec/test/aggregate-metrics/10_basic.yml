@@ -13,6 +13,8 @@
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max]
+                default_metric: max
+
   - do:
       index:
         index:  aggregate_metric_test
@@ -68,6 +70,7 @@
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max]
+                default_metric: max
 
   - do:
       index:
@@ -143,6 +146,7 @@
               metric:
                 type: aggregate_metric_double
                 metrics: [min, max]
+                default_metric: max
 
   - do:
       index:

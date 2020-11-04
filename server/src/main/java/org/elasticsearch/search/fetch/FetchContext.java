@@ -168,6 +168,14 @@ public class FetchContext {
     }
 
     /**
+     * Does the index analyzer for this field have token filters that may produce
+     * backwards offsets in term vectors
+     */
+    public boolean containsBrokenAnalysis(String field) {
+        return getQueryShardContext().containsBrokenAnalysis(field);
+    }
+
+    /**
      * Should the response include scores, even if scores were not calculated in the original query
      */
     public boolean fetchScores() {

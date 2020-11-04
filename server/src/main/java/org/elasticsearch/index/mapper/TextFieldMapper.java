@@ -79,6 +79,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -90,7 +91,6 @@ import java.util.function.Supplier;
 public class TextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "text";
-    private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
 
     public static class Defaults {
@@ -251,9 +251,6 @@ public class TextFieldMapper extends FieldMapper {
         final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.getValue());
         final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.getValue());
 
-        final Parameter<Integer> positionIncrementGap = Parameter.intParam("position_increment_gap", false,
-            m -> builder(m).positionIncrementGap.getValue(), POSITION_INCREMENT_GAP_USE_ANALYZER);
-
         final Parameter<Boolean> fieldData
             = Parameter.boolParam("fielddata", true, m -> builder(m).fieldData.getValue(), false);
         final Parameter<FielddataFrequencyFilter> freqFilter = new Parameter<>("fielddata_frequency_filter", true,
@@ -277,7 +274,7 @@ public class TextFieldMapper extends FieldMapper {
         public Builder(String name, Version indexCreatedVersion, Supplier<NamedAnalyzer> defaultAnalyzer) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(defaultAnalyzer);
+            this.analyzers = new TextParams.Analyzers(defaultAnalyzer, m -> builder(m).analyzers);
         }
 
         public Builder index(boolean index) {
@@ -309,28 +306,23 @@ public class TextFieldMapper extends FieldMapper {
         protected List<Parameter<?>> getParameters() {
             return Arrays.asList(index, store, indexOptions, norms, termVectors,
                 analyzers.indexAnalyzer, analyzers.searchAnalyzer, analyzers.searchQuoteAnalyzer, similarity,
-                positionIncrementGap,
+                analyzers.positionIncrementGap,
                 fieldData, freqFilter, eagerGlobalOrdinals,
                 indexPhrases, indexPrefixes,
                 meta);
         }
 
         private TextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
-            NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
-            if (positionIncrementGap.get() != POSITION_INCREMENT_GAP_USE_ANALYZER) {
+            if (analyzers.positionIncrementGap.get() != TextParams.POSITION_INCREMENT_GAP_USE_ANALYZER) {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                     throw new IllegalArgumentException("Cannot set position_increment_gap on field ["
                         + name + "] without positions enabled");
                 }
-                indexAnalyzer = new NamedAnalyzer(indexAnalyzer, positionIncrementGap.get());
-                searchAnalyzer = new NamedAnalyzer(searchAnalyzer, positionIncrementGap.get());
-                searchQuoteAnalyzer = new NamedAnalyzer(searchQuoteAnalyzer, positionIncrementGap.get());
             }
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
             TextFieldType ft = new TextFieldType(buildFullName(context), index.getValue(), store.getValue(), tsi, meta.getValue());
-            ft.setIndexAnalyzer(indexAnalyzer);
             ft.setEagerGlobalOrdinals(eagerGlobalOrdinals.getValue());
             if (fieldData.getValue()) {
                 ft.setFielddata(true, freqFilter.getValue());
@@ -367,9 +359,12 @@ public class TextFieldMapper extends FieldMapper {
                 pft.setStoreTermVectorOffsets(true);
             }
             PrefixFieldType prefixFieldType = new PrefixFieldType(tft, fullName + "._index_prefix", indexPrefixes.get());
-            prefixFieldType.setAnalyzer(analyzers.getIndexAnalyzer());
             tft.setPrefixFieldType(prefixFieldType);
-            return new PrefixFieldMapper(pft, prefixFieldType);
+            return new PrefixFieldMapper(pft, prefixFieldType, new PrefixWrappedAnalyzer(
+                analyzers.getIndexAnalyzer().analyzer(),
+                analyzers.positionIncrementGap.get(),
+                prefixFieldType.minChars,
+                prefixFieldType.maxChars));
         }
 
         private PhraseFieldMapper buildPhraseMapper(FieldType fieldType, TextFieldType parent) {
@@ -384,15 +379,39 @@ public class TextFieldMapper extends FieldMapper {
             }
             FieldType phraseFieldType = new FieldType(fieldType);
             parent.setIndexPhrases();
-            return new PhraseFieldMapper(phraseFieldType, new PhraseFieldType(parent));
+            PhraseWrappedAnalyzer a
+                = new PhraseWrappedAnalyzer(analyzers.getIndexAnalyzer().analyzer(), analyzers.positionIncrementGap.get());
+            return new PhraseFieldMapper(phraseFieldType, new PhraseFieldType(parent), a);
+        }
+
+        public Map<String, NamedAnalyzer> indexAnalyzers(String name,
+                                                         PhraseFieldMapper phraseFieldMapper,
+                                                         PrefixFieldMapper prefixFieldMapper) {
+            Map<String, NamedAnalyzer> analyzers = new HashMap<>();
+            NamedAnalyzer main = this.analyzers.getIndexAnalyzer();
+            analyzers.put(name, main);
+            if (phraseFieldMapper != null) {
+                analyzers.put(
+                    phraseFieldMapper.name(),
+                    new NamedAnalyzer(main.name() + "_phrase", AnalyzerScope.INDEX, phraseFieldMapper.analyzer));
+            }
+            if (prefixFieldMapper != null) {
+                analyzers.put(
+                    prefixFieldMapper.name(),
+                    new NamedAnalyzer(main.name() + "_prefix", AnalyzerScope.INDEX, prefixFieldMapper.analyzer));
+            }
+            return analyzers;
         }
 
         @Override
         public TextFieldMapper build(BuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
+            PhraseFieldMapper phraseFieldMapper = buildPhraseMapper(fieldType, tft);
+            PrefixFieldMapper prefixFieldMapper = buildPrefixMapper(context, fieldType, tft);
             return new TextFieldMapper(name, fieldType, tft,
-                buildPrefixMapper(context, fieldType, tft), buildPhraseMapper(fieldType, tft),
+                indexAnalyzers(tft.name(), phraseFieldMapper, prefixFieldMapper),
+                prefixFieldMapper, phraseFieldMapper,
                 multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
@@ -403,10 +422,17 @@ public class TextFieldMapper extends FieldMapper {
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
 
         private final Analyzer delegate;
+        private final int posIncGap;
 
-        PhraseWrappedAnalyzer(Analyzer delegate) {
+        PhraseWrappedAnalyzer(Analyzer delegate, int posIncGap) {
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
+            this.posIncGap = posIncGap;
+        }
+
+        @Override
+        public int getPositionIncrementGap(String fieldName) {
+            return posIncGap;
         }
 
         @Override
@@ -424,11 +450,13 @@ public class TextFieldMapper extends FieldMapper {
 
         private final int minChars;
         private final int maxChars;
+        private final int posIncGap;
         private final Analyzer delegate;
 
-        PrefixWrappedAnalyzer(Analyzer delegate, int minChars, int maxChars) {
+        PrefixWrappedAnalyzer(Analyzer delegate, int posIncGap, int minChars, int maxChars) {
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
+            this.posIncGap = posIncGap;
             this.minChars = minChars;
             this.maxChars = maxChars;
         }
@@ -436,6 +464,11 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
             return delegate;
+        }
+
+        @Override
+        public int getPositionIncrementGap(String fieldName) {
+            return posIncGap;
         }
 
         @Override
@@ -451,12 +484,7 @@ public class TextFieldMapper extends FieldMapper {
 
         PhraseFieldType(TextFieldType parent) {
             super(parent.name() + FAST_PHRASE_SUFFIX, true, false, false, parent.getTextSearchInfo(), Collections.emptyMap());
-            setAnalyzer(parent.indexAnalyzer().name(), parent.indexAnalyzer().analyzer());
             this.parent = parent;
-        }
-
-        void setAnalyzer(String name, Analyzer delegate) {
-            setIndexAnalyzer(new NamedAnalyzer(name, AnalyzerScope.INDEX, new PhraseWrappedAnalyzer(delegate)));
         }
 
         @Override
@@ -499,11 +527,6 @@ public class TextFieldMapper extends FieldMapper {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
             return SourceValueFetcher.toString(name(), context, format);
-        }
-
-        void setAnalyzer(NamedAnalyzer delegate) {
-            setIndexAnalyzer(new NamedAnalyzer(delegate.name(), AnalyzerScope.INDEX,
-                new PrefixWrappedAnalyzer(delegate.analyzer(), minChars, maxChars)));
         }
 
         boolean accept(int length) {
@@ -569,11 +592,13 @@ public class TextFieldMapper extends FieldMapper {
 
     private static final class PhraseFieldMapper extends FieldMapper {
 
+        private final Analyzer analyzer;
         private final FieldType fieldType;
 
-        PhraseFieldMapper(FieldType fieldType, PhraseFieldType mappedFieldType) {
+        PhraseFieldMapper(FieldType fieldType, PhraseFieldType mappedFieldType, PhraseWrappedAnalyzer analyzer) {
             super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
             this.fieldType = fieldType;
+            this.analyzer = analyzer;
         }
 
         @Override
@@ -594,10 +619,12 @@ public class TextFieldMapper extends FieldMapper {
 
     private static final class PrefixFieldMapper extends FieldMapper {
 
+        private final Analyzer analyzer;
         private final FieldType fieldType;
 
-        protected PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
+        protected PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType, Analyzer analyzer) {
             super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+            this.analyzer = analyzer;
             this.fieldType = fieldType;
         }
 
@@ -840,10 +867,11 @@ public class TextFieldMapper extends FieldMapper {
 
     protected TextFieldMapper(String simpleName, FieldType fieldType,
                               TextFieldType mappedFieldType,
+                              Map<String, NamedAnalyzer> indexAnalyzers,
                               PrefixFieldMapper prefixFieldMapper,
                               PhraseFieldMapper phraseFieldMapper,
                               MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
@@ -1046,7 +1074,7 @@ public class TextFieldMapper extends FieldMapper {
         this.builder.analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
         this.builder.similarity.toXContent(builder, includeDefaults);
         this.builder.eagerGlobalOrdinals.toXContent(builder, includeDefaults);
-        this.builder.positionIncrementGap.toXContent(builder, includeDefaults);
+        this.builder.analyzers.positionIncrementGap.toXContent(builder, includeDefaults);
         this.builder.fieldData.toXContent(builder, includeDefaults);
         this.builder.freqFilter.toXContent(builder, includeDefaults);
         this.builder.indexPrefixes.toXContent(builder, includeDefaults);

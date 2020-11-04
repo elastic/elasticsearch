@@ -179,6 +179,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final int ignoreAbove;
         private final String nullValue;
+        private final NamedAnalyzer normalizer;
 
         public KeywordFieldType(String name, FieldType fieldType,
                                 NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, Builder builder) {
@@ -189,14 +190,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                 new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, searchAnalyzer),
                 builder.meta.getValue());
             setEagerGlobalOrdinals(builder.eagerGlobalOrdinals.getValue());
-            setIndexAnalyzer(normalizer);
+            this.normalizer = normalizer;
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
             super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
         }
@@ -210,12 +211,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                 false, false,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Collections.emptyMap());
+            this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
             super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
+            this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
         }
@@ -226,7 +229,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         NamedAnalyzer normalizer() {
-            return indexAnalyzer();
+            return normalizer;
         }
 
         @Override
@@ -312,9 +315,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
 
-    protected KeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+    protected KeywordFieldMapper(String simpleName, FieldType fieldType, KeywordFieldType mappedFieldType,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, mappedFieldType.normalizer, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();

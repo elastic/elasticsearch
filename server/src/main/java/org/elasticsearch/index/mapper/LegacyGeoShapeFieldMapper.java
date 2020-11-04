@@ -38,6 +38,7 @@ import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -459,7 +460,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                                      MultiFields multiFields, CopyTo copyTo,
                                      LegacyGeoShapeIndexer indexer, LegacyGeoShapeParser parser,
                                      Builder builder) {
-        super(simpleName, mappedFieldType,
+        super(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER),
             builder.ignoreMalformed.get(), builder.coerce.get(), builder.ignoreZValue.get(), builder.orientation.get(),
             multiFields, copyTo, indexer, parser);
         this.indexCreatedVersion = builder.indexCreatedVersion;

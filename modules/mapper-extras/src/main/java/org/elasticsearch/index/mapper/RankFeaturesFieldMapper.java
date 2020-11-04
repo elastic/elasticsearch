@@ -68,7 +68,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         public RankFeaturesFieldType(String name, Map<String, String> meta) {
             super(name, false, false, false, TextSearchInfo.NONE, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -99,7 +98,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     private RankFeaturesFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
     }
 
     @Override

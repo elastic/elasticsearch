@@ -248,14 +248,15 @@ public class WildcardFieldMapper extends FieldMapper {
 
         private final String nullValue;
         private final int ignoreAbove;
+        private final NamedAnalyzer analyzer;
 
         private WildcardFieldType(String name, String nullValue, int ignoreAbove,
                                   Version version, Map<String, String> meta) {
             super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
             if (version.onOrAfter(Version.V_7_10_0)) {
-                setIndexAnalyzer(WILDCARD_ANALYZER_7_10);
+                this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {
-                setIndexAnalyzer(WILDCARD_ANALYZER_7_9);
+                this.analyzer = WILDCARD_ANALYZER_7_9;
             }
             this.nullValue = nullValue;
             this.ignoreAbove = ignoreAbove;
@@ -639,7 +640,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 return;
             }
             // Break fragment into multiple Ngrams
-            TokenStream tokenizer = indexAnalyzer().tokenStream(name(), fragment);
+            TokenStream tokenizer = analyzer.tokenStream(name(), fragment);
             CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
             int foundTokens = 0;
             try {
@@ -658,7 +659,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (foundTokens == 0 && fragment.length() > 0) {
                 // fragment must have been less than NGRAM_SIZE - add a placeholder which may be used in a prefix query e.g. ab*
                 fragment = toLowerCase(fragment);
-                if (indexAnalyzer() == WILDCARD_ANALYZER_7_10) {
+                if (analyzer == WILDCARD_ANALYZER_7_10) {
                     fragment = PunctuationFoldingFilter.normalize(fragment);
                 }
                 tokens.add(fragment);
@@ -784,7 +785,7 @@ public class WildcardFieldMapper extends FieldMapper {
                     }
                 }
                 // Tokenize all content after the prefix
-                TokenStream tokenizer = indexAnalyzer().tokenStream(name(), postPrefixString);
+                TokenStream tokenizer = analyzer.tokenStream(name(), postPrefixString);
                 CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
                 ArrayList<String> postPrefixTokens = new ArrayList<>();
                 String firstToken = null;
@@ -928,10 +929,10 @@ public class WildcardFieldMapper extends FieldMapper {
     private final FieldType ngramFieldType;
     private final Version indexVersionCreated;
 
-    private WildcardFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+    private WildcardFieldMapper(String simpleName, WildcardFieldType mappedFieldType,
                                 int ignoreAbove, MultiFields multiFields, CopyTo copyTo,
                                 String nullValue, Version indexVersionCreated) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, mappedFieldType.analyzer, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.indexVersionCreated = indexVersionCreated;

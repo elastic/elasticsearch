@@ -209,16 +209,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean indexedByDefault() {
-        return false;
-    }
-
-    @Override
-    protected boolean docValuesByDefault() {
-        return true;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) {
         throw new AssertionError("parse is implemented directly");
     }

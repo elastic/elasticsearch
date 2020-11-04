@@ -9,6 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,7 +51,7 @@ public class AttributeMapTests extends ESTestCase {
         assertFalse(param1.toAttribute().semanticEquals(param2.toAttribute()));
 
         Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
-        for (Alias a : List.of(param1, param2)) {
+        for (Alias a : Arrays.asList(param1, param2)) {
             collectRefs.put(a.toAttribute(), a.child());
         }
         // we can look up the same item by both attributes
@@ -63,7 +64,7 @@ public class AttributeMapTests extends ESTestCase {
         assertFalse(attributeMap.containsKey(param2.toAttribute())); // results in unknown attribute exception
 
         AttributeMap.Builder<Expression> mapBuilder = AttributeMap.builder();
-        for (Alias a : List.of(param1, param2)) {
+        for (Alias a : Arrays.asList(param1, param2)) {
             mapBuilder.put(a.toAttribute(), a.child());
         }
         AttributeMap<Expression> newAttributeMap = mapBuilder.build();

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
@@ -29,7 +30,7 @@ public class ParamLiteralTests extends ESTestCase {
     private final SqlParser parser = new SqlParser();
 
     private LogicalPlan parse(String sql, SqlTypedParamValue... parameters) {
-        return parser.createStatement(sql, List.of(parameters), UTC);
+        return parser.createStatement(sql, Arrays.asList(parameters), UTC);
     }
 
     public void testMultipleParamLiteralsWithUnresolvedAliases() {

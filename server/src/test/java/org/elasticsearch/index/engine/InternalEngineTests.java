@@ -125,6 +125,7 @@ import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.SearcherHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.Store;
@@ -927,25 +928,25 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(indexForDoc(createParsedDoc("1", null)));
         }
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), docMapper(),
-            searcher -> Engine.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new MatchAllDocsQuery())))) {
+            searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new MatchAllDocsQuery())))) {
             assertTrue(get.exists());
             assertFalse(get.isFromTranslog());
         }
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), docMapper(),
-            searcher -> Engine.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new MatchNoDocsQuery())))) {
+            searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new MatchNoDocsQuery())))) {
             assertFalse(get.exists());
             assertFalse(get.isFromTranslog());
         }
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), docMapper(),
-            searcher -> Engine.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new TermQuery(newUid("1")))))) {
+            searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new TermQuery(newUid("1")))))) {
             assertTrue(get.exists());
             assertFalse(get.isFromTranslog());
         }
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), docMapper(),
-            searcher -> Engine.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new TermQuery(newUid("2")))))) {
+            searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new TermQuery(newUid("2")))))) {
             assertFalse(get.exists());
             assertFalse(get.isFromTranslog());
         }
@@ -4948,7 +4949,7 @@ public class InternalEngineTests extends EngineTestCase {
                 thread.start();
                 awaitStarted.await();
                 try (Engine.GetResult getResult = engine.get(new Engine.Get(true, false, doc.id()), docMapper(),
-                    searcher -> Engine.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new MatchAllDocsQuery())))) {
+                    searcher -> SearcherHelper.wrapSearcher(searcher, r -> new MatchingDirectoryReader(r, new MatchAllDocsQuery())))) {
                     assertFalse(getResult.exists());
                 }
                 thread.join();

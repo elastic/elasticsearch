@@ -24,7 +24,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -60,7 +62,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -256,7 +260,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private static final EnumSet<IndexShardState> writeAllowedStates = EnumSet.of(IndexShardState.RECOVERING,
         IndexShardState.POST_RECOVERY, IndexShardState.STARTED);
 
-    private final Function<Engine.Searcher, Engine.Searcher> searcherWrapper;
+    private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
 
     /**
      * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
@@ -367,11 +371,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
-        if (indexReaderWrapper != null) {
-            this.searcherWrapper = searcher -> Engine.wrapSearcher(searcher, indexReaderWrapper);
-        } else {
-            this.searcherWrapper = Function.identity();
-        }
+        readerWrapper = indexReaderWrapper;
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
@@ -923,7 +923,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mapper == null) {
             return GetResult.NOT_EXISTS;
         }
-        return getEngine().get(get, mapper, searcherWrapper);
+        return getEngine().get(get, mapper, this::wrapSearcher);
     }
 
     /**
@@ -1220,7 +1220,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        return engine.acquireSearcherSupplier(searcherWrapper, scope);
+        return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -1235,7 +1235,87 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        return engine.acquireSearcher(source, scope, searcherWrapper);
+        return engine.acquireSearcher(source, scope, this::wrapSearcher);
+    }
+
+    private Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
+        assert ElasticsearchDirectoryReader.unwrap(searcher.getDirectoryReader())
+            != null : "DirectoryReader must be an instance or ElasticsearchDirectoryReader";
+        boolean success = false;
+        try {
+            final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
+            assert newSearcher != null;
+            success = true;
+            return newSearcher;
+        } catch (IOException ex) {
+            throw new ElasticsearchException("failed to wrap searcher", ex);
+        } finally {
+            if (success == false) {
+                Releasables.close(success, searcher);
+            }
+        }
+    }
+
+    static Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher,
+                                        CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) throws IOException {
+        assert readerWrapper != null;
+        final ElasticsearchDirectoryReader elasticsearchDirectoryReader =
+            ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
+        if (elasticsearchDirectoryReader == null) {
+            throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
+        }
+        NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
+        DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
+        if (reader != nonClosingReaderWrapper) {
+            if (reader.getReaderCacheHelper() != elasticsearchDirectoryReader.getReaderCacheHelper()) {
+                throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey," +
+                    " wrappers must override this method and delegate to the original readers core cache key. Wrapped readers can't be " +
+                    "used as cache keys since their are used only per request which would lead to subtle bugs");
+            }
+            if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
+                // prevent that somebody wraps with a non-filter reader
+                throw new IllegalStateException("wrapped directory reader hides actual ElasticsearchDirectoryReader but shouldn't");
+            }
+        }
+
+        if (reader == nonClosingReaderWrapper) {
+            return engineSearcher;
+        } else {
+            // we close the reader to make sure wrappers can release resources if needed....
+            // our NonClosingReaderWrapper makes sure that our reader is not closed
+            return new Engine.Searcher(engineSearcher.source(), reader,
+                engineSearcher.getSimilarity(), engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(),
+                () -> IOUtils.close(reader, // this will close the wrappers excluding the NonClosingReaderWrapper
+                    engineSearcher)); // this will run the closeable on the wrapped engine reader
+        }
+    }
+
+    private static final class NonClosingReaderWrapper extends FilterDirectoryReader {
+
+        private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return reader;
+                }
+            });
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new NonClosingReaderWrapper(in);
+        }
+
+        @Override
+        protected void doClose() throws IOException {
+            // don't close here - mimic the MultiReader#doClose = false behavior that FilterDirectoryReader doesn't have
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+
     }
 
     public void close(String reason, boolean flushEngine) throws IOException {

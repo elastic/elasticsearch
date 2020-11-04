@@ -102,6 +102,7 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.SearcherHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -1345,7 +1346,7 @@ public abstract class EngineTestCase extends ESTestCase {
             return Function.identity();
         } else {
             final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper = randomReaderWrapper();
-            return searcher -> Engine.wrapSearcher(searcher, readerWrapper);
+            return searcher -> SearcherHelper.wrapSearcher(searcher, readerWrapper);
         }
     }
 }

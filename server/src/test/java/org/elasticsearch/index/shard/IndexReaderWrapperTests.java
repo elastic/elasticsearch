@@ -65,7 +65,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         final AtomicInteger count = new AtomicInteger();
         final AtomicInteger outerCount = new AtomicInteger();
         final AtomicBoolean closeCalled = new AtomicBoolean(false);
-        final Engine.Searcher wrap =  Engine.wrapSearcher(new Engine.Searcher("foo", open,
+        final Engine.Searcher wrap =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
             IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
             () -> closeCalled.set(true)), wrapper);
         assertEquals(1, wrap.getIndexReader().getRefCount());
@@ -106,7 +106,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
             reader -> new FieldMaskingReader("field", reader, closeCalls);
         final ConcurrentHashMap<Object, TopDocs> cache = new ConcurrentHashMap<>();
         AtomicBoolean closeCalled = new AtomicBoolean(false);
-        try (Engine.Searcher wrap =  Engine.wrapSearcher(new Engine.Searcher("foo", open,
+        try (Engine.Searcher wrap =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
                 () -> closeCalled.set(true)), wrapper)) {
             ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
@@ -137,10 +137,10 @@ public class IndexReaderWrapperTests extends ESTestCase {
         assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         searcher.setSimilarity(iwc.getSimilarity());
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
-        try (Engine.Searcher engineSearcher =  Engine.wrapSearcher(new Engine.Searcher("foo", open,
+        try (Engine.Searcher engineSearcher =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
                 open::close), wrapper)) {
-            final Engine.Searcher wrap = Engine.wrapSearcher(engineSearcher, wrapper);
+            final Engine.Searcher wrap = IndexShard.wrapSearcher(engineSearcher, wrapper);
             assertSame(wrap, engineSearcher);
         }
         IOUtils.close(writer, dir);

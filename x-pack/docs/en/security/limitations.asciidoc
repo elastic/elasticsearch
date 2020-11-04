@@ -54,8 +54,6 @@ When a user's role enables document or <<field-level-security,field level securi
 
 When a user's role enables <<document-level-security,document level security>> for a data stream or index:
 
-* Document level security is applied only for document-based APIs. APIs such as
-the field stats API are not supported.
 * Document level security doesn't affect global index statistics that relevancy
   scoring uses. This means that scores are computed without taking the role
   query into account. Documents that don't match the role query are

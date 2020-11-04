@@ -44,7 +44,7 @@ public class HyperLogLogPlusPlusBackedCardinalityAggregatorTests extends Aggrega
     private static final String FIELD_NAME = "field";
     private static final byte[] RUNLENS = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
     private static final int[] HASHES = new int[] {1, 2};
-    // murmur3 are transform to LC in the mapper so no need to test it here
+    // murmur3 are transformed to LC in the mapper so no need to test it here
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {

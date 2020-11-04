@@ -72,7 +72,7 @@ public class FastVectorHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
         MappedFieldType fieldType = fieldContext.fieldType;
         boolean forceSource = fieldContext.forceSource;
-        boolean fixBrokenAnalysis = fieldContext.context.mapperService().containsBrokenAnalysis(fieldContext.fieldName);
+        boolean fixBrokenAnalysis = fieldContext.context.containsBrokenAnalysis(fieldContext.fieldName);
 
         if (canHighlight(fieldType) == false) {
             throw new IllegalArgumentException("the field [" + fieldContext.fieldName +

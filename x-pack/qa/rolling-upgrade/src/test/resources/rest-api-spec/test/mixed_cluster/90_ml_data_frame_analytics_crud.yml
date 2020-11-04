@@ -30,8 +30,8 @@
 ---
 "Start and stop old outlier_detection job":
   - skip:
-      version: " - 7.10.99"
-      reason: "_doc_count field was introduced in 7.11"
+      version: " - 7.9.99"
+      reason: "_doc_count field was introduced in 7.11, but excluded from ML tests in 7.10"
 
   - do:
       ml.start_data_frame_analytics:
@@ -123,8 +123,8 @@
 ---
 "Put an outlier_detection job on the mixed cluster":
   - skip:
-      version: " - 7.10.99"
-      reason: "_doc_count field was introduced in 7.11"
+      version: " - 7.9.99"
+      reason: "_doc_count field was introduced in 7.11, but excluded from ML tests in 7.10"
 
   - do:
       ml.put_data_frame_analytics:

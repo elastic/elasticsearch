@@ -921,10 +921,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         if (terms.length == 1) {
-            Term[] newTerms = Arrays.stream(terms[0])
+            SynonymQuery.Builder sb = new SynonymQuery.Builder(prefixField);
+            Arrays.stream(terms[0])
                 .map(term -> new Term(prefixField, term.bytes()))
-                .toArray(Term[]::new);
-            return new SynonymQuery(newTerms);
+                .forEach(sb::addTerm);
+            return sb.build();
         }
 
         SpanNearQuery.Builder spanQuery = new SpanNearQuery.Builder(field, true);

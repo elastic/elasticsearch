@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
@@ -49,7 +48,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         return ((ShapeFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
 
@@ -143,7 +142,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value())
             .init(this);
     }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -20,10 +21,12 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
@@ -66,6 +69,13 @@ public class CacheFile {
     private final Path file;
 
     private final Set<EvictionListener> listeners = new HashSet<>();
+
+    /**
+     * Indicates whether the cache file requires to be synchronized with the storage device that contains it in order to persist in a
+     * durable manner its ranges of cached data. An empty cache file does not need to be fsync; and writing new data to the cache file
+     * will toggle the flag to {@code true}.
+     **/
+    private final AtomicBoolean needsFsync = new AtomicBoolean();
 
     /**
      * A reference counted holder for the current channel to the physical file backing this cache file instance.
@@ -310,6 +320,7 @@ public class CacheFile {
                             reference.decRef();
                         }
                         gap.onCompletion();
+                        needsFsync.set(true);
                     }
 
                     @Override
@@ -402,5 +413,52 @@ public class CacheFile {
     public Tuple<Long, Long> getAbsentRangeWithin(long start, long end) {
         ensureOpen();
         return tracker.getAbsentRangeWithin(start, end);
+    }
+
+    // used in tests
+    boolean needsFsync() {
+        return needsFsync.get();
+    }
+
+    /**
+     * Ensure that all ranges of data written to the cache file are written to the storage device that contains it. This method performs
+     * synchronization only if data has been written to the cache since the last time the method was called. If calling this method
+     * resulted in performing a synchronization, a sorted set of all successfully written ranges of data since the creation of the cache
+     * file is returned. If the cache file is evicted or if a concurrent thread is already fsyncing the file this method returns an empty
+     * set of ranges.
+     *
+     * @return a sorted set of ranges of data available in cache iff calling this method resulted in performing a fsync
+     * @throws IOException                       if the cache file failed to be fsync
+     * @throws java.nio.file.NoSuchFileException if the cache file does not exist
+     */
+    public SortedSet<Tuple<Long, Long>> fsync() throws IOException {
+        if (refCounter.tryIncRef()) {
+            try {
+                if (needsFsync.compareAndSet(true, false)) {
+                    boolean success = false;
+                    try {
+                        // Capture the completed ranges before fsyncing; ranges that are completed after this point won't be considered as
+                        // persisted on disk by the caller of this method, even if they are fully written to disk at the time the file
+                        // fsync is effectively executed
+                        final SortedSet<Tuple<Long, Long>> completedRanges = tracker.getCompletedRanges();
+                        assert completedRanges != null;
+                        assert completedRanges.isEmpty() == false;
+
+                        IOUtils.fsync(file, false, false); // TODO don't forget to fsync parent directory
+                        success = true;
+                        return completedRanges;
+                    } finally {
+                        if (success == false) {
+                            needsFsync.set(true);
+                        }
+                    }
+                }
+            } finally {
+                refCounter.decRef();
+            }
+        } else {
+            assert evicted.get();
+        }
+        return Collections.emptySortedSet();
     }
 }

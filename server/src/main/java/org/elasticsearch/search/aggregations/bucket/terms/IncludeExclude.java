@@ -400,7 +400,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             include = includeString == null ? null : new RegExp(includeString);
             String excludeString = in.readOptionalString();
             exclude = excludeString == null ? null : new RegExp(excludeString);
-            if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getVersion().before(Version.V_7_11_0)) {
                 incZeroBasedPartition = 0;
                 incNumPartitions = 0;
                 includeValues = null;
@@ -440,7 +440,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (regexBased) {
             out.writeOptionalString(include == null ? null : include.getOriginalString());
             out.writeOptionalString(exclude == null ? null : exclude.getOriginalString());
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getVersion().before(Version.V_7_11_0)) {
                 return;
             }
         }

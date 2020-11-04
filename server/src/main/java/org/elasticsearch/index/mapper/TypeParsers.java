@@ -19,17 +19,13 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -98,64 +94,7 @@ public class TypeParsers {
         return Collections.unmodifiableMap(sortedMeta);
     }
 
-    /**
-     * Parse common field attributes such as {@code doc_values} or {@code store}.
-     */
-    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
-                                  Mapper.TypeParser.ParserContext parserContext) {
-        for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
-            Map.Entry<String, Object> entry = iterator.next();
-            final String propName = entry.getKey();
-            final Object propNode = entry.getValue();
-            checkNull(propName, propNode);
-            if (propName.equals("store")) {
-                builder.store(XContentMapValues.nodeBooleanValue(propNode, name + ".store"));
-                iterator.remove();
-            } else if (propName.equals("meta")) {
-                builder.meta(parseMeta(name, propNode));
-                iterator.remove();
-            } else if (propName.equals("index")) {
-                builder.index(XContentMapValues.nodeBooleanValue(propNode, name + ".index"));
-                iterator.remove();
-            } else if (propName.equals(DOC_VALUES)) {
-                builder.docValues(XContentMapValues.nodeBooleanValue(propNode, name + "." + DOC_VALUES));
-                iterator.remove();
-            } else if (propName.equals("boost")) {
-                if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                    deprecationLogger.deprecate(
-                        "boost",
-                        "Parameter [boost] on field [{}] is deprecated and has no effect",
-                        name);
-                    iterator.remove();
-                }
-                else {
-                    throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
-                }
-            } else if (propName.equals("index_options")) {
-                builder.indexOptions(nodeIndexOptionValue(propNode));
-                iterator.remove();
-            } else if (propName.equals("similarity")) {
-                deprecationLogger.deprecate("similarity",
-                    "The [similarity] parameter has no effect on field [" + name + "] and will be removed in 8.0");
-                iterator.remove();
-            } else if (parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
-                iterator.remove();
-            } else if (propName.equals("copy_to")) {
-                if (parserContext.isWithinMultiField()) {
-                    throw new MapperParsingException("copy_to in multi fields is not allowed. Found the copy_to in field [" + name + "] " +
-                        "which is within a multi field.");
-                } else {
-                    List<String> copyFields = parseCopyFields(propNode);
-                    FieldMapper.CopyTo.Builder cpBuilder = new FieldMapper.CopyTo.Builder();
-                    copyFields.forEach(cpBuilder::add);
-                    builder.copyTo(cpBuilder.build());
-                }
-                iterator.remove();
-            }
-        }
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({"unchecked"})
     public static boolean parseMultiField(Consumer<Mapper.Builder> multiFieldsBuilder, String name,
                                           Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("fields")) {
@@ -221,21 +160,6 @@ public class TypeParsers {
             return true;
         }
         return false;
-    }
-
-    private static IndexOptions nodeIndexOptionValue(final Object propNode) {
-        final String value = propNode.toString();
-        if (INDEX_OPTIONS_OFFSETS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS;
-        } else if (INDEX_OPTIONS_POSITIONS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
-        } else if (INDEX_OPTIONS_FREQS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS_AND_FREQS;
-        } else if (INDEX_OPTIONS_DOCS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS;
-        } else {
-            throw new ElasticsearchParseException("failed to parse index option [{}]", value);
-        }
     }
 
     public static DateFormatter parseDateTimeFormatter(Object node) {

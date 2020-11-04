@@ -13,6 +13,11 @@ See <<node-name,Node name setting>>.
 
 See <<cluster-name,Cluster name setting>>.
 
+[role="exclude",id="heap-size"]
+=== Heap size settings
+
+See <<heap-size-settings>>.
+
 [role="exclude",id="ccr-remedy-follower-index"]
 === Leader index retaining operations for replication
 
@@ -1261,3 +1266,10 @@ See <<transforms>>.
 === Matrix aggregations
 
 See <<search-aggregations-matrix-stats-aggregation>>.
+
+[[search-aggregations-pipeline-movavg-aggregation]]
+=== Moving average aggregation
+
+The moving average aggregation has been removed. Use the
+<<search-aggregations-pipeline-movfn-aggregation,moving function aggregation>>
+instead.

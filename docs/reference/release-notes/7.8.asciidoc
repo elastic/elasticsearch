@@ -1,9 +1,3 @@
-[[release-notes-7.8.2]]
-== {es} version 7.8.2
-
-coming::[7.8.2]
-
-
 [[release-notes-7.8.1]]
 == {es} version 7.8.1
 

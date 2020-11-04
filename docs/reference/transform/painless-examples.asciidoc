@@ -153,6 +153,39 @@ a script. The following example uses the {kib} sample web logs dataset. The goal
 here is to make the {transform} output easier to understand through normalizing 
 the value of the fields that the data is grouped by.
 
+If you use scripts in `group_by`, the {transform} cannot deduce the mappings of 
+the field. For this reason, you need to create the destination index and its 
+mappings prior to creating the {transform}. Please refer to the example below.
+
+
+Create the index:
+
+[source,console]
+--------------------------------------------------
+PUT /pivot_logs
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+
+Create the mapping of the index:
+
+[source,console]
+--------------------------------------------------
+PUT /pivot_logs/_mapping
+{
+  "properties": {
+    "200": {"type": "long"},
+    "404":  { "type": "long"},
+    "503":  { "type": "long"},
+    "agent":  { "type": "keyword"}
+  }
+}
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+Then you can create the {transform}. The example below shows you how to create a 
+preview of the {transform}.
+
 [source,console]
 --------------------------------------------------
 POST _transform/_preview
@@ -220,7 +253,10 @@ contains "Firefox". Finally, in every other case, the value of the field is
 returned.
 <3> The aggregations object contains filters that narrow down the results to 
 documents that contains `200`, `404`, or `503` values in the `response` field.
-<4> Specifies the destination index of the {transform}.
+<4> Specifies the destination index of the {transform}. As the mappings of 
+fields created by scrips cannot be deduced, please define the mappings of the 
+destination index prior to creating the {transform}.
+
 
 The API returns the following result:
 

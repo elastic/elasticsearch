@@ -7,6 +7,8 @@
 [id="{upid}-{api}"]
 === Evaluate {dfanalytics} API
 
+experimental::[]
+
 Evaluates the {ml} algorithm that ran on a {dataframe}.
 The API accepts an +{request}+ object and returns an +{response}+.
 

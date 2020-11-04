@@ -20,13 +20,12 @@ import java.util.List;
 public class GeometryDocValueWriter {
 
     private GeometryDocValueWriter() {
-        // no instances
     }
 
     /*** Serialize the interval tree in the provided data output */
-    public static BytesRef write(final List<IndexableField> fields,
-                                              final CoordinateEncoder coordinateEncoder,
-                                              final CentroidCalculator centroidCalculator) throws IOException {
+    public static BytesRef write(List<IndexableField> fields,
+                                 CoordinateEncoder coordinateEncoder,
+                                 CentroidCalculator centroidCalculator) throws IOException {
         final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
         out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));

@@ -150,7 +150,7 @@ public class IndexActionTests extends ESTestCase {
         expectParseFailure(jsonBuilder()
             .startObject()
             .field(IndexAction.Field.OP_TYPE.getPreferredName(),
-                randomFrom(DocWriteRequest.OpType.INDEX.name(), DocWriteRequest.OpType.CREATE.name()))
+                randomFrom(DocWriteRequest.OpType.UPDATE.name(), DocWriteRequest.OpType.DELETE.name()))
             .endObject(),
             "op_type value for field [op_type] must be [index] or [create]");
     }

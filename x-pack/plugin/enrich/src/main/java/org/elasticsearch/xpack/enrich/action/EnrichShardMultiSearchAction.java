@@ -236,7 +236,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                     searcher,
                     () -> { throw new UnsupportedOperationException(); },
                     null,
-                    emptyMap()  // NOCOMMIT is it right not to use the runtime mappings?
+                    emptyMap()  // Enrich doesn't support defining runtime fields
                 );
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {

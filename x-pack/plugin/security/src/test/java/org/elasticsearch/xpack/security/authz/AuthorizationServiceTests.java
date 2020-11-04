@@ -301,7 +301,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizationInfoHeader = mock(AuthorizationInfo.class);
             threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfoHeader);
         }
-        boolean generateRequestIdBeforeAuthz = (false == AuthorizationService.isInternalUser(authentication.getUser())) ||
+        boolean generateRequestIdBeforeAuthz = (false == User.isInternal(authentication.getUser())) ||
                 randomBoolean();
         SetOnce<String> requestId = new SetOnce<>();
         if (generateRequestIdBeforeAuthz) {

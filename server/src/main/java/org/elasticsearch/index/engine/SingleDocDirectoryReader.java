@@ -255,10 +255,10 @@ final class SingleDocDirectoryReader extends DirectoryReader {
 
         synchronized boolean assertMemorySegmentStatus(boolean loaded) {
             if (loaded) {
-                assert delegate.get() == null :
+                assert delegate.get() != null :
                     "Expected an in memory segment was loaded; but it wasn't. Please check the reader wrapper implementation";
             } else {
-                assert delegate.get() != null :
+                assert delegate.get() == null :
                     "Expected an in memory segment wasn't loaded; but it was. Please check the reader wrapper implementation";
             }
             return true;

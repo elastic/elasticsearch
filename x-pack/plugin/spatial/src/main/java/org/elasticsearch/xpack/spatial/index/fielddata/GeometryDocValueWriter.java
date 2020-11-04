@@ -22,7 +22,7 @@ public class GeometryDocValueWriter {
     private GeometryDocValueWriter() {
     }
 
-    /*** Serialize the interval tree in the provided data output */
+    /*** Serialize the triangle tree in a BytesRef */
     public static BytesRef write(List<IndexableField> fields,
                                  CoordinateEncoder coordinateEncoder,
                                  CentroidCalculator centroidCalculator) throws IOException {

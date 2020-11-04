@@ -147,7 +147,7 @@ public class CertGenUtils {
      *                           empty, then use default algorithm {@link CertGenUtils#getDefaultSignatureAlgorithm(PrivateKey)}
      * @return a signed {@link X509Certificate}
      */
-    private static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
+    public static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
                                                              X509Certificate caCert, PrivateKey caPrivKey, boolean isCa,
                                                              int days, String signatureAlgorithm)
         throws NoSuchAlgorithmException, CertificateException, CertIOException, OperatorCreationException {

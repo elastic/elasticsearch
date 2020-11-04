@@ -29,6 +29,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -70,6 +72,11 @@ public class ILMHistoryStore implements Closeable {
 
                     if (ilmHistoryEnabled == false) {
                         throw new ElasticsearchException("can not index ILM history items when ILM history is disabled");
+                    }
+
+                    IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+                    if (metadata != null && metadata.getOperationMode() != OperationMode.RUNNING) {
+                        throw new ElasticsearchException("ILM not running");
                     }
 
                     if (state.getMetadata().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {

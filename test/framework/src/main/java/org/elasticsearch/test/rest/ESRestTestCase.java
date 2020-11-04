@@ -520,7 +520,12 @@ public abstract class ESRestTestCase extends ESTestCase {
     private void wipeCluster() throws Exception {
 
         if (hasXPack) {
-            adminClient().performRequest(new Request("POST", "/_ilm/stop"));
+            assertAcked("ILM Stop", adminClient().performRequest(new Request("POST", "/_ilm/stop")));
+            assertBusy(()->{
+                Response post = adminClient().performRequest(new Request("GET", "/_ilm/status"));
+                Map<String, Object> res = entityAsMap(post);
+                assertEquals("STOPPED", res.get("operation_mode"));
+            });
         }
 
         // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,

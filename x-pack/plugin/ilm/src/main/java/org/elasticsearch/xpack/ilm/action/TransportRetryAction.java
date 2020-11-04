@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,10 +27,9 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.action.RetryAction;
 import org.elasticsearch.xpack.core.ilm.action.RetryAction.Request;
-import org.elasticsearch.xpack.core.ilm.action.RetryAction.Response;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
-public class TransportRetryAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportRetryAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportRetryAction.class);
 
@@ -40,12 +40,12 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Res
                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                 IndexLifecycleService indexLifecycleService) {
         super(RetryAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver,
-                Response::new, ThreadPool.Names.SAME);
+                AcknowledgedResponse::readFrom, ThreadPool.Names.SAME);
         this.indexLifecycleService = indexLifecycleService;
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("ilm-re-run",
             new AckedClusterStateUpdateTask(request, listener) {
                 @Override
@@ -67,11 +67,6 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Res
                         }
                         indexLifecycleService.maybeRunAsyncAction(newState, idxMeta, retryStep);
                     }
-                }
-
-                @Override
-                protected Response newResponse(boolean acknowledged) {
-                    return new Response(acknowledged);
                 }
             });
     }

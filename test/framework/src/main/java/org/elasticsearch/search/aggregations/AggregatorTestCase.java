@@ -286,6 +286,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
         when(mapperService.indexAnalyzer()).thenReturn(new StandardAnalyzer()); // for significant text
+        when(searchContext.mapperService()).thenReturn(mapperService);
         QueryShardContext queryShardContext =
             queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);

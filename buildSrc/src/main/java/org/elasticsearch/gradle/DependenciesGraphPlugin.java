@@ -22,8 +22,12 @@ package org.elasticsearch.gradle;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.TaskProvider;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class DependenciesGraphPlugin implements Plugin<Project> {
 
@@ -40,9 +44,15 @@ public class DependenciesGraphPlugin implements Plugin<Project> {
         });
 
         project.getGradle().getTaskGraph().whenReady(graph -> {
-            if (graph.getAllTasks().stream().anyMatch(t -> t instanceof DependenciesGraphTask)) {
+            List<String> depGraphTasks = graph.getAllTasks()
+                .stream()
+                .filter(t -> t instanceof DependenciesGraphTask)
+                .map(Task::getPath)
+                .collect(Collectors.toList());
+            if (depGraphTasks.size() > 0) {
                 if (url == null || token == null) {
-                    throw new GradleException("The environment variables SCA_URL and SCA_TOKEN need to be set before this task is run");
+                    // If there are more than one DependenciesGraphTasks to run, print the message only for one of them as the resolving action is the same for all
+                    throw new GradleException("The environment variables SCA_URL and SCA_TOKEN need to be set before task " + depGraphTasks.get(0) + " can run");
                 }
             }
         });

@@ -993,6 +993,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             return innerToXContent(builder, params);
         }
 
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
         /**
          * Rendering of the inner XContent object without the leading field name. This way the structure innerToXContent renders and
          * fromXContent parses correspond to each other.

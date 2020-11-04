@@ -131,22 +131,33 @@ public class NestedDocuments {
                 throw new IllegalStateException("Cannot find object path for document " + doc);
             }
             SearchHit.NestedIdentity ni = null;
-            String parent = mapperService.documentMapper().getNestedParent(path);
-            if (parent == null || objectFilters.containsKey(parent) == false) {
-                throw new IllegalStateException("Cannot find parent mapper for path " + path + " in doc " + doc);
-            }
-            while (parent != null) {
-                BitSet parentBitSet = objectFilters.get(parent);
-                int lastParent = parentBitSet.prevSetBit(doc);
-                int offset = doc - lastParent - 1;
+            int currentLevelDoc = doc;
+            while (path != null) {
+                String parent = mapperService.documentMapper().getNestedParent(path);
+                BitSet childBitSet = objectFilters.get(path);
+                if (childBitSet == null) {
+                    throw new IllegalStateException("Cannot find object mapper for path " + path + " in doc " + doc);
+                }
+                BitSet parentBitSet;
+                if (parent == null) {
+                    parentBitSet = parentFilter;
+                } else {
+                    if (objectFilters.containsKey(parent) == false) {
+                        throw new IllegalStateException("Cannot find parent mapper for path " + path + " in doc " + doc);
+                    }
+                    parentBitSet = objectFilters.get(parent);
+                }
+                int lastParent = parentBitSet.prevSetBit(currentLevelDoc);
+                int offset = 0;
+                for (int i = lastParent + 1; i < currentLevelDoc; i = childBitSet.nextSetBit(i + 1)) {
+                    offset++;
+                }
                 ni = new SearchHit.NestedIdentity(path.substring(path.indexOf(".") + 1), offset, ni);
                 path = parent;
-                parent = mapperService.documentMapper().getNestedParent(path);
+                currentLevelDoc = parentBitSet.nextSetBit(currentLevelDoc);
             }
             return ni;
         }
-
-
     }
 
 }

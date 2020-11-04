@@ -234,26 +234,14 @@ public final class BitsetFilterCache extends AbstractIndexComponent
                 return TerminationHandle.NO_WAIT;
             }
 
-            boolean hasNested = false;
             final Set<Query> warmUp = new HashSet<>();
             final MapperService mapperService = indexShard.mapperService();
             DocumentMapper docMapper = mapperService.documentMapper();
             if (docMapper != null) {
                 if (docMapper.hasNestedObjects()) {
-                    hasNested = true;
-                    for (ObjectMapper objectMapper : docMapper.mappers().objectMappers().values()) {
-                        if (objectMapper.nested().isNested()) {
-                            ObjectMapper parentObjectMapper = objectMapper.getParentObjectMapper(mapperService::getObjectMapper);
-                            if (parentObjectMapper != null && parentObjectMapper.nested().isNested()) {
-                                warmUp.add(parentObjectMapper.nestedTypeFilter());
-                            }
-                        }
-                    }
+                    warmUp.add(Queries.newNonNestedFilter());
+                    docMapper.getNestedParentMappers().stream().map(ObjectMapper::nestedTypeFilter).forEach(warmUp::add);
                 }
-            }
-
-            if (hasNested) {
-                warmUp.add(Queries.newNonNestedFilter());
             }
 
             final CountDownLatch latch = new CountDownLatch(reader.leaves().size() * warmUp.size());

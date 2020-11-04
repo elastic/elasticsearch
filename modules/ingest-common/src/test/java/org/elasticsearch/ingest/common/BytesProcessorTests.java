@@ -74,7 +74,7 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(),
-            CoreMatchers.equalTo("failed to parse [junk]"));
+            CoreMatchers.equalTo("failed to parse setting [Ingest Field] with value [junk]"));
     }
 
     public void testMissingUnits() {

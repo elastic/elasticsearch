@@ -113,7 +113,7 @@ public class QueryShardContext extends QueryRewriteContext {
     /**
      * Build a {@linkplain QueryShardContext} without any information from the search request.
      */
-    public QueryShardContext(int shardId,  // NOCOMMIT make sure we need two methods
+    public QueryShardContext(int shardId,
                              IndexSettings indexSettings,
                              BigArrays bigArrays,
                              BitsetFilterCache bitsetFilterCache,

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -75,13 +74,6 @@ public class FetchContext {
      */
     public MapperService mapperService() {
         return searchContext.mapperService();
-    }
-
-    /**
-     * The index settings for the index we are fetching documents from
-     */
-    public IndexSettings getIndexSettings() {
-        return mapperService().getIndexSettings();
     }
 
     /**

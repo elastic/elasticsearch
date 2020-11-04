@@ -183,9 +183,24 @@ public class QueryShardContextTests extends ESTestCase {
 
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         QueryShardContext context = new QueryShardContext(
-            0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null,
-            null, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> 0L, null, null, () -> true, null);
+            0,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            mock(MapperService.class),
+            null,
+            null,
+            NamedXContentRegistry.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null
+        );
 
         assertTrue(context.indexSortedOnField("sort_field"));
         assertFalse(context.indexSortedOnField("second_sort_field"));
@@ -289,12 +304,62 @@ public class QueryShardContextTests extends ESTestCase {
         assertEquals(List.of(expectedFirstDoc.toString(), expectedSecondDoc.toString()), collect("field", queryShardContext));
     }
 
+    public void testRuntimeFields() throws IOException {
+        MapperService mapperService = mockMapperService("test");
+        Map<String, Object> runtimeFields = Map.ofEntries(
+            Map.entry("cat", Map.of("type", "keyword", "script", "emit('cat')")),
+            Map.entry("dog", Map.of("type", "keyword", "script", "emit('dog')")),
+            Map.entry("catdog", Map.of("type", "keyword", "script", "emit(doc['cat'].value + doc['dog'].value)"))
+        );
+        QueryShardContext qsc = new QueryShardContext(
+            0,
+            mapperService.getIndexSettings(),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
+            mapperService,
+            null,
+            null,
+            NamedXContentRegistry.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> 0,
+            "test",
+            null,
+            () -> true,
+            null,
+            runtimeFields
+        );
+        assertTrue(qsc.isFieldMapped("cat"));
+        assertThat(qsc.getFieldType(name))
+    }
+
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
         return createQueryShardContext(indexUuid, clusterAlias, null);
     }
 
-    private static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias,
-        TriFunction<String, LeafSearchLookup, Integer, String> runtimeDocValues) {
+    private static QueryShardContext createQueryShardContext(
+        String indexUuid,
+        String clusterAlias,
+        TriFunction<String, LeafSearchLookup, Integer, String> runtimeDocValues
+    ) {
+        MapperService mapperService = mockMapperService(indexUuid);
+        if (runtimeDocValues != null) {
+            when(mapperService.fieldType(any())).thenAnswer(fieldTypeInv -> {
+                String fieldName = (String)fieldTypeInv.getArguments()[0];
+                return mockFieldType(fieldName, (leafSearchLookup, docId) -> runtimeDocValues.apply(fieldName, leafSearchLookup, docId));
+            });
+        }
+        final long nowInMillis = randomNonNegativeLong();
+        return new QueryShardContext(
+            0, mapperService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE, null,
+                (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
+                mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
+            null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
+    }
+
+    private static MapperService mockMapperService(String indexUuid) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
         indexMetadataBuilder.settings(Settings.builder().put("index.version.created", Version.CURRENT)
             .put("index.number_of_shards", 1)
@@ -302,11 +367,12 @@ public class QueryShardContextTests extends ESTestCase {
             .put(IndexMetadata.SETTING_INDEX_UUID, indexUuid)
         );
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
             Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
             Collections.emptyMap(), Collections.emptyMap()
         );
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.index()).thenReturn(indexMetadata.getIndex());
@@ -318,18 +384,7 @@ public class QueryShardContextTests extends ESTestCase {
                 throw new UnsupportedOperationException();
             });
         when(mapperService.parserContext()).thenReturn(parserContext);
-        if (runtimeDocValues != null) {
-            when(mapperService.fieldType(any())).thenAnswer(fieldTypeInv -> {
-                String fieldName = (String)fieldTypeInv.getArguments()[0];
-                return mockFieldType(fieldName, (leafSearchLookup, docId) -> runtimeDocValues.apply(fieldName, leafSearchLookup, docId));
-            });
-        }
-        final long nowInMillis = randomNonNegativeLong();
-        return new QueryShardContext(
-            0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-                (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
-                mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
+        return mapperService;
     }
 
     private static MappedFieldType mockFieldType(String fieldName, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {

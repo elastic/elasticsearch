@@ -7,8 +7,10 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -20,36 +22,43 @@ import java.util.List;
  */
 class TriangleTreeWriter {
 
-    private final TriangleTreeNode node;
-    private final Extent extent;
-
-    TriangleTreeWriter(List<ShapeField.DecodedTriangle> triangles) {
-        this.extent = new Extent();
-        this.node = build(triangles);
+    private TriangleTreeWriter() {
     }
 
     /*** Serialize the interval tree in the provided data output */
-    public void writeTo(ByteBuffersDataOutput out) throws IOException {
+    public static void writeTo(ByteBuffersDataOutput out, List<IndexableField> fields) throws IOException {
+        final Extent extent = new Extent();
+        final TriangleTreeNode node = build(fields, extent); ;
         extent.writeCompressed(out);
         node.writeTo(out);
     }
 
-    private TriangleTreeNode build(List<ShapeField.DecodedTriangle> triangles) {
-        if (triangles.size() == 1) {
-            TriangleTreeNode triangleTreeNode =  new TriangleTreeNode(triangles.get(0));
+    private static TriangleTreeNode build(List<IndexableField> fields, Extent extent) {
+        final byte[] scratch = new byte[7 * Integer.BYTES];
+        if (fields.size() == 1) {
+            final TriangleTreeNode triangleTreeNode =  new TriangleTreeNode(toDecodedTriangle(fields.get(0), scratch));
             extent.addRectangle(triangleTreeNode.minX, triangleTreeNode.minY, triangleTreeNode.maxX, triangleTreeNode.maxY);
             return triangleTreeNode;
         }
-        TriangleTreeNode[] nodes = new TriangleTreeNode[triangles.size()];
-        for (int i = 0; i < triangles.size(); i++) {
-            nodes[i] = new TriangleTreeNode(triangles.get(i));
+        final TriangleTreeNode[] nodes = new TriangleTreeNode[fields.size()];
+        for (int i = 0; i < fields.size(); i++) {
+            nodes[i] = new TriangleTreeNode(toDecodedTriangle(fields.get(i), scratch));
             extent.addRectangle(nodes[i].minX, nodes[i].minY, nodes[i].maxX, nodes[i].maxY);
         }
-        return createTree(nodes, 0, triangles.size() - 1, true);
+        return createTree(nodes, 0, fields.size() - 1, true);
+    }
+
+    private static ShapeField.DecodedTriangle toDecodedTriangle(IndexableField field, byte[] scratch) {
+        final BytesRef bytesRef = field.binaryValue();
+        assert bytesRef.length == 7 * Integer.BYTES;
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
+        final ShapeField.DecodedTriangle decodedTriangle = new ShapeField.DecodedTriangle();
+        ShapeField.decodeTriangle(scratch, decodedTriangle);
+        return decodedTriangle;
     }
 
     /** Creates tree from sorted components (with range low and high inclusive) */
-    private TriangleTreeNode createTree(TriangleTreeNode[] components, int low, int high, boolean splitX) {
+    private static TriangleTreeNode createTree(TriangleTreeNode[] components, int low, int high, boolean splitX) {
         if (low > high) {
             return null;
         }

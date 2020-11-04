@@ -20,12 +20,16 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -40,14 +44,20 @@ import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 public final class TransportPutFollowAction
     extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutFollowAction.class);
 
+    private final IndexScopedSettings indexScopedSettings;
     private final Client client;
     private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -58,6 +68,7 @@ public final class TransportPutFollowAction
             final ThreadPool threadPool,
             final TransportService transportService,
             final ClusterService clusterService,
+            final IndexScopedSettings indexScopedSettings,
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final Client client,
@@ -73,6 +84,7 @@ public final class TransportPutFollowAction
                 indexNameExpressionResolver,
                 PutFollowAction.Response::new,
                 ThreadPool.Names.SAME);
+        this.indexScopedSettings = indexScopedSettings;
         this.client = client;
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
@@ -98,11 +110,12 @@ public final class TransportPutFollowAction
             remoteCluster,
             leaderIndex,
             listener::onFailure,
-            (historyUUID, leaderIndexMetadata) -> createFollowerIndex(leaderIndexMetadata, request, listener));
+            (historyUUID, tuple) -> createFollowerIndex(tuple.v1(), tuple.v2(), request, listener));
     }
 
     private void createFollowerIndex(
             final IndexMetadata leaderIndexMetadata,
+            final DataStream remoteDataStream,
             final PutFollowAction.Request request,
             final ActionListener<PutFollowAction.Response> listener) {
         if (leaderIndexMetadata == null) {
@@ -117,13 +130,35 @@ public final class TransportPutFollowAction
 
         final Settings replicatedRequestSettings = TransportResumeFollowAction.filter(request.getSettings());
         if (replicatedRequestSettings.isEmpty() == false) {
-            final String message = String.format(
-                Locale.ROOT,
-                "can not put follower index that could override leader settings %s",
-                replicatedRequestSettings
-            );
+            final List<String> unknownKeys =
+                replicatedRequestSettings.keySet().stream().filter(s -> indexScopedSettings.get(s) == null).collect(Collectors.toList());
+            final String message;
+            if (unknownKeys.isEmpty()) {
+                message = String.format(
+                    Locale.ROOT,
+                    "can not put follower index that could override leader settings %s",
+                    replicatedRequestSettings
+                );
+            } else {
+                message = String.format(
+                    Locale.ROOT,
+                    "unknown setting%s [%s]",
+                    unknownKeys.size() == 1 ? "" : "s",
+                    String.join(",", unknownKeys)
+                );
+            }
             listener.onFailure(new IllegalArgumentException(message));
             return;
+        }
+
+        if (remoteDataStream != null) {
+            // when following a backing index then the names of the backing index must be remain the same in the local
+            // and remote cluster.
+            if (request.getLeaderIndex().equals(request.getFollowerIndex()) == false) {
+                listener.onFailure(
+                    new IllegalArgumentException("a backing index name in the local and remote cluster must remain the same"));
+                return;
+            }
         }
 
         final Settings overrideSettings = Settings.builder()
@@ -148,9 +183,24 @@ public final class TransportPutFollowAction
 
             @Override
             protected void doRun() {
-                restoreService.restoreSnapshot(restoreRequest,
-                    ActionListener.delegateFailure(listener,
-                        (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)));
+                ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = ActionListener.delegateFailure(
+                    listener,
+                    (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
+                );
+                if (remoteDataStream == null) {
+                    restoreService.restoreSnapshot(restoreRequest, delegatelistener);
+                } else {
+                    String followerIndexName = request.getFollowerIndex();
+                    BiConsumer<ClusterState, Metadata.Builder> updater = (currentState, mdBuilder) -> {
+                        DataStream localDataStream = currentState.getMetadata().dataStreams().get(remoteDataStream.getName());
+                        Index followerIndex = mdBuilder.get(followerIndexName).getIndex();
+                        assert followerIndex != null;
+
+                        DataStream updatedDataStream = updateLocalDataStream(followerIndex, localDataStream, remoteDataStream);
+                        mdBuilder.put(updatedDataStream);
+                    };
+                    restoreService.restoreSnapshot(restoreRequest, delegatelistener, updater);
+                }
             }
         });
     }
@@ -161,7 +211,7 @@ public final class TransportPutFollowAction
         final ActionListener<PutFollowAction.Response> listener;
         if (ActiveShardCount.NONE.equals(request.waitForActiveShards())) {
             originalListener.onResponse(new PutFollowAction.Response(true, false, false));
-            listener = new ActionListener<PutFollowAction.Response>() {
+            listener = new ActionListener<>() {
 
                 @Override
                 public void onResponse(PutFollowAction.Response response) {
@@ -209,6 +259,29 @@ public final class TransportPutFollowAction
                 listener::onFailure),
             listener::onFailure
         ));
+    }
+
+    static DataStream updateLocalDataStream(Index backingIndexToFollow,
+                                            DataStream localDataStream,
+                                            DataStream remoteDataStream) {
+        if (localDataStream == null) {
+            // The data stream and the backing indices have been created and validated in the remote cluster,
+            // just copying the data stream is in this case safe.
+            return new DataStream(remoteDataStream.getName(), remoteDataStream.getTimeStampField(),
+                List.of(backingIndexToFollow), remoteDataStream.getGeneration(), remoteDataStream.getMetadata());
+        } else {
+            List<Index> backingIndices = new ArrayList<>(localDataStream.getIndices());
+            backingIndices.add(backingIndexToFollow);
+
+            // When following an older backing index it should be positioned before the newer backing indices.
+            // Currently the assumption is that the newest index (highest generation) is the write index.
+            // (just appending an older backing index to the list of backing indices would break that assumption)
+            // (string sorting works because of the naming backing index naming scheme)
+            backingIndices.sort(Comparator.comparing(Index::getName));
+
+            return new DataStream(localDataStream.getName(), localDataStream.getTimeStampField(), backingIndices,
+                remoteDataStream.getGeneration(), remoteDataStream.getMetadata());
+        }
     }
 
     @Override

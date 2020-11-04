@@ -384,8 +384,8 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
             .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
-        assertThat(fields.size(), equalTo(3));
-        assertThat(fields.keySet(), containsInAnyOrder("field", "field._index_prefix", "field._index_phrase"));
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.keySet(), containsInAnyOrder("field"));
 
         for (DocumentField field : fields.values()) {
             assertThat(field.getValues().size(), equalTo(1));

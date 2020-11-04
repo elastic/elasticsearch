@@ -18,10 +18,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
@@ -339,6 +341,50 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
         }
+    }
+
+    public void testValidateMinimumInterval() {
+        ClusterState defaultState = ClusterState.builder(new ClusterName("cluster")).build();
+
+        ClusterState validationOneMinuteState = ClusterState.builder(new ClusterName("cluster"))
+            .metadata(Metadata.builder().persistentSettings(
+                Settings.builder()
+                    .put(defaultState.metadata().persistentSettings())
+                    .put(LifecycleSettings.SLM_MINIMUM_INTERVAL, TimeValue.timeValueMinutes(1))
+                    .build()))
+            .build();
+
+        ClusterState validationDisabledState = ClusterState.builder(new ClusterName("cluster"))
+            .metadata(Metadata.builder().persistentSettings(
+                Settings.builder()
+                    .put(defaultState.metadata().persistentSettings())
+                    .put(LifecycleSettings.SLM_MINIMUM_INTERVAL, TimeValue.ZERO)
+                    .build()))
+            .build();
+
+        for (String schedule : List.of(
+            "0 0/15 * * * ?",
+            "0 0 1 * * ?",
+            "0 0 0 1 1 ? 2099" /* once */,
+            "* * * 31 FEB ? *" /* never */)) {
+            SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", schedule), defaultState);
+            SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", schedule), validationOneMinuteState);
+            SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", schedule), validationDisabledState);
+        }
+
+        IllegalArgumentException e;
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "0 0/1 * * * ?"), defaultState));
+        assertThat(e.getMessage(), equalTo("invalid schedule [0 0/1 * * * ?]: " +
+            "schedule would be too frequent, executing more than every [15m]"));
+        SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "0 0/1 * * * ?"), validationOneMinuteState);
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "0/30 0/1 * * * ?"), validationOneMinuteState));
+        assertThat(e.getMessage(), equalTo("invalid schedule [0/30 0/1 * * * ?]: " +
+            "schedule would be too frequent, executing more than every [1m]"));
+        SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "0/30 0/1 * * * ?"), validationDisabledState);
     }
 
     class FakeSnapshotTask extends SnapshotLifecycleTask {

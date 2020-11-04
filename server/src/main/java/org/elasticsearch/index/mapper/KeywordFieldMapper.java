@@ -336,12 +336,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.indexAnalyzers;
     }
 
-    /** Values that have more chars than the return value of this method will
-     *  be skipped at parsing time. */
-    public int ignoreAbove() {
-        return ignoreAbove;
-    }
-
     @Override
     public KeywordFieldType fieldType() {
         return (KeywordFieldType) super.fieldType();

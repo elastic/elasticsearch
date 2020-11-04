@@ -129,7 +129,7 @@ public class AsyncTaskTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getComposableTemplateConfigs().size())));
     }
 
-    public void testThatMissingMasterNodeDoesNothing() {
+    public void testThatMissing$MasterNodeDoesNothing() {
         DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").add(localNode).build();
 
@@ -198,7 +198,7 @@ public class AsyncTaskTemplateRegistryTests extends ESTestCase {
             return new TestPutIndexTemplateResponse(true);
         } else if (action instanceof PutLifecycleAction) {
             // Ignore this, it's verified in another test
-            return new PutLifecycleAction.Response(true);
+            return AcknowledgedResponse.TRUE;
         } else {
             fail("client called with unexpected request:" + request.toString());
             return null;

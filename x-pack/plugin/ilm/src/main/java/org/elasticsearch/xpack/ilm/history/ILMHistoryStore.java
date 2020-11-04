@@ -62,9 +62,7 @@ public class ILMHistoryStore implements Closeable, ClusterStateListener {
 
     public ILMHistoryStore(Settings nodeSettings, Client client, ClusterService clusterService, ThreadPool threadPool) {
         this.clusterService = clusterService;
-        if (clusterService != null) {
-            clusterService.addListener(this);
-        }
+        clusterService.addListener(this);
         this.ilmHistoryEnabled = LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
         this.threadPool = threadPool;
 
@@ -167,9 +165,7 @@ public class ILMHistoryStore implements Closeable, ClusterStateListener {
 
     @Override
     public void close() {
-        if (clusterService != null) {
-            clusterService.removeListener(this);
-        }
+        clusterService.removeListener(this);
         try {
             processor.awaitClose(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {

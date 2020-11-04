@@ -49,8 +49,12 @@ You must specify at least one rollover condition.
 An empty rollover action is invalid.
 
 `max_age`::
-(Optional,  <<time-units, time units>>)  
-Triggers roll over after the maximum elapsed time from index creation is reached. 
+(Optional,  <<time-units, time units>>)
+Triggers roll over after the maximum elapsed time from index creation is reached.
+The elapsed time is always calculated since the index creation time, even if the
+index origination date is configured to a custom date (via the
+<<index-lifecycle-parse-origination-date, index.lifecycle.parse_origination_date>> or
+<<index-lifecycle-origination-date, index.lifecycle.origination_date>> settings)
 
 `max_docs`::
 (Optional, integer)

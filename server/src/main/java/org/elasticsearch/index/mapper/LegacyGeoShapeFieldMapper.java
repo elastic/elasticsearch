@@ -133,7 +133,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         return ((LegacyGeoShapeFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
 
@@ -496,7 +496,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexCreatedVersion,
             builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value()).init(this);
     }

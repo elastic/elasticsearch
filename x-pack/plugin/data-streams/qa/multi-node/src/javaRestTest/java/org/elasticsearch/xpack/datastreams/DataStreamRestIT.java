@@ -40,6 +40,10 @@ public class DataStreamRestIT extends ESRestTestCase {
         assertTrue((boolean) dataStreams.get("enabled"));
         assertThat(dataStreams.get("data_streams"), anyOf(equalTo(null), equalTo(0)));
 
+        dataStreams = (Map<String, Object>) getLocation("/_xpack/usage").get("data_streams");
+        int dataStreamsCount = (int) dataStreams.get("data_streams");
+        int indicesCount = (int) dataStreams.get("indices_count");
+
         // Create a data stream
         Request indexRequest = new Request("POST", "/logs-mysql-default/_doc");
         indexRequest.setJsonEntity("{\"@timestamp\": \"2020-01-01\"}");
@@ -53,8 +57,8 @@ public class DataStreamRestIT extends ESRestTestCase {
         assertNotNull(dataStreams);
         assertTrue((boolean) dataStreams.get("available"));
         assertTrue((boolean) dataStreams.get("enabled"));
-        assertThat("got: " + dataStreams, dataStreams.get("data_streams"), equalTo(1));
-        assertThat("got: " + dataStreams, dataStreams.get("indices_count"), equalTo(2));
+        assertThat("got: " + dataStreams, dataStreams.get("data_streams"), equalTo(dataStreamsCount + 1));
+        assertThat("got: " + dataStreams, dataStreams.get("indices_count"), equalTo(dataStreamsCount + 2));
     }
 
     public Map<String, Object> getLocation(String path) {

@@ -34,17 +34,19 @@ import java.util.Map;
 import java.util.Set;
 
 public class StringTermsTests extends InternalTermsTestCase {
-    private BytesRef[] dict;
+    private final BytesRef[] dict;
 
-    public synchronized void generateRandomDict() {
-        if (dict == null) {
-            Set<BytesRef> terms = new HashSet<>();
-            int numTerms = randomIntBetween(2, 100);
-            for (int i = 0; i < numTerms; i++) {
-                terms.add(new BytesRef(randomAlphaOfLength(10)));
-            }
-            dict = terms.stream().toArray(BytesRef[]::new);
+    public StringTermsTests() {
+        this.dict = generateRandomDict();
+    }
+
+    private  BytesRef[] generateRandomDict() {
+        Set<BytesRef> terms = new HashSet<>();
+        int numTerms = randomIntBetween(2, 100);
+        for (int i = 0; i < numTerms; i++) {
+            terms.add(new BytesRef(randomAlphaOfLength(10)));
         }
+        return terms.stream().toArray(BytesRef[]::new);
     }
 
     @Override

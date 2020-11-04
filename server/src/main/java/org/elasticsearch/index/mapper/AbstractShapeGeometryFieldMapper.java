@@ -21,7 +21,9 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -61,13 +63,23 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
     protected Explicit<Orientation> orientation;
 
     protected AbstractShapeGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                               Map<String, NamedAnalyzer> indexAnalyzers,
                                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                                Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
                                                MultiFields multiFields, CopyTo copyTo,
                                                Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
+        super(simpleName, mappedFieldType, indexAnalyzers, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
         this.coerce = coerce;
         this.orientation = orientation;
+    }
+
+    protected AbstractShapeGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                                               Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
+                                               MultiFields multiFields, CopyTo copyTo,
+                                               Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
+        this(simpleName, mappedFieldType, Collections.emptyMap(),
+            ignoreMalformed, coerce, ignoreZValue, orientation, multiFields, copyTo, indexer, parser);
     }
 
     @Override

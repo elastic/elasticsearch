@@ -173,8 +173,4 @@ public class ILMHistoryStore implements Closeable {
             logger.warn("failed to shut down ILM history bulk processor after 10 seconds", e);
         }
     }
-
-    public void flush(){
-        processor.flush();
-    }
 }

@@ -59,13 +59,13 @@ public enum XContentType implements MediaType {
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue("application/json", Map.of("charset", "UTF-8")),
-                new HeaderValue("application/x-ndjson", Map.of("charset", "UTF-8")),
+                new HeaderValue("application/json"),
+                new HeaderValue("application/x-ndjson"),
                 new HeaderValue("application/*"),
                 new HeaderValue(VENDOR_APPLICATION_PREFIX +"json",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8")),
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)),
                 new HeaderValue(VENDOR_APPLICATION_PREFIX +"x-ndjson",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8")));
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     },
     /**
@@ -90,9 +90,9 @@ public enum XContentType implements MediaType {
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue("application/smile", Map.of("charset", "UTF-8")),
+                new HeaderValue("application/smile"),
                 new HeaderValue(VENDOR_APPLICATION_PREFIX +"smile",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8")));
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     },
     /**
@@ -117,9 +117,9 @@ public enum XContentType implements MediaType {
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue("application/yaml", Map.of("charset", "UTF-8")),
+                new HeaderValue("application/yaml"),
                 new HeaderValue(VENDOR_APPLICATION_PREFIX +"yaml",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8")));
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     },
     /**
@@ -144,9 +144,9 @@ public enum XContentType implements MediaType {
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue("application/cbor", Map.of("charset", "UTF-8")),
+                new HeaderValue("application/cbor"),
                 new HeaderValue(VENDOR_APPLICATION_PREFIX +"cbor",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN,"charset", "UTF-8")));
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     };
 

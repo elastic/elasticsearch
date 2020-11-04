@@ -32,11 +32,13 @@ import java.util.regex.Pattern;
  * Also allows to find media type by a path parameter <code>format</code>.
  * I.e. txt used in path _sql?format=txt will return TextFormat.PLAIN_TEXT
  *
- * Note: there might be multiple typeWithSubtype mapping to the same MediaType,
- * but there is only one format path param mapping to the MediaType.
+ * Multiple header representations may map to a single {@link MediaType} for example, "application/json"
+ * and "application/vnd.elasticsearch+json" both represent a JSON MediaType.
+ * A MediaType can have only one query parameter representation.
+ * For example "json" (case insensitive) maps back to a JSON media type.
  *
- * The registry also specifies parameters values for validation.
- * Parameter value is a String regex which will be parsed in a case-insensitive manner.
+ * Additionally, a http header may optionally have parameters. For example "application/json; charset=utf-8".
+ * This class also allows to define a regular expression for valid values of charset.
  */
 public class MediaTypeRegistry<T extends MediaType> {
 

@@ -90,7 +90,8 @@ public class ParsedMediaType {
                     if (paramsAsString.isEmpty()) {
                         continue;
                     }
-                    // intentionally allowing to have spaces around `=` (RFC disallows this)
+                    // intentionally allowing to have spaces around `=`
+                    // https://tools.ietf.org/html/rfc7231#section-3.1.1.1 disallows this
                     String[] keyValueParam = elements[i].trim().split("=");
                     if (keyValueParam.length == 2) {
                         String parameterName = keyValueParam[0].toLowerCase(Locale.ROOT).trim();

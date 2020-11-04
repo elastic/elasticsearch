@@ -108,9 +108,9 @@ enum TextFormat implements MediaType {
         public Set<HeaderValue> headerValues() {
             return Set.of(
                 new HeaderValue(CONTENT_TYPE_TXT,
-                    Map.of("header", "present|absent", "charset", "utf-8")),
+                    Map.of("header", "present|absent")),
                 new HeaderValue(VENDOR_CONTENT_TYPE_TXT,
-                    Map.of("header", "present|absent", "charset", "utf-8", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
 
     },
@@ -232,12 +232,9 @@ enum TextFormat implements MediaType {
         public Set<HeaderValue> headerValues() {
             return Set.of(
                 new HeaderValue(CONTENT_TYPE_CSV,
-                    Map.of("header", "present|absent", "charset", "utf-8",
-                        "delimiter", ".+")),// more detailed parsing is in TextFormat.CSV#delimiter
+                    Map.of("header", "present|absent","delimiter", ".+")),// more detailed parsing is in TextFormat.CSV#delimiter
                 new HeaderValue(VENDOR_CONTENT_TYPE_CSV,
-                    Map.of("header", "present|absent", "charset", "utf-8",
-                        "delimiter", ".+",
-                        COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                    Map.of("header", "present|absent","delimiter", ".+", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     },
 
@@ -291,13 +288,11 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public  Set<HeaderValue> headerValues() {
+        public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue(CONTENT_TYPE_TSV,
-                    Map.of("header", "present|absent", "charset", "utf-8")),
+                new HeaderValue(CONTENT_TYPE_TSV, Map.of("header", "present|absent")),
                 new HeaderValue(VENDOR_CONTENT_TYPE_TSV,
-                    Map.of("header", "present|absent", "charset", "utf-8",
-                        COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     };
 

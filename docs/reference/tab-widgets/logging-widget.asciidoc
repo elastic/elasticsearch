@@ -11,7 +11,7 @@
             aria-selected="false"
             aria-controls="deb-tab-logs"
             id="deb-logs">
-      Debian
+      Debian (APT)
     </button>
     <button role="tab"
             aria-selected="false"

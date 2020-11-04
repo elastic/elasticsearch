@@ -42,7 +42,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
 
     @After
     public void tearDownTest() {
-        assertTrue(ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS));
+        assertTrue(ThreadPool.terminate(threadPool, 30L, TimeUnit.SECONDS));
     }
 
     /**
@@ -133,6 +133,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 assertEquals(stat.getActive(), 0);
                 assertEquals(stat.getQueue(), 0);
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 }

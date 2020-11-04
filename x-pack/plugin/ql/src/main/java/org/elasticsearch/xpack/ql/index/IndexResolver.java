@@ -24,6 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.ConstantKeywordEsField;
@@ -158,7 +159,7 @@ public class IndexResolver {
             EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE), EnumSet.of(WildcardStates.OPEN));
 
 
-    private static final List<String> FIELD_NAMES_BLACKLIST = Arrays.asList("_size");
+    private static final Set<String> FIELD_NAMES_BLACKLIST = Sets.newHashSet("_size", "_doc_count");
     private static final String UNMAPPED = "unmapped";
 
     private final Client client;

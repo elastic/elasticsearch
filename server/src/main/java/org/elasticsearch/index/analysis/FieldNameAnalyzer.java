@@ -48,4 +48,20 @@ public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
         // Fields need to be explicitly added
         throw new IllegalArgumentException("Field [" + fieldName + "] has no associated analyzer");
     }
+
+    public boolean containsBrokenAnalysis(String field) {
+        Analyzer analyzer = getWrappedAnalyzer(field);
+        if (analyzer instanceof NamedAnalyzer) {
+            analyzer = ((NamedAnalyzer) analyzer).analyzer();
+        }
+        if (analyzer instanceof AnalyzerComponentsProvider) {
+            final TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
+            for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
+                if (tokenFilterFactory.breaksFastVectorHighlighter()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 }

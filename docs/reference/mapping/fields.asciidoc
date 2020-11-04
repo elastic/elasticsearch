@@ -29,6 +29,13 @@ fields can be customized when a mapping is created.
     The size of the `_source` field in bytes, provided by the
     {plugins}/mapper-size.html[`mapper-size` plugin].
 
+q[discrete]
+=== Doc count metadata field
+
+<<mapping-doc-count-field,`_doc_count`>>::
+
+    A custom field used for storing doc counts when a document represents pre-aggregated data.
+
 [discrete]
 === Indexing metadata fields
 
@@ -55,6 +62,7 @@ fields can be customized when a mapping is created.
 
     Application specific metadata.
 
+include::fields/doc-count-field.asciidoc[]
 
 include::fields/field-names-field.asciidoc[]
 
@@ -69,4 +77,3 @@ include::fields/meta-field.asciidoc[]
 include::fields/routing-field.asciidoc[]
 
 include::fields/source-field.asciidoc[]
-

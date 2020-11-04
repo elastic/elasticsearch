@@ -171,4 +171,16 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
 
         assertThat(total.get(), equalTo(0L));
     }
+
+    public void testRetrieveCardinality() {
+        final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        int bucket = randomInt(100);
+        counts.collect(bucket, randomLong());
+        for (int i = 0; i < 1000; i++) {
+            int cardinality = bucket == i ? 1 : 0;
+            assertEquals(cardinality, counts.cardinality(i));
+        }
+    }
+
 }

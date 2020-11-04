@@ -13,6 +13,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 public class TransportPersistJobAction extends TransportJobTaskAction<PersistJobAction.Request, PersistJobAction.Response> {
 
@@ -25,8 +26,7 @@ public class TransportPersistJobAction extends TransportJobTaskAction<PersistJob
     }
 
     @Override
-    protected void taskOperation(PersistJobAction.Request request, TransportOpenJobAction.JobTask task,
-                                 ActionListener<PersistJobAction.Response> listener) {
+    protected void taskOperation(PersistJobAction.Request request, JobTask task, ActionListener<PersistJobAction.Response> listener) {
 
         processManager.persistJob(task, e -> {
             if (e == null) {

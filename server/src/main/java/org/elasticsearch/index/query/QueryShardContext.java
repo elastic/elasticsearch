@@ -287,6 +287,14 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.getObjectMapper(name);
     }
 
+    public boolean isMetadataField(String field) {
+        return mapperService.isMetadataField(field);
+    }
+
+    public Set<String> sourcePath(String fullName) {
+        return mapperService.sourcePath(fullName);
+    }
+
     /**
      * Returns s {@link DocumentMapper} instance for the given type.
      * Delegates to {@link MapperService#documentMapper(String)}

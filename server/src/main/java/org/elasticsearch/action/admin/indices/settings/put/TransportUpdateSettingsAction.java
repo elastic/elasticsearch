@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -85,8 +84,8 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(AcknowledgedResponse.of(response.isAcknowledged()));
+            public void onResponse(AcknowledgedResponse response) {
+                listener.onResponse(response);
             }
 
             @Override

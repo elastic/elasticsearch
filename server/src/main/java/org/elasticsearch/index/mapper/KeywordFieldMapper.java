@@ -32,6 +32,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -47,7 +48,7 @@ import java.util.function.Supplier;
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
  */
-public final class KeywordFieldMapper extends ParametrizedFieldMapper {
+public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
 
@@ -74,7 +75,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         return (KeywordFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -235,12 +236,12 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), mapperService, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
@@ -336,11 +337,6 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected KeywordFieldMapper clone() {
-        return (KeywordFieldMapper) super.clone();
-    }
-
-    @Override
     public KeywordFieldType fieldType() {
         return (KeywordFieldType) super.fieldType();
     }
@@ -410,7 +406,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers).init(this);
     }
 }

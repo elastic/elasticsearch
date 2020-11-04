@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.datastreams.rest;
 
-import org.elasticsearch.xpack.core.action.GetDataStreamAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 
-import java.io.IOException;
 import java.util.List;
 
 public class RestGetDataStreamsAction extends BaseRestHandler {
@@ -28,10 +28,11 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         GetDataStreamAction.Request getDataStreamsRequest = new GetDataStreamAction.Request(
             Strings.splitStringByCommaToArray(request.param("name"))
         );
+        getDataStreamsRequest.indicesOptions(IndicesOptions.fromRequest(request, getDataStreamsRequest.indicesOptions()));
         return channel -> client.execute(GetDataStreamAction.INSTANCE, getDataStreamsRequest, new RestToXContentListener<>(channel));
     }
 }

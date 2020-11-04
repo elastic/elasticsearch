@@ -29,10 +29,9 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DynamicKeyFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -94,7 +93,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         return ((FlattenedFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Integer> depthLimit
             = Parameter.intParam("depth_limit", true, m -> builder(m).depthLimit.get(), Defaults.DEPTH_LIMIT)
@@ -257,7 +256,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             // This is an internal field but it can match a field pattern so we return an empty list.
             return lookup -> List.of();
         }
@@ -404,8 +403,8 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
     }
 
@@ -424,11 +423,6 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    protected FlattenedFieldMapper clone() {
-        return (FlattenedFieldMapper) super.clone();
     }
 
     int depthLimit() {
@@ -473,7 +467,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

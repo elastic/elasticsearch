@@ -48,7 +48,7 @@ import java.util.function.Supplier;
 /**
  * A field mapper for boolean fields.
  */
-public class BooleanFieldMapper extends ParametrizedFieldMapper {
+public class BooleanFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 
@@ -72,7 +72,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         return (BooleanFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  true);
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -127,12 +127,12 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), mapperService, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Boolean parseSourceValue(Object value) {
                     if (value instanceof Boolean) {
@@ -267,7 +267,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 

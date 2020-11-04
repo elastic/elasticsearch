@@ -40,7 +40,7 @@ import java.util.function.Supplier;
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField}.
  */
-public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
+public class RankFeatureFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "rank_feature";
 
@@ -59,7 +59,7 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         return ((RankFeatureFieldMapper)in).fieldType();
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> positiveScoreImpact
             = Parameter.boolParam("positive_score_impact", false, m -> ft(m).positiveScoreImpact, true);
@@ -114,11 +114,11 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService) {
+            return new SourceValueFetcher(name(), context) {
                 @Override
                 protected Float parseSourceValue(Object value) {
                     return objectToFloat(value);
@@ -138,11 +138,6 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
                                    MultiFields multiFields, CopyTo copyTo, boolean positiveScoreImpact) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.positiveScoreImpact = positiveScoreImpact;
-    }
-
-    @Override
-    protected RankFeatureFieldMapper clone() {
-        return (RankFeatureFieldMapper) super.clone();
     }
 
     @Override
@@ -189,7 +184,7 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

@@ -64,17 +64,55 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
 
-    protected MappedFieldType mappedFieldType;
-    protected MultiFields multiFields;
-    protected CopyTo copyTo;
+    protected final MappedFieldType mappedFieldType;
+    protected final Map<String, NamedAnalyzer> indexAnalyzers;
+    protected final MultiFields multiFields;
+    protected final CopyTo copyTo;
 
+    /**
+     * Create a FieldMapper with no index analyzers
+     * @param simpleName        the leaf name of the mapper
+     * @param mappedFieldType   the MappedFieldType associated with this mapper
+     * @param multiFields       sub fields of this mapper
+     * @param copyTo            copyTo fields of this mapper
+     */
     protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                          MultiFields multiFields, CopyTo copyTo) {
+        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo);
+    }
+
+    /**
+     * Create a FieldMapper with a single associated index analyzer
+     * @param simpleName        the leaf name of the mapper
+     * @param mappedFieldType   the MappedFieldType associated with this mapper
+     * @param indexAnalyzer     the index-time analyzer to use for this field
+     * @param multiFields       sub fields of this mapper
+     * @param copyTo            copyTo fields of this mapper
+     */
+    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                          NamedAnalyzer indexAnalyzer,
+                          MultiFields multiFields, CopyTo copyTo) {
+        this(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), indexAnalyzer), multiFields, copyTo);
+    }
+
+    /**
+     * Create a FieldMapper that indexes into multiple analyzed fields
+     * @param simpleName        the leaf name of the mapper
+     * @param mappedFieldType   the MappedFieldType associated with this mapper
+     * @param indexAnalyzers    a map of field names to analyzers, one for each analyzed field
+     *                          the mapper will add
+     * @param multiFields       sub fields of this mapper
+     * @param copyTo            copyTo fields of this mapper
+     */
+    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                          Map<String, NamedAnalyzer> indexAnalyzers,
                           MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
         if (mappedFieldType.name().isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
         }
         this.mappedFieldType = mappedFieldType;
+        this.indexAnalyzers = indexAnalyzers;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
     }
@@ -263,18 +301,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return builder.endObject();
     }
 
-    protected boolean indexedByDefault() {
-        return true;
-    }
-
-    protected boolean docValuesByDefault() {
-        return true;
-    }
-
-    protected boolean storedByDefault() {
-        return false;
-    }
-
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
         getMergeBuilder().toXContent(builder, includeDefaults);
@@ -283,6 +309,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected abstract String contentType();
+
+    public final Map<String, NamedAnalyzer> indexAnalyzers() {
+        return indexAnalyzers;
+    }
 
     public static class MultiFields implements Iterable<Mapper> {
 

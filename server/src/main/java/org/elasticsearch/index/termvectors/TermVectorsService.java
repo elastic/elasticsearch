@@ -218,17 +218,11 @@ public class TermVectorsService  {
 
     private static Analyzer getAnalyzerAtField(IndexShard indexShard, String field, @Nullable Map<String, String> perFieldAnalyzer) {
         MapperService mapperService = indexShard.mapperService();
-        Analyzer analyzer;
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
-            analyzer = mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field));
+            return mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field));
         } else {
-            MappedFieldType fieldType = mapperService.fieldType(field);
-            analyzer = fieldType.indexAnalyzer();
+            return mapperService.indexAnalyzer();
         }
-        if (analyzer == null) {
-            analyzer = mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer();
-        }
-        return analyzer;
     }
 
     private static Set<String> getFieldsToGenerate(Map<String, String> perAnalyzerField, Fields fieldsObject) {

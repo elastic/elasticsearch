@@ -225,7 +225,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
 
         //<1> Change MlMetadata to indicate that upgrade_mode is now enabled
         clusterService.submitStateUpdateTask("ml-set-upgrade-mode",
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, clusterStateUpdateListener) {
+            new AckedClusterStateUpdateTask(request, clusterStateUpdateListener) {
 
                 @Override
                 protected AcknowledgedResponse newResponse(boolean acknowledged) {

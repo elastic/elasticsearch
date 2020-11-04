@@ -150,7 +150,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                     })));
     }
 
-    static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask<ClusterRerouteResponse> {
+    static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask {
 
         private final ClusterRerouteRequest request;
         private final ActionListener<ClusterRerouteResponse> listener;

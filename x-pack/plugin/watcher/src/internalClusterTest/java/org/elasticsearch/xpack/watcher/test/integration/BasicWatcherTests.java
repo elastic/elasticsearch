@@ -11,13 +11,17 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.ListWatchesAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
@@ -35,6 +39,9 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.support.WeekTimes;
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -374,5 +381,63 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().clock().fastForwardSeconds(1);
         timeWarp().trigger(watchName);
         assertWatchWithMinimumPerformedActionsCount(watchName, 1);
+    }
+
+    public void testListWatches() {
+        int numWatches = 6;
+        for (int i = 0; i < numWatches; i++) {
+            PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("" + i)
+                .setSource(watchBuilder()
+                    .trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.DAYS)))
+                    .addAction("_logger", loggingAction("log me"))
+                    .metadata(Map.of("key1", i, "key2", numWatches - i)))
+                .get();
+            assertThat(putWatchResponse.isCreated(), is(true));
+        }
+        refresh();
+
+        ListWatchesAction.Request request = new ListWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata.key1")));
+        ListWatchesAction.Response response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
+        assertThat(response.getWatches().size(), equalTo(2));
+        assertThat(response.getWatches().get(0).getId(), equalTo("0"));
+        Map<?, ?> watcherMetadata = (Map<?, ?>) response.getWatches().get(0).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key2"), equalTo(6));
+        assertThat(response.getWatches().get(1).getId(), equalTo("1"));
+        watcherMetadata = (Map<?, ?>) response.getWatches().get(1).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key2"), equalTo(5));
+
+        request = new ListWatchesAction.Request(2, 2, null, List.of(new FieldSortBuilder("metadata.key1")));
+        response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
+        assertThat(response.getWatches().size(), equalTo(2));
+        assertThat(response.getWatches().get(0).getId(), equalTo("2"));
+        watcherMetadata = (Map<?, ?>) response.getWatches().get(0).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key2"), equalTo(4));
+        assertThat(response.getWatches().get(1).getId(), equalTo("3"));
+        watcherMetadata = (Map<?, ?>) response.getWatches().get(1).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key2"), equalTo(3));
+
+        request = new ListWatchesAction.Request(null, null, new TermQueryBuilder("_id", "4"), null);
+        response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo(1L));
+        assertThat(response.getWatches().size(), equalTo(1));
+        assertThat(response.getWatches().get(0).getId(), equalTo("4"));
+        watcherMetadata = (Map<?, ?>) response.getWatches().get(0).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key1"), equalTo(4));
+        assertThat(watcherMetadata.get("key2"), equalTo(2));
+
+        request = new ListWatchesAction.Request(4, 2, null, List.of(new FieldSortBuilder("metadata.key2")));
+        response = client().execute(ListWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
+        assertThat(response.getWatches().size(), equalTo(2));
+        assertThat(response.getWatches().get(0).getId(), equalTo("1"));
+        watcherMetadata = (Map<?, ?>) response.getWatches().get(0).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key1"), equalTo(1));
+        assertThat(watcherMetadata.get("key2"), equalTo(5));
+        assertThat(response.getWatches().get(1).getId(), equalTo("0"));
+        watcherMetadata = (Map<?, ?>) response.getWatches().get(1).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key1"), equalTo(0));
+        assertThat(watcherMetadata.get("key2"), equalTo(6));
     }
 }

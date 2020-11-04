@@ -1,0 +1,25 @@
+{
+  "watcher.list_watches":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-list-watches.html",
+      "description":"List all stored watches."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_watcher/_list_watches",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"From, size, query and sort",
+      "required":false
+    }
+  }
+}

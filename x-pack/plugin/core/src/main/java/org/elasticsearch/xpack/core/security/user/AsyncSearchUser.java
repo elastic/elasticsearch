@@ -16,7 +16,8 @@ public class AsyncSearchUser extends User {
     public static final AsyncSearchUser INSTANCE = new AsyncSearchUser();
     public static final String ROLE_NAME = UsernamesField.ASYNC_SEARCH_ROLE;
     public static final Role ROLE = Role.builder(new RoleDescriptor(ROLE_NAME,
-            null,
+            // handles template registry for the .async-search index
+            new String[] { "manage_index_templates" },
             new RoleDescriptor.IndicesPrivileges[] {
                     RoleDescriptor.IndicesPrivileges.builder()
                             .indices(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + "*")

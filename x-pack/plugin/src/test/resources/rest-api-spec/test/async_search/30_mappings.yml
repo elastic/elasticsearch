@@ -1,0 +1,102 @@
+---
+"Verify async_search mappings":
+  - skip:
+      features:
+        - "warnings"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: "2"
+
+  - do:
+      index:
+        index:  test
+        body:   { max: 2 }
+
+  - do:
+      index:
+        index:  test
+        body:   { max: 1 }
+
+  - do:
+      indices.refresh: {
+        index: "test"
+      }
+
+  - do:
+      indices.delete:
+        index: [ ".async-search" ]
+        ignore: 404
+
+  - do:
+      async_search.submit:
+        index: test
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
+        body:
+          query:
+            match_all: {}
+  - set:    { id:                                  id    }
+  - match:  { is_partial:                          false }
+  - length: { response.hits.hits:                  2     }
+
+  - do:
+      warnings:
+        - "this request accesses system indices: [.async-search], but in a future major version, direct access to system indices will be prevented by default"
+      indices.get_mapping:
+        index: .async-search
+
+  - match: { \.async-search.mappings.dynamic:                               "false" }
+  - length: { \.async-search.mappings.properties :                                4 }
+  - is_true: \.async-search.mappings.properties.expiration_time
+  - match: { \.async-search.mappings.properties.expiration_time.type:        "long" }
+  - is_true: \.async-search.mappings.properties.headers
+  - match: { \.async-search.mappings.properties.headers.type:              "object" }
+  - match: { \.async-search.mappings.properties.headers.enabled:              false }
+  - is_true: \.async-search.mappings.properties.response_headers
+  - match: { \.async-search.mappings.properties.response_headers.type:     "object" }
+  - match: { \.async-search.mappings.properties.response_headers.enabled:     false }
+  - is_true: \.async-search.mappings.properties.result
+  - match: { \.async-search.mappings.properties.result.type:               "object" }
+  - match: { \.async-search.mappings.properties.result.enabled:               false }
+
+  # Delete the underlying .async-search system index
+  - do:
+      warnings:
+        - "this request accesses system indices: [.async-search], but in a future major version, direct access to system indices will be prevented by default"
+      indices.delete:
+        index: [ ".async-search" ]
+
+  - do:
+      catch: missing
+      async_search.get:
+        id: "$id"
+        keep_alive: 1m
+
+  # Check that the .async-search index was re-created automatically by the async search API
+  - do:
+      warnings:
+        - "this request accesses system indices: [.async-search], but in a future major version, direct access to system indices will be prevented by default"
+      indices.get_mapping:
+        index: .async-search
+
+  - match: { \.async-search.mappings.dynamic:                           "false" }
+  - length: { \.async-search.mappings.properties :                            4 }
+  - is_true: \.async-search.mappings.properties.expiration_time
+  - match: { \.async-search.mappings.properties.expiration_time.type:    "long" }
+  - is_true: \.async-search.mappings.properties.headers
+  - match: { \.async-search.mappings.properties.headers.type:          "object" }
+  - match: { \.async-search.mappings.properties.headers.enabled:          false }
+  - is_true: \.async-search.mappings.properties.response_headers
+  - match: { \.async-search.mappings.properties.response_headers.type: "object" }
+  - match: { \.async-search.mappings.properties.response_headers.enabled: false }
+  - is_true: \.async-search.mappings.properties.result
+  - match: { \.async-search.mappings.properties.result.type:           "object" }
+  - match: { \.async-search.mappings.properties.result.enabled:           false }
+
+
+
+

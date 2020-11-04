@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.core.async;
 
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -21,7 +17,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.concurrent.ExecutionException;
 
 // TODO: test CRUD operations
 public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
@@ -93,16 +88,5 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
             new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(5, 12), "node"));
         assertFalse(indexService.ensureAuthenticatedUserIsSame(original, runAsDiffType));
         assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), runAsDiffType));
-    }
-
-    public void testSettings() throws ExecutionException, InterruptedException {
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        indexService.createIndexIfNecessary(future);
-        future.get();
-        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(
-            new GetIndexRequest().indices(index)).actionGet();
-        Settings settings = getIndexResponse.getSettings().get(index);
-        assertEquals("1", settings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS));
-        assertEquals("0-1", settings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
     }
 }

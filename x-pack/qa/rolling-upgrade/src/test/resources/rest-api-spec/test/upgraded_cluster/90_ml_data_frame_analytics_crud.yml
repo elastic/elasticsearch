@@ -82,7 +82,7 @@
 ---
 "Get mixed cluster outlier_detection job":
   - skip:
-      version: " - 7.99.99"
+      version: " - 8.00.00"
       reason: "_doc_count field is currently implemented only in 8.x"
   - do:
       ml.get_data_frame_analytics:
@@ -103,7 +103,7 @@
 ---
 "Get mixed cluster outlier_detection job stats":
   - skip:
-      version: " - 7.99.99"
+      version: " - 8.00.00"
       reason: "_doc_count field is currently implemented only in 8.x"
   - do:
       ml.get_data_frame_analytics_stats:

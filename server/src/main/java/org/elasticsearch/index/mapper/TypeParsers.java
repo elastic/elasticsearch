@@ -95,7 +95,7 @@ public class TypeParsers {
     }
 
     @SuppressWarnings({"unchecked"})
-    public static boolean parseMultiField(Consumer<Mapper.Builder> multiFieldsBuilder, String name,
+    public static boolean parseMultiField(Consumer<FieldMapper.Builder> multiFieldsBuilder, String name,
                                           Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("fields")) {
             if (parserContext.isWithinMultiField()) {
@@ -143,17 +143,17 @@ public class TypeParsers {
                 } else {
                     throw new MapperParsingException("no type specified for property [" + multiFieldName + "]");
                 }
-                if (type.equals(ObjectMapper.CONTENT_TYPE)
-                        || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)
-                        || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
-                    throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
-                }
 
                 Mapper.TypeParser typeParser = parserContext.typeParser(type);
                 if (typeParser == null) {
                     throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + multiFieldName + "]");
                 }
-                multiFieldsBuilder.accept(typeParser.parse(multiFieldName, multiFieldNodes, parserContext));
+                if (typeParser instanceof FieldMapper.TypeParser == false) {
+                    throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
+                }
+
+                FieldMapper.TypeParser fieldTypeParser = (FieldMapper.TypeParser) typeParser;
+                multiFieldsBuilder.accept(fieldTypeParser.parse(multiFieldName, multiFieldNodes, parserContext));
                 multiFieldNodes.remove("type");
                 DocumentMapperParser.checkNoRemainingFields(propName, multiFieldNodes, parserContext.indexVersionCreated());
             }

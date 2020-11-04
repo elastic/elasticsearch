@@ -19,7 +19,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -29,8 +28,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.OperationMode;
 
 import java.io.Closeable;
 import java.io.IOException;

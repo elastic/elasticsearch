@@ -25,7 +25,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -35,7 +37,7 @@ public class MultiFieldsSerializationTests extends ESTestCase {
 
         FieldMapper.MultiFields.Builder builder = new FieldMapper.MultiFields.Builder();
 
-        List<String> names = new ArrayList<>();
+        Set<String> names = new HashSet<>();
         int count = randomIntBetween(5, 20);
         for (int i = 0; i < count; i++) {
             names.add(randomAlphaOfLengthBetween(5, 10));

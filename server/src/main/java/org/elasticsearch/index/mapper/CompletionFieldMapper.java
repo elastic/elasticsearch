@@ -41,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentParser.NumberType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -76,7 +77,7 @@ import java.util.Set;
  *  This field can also be extended to add search criteria to suggestions
  *  for query-time filtering and boosting (see {@link ContextMappings}
  */
-public class CompletionFieldMapper extends ParametrizedFieldMapper {
+public class CompletionFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "completion";
 
     /**
@@ -85,7 +86,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     static final int COMPLETION_CONTEXTS_LIMIT = 10;
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), defaultAnalyzer, indexVersionCreated).init(this);
     }
 
@@ -118,7 +119,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     /**
      * Builder for {@link CompletionFieldMapper}
      */
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<NamedAnalyzer> analyzer;
         private final Parameter<NamedAnalyzer> searchAnalyzer;
@@ -306,12 +307,12 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new ArraySourceValueFetcher(name(), mapperService) {
+            return new ArraySourceValueFetcher(name(), context) {
                 @Override
                 protected List<?> parseSourceValue(Object value) {
                     if (value instanceof List) {

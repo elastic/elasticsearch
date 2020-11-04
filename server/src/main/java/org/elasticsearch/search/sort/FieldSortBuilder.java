@@ -347,6 +347,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
+            isNanosecond = resolvedType == NumericType.DATE_NANOSECONDS;
         } else {
             field = fieldData.sortField(missing, localSortMode(), nested, reverse);
             if (fieldData instanceof IndexNumericFieldData) {
@@ -387,11 +388,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
         final DateMathParser dateMathParser;
         if (docValueFormat instanceof DocValueFormat.DateTime) {
-            if (fieldType instanceof DateFieldType && ((DateFieldType) fieldType).resolution() == NANOSECONDS) {
-                // we parse the formatted value with the resolution of the local field because
-                // the provided format can use a different one (date vs date_nanos).
-                docValueFormat = DocValueFormat.withNanosecondResolution(docValueFormat);
-            }
             dateMathParser = ((DocValueFormat.DateTime) docValueFormat).getDateMathParser();
         } else {
             dateMathParser = null;

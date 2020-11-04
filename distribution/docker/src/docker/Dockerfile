@@ -207,7 +207,7 @@ RUN tar zxf /opt/elasticsearch.tar.gz --strip-components=1
 # Configure the distribution for Docker
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
 RUN mkdir -p config config/jvm.options.d data logs
-RUN chmod 0775 config config/jvm.options.d data logs
+RUN chmod 0775 config config/jvm.options.d data logs plugins
 COPY config/elasticsearch.yml config/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
@@ -274,10 +274,13 @@ COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # 2. Sync the user and group permissions of /etc/passwd
 # 3. Set correct permissions of the entrypoint
 # 4. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-RUN find /usr/share/elasticsearch/jdk -type d -exec chmod 0755 '{}' \\; && \\
+# 5. Ensure all files are world-readable by default. It should be possible to
+#    examine the contents of the image under any UID:GID
+RUN find /usr/share/elasticsearch/jdk -type d -exec chmod 0755 {} + && \\
     chmod g=u /etc/passwd && \\
     chmod 0775 /usr/local/bin/docker-entrypoint.sh && \\
-    find / -xdev -perm -4000 -exec chmod ug-s {} +
+    find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
+    find /usr/share/elasticsearch -type f -exec chmod o+r {} +
 
 EXPOSE 9200 9300
 

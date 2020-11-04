@@ -3,6 +3,21 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="node.name"]
+=== Node name setting
+
+See <<node-name,Node name setting>>.
+
+[role="exclude",id="cluster.name"]
+=== Cluster name setting
+
+See <<cluster-name,Cluster name setting>>.
+
+[role="exclude",id="heap-size"]
+=== Heap size settings
+
+See <<heap-size-settings>>.
+
 [role="exclude",id="ccr-remedy-follower-index"]
 === Leader index retaining operations for replication
 
@@ -1215,3 +1230,46 @@ See <<size-your-shards>>.
 === elasticsearch-croneval parameters
 
 See <<elasticsearch-croneval-parameters>>.
+
+[role="exclude",id="autoscaling-get-autoscaling-decision"]
+=== Autoscaling decision API
+
+The autoscaling decision API has been renamed to capacity,
+see <<autoscaling-get-autoscaling-capacity>>.
+
+[role="exclude",id="caching-heavy-aggregations"]
+=== Caching heavy aggregations
+
+See <<agg-caches>>.
+
+[role="exclude",id="returning-only-agg-results"]
+=== Returning only aggregation results
+
+See <<return-only-agg-results>>.
+
+[role="exclude",id="agg-metadata"]
+=== Aggregation metadata
+
+See <<add-metadata-to-an-agg>>.
+
+[role="exclude",id="returning-aggregation-type"]
+=== Returning the type of the aggregation
+
+See <<return-agg-type>>.
+
+[role="exclude",id="indexing-aggregation-results"]
+=== Indexing aggregation results with transforms
+
+See <<transforms>>.
+
+[role="exclude",id="search-aggregations-matrix"]
+=== Matrix aggregations
+
+See <<search-aggregations-matrix-stats-aggregation>>.
+
+[[search-aggregations-pipeline-movavg-aggregation]]
+=== Moving average aggregation
+
+The moving average aggregation has been removed. Use the
+<<search-aggregations-pipeline-movfn-aggregation,moving function aggregation>>
+instead.

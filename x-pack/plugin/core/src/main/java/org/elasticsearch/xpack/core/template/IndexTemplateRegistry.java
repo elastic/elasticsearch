@@ -60,6 +60,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     protected final Client client;
     protected final ThreadPool threadPool;
     protected final NamedXContentRegistry xContentRegistry;
+    protected final ClusterService clusterService;
     protected final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
     protected final ConcurrentMap<String, AtomicBoolean> policyCreationsInProgress = new ConcurrentHashMap<>();
 
@@ -69,6 +70,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
+        this.clusterService = clusterService;
+    }
+
+    /**
+     * Initialize the template registry, adding it as a listener so templates will be installed as necessary
+     */
+    public void initialize() {
         clusterService.addListener(this);
     }
 
@@ -412,9 +420,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), getOrigin(), request,
-                new ActionListener<PutLifecycleAction.Response>() {
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(PutLifecycleAction.Response response) {
+                    public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
                             logger.error("error adding lifecycle policy [{}] for [{}], request was not acknowledged",

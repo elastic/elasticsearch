@@ -30,8 +30,6 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -63,7 +61,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * Field Mapper for pre-aggregated HyperLogLogPlusPlus sketches.
  */
-public class HyperLogLogPlusPlusFieldMapper extends ParametrizedFieldMapper {
+public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "hll++";
 
     public static final ParseField HLL_FIELD = new ParseField("hll");
@@ -76,7 +74,7 @@ public class HyperLogLogPlusPlusFieldMapper extends ParametrizedFieldMapper {
         return (HyperLogLogPlusPlusFieldMapper) in;
     }
 
-    public static class Builder extends  ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<Explicit<Integer>> precision;
@@ -134,7 +132,7 @@ public class HyperLogLogPlusPlusFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault, precisionByDefault).init(this);
     }
 
@@ -162,8 +160,8 @@ public class HyperLogLogPlusPlusFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
 

@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -205,11 +204,11 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             MappedFieldType fieldType = new MappedFieldType("field", true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
                 public String typeName() {
-                    return null;
+                    return "some_type";
                 }
 
                 @Override
-                public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+                public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
                     throw new UnsupportedOperationException();
                 }
 
@@ -225,7 +224,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             when(shardContext.getFieldType("field")).thenReturn(fieldType);
             CollapseBuilder builder = new CollapseBuilder("field");
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
-            assertEquals(exc.getMessage(), "unknown type for collapse field `field`, only keywords and numbers are accepted");
+            assertEquals(exc.getMessage(), "collapse is not supported for the field [field] of the type [some_type]");
         }
     }
 

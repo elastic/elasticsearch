@@ -88,9 +88,9 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
     @After
     public void cleanUp() throws Exception {
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
+        awaitNoMoreRunningOperations();
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{SLM_HISTORY_DATA_STREAM});
-        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, req).actionGet());
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, req).get());
     }
 
     @Override
@@ -192,7 +192,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
             // Check that the executed snapshot shows up in the SLM output as in_progress
             logger.info("--> Waiting for at least one data node to hit the block");
-            waitForBlockOnAnyDataNode(REPO, TimeValue.timeValueSeconds(30L));
+            waitForBlockOnAnyDataNode(REPO);
             assertBusy(() -> {
                 logger.info("--> at least one data node has hit the block");
                 GetSnapshotLifecycleAction.Response getResp =
@@ -246,7 +246,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
             // Assert that the history document has been written for taking the snapshot and deleting it
             assertBusy(() -> {
-                SearchResponse resp = client().prepareSearch("slm-history*")
+                SearchResponse resp = client().prepareSearch(".slm-history*")
                     .setQuery(QueryBuilders.matchQuery("snapshot_name", completedSnapshotName)).get();
                 logger.info("--> checking history written for {}, got: {}",
                     completedSnapshotName, Strings.arrayToCommaDelimitedString(resp.getHits().getHits()));
@@ -286,14 +286,13 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 assertBusy(() -> assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
                         30, TimeUnit.SECONDS);
 
-                final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
+                blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
 
                 logger.info("-->  start snapshot");
                 ActionFuture<ExecuteSnapshotLifecycleAction.Response> snapshotFuture = client()
                         .execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId));
 
-                logger.info("--> waiting for block to kick in on " + masterNode);
-                waitForBlock(masterNode, REPO, TimeValue.timeValueSeconds(60));
+                waitForBlock(internalCluster().getMasterName(), REPO);
 
                 logger.info("-->  stopping master node");
                 internalCluster().stopCurrentMasterNode();
@@ -349,7 +348,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             logger.info("-->  verify that snapshot [{}] succeeded", successfulSnapshotName.get());
             assertBusy(() -> {
                 GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                        .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).execute().actionGet();
+                        .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).execute().get();
                 final SnapshotInfo snapshotInfo;
                 try {
                     snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);

@@ -73,7 +73,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache.Listener;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -99,7 +98,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
@@ -207,43 +205,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
-                                                        IndexSearcher indexSearcher,
+                                                        IndexSearcher searcher,
                                                         MappedFieldType... fieldTypes) throws IOException {
-        return createAggregator(aggregationBuilder, indexSearcher, createIndexSettings(),
-            new MultiBucketConsumer(DEFAULT_MAX_BUCKETS, new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)), fieldTypes);
-    }
-
-    protected <A extends Aggregator> A createAggregator(Query query,
-                                                        AggregationBuilder aggregationBuilder,
-                                                        IndexSearcher indexSearcher,
-                                                        IndexSettings indexSettings,
-                                                        MappedFieldType... fieldTypes) throws IOException {
-        return createAggregator(query, aggregationBuilder, indexSearcher, indexSettings,
-            new MultiBucketConsumer(DEFAULT_MAX_BUCKETS, new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)), fieldTypes);
-    }
-
-    protected <A extends Aggregator> A createAggregator(Query query, AggregationBuilder aggregationBuilder,
-                                                        IndexSearcher indexSearcher,
-                                                        MultiBucketConsumer bucketConsumer,
-                                                        MappedFieldType... fieldTypes) throws IOException {
-        return createAggregator(query, aggregationBuilder, indexSearcher, createIndexSettings(), bucketConsumer, fieldTypes);
-    }
-
-    protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
-                                                        IndexSearcher indexSearcher,
-                                                        IndexSettings indexSettings,
-                                                        MultiBucketConsumer bucketConsumer,
-                                                        MappedFieldType... fieldTypes) throws IOException {
-        return createAggregator(null, aggregationBuilder, indexSearcher, indexSettings, bucketConsumer, fieldTypes);
-    }
-
-    protected <A extends Aggregator> A createAggregator(Query query,
-                                                        AggregationBuilder aggregationBuilder,
-                                                        IndexSearcher indexSearcher,
-                                                        IndexSettings indexSettings,
-                                                        MultiBucketConsumer bucketConsumer,
-                                                        MappedFieldType... fieldTypes) throws IOException {
-        SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
+        SearchContext searchContext = createSearchContext(searcher, null, fieldTypes);
         return createAggregator(aggregationBuilder, searchContext);
     }
 
@@ -259,12 +223,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Create a {@linkplain SearchContext} for testing an {@link Aggregator}.
      */
-    protected SearchContext createSearchContext(IndexSearcher indexSearcher,
-                                                IndexSettings indexSettings,
-                                                Query query,
-                                                MultiBucketConsumer bucketConsumer,
-                                                MappedFieldType... fieldTypes) throws IOException {
-        return createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, new NoneCircuitBreakerService(), fieldTypes);
+    protected SearchContext createSearchContext(
+        IndexSearcher indexSearcher,
+        Query query,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
+            DEFAULT_MAX_BUCKETS,
+            breakerService.getBreaker(CircuitBreaker.REQUEST)
+        );
+        return createSearchContext(indexSearcher, createIndexSettings(), query, bucketConsumer, breakerService, fieldTypes);
     }
 
     protected SearchContext createSearchContext(IndexSearcher indexSearcher,
@@ -311,10 +280,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MapperService mapperService = mapperServiceMock();
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
-        when(searchContext.mapperService()).thenReturn(mapperService);
-        IndexFieldDataService ifds = new IndexFieldDataService(indexSettings,
-            new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
-            }), circuitBreakerService, mapperService);
         QueryShardContext queryShardContext =
             queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
@@ -436,9 +401,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
         Query rewritten = searcher.rewrite(query);
-        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(maxBucket,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
-        C root = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
+        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
+        SearchContext searchContext = createSearchContext(searcher, indexSettings, query, bucketConsumer, breakerService, fieldTypes);
+        C root = createAggregator(builder, searchContext);
 
         if (randomBoolean() && searcher.getIndexReader().leaves().size() > 0) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
@@ -452,17 +418,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
             for (ShardSearcher subSearcher : subSearchers) {
                 MultiBucketConsumer shardBucketConsumer = new MultiBucketConsumer(maxBucket,
                     new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
-                C a = createAggregator(query, builder, subSearcher, indexSettings, shardBucketConsumer, fieldTypes);
+                C a = createAggregator(builder, searchContext);
                 a.preCollection();
                 Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
                 subSearcher.search(weight, a);
-                a.postCollection();
                 aggs.add(a.buildTopLevel());
             }
         } else {
             root.preCollection();
             searcher.search(rewritten, root);
-            root.postCollection();
             aggs.add(root.buildTopLevel());
         }
 
@@ -473,7 +437,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> toReduce = aggs.subList(0, r);
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
-                root.context().bigArrays(), getMockScriptService(), () -> PipelineAggregator.PipelineTree.EMPTY);
+                searchContext.bigArrays(), getMockScriptService(), () -> PipelineAggregator.PipelineTree.EMPTY);
             A reduced = (A) aggs.get(0).reduce(toReduce, context);
             aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
             aggs.add(reduced);
@@ -483,7 +447,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-            root.context().bigArrays(), getMockScriptService(), reduceBucketConsumer, pipelines);
+            searchContext.bigArrays(), getMockScriptService(), reduceBucketConsumer, pipelines);
 
         @SuppressWarnings("unchecked")
         A internalAgg = (A) aggs.get(0).reduce(aggs, context);
@@ -823,9 +787,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         iw.addDocument(doc);
     }
 
-    private class MockParserContext extends Mapper.TypeParser.ParserContext {
+    private static class MockParserContext extends Mapper.TypeParser.ParserContext {
         MockParserContext() {
-            super(null, null, null, null, null, null, null);
+            super(null, null, null, null, null, null, null, null, null);
         }
 
         @Override
@@ -844,7 +808,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     @After
-    private void cleanupReleasables() {
+    public void cleanupReleasables() {
         Releasables.close(releasables);
         releasables.clear();
     }

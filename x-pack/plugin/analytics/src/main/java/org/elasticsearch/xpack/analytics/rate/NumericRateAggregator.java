@@ -6,12 +6,8 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -21,28 +17,31 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
+import java.util.Map;
+
 public class NumericRateAggregator extends AbstractRateAggregator {
     public NumericRateAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         Rounding.DateTimeUnit rateUnit,
+        RateMode rateMode,
         SearchContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, valuesSourceConfig, rateUnit, context, parent, metadata);
+        super(name, valuesSourceConfig, rateUnit, rateMode, context, parent, metadata);
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        final BigArrays bigArrays = context.bigArrays();
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                sums = bigArrays.grow(sums, bucket + 1);
-                compensations = bigArrays.grow(compensations, bucket + 1);
+                sums = bigArrays().grow(sums, bucket + 1);
+                compensations = bigArrays().grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
@@ -51,10 +50,17 @@ public class NumericRateAggregator extends AbstractRateAggregator {
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
                     kahanSummation.reset(sum, compensation);
-
-                    for (int i = 0; i < valuesCount; i++) {
-                        double value = values.nextValue();
-                        kahanSummation.add(value);
+                    switch (rateMode) {
+                        case SUM:
+                            for (int i = 0; i < valuesCount; i++) {
+                                kahanSummation.add(values.nextValue());
+                            }
+                            break;
+                        case VALUE_COUNT:
+                            kahanSummation.add(valuesCount);
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unsupported rate mode " + rateMode);
                     }
 
                     compensations.set(bucket, kahanSummation.delta());

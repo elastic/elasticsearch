@@ -46,6 +46,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ClusterServiceIT extends ESIntegTestCase {
 
+    private static final TimeValue TEN_SECONDS = TimeValue.timeValueSeconds(10L);
+
     public void testAckedUpdateTask() throws Exception {
         internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
@@ -56,12 +58,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
-            @Override
-            protected Void newResponse(boolean acknowledged) {
-                return null;
-            }
-
+        clusterService.submitStateUpdateTask("test",
+                new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return true;
@@ -77,16 +75,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
             public void onAckTimeout() {
                 ackTimeout.set(true);
                 latch.countDown();
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return TimeValue.timeValueSeconds(10);
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return TimeValue.timeValueSeconds(10);
             }
 
             @Override
@@ -129,12 +117,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
-            @Override
-            protected Void newResponse(boolean acknowledged) {
-                return null;
-            }
-
+        clusterService.submitStateUpdateTask("test",
+                new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
             @Override
             public void onAllNodesAcked(@Nullable Exception e) {
                 allNodesAcked.set(true);
@@ -145,16 +129,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
             public void onAckTimeout() {
                 ackTimeout.set(true);
                 latch.countDown();
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return TimeValue.timeValueSeconds(10);
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return TimeValue.timeValueSeconds(10);
             }
 
             @Override
@@ -196,12 +170,9 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final AtomicBoolean onFailure = new AtomicBoolean(false);
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
-            @Override
-            protected Void newResponse(boolean acknowledged) {
-                return null;
-            }
 
+        clusterService.submitStateUpdateTask(
+                "test", new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return false;
@@ -217,16 +188,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
             public void onAckTimeout() {
                 ackTimeout.set(true);
                 latch.countDown();
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return TimeValue.timeValueSeconds(10);
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return TimeValue.timeValueSeconds(10);
             }
 
             @Override
@@ -266,12 +227,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
-            @Override
-            protected Void newResponse(boolean acknowledged) {
-                return null;
-            }
-
+        clusterService.submitStateUpdateTask("test",
+                new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TimeValue.ZERO, TEN_SECONDS), null) {
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return false;
@@ -287,16 +244,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
             public void onAckTimeout() {
                 ackTimeout.set(true);
                 latch.countDown();
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return TimeValue.timeValueSeconds(0);
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return TimeValue.timeValueSeconds(10);
             }
 
             @Override

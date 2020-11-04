@@ -68,7 +68,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     }
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> {
-        final IndexSettings indexSettings = c.mapperService().getIndexSettings();
+        final IndexSettings indexSettings = c.getIndexSettings();
         return new NestedPathFieldMapper(indexSettings.getSettings());
     });
 
@@ -89,7 +89,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
     }

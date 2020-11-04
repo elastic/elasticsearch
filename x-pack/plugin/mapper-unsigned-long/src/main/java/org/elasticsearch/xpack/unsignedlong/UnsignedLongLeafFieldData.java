@@ -73,7 +73,8 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
 
     @Override
     public ScriptDocValues<?> getScriptValues() {
-        return new UnsignedLongScriptDocValues(getLongValues());
+        // TODO: add support for scripts
+        throw new UnsupportedOperationException("Using unsigned_long in scripts is currently not supported!");
     }
 
     @Override
@@ -112,7 +113,7 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
         };
     }
 
-    private static double convertUnsignedLongToDouble(long value) {
+    static double convertUnsignedLongToDouble(long value) {
         if (value < 0L) {
             return sortableSignedLongToUnsigned(value); // add 2 ^ 63
         } else {

@@ -105,7 +105,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     public void testDisabledDoesNotAddTemplates() {
-        Settings settings = Settings.builder().put(StackPlugin.STACK_TEMPLATES_ENABLED.getKey(), false).build();
+        Settings settings = Settings.builder().put(StackTemplateRegistry.STACK_TEMPLATES_ENABLED.getKey(), false).build();
         StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
         assertThat(disabledRegistry.getComponentTemplateConfigs(), hasSize(0));
         assertThat(disabledRegistry.getComposableTemplateConfigs(), hasSize(0));
@@ -157,7 +157,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                     )
                 );
                 assertNotNull(listener);
-                return new PutLifecycleAction.Response(true);
+                return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return new StackTemplateRegistryTests.TestPutIndexTemplateResponse(true);
@@ -289,7 +289,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                 return null;
             } else if (action instanceof PutLifecycleAction) {
                 // Ignore this, it's verified in another test
-                return new PutLifecycleAction.Response(true);
+                return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
@@ -397,7 +397,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             return new TestPutIndexTemplateResponse(true);
         } else if (action instanceof PutLifecycleAction) {
             // Ignore this, it's verified in another test
-            return new PutLifecycleAction.Response(true);
+            return AcknowledgedResponse.TRUE;
         } else if (action instanceof PutComposableIndexTemplateAction) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;

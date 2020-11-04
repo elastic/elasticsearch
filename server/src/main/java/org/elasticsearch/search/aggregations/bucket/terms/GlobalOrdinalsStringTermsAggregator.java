@@ -30,7 +30,6 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -272,7 +271,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     static class LowCardinality extends GlobalOrdinalsStringTermsAggregator {
 
         private LongUnaryOperator mapping;
-        private IntArray segmentDocCounts;
+        private LongArray segmentDocCounts;
 
         LowCardinality(
             String name,
@@ -292,7 +291,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             super(name, factories, resultStrategy, valuesSource, order, format, bucketCountThresholds, null, context,
                 parent, remapGlobalOrds, collectionMode, showTermDocCountError, CardinalityUpperBound.ONE, metadata);
             assert factories == null || factories.countAggregators() == 0;
-            this.segmentDocCounts = context.bigArrays().newIntArray(1, true);
+            this.segmentDocCounts = context.bigArrays().newLongArray(1, true);
         }
 
         @Override
@@ -301,7 +300,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 mapSegmentCountsToGlobalCounts(mapping);
             }
             final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(ctx);
-            segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
+            segmentDocCounts = bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
             final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
             mapping = valuesSource.globalOrdinalsMapping(ctx);
@@ -316,7 +315,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                             return;
                         }
                         int ord = singleValues.ordValue();
-                        segmentDocCounts.increment(ord + 1, 1);
+                        long docCount = docCountProvider.getDocCount(doc);
+                        segmentDocCounts.increment(ord + 1, docCount);
                     }
                 });
             }
@@ -329,18 +329,20 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         return;
                     }
                     for (long segmentOrd = segmentOrds.nextOrd(); segmentOrd != NO_MORE_ORDS; segmentOrd = segmentOrds.nextOrd()) {
-                        segmentDocCounts.increment(segmentOrd + 1, 1);
+                        long docCount = docCountProvider.getDocCount(doc);
+                        segmentDocCounts.increment(segmentOrd + 1, docCount);
                     }
                 }
             });
         }
 
         @Override
-        protected void doPostCollection() throws IOException {
+        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             if (mapping != null) {
                 mapSegmentCountsToGlobalCounts(mapping);
                 mapping = null;
             }
+            return super.buildAggregations(owningBucketOrds);
         }
 
         @Override
@@ -352,7 +354,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             for (long i = 1; i < segmentDocCounts.size(); i++) {
                 // We use set(...) here, because we need to reset the slow to 0.
                 // segmentDocCounts get reused over the segments and otherwise counts would be too high.
-                int inc = segmentDocCounts.set(i, 0);
+                long inc = segmentDocCounts.set(i, 0);
                 if (inc == 0) {
                     continue;
                 }
@@ -474,7 +476,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final LongKeyedBucketOrds bucketOrds;
 
         private RemapGlobalOrds(CardinalityUpperBound cardinality) {
-            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+            bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
         }
 
         @Override
@@ -778,14 +780,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
 
-        private LongArray subsetSizes = context.bigArrays().newLongArray(1, true);
+        private LongArray subsetSizes = bigArrays().newLongArray(1, true);
 
         SignificantTermsResults(
             SignificanceLookup significanceLookup,
             SignificanceHeuristic significanceHeuristic,
             CardinalityUpperBound cardinality
         ) {
-            backgroundFrequencies = significanceLookup.bytesLookup(context.bigArrays(), cardinality);
+            backgroundFrequencies = significanceLookup.bytesLookup(bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
         }
@@ -801,7 +803,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     super.collect(doc, owningBucketOrd);
-                    subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
+                    subsetSizes = bigArrays().grow(subsetSizes, owningBucketOrd + 1);
                     subsetSizes.increment(owningBucketOrd, 1);
                 }
             };

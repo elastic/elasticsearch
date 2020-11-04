@@ -81,6 +81,9 @@
 
 ---
 "Get mixed cluster outlier_detection job":
+  - skip:
+      version: " - 7.10.99"
+      reason: "_doc_count field was introduced in 7.11"
   - do:
       ml.get_data_frame_analytics:
         id: "mixed_cluster_outlier_detection_job"
@@ -99,6 +102,9 @@
 
 ---
 "Get mixed cluster outlier_detection job stats":
+  - skip:
+      version: " - 7.10.99"
+      reason: "_doc_count field was introduced in 7.11"
   - do:
       ml.get_data_frame_analytics_stats:
         id: "mixed_cluster_outlier_detection_job"

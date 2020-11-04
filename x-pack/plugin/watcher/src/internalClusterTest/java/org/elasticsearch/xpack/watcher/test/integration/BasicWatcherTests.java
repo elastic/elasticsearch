@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
@@ -40,7 +39,6 @@ import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;

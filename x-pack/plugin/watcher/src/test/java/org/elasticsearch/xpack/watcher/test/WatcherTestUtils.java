@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.hamcrest.Matcher;
 
-import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;

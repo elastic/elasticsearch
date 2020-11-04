@@ -99,7 +99,6 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathPr
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.DATE_FORMAT;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.TIME_FORMAT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.everyItem;
@@ -129,7 +128,7 @@ public class QueryTranslatorTests extends ESTestCase {
         }
 
         public LogicalPlan plan(String sql) {
-            return plan(sql, UTC);
+            return plan(sql, DateUtils.UTC);
         }
 
         public LogicalPlan plan(String sql, ZoneId zoneId) {
@@ -145,7 +144,7 @@ public class QueryTranslatorTests extends ESTestCase {
         }
 
         private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
-            return analyzer.analyze(parser.createStatement(sql, Arrays.asList(params), org.elasticsearch.xpack.ql.type.DateUtils.UTC), true);
+            return analyzer.analyze(parser.createStatement(sql, Arrays.asList(params), DateUtils.UTC), true);
         }
     }
 
@@ -157,7 +156,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String sql) {
-        return defaultTestContext.plan(sql, UTC);
+        return defaultTestContext.plan(sql, DateUtils.UTC);
     }
 
     private LogicalPlan plan(String sql, ZoneId zoneId) {
@@ -455,7 +454,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(lowerOperator.equals("<="), rq.includeUpper());
         assertEquals(upperOperator.equals(">="), rq.includeLower());
         assertEquals(pattern, rq.format());
-        assertEquals(UTC, rq.zoneId());
+        assertEquals(DateUtils.UTC, rq.zoneId());
     }
 
     public void testDateRangeWithESDateMath() {

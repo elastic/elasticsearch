@@ -68,8 +68,7 @@ public class ILMHistoryTests extends ESIntegTestCase {
         Phase phase = new Phase("hot", TimeValue.ZERO, Collections.emptyMap());
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("test", Collections.singletonMap("hot", phase));
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
-        assertAcked(putLifecycleResponse);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
     }
 
     public void testIlmHistoryIndexCanRollover() throws Exception {

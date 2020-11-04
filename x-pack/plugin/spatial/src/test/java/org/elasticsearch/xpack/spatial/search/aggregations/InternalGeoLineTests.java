@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGeoLine> {
 
@@ -33,15 +34,16 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
 
     @Override
     protected InternalGeoLine createTestInstance(String name, Map<String, Object> metadata) {
-        int length = randomIntBetween(2, 2 * GeoLineAggregationBuilder.MAX_PATH_SIZE);
+        int length = randomIntBetween(2, GeoLineAggregationBuilder.MAX_PATH_SIZE);
         long[] points = new long[length];
         double[] sortVals = new double[length];
         for (int i = 0; i < length; i++) {
             points[i] = i;
             sortVals[i] = i;
         }
-        boolean complete = length <= GeoLineAggregationBuilder.MAX_PATH_SIZE;
-        return new InternalGeoLine(name, points, sortVals, metadata, complete, randomBoolean(), randomFrom(SortOrder.values()));
+        int size = randomIntBetween(length, GeoLineAggregationBuilder.MAX_PATH_SIZE);
+        boolean complete = length <= size;
+        return new InternalGeoLine(name, points, sortVals, metadata, complete, randomBoolean(), randomFrom(SortOrder.values()), size);
     }
 
     @Override
@@ -53,7 +55,8 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
         boolean complete = instance.isComplete();
         boolean includeSorts = instance.includeSorts();
         SortOrder sortOrder = instance.sortOrder();
-        switch (randomIntBetween(0, 6)) {
+        int size = instance.size();
+        switch (randomIntBetween(0, 7)) {
             case 0:
                 name += randomAlphaOfLength(5);
                 break;
@@ -80,10 +83,13 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
             case 6:
                 sortOrder = SortOrder.ASC.equals(sortOrder) ? SortOrder.DESC : SortOrder.ASC;
                 break;
+            case 7:
+                size = size + 1;
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoLine(name, line, sortVals, metadata, complete, includeSorts, sortOrder);
+        return new InternalGeoLine(name, line, sortVals, metadata, complete, includeSorts, sortOrder, size);
     }
 
     @Override
@@ -93,8 +99,12 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
 
     @Override
     protected void assertReduced(InternalGeoLine reduced, List<InternalGeoLine> inputs) {
-        // TODO(talevy)
-        // assert final line is sorted
+        int reducedLength = 0;
+        for (InternalGeoLine subLine : inputs) {
+            reducedLength += subLine.length();
+        }
+        int expectedReducedLength = Math.min(reducedLength, reduced.size());
+        assertThat(reduced.length(), equalTo(expectedReducedLength));
     }
 
     @Override

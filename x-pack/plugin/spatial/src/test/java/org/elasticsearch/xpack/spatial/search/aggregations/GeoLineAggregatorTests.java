@@ -74,7 +74,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .field("group_id")
             .subAggregation(lineAggregationBuilder);
 
-        int numGroups = randomIntBetween(1, 4);
+        int numGroups = randomIntBetween(1, 2);
         Map<String, InternalGeoLine> lines = new HashMap<>(numGroups);
         Map<Integer, long[]> indexedPoints = new HashMap<>(numGroups);
         Map<Integer, double[]> indexedSortValues = new HashMap<>(numGroups);
@@ -98,7 +98,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             new PathArraySorter(linePoints, lineSorts, SortOrder.ASC).sort();
 
             lines.put(String.valueOf(groupOrd), new InternalGeoLine("_name",
-                linePoints, lineSorts, null, complete, true, sortOrder));
+                linePoints, lineSorts, null, complete, true, sortOrder, size));
 
             for (int i = 0; i < randomIntBetween(1, numPoints); i++) {
                 int idx1 = randomIntBetween(0, numPoints - 1);

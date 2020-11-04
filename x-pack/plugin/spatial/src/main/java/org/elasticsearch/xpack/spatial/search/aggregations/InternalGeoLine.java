@@ -31,15 +31,17 @@ public class InternalGeoLine extends InternalAggregation {
     private boolean complete;
     private boolean includeSorts;
     private SortOrder sortOrder;
+    private int size;
 
     InternalGeoLine(String name, long[] line, double[] sortVals, Map<String, Object> metadata, boolean complete,
-                    boolean includeSorts, SortOrder sortOrder) {
+                    boolean includeSorts, SortOrder sortOrder, int size) {
         super(name, metadata);
         this.line = line;
         this.sortVals = sortVals;
         this.complete = complete;
         this.includeSorts = includeSorts;
         this.sortOrder = sortOrder;
+        this.size = size;
     }
 
     /**
@@ -52,6 +54,7 @@ public class InternalGeoLine extends InternalAggregation {
         this.complete = in.readBoolean();
         this.includeSorts = in.readBoolean();
         this.sortOrder = SortOrder.readFromStream(in);
+        this.size = in.readVInt();
     }
 
     @Override
@@ -61,6 +64,7 @@ public class InternalGeoLine extends InternalAggregation {
         out.writeBoolean(complete);
         out.writeBoolean(includeSorts);
         sortOrder.writeTo(out);
+        out.writeVInt(size);
     }
 
     @Override
@@ -75,7 +79,7 @@ public class InternalGeoLine extends InternalAggregation {
             includeSorts &= geoLine.includeSorts;
         }
 
-        complete &= mergedSize <= GeoLineAggregationBuilder.MAX_PATH_SIZE;
+        complete &= mergedSize <= size;
 
         long[] finalList = new long[mergedSize];
         double[] finalSortVals = new double[mergedSize];
@@ -92,9 +96,9 @@ public class InternalGeoLine extends InternalAggregation {
         if (reduceContext.isFinalReduce()) {
             new PathArraySorter(finalList, finalSortVals, SortOrder.ASC).sort();
         }
-        long[] finalCappedList = Arrays.copyOf(finalList, Math.min(GeoLineAggregationBuilder.MAX_PATH_SIZE, mergedSize));
-        double[] finalCappedSortVals = Arrays.copyOf(finalSortVals, Math.min(GeoLineAggregationBuilder.MAX_PATH_SIZE, mergedSize));
-        return new InternalGeoLine(name, finalCappedList, finalCappedSortVals, getMetadata(), complete, includeSorts, sortOrder);
+        long[] finalCappedList = Arrays.copyOf(finalList, Math.min(size, mergedSize));
+        double[] finalCappedSortVals = Arrays.copyOf(finalSortVals, Math.min(size, mergedSize));
+        return new InternalGeoLine(name, finalCappedList, finalCappedSortVals, getMetadata(), complete, includeSorts, sortOrder, size);
     }
 
     @Override
@@ -129,6 +133,10 @@ public class InternalGeoLine extends InternalAggregation {
 
     public SortOrder sortOrder() {
         return sortOrder;
+    }
+
+    public int size() {
+        return size;
     }
 
     @Override
@@ -179,7 +187,7 @@ public class InternalGeoLine extends InternalAggregation {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), Arrays.hashCode(line), Arrays.hashCode(sortVals), complete, includeSorts, sortOrder);
+        return Objects.hash(super.hashCode(), Arrays.hashCode(line), Arrays.hashCode(sortVals), complete, includeSorts, sortOrder, size);
     }
 
     @Override
@@ -194,7 +202,8 @@ public class InternalGeoLine extends InternalAggregation {
             && Arrays.equals(sortVals, that.sortVals)
             && Objects.equals(complete, that.complete)
             && Objects.equals(includeSorts, that.includeSorts)
-            && Objects.equals(sortOrder, that.sortOrder);
+            && Objects.equals(sortOrder, that.sortOrder)
+            && Objects.equals(size, that.size);
 
     }
 }

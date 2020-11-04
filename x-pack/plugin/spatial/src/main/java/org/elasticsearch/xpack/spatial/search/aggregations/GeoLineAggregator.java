@@ -31,6 +31,7 @@ final class GeoLineAggregator extends MetricsAggregator {
     private final GeoLineBucketedSort.Extra extra;
     private final boolean includeSorts;
     private final SortOrder sortOrder;
+    private final int size;
 
     GeoLineAggregator(String name, MultiValuesSource.AnyMultiValuesSource valuesSources, SearchContext context,
                       Aggregator parent, Map<String,Object> metaData, boolean includeSorts, SortOrder sortOrder,
@@ -46,6 +47,7 @@ final class GeoLineAggregator extends MetricsAggregator {
         }
         this.includeSorts = includeSorts;
         this.sortOrder = sortOrder;
+        this.size = size;
     }
 
     @Override
@@ -81,12 +83,12 @@ final class GeoLineAggregator extends MetricsAggregator {
         double[] sortVals = sort.getSortValues(bucket);
         long[] bucketLine = sort.getPoints(bucket);
         new PathArraySorter(bucketLine, sortVals, sortOrder).sort();
-        return new InternalGeoLine(name, bucketLine, sortVals, metadata(), complete, includeSorts, sortOrder);
+        return new InternalGeoLine(name, bucketLine, sortVals, metadata(), complete, includeSorts, sortOrder, size);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoLine(name, null, null, metadata(), true, includeSorts, sortOrder);
+        return new InternalGeoLine(name, null, null, metadata(), true, includeSorts, sortOrder, size);
     }
 
     @Override

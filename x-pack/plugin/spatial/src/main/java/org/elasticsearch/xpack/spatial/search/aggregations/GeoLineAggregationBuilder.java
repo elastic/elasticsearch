@@ -79,6 +79,7 @@ public class GeoLineAggregationBuilder
         super(in);
         sortOrder = SortOrder.readFromStream(in);
         includeSort = in.readBoolean();
+        size = in.readVInt();
     }
 
     public GeoLineAggregationBuilder includeSort(boolean includeSort) {
@@ -114,6 +115,7 @@ public class GeoLineAggregationBuilder
     protected void innerWriteTo(StreamOutput out) throws IOException {
         sortOrder.writeTo(out);
         out.writeBoolean(includeSort);
+        out.writeVInt(size);
     }
 
     @Override

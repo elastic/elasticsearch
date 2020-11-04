@@ -1329,7 +1329,9 @@ public abstract class EngineTestCase extends ESTestCase {
 
         @Override
         public CacheHelper getReaderCacheHelper() {
-            return null; // modify liveDocs
+            // TODO: We should not return the ReaderCacheHelper if we modify the liveDocs,
+            // but some caching components (e.g., global ordinals) require this cache key.
+            return in.getReaderCacheHelper();
         }
     }
 

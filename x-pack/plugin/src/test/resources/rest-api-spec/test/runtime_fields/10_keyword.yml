@@ -360,3 +360,79 @@ setup:
   - match: { aggregations.to-users.users.hits.hits.2._index: test }
   - match: { aggregations.to-users.users.hits.hits.2._nested.field: users }
   - match: { aggregations.to-users.users.hits.hits.2._nested.offset: 1 }
+
+---
+"fetch defined on search request":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.rating:
+              type: keyword
+              script: |
+                double v = doc['voltage'].value;
+                if (v < 4.8) {
+                  emit('low');
+                } else if (v > 5.2) {
+                  emit('high');
+                } else {
+                  emit('ok');
+                }
+          fields: [voltage.rating]
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0._source.voltage: 4.0}
+  - match: {hits.hits.0.fields.voltage.rating: low}
+
+
+---
+"match defined on search request":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.rating:
+              type: keyword
+              script: |
+                double v = doc['voltage'].value;
+                if (v < 4.8) {
+                  emit('low');
+                } else if (v > 5.2) {
+                  emit('high');
+                } else {
+                  emit('ok');
+                }
+          query:
+            match:
+              voltage.rating: ok
+          sort: timestamp
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 5.1}
+
+---
+"search glob defined on search request":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.rating:
+              type: keyword
+              script: |
+                double v = doc['voltage'].value;
+                if (v < 4.8) {
+                  emit('low');
+                } else if (v > 5.2) {
+                  emit('high');
+                } else {
+                  emit('ok');
+                }
+          query:
+            simple_query_string:
+              fields: [voltage.*]
+              query: ok
+          sort: timestamp
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 5.1}

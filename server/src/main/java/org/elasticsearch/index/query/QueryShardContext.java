@@ -35,6 +35,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -69,6 +70,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -299,7 +301,21 @@ public class QueryShardContext extends QueryRewriteContext {
      * type then the fields will be returned with a type prefix.
      */
     public Set<String> simpleMatchToIndexNames(String pattern) {
-        return mapperService.simpleMatchToFullName(pattern);
+        // TODO remove the duplication with MapperService and FieldTypeLookup
+        if (runtimeMappings.isEmpty()) {
+            return mapperService.simpleMatchToFullName(pattern);
+        }
+        if (Regex.isSimpleMatchPattern(pattern) == false) {
+            // no wildcards
+            return Collections.singleton(pattern);
+        }
+        Set<String> matches = new HashSet<>(mapperService.simpleMatchToFullName(pattern));
+        for (String name : runtimeMappings.keySet()) {
+            if (Regex.simpleMatch(pattern, name)) {
+                matches.add(name);
+            }
+        }
+        return matches;
     }
 
     /**

@@ -5,7 +5,13 @@
  */
 package org.elasticsearch.xpack.runtimefields.test;
 
+import org.elasticsearch.action.bulk.BulkRequestParser;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -138,6 +144,13 @@ public abstract class CoreTestTranslater {
         return Map.of("settings", Map.of(), "mappings", Map.of("dynamic_templates", dynamicTemplates));
     }
 
+    protected static Map<String, Object> runtimeFieldLoadingFromSource(String name, String type) {
+        return Map.ofEntries(
+            Map.entry("type", type),
+            Map.entry("script", painlessToLoadFromSource(name, type))
+        );
+    }
+
     private ExecutableSection addIndexTemplate() {
         return new ExecutableSection() {
             @Override
@@ -203,15 +216,30 @@ public abstract class CoreTestTranslater {
                 }
                 DoSection doSection = (DoSection) section;
                 String api = doSection.getApiCallSection().getApi();
-                if (api.equals("indices.create")) {
-                    if (false == modifyCreateIndex(doSection.getApiCallSection())) {
-                        return false;
-                    }
-                }
-                if (api.equals("search") || api.equals("async_search.submit")) {
-                    if (false == modifySearch(doSection.getApiCallSection())) {
-                        return false;
-                    }
+                switch (api) {
+                    case "indices.create":
+                        if (false == modifyCreateIndex(doSection.getApiCallSection())) {
+                            return false;
+                        }
+                        break;
+                    case "search":
+                    case "async_search.submit":
+                        if (false == modifySearch(doSection.getApiCallSection())) {
+                            return false;
+                        }
+                        break;
+                    case "bulk":
+                        if (false == handleBulk(doSection.getApiCallSection())) {
+                            return false;
+                        }
+                        break;
+                    case "index":
+                        if (false == handleIndex(doSection.getApiCallSection())) {
+                            return false;
+                        }
+                        break;
+                    default:
+                        continue;
                 }
             }
             return true;
@@ -322,5 +350,57 @@ public abstract class CoreTestTranslater {
              */
             return true;
         }
+
+        private boolean handleBulk(ApiCallSection bulk) {
+            String defaultIndex = bulk.getParams().get("index");
+            String defaultRouting = bulk.getParams().get("routing");
+            String defaultPipeline = bulk.getParams().get("pipeline");
+            BytesStreamOutput bos = new BytesStreamOutput();
+            try {
+                for (Map<String, Object> body : bulk.getBodies()) {
+                    try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, bos)) {
+                        b.map(body);
+                    }
+                    bos.write(JsonXContent.jsonXContent.streamSeparator());
+                }
+                List<IndexRequest> indexRequests = new ArrayList<>();
+                new BulkRequestParser(false).parse(
+                    bos.bytes(),
+                    defaultIndex,
+                    defaultRouting,
+                    null,
+                    defaultPipeline,
+                    null,
+                    true,
+                    XContentType.JSON,
+                    (index, type) -> {
+                        indexRequests.add(index);
+                    },
+                    u -> {},
+                    d -> {}
+                );
+                for (IndexRequest index : indexRequests) {
+                    if (false == handleIndex(index)) {
+                        return false;
+                    }
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+            return true;
+        }
+
+        private boolean handleIndex(ApiCallSection indexRequest) {
+            String index = indexRequest.getParams().get("index");
+            String pipeline = indexRequest.getParams().get("pipeline");
+            assert indexRequest.getBodies().size() == 1;
+            try {
+                return handleIndex(new IndexRequest(index).setPipeline(pipeline).source(indexRequest.getBodies().get(0)));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        protected abstract boolean handleIndex(IndexRequest index) throws IOException;
     }
 }

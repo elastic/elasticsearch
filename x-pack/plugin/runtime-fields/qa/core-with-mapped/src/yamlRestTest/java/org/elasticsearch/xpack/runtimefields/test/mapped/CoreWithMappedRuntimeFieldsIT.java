@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.runtimefields.test.mapped;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
@@ -68,8 +69,13 @@ public class CoreWithMappedRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                     // We don't need to modify the search request if the mappings are in the index
                     return true;
                 }
+
+                @Override
+                protected boolean handleIndex(IndexRequest index) {
+                    // We don't need to scrape anything out of the index requests.
+                    return true;
+                }
             };
         }
-
     }
 }

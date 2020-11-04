@@ -1,7 +1,7 @@
 setup:
   - do:
       indices.create:
-        index: test
+        index: test_geoadsf
         body:
           mappings:
             properties:
@@ -9,7 +9,7 @@ setup:
                 type: geo_point
   - do:
       bulk:
-        index: test
+        index: test_geoadsf
         refresh: true
         body:
           - '{"index": {}}'

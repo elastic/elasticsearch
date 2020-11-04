@@ -100,7 +100,7 @@ public class SamlSpMetadataBuilder {
      * @param samlRealm   SamlRealm for which SP Metadata is built
      */
     public SamlSpMetadataBuilder(SamlRealm samlRealm) {
-        final SpConfiguration spConfig = samlRealm.getLogoutHandler().getSpConfiguration();
+        final SpConfiguration spConfig = samlRealm.getServiceProvider();
         this.locale = Locale.getDefault();
         this.entityId = spConfig.getEntityId();
         this.attributeNames = null;

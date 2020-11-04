@@ -208,6 +208,10 @@ public final class SamlRealm extends Realm implements Releasable {
         return realm;
     }
 
+    public SpConfiguration getServiceProvider() {
+        return serviceProvider;
+    }
+
     // For testing
     SamlRealm(
         RealmConfig config,

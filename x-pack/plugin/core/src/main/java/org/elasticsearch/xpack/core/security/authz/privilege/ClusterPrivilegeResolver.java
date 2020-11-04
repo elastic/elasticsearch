@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -45,7 +46,7 @@ public class ClusterPrivilegeResolver {
     // shared automatons
     private static final Set<String> ALL_SECURITY_PATTERN = Set.of("cluster:admin/xpack/security/*");
     private static final Set<String> MANAGE_SAML_PATTERN = Set.of("cluster:admin/xpack/security/saml/*",
-        InvalidateTokenAction.NAME, RefreshTokenAction.NAME);
+        InvalidateTokenAction.NAME, RefreshTokenAction.NAME, SamlSpMetadataAction.NAME);
     private static final Set<String> MANAGE_OIDC_PATTERN = Set.of("cluster:admin/xpack/security/oidc/*");
     private static final Set<String> MANAGE_TOKEN_PATTERN = Set.of("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Set.of("cluster:admin/xpack/security/api_key/*");

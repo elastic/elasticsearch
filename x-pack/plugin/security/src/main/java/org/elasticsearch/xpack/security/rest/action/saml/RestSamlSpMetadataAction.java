@@ -44,8 +44,8 @@ public class RestSamlSpMetadataAction extends SamlBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final SamlSpMetadataRequest SamlSpRequest = new SamlSpMetadataRequest(request.param("realm"));
-        return channel -> client.execute(SamlSpMetadataAction.INSTANCE, SamlSpRequest,
+        final SamlSpMetadataRequest SamlSpMetadataRequest = new SamlSpMetadataRequest(request.param("realm"));
+        return channel -> client.execute(SamlSpMetadataAction.INSTANCE, SamlSpMetadataRequest,
             new RestBuilderListener<SamlSpMetadataResponse>(channel) {
             @Override
             public RestResponse buildResponse(SamlSpMetadataResponse response, XContentBuilder builder) throws Exception {

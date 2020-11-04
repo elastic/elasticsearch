@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
@@ -206,5 +207,9 @@ public class FetchContext {
      */
     public SearchExtBuilder getSearchExt(String name) {
         return searchContext.getSearchExt(name);
+    }
+
+    public QueryShardContext getQueryShardContext() {
+        return searchContext.getQueryShardContext();
     }
 }

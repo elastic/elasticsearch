@@ -40,6 +40,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -132,6 +133,7 @@ final class SingleDocDirectoryReader extends DirectoryReader {
         }
 
         private LeafReader getDelegate() {
+            ensureOpen();
             LeafReader reader = delegate.get();
             if (reader == null) {
                 synchronized (this) {
@@ -252,11 +254,12 @@ final class SingleDocDirectoryReader extends DirectoryReader {
         }
 
         synchronized boolean assertMemorySegmentStatus(boolean loaded) {
-            if (loaded && delegate.get() == null) {
-                assert false : "Expected an in memory segment was loaded; but it wasn't. Please check the reader wrapper implementation";
-            }
-            if (loaded == false && delegate.get() != null) {
-                assert false : "Expected an in memory segment wasn't loaded; but it was. Please check the reader wrapper implementation";
+            if (loaded) {
+                assert delegate.get() == null :
+                    "Expected an in memory segment was loaded; but it wasn't. Please check the reader wrapper implementation";
+            } else {
+                assert delegate.get() != null :
+                    "Expected an in memory segment wasn't loaded; but it was. Please check the reader wrapper implementation";
             }
             return true;
         }
@@ -269,7 +272,7 @@ final class SingleDocDirectoryReader extends DirectoryReader {
 
         @Override
         protected void doClose() throws IOException {
-            directory.close();
+            IOUtils.close(delegate.get(), directory);
         }
     }
 }

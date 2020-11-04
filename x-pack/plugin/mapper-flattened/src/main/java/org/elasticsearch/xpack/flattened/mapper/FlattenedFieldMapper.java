@@ -169,7 +169,6 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
                 meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.key = key;
         }
 
@@ -386,7 +385,6 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -421,7 +419,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
     private FlattenedFieldMapper(String simpleName,
                                  MappedFieldType mappedFieldType,
                                  Builder builder) {
-        super(simpleName, mappedFieldType, CopyTo.empty());
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, CopyTo.empty());
         this.builder = builder;
         this.fieldParser = new FlattenedFieldParser(mappedFieldType.name(), keyedFieldName(),
             mappedFieldType, builder.depthLimit.get(), builder.ignoreAbove.get(), builder.nullValue.get());

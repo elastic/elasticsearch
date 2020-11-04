@@ -34,10 +34,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
@@ -80,14 +77,16 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return Collections.singletonList(CoreValuesSourceType.BYTES);
+        return Arrays.asList(
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.BYTES
+        );
     }
 
     @Override
     protected List<String> unsupportedMappedFieldTypes() {
-        return Arrays.asList(
-            BinaryFieldMapper.CONTENT_TYPE, // binary fields are not supported because they do not have analyzers
-            GeoPointFieldMapper.CONTENT_TYPE // geopoint fields cannot use term queries
+        return Collections.singletonList(
+            BinaryFieldMapper.CONTENT_TYPE // binary fields are not supported because they do not have analyzers
         );
     }
 
@@ -96,9 +95,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      */
     public void testSignificance() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
@@ -147,9 +145,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      */
     public void testIncludeExcludes() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
-
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
@@ -203,7 +199,6 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     public void testMissingField() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -233,9 +228,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     public void testFieldAlias() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
@@ -284,9 +278,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     public void testInsideTermsAgg() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
@@ -343,9 +336,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      */
     public void testSignificanceOnTextArrays() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {

@@ -67,7 +67,6 @@ public class FakeStringFieldMapper extends FieldMapper {
 
         private FakeStringFieldType(String name, boolean stored, TextSearchInfo textSearchInfo) {
             super(name, true, stored, true, textSearchInfo, Collections.emptyMap());
-            setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
         }
 
         @Override
@@ -83,7 +82,7 @@ public class FakeStringFieldMapper extends FieldMapper {
 
     protected FakeStringFieldMapper(MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(mappedFieldType.name(), mappedFieldType, multiFields, copyTo);
+        super(mappedFieldType.name(), mappedFieldType, Lucene.STANDARD_ANALYZER, multiFields, copyTo);
     }
 
     @Override

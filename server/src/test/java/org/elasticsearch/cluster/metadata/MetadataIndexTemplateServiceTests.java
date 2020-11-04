@@ -1586,7 +1586,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         public MetadataTimestampFieldMapper(boolean enabled) {
             super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Map.of()) {
                 @Override
-                public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+                public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
                     throw new UnsupportedOperationException();
                 }
 

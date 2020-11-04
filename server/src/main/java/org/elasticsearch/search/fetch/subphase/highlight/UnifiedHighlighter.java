@@ -111,12 +111,10 @@ public class UnifiedHighlighter implements Highlighter {
         Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
-        int maxAnalyzedOffset = fieldContext.context.getIndexSettings().getHighlightMaxAnalyzedOffset();
+        int maxAnalyzedOffset = fieldContext.context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
         int keywordIgnoreAbove = Integer.MAX_VALUE;
         if (fieldContext.fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper mapper = (KeywordFieldMapper) fieldContext.context.mapperService().documentMapper()
-                .mappers().getMapper(fieldContext.fieldName);
-            keywordIgnoreAbove = mapper.ignoreAbove();
+            keywordIgnoreAbove = ((KeywordFieldMapper.KeywordFieldType)fieldContext.fieldType).ignoreAbove();
         }
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
         Analyzer analyzer = getAnalyzer(fieldContext.context.mapperService().documentMapper());

@@ -1328,7 +1328,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         @Override
         public CacheHelper getReaderCacheHelper() {
-            return in.getReaderCacheHelper();
+            return null; // modify liveDocs
         }
     }
 

@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.runtimefields.test;
 
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -133,7 +138,7 @@ public abstract class CoreTestTranslater {
         return Map.of("settings", Map.of(), "mappings", Map.of("dynamic_templates", dynamicTemplates));
     }
 
-    private final ExecutableSection addIndexTemplate() {
+    private ExecutableSection addIndexTemplate() {
         return new ExecutableSection() {
             @Override
             public XContentLocation getLocation() {
@@ -158,7 +163,7 @@ public abstract class CoreTestTranslater {
     }
 
     /**
-     * NOCOMMIT write me
+     * A modified suite.
      */
     protected abstract class Suite {
         private final ClientYamlTestSuite modified;
@@ -217,7 +222,7 @@ public abstract class CoreTestTranslater {
          */
         protected abstract boolean modifySearch(ApiCallSection search);
 
-        private final boolean modifyCreateIndex(ApiCallSection createIndex) {
+        private boolean modifyCreateIndex(ApiCallSection createIndex) {
             String index = createIndex.getParams().get("index");
             for (Map<?, ?> body : createIndex.getBodies()) {
                 Object settings = body.get("settings");
@@ -242,6 +247,9 @@ public abstract class CoreTestTranslater {
             return true;
         }
 
+        /**
+         * Modify the mapping defined in the test.
+         */
         protected abstract boolean modifyMapping(String index, Map<String, Object> mapping);
 
         /**

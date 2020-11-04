@@ -73,7 +73,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -325,9 +324,15 @@ public class QueryShardContextTests extends ESTestCase {
                 });
             }
         }));
-        Map<String, Object> runtimeFields = new HashMap<>();
-        runtimeFields.put("cat", new HashMap<>(Map.of("type", "keyword")));
-        runtimeFields.put("dog", new HashMap<>(Map.of("type", "keyword")));
+        /*
+         * Making these immutable here test that we don't modify them.
+         * Modifying them would cause all kinds of problems if two
+         * shards are parsed on the same node.
+         */
+        Map<String, Object> runtimeFields = Map.ofEntries(
+            Map.entry("cat", Map.of("type", "keyword")),
+            Map.entry("dog", Map.of("type", "keyword"))
+        );
         QueryShardContext qsc = new QueryShardContext(
             0,
             mapperService.getIndexSettings(),
@@ -526,7 +531,7 @@ public class QueryShardContextTests extends ESTestCase {
     }
 
     private static class DummyMappedFieldType extends MappedFieldType {
-        public DummyMappedFieldType(String name) {
+        DummyMappedFieldType(String name) {
             super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, null);
         }
 

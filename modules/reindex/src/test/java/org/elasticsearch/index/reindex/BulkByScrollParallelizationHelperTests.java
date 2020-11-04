@@ -38,6 +38,7 @@ public class BulkByScrollParallelizationHelperTests extends ESTestCase {
                 () -> null,
                 () -> null,
                 () -> emptyList(),
+                () -> null,
                 () -> null));
         if (searchRequest.source() != null) {
             // Clear the slice builder if there is one set. We can't call sliceIntoSubRequests if it is.

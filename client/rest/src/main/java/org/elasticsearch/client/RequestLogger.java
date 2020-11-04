@@ -65,7 +65,7 @@ final class RequestLogger {
                 logger.warn(buildWarningMessage(request, host, warnings));
             }
         }
-        if (tracer.isTraceEnabled()) {
+        if (tracer.isErrorEnabled()) {
             String requestLine;
             try {
                 requestLine = buildTraceRequest(request, host);
@@ -80,7 +80,7 @@ final class RequestLogger {
                 responseLine = "";
                 tracer.trace("error while reading response for trace purposes", e);
             }
-            tracer.trace(requestLine + '\n' + responseLine);
+            tracer.error(requestLine + '\n' + responseLine);
         }
     }
 

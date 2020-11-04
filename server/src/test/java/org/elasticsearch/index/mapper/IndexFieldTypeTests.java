@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
 
 public class IndexFieldTypeTests extends ESTestCase {
 
@@ -68,7 +69,24 @@ public class IndexFieldTypeTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
         Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
-        return new QueryShardContext(0, indexSettings, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, System::currentTimeMillis, null, indexNameMatcher, () -> true, null);
+        return new QueryShardContext(
+            0,
+            indexSettings,
+            null,
+            null,
+            null,
+            mock(MapperService.class),
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            System::currentTimeMillis,
+            null,
+            indexNameMatcher,
+            () -> true,
+            null
+        );
     }
 }

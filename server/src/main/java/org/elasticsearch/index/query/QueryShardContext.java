@@ -641,7 +641,7 @@ public class QueryShardContext extends QueryRewriteContext {
                 throw new ElasticsearchParseException("runtime mappings must be a map type");
             }
             @SuppressWarnings("unchecked")
-            Map<String, Object> node = (Map<String, Object>) entry.getValue();
+            Map<String, Object> node = new HashMap<>((Map<String, Object>) entry.getValue());
             // Replace the type until we have native support for the runtime section 
             Object oldRuntimeType = node.put("runtime_type", node.remove("type"));
             if (oldRuntimeType != null) {

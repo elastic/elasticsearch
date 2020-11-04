@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.runtimefields.test.search;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
@@ -21,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Runs elasticsearch's core rest tests disabling all mappings and replacing them
@@ -58,9 +56,6 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                 @Override
                 public boolean modifySections(List<ExecutableSection> executables) {
                     if (runtimeMappingsAfterSetup == null) {
-                        if (candidate.toString().contains("50_filter")) {
-                            LogManager.getLogger().error("init");
-                        }
                         // We're modifying the setup section
                         runtimeMappings = new HashMap<>();
                         if (false == super.modifySections(executables)) {
@@ -89,35 +84,22 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         return false;
                     }
                     mapping.put("properties", untouchedMapping);
-                    if (candidate.toString().contains("50_filter")) {
-                        LogManager.getLogger().error("untouched " + untouchedMapping);
-                        LogManager.getLogger().error("runtime " + runtimeMapping);
-                    }
                     runtimeMappings.put(index, runtimeMapping);
                     return true;
                 }
 
                 @Override
                 protected boolean modifySearch(ApiCallSection search) {
-                    if (candidate.toString().contains("50_filter")) {
-                        LogManager.getLogger().error("toString " + candidate);
-                        LogManager.getLogger().error("runtimeMappingsAfterSetup " + runtimeMappingsAfterSetup);
-                        LogManager.getLogger().error("runtimeMappings " + runtimeMappings);
-                    }
-                    Map<String, Object> body;
                     if (search.getBodies().isEmpty()) {
-                        body = new HashMap<>();
-                        search.addBody(body);
-                    } else {
-                        body = search.getBodies().get(0);
-                        assertThat(search.getBodies(), hasSize(1));
+                        search.addBody(new HashMap<>());
                     }
-                    Object index = body.get("index");
-                    Map<?, ?> runtimeMapping = runtimeMappings(index);
-                    if (runtimeMapping == null) {
-                        return false;
+                    for (Map<String, Object> body : search.getBodies()) {
+                        Map<?, ?> runtimeMapping = runtimeMappings(body.get("index"));
+                        if (runtimeMapping == null) {
+                            return false;
+                        }
+                        body.put("runtime_mappings", runtimeMapping);
                     }
-                    search.getBodies().get(0).put("runtime_mappings", runtimeMapping);
                     return true;
                 }
 

@@ -5,3 +5,5 @@ apply plugin: 'elasticsearch.build'
 dependencies {
   api project(":test:framework")
 }
+
+test.enabled = false // We don't currently have any tests for this because they are test utilities.

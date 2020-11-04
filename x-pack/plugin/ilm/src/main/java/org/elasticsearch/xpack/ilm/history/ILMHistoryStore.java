@@ -68,18 +68,11 @@ public class ILMHistoryStore implements Closeable {
             new BulkProcessor.Listener() {
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {
-                    ClusterState state = clusterService.state();
-
                     if (ilmHistoryEnabled == false) {
                         throw new ElasticsearchException("can not index ILM history items when ILM history is disabled");
                     }
 
-                    IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-                    if (metadata != null && metadata.getOperationMode() != OperationMode.RUNNING) {
-                        throw new ElasticsearchException("ILM not running");
-                    }
-
-                    if (state.getMetadata().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
+                    if (clusterService.state().getMetadata().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
                         ElasticsearchException e = new ElasticsearchException("no ILM history template");
                         logger.warn(new ParameterizedMessage("unable to index the following ILM history items:\n{}",
                             request.requests().stream()

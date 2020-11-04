@@ -89,6 +89,10 @@ public class IndexActionTests extends ESTestCase {
         if (writeTimeout != null) {
             builder.field(IndexAction.Field.TIMEOUT.getPreferredName(), writeTimeout.millis());
         }
+        DocWriteRequest.OpType opType = randomBoolean() ? DocWriteRequest.OpType.fromId(randomFrom(new Byte[] { 0, 1, 2, 3 })) : null;
+        if (opType != null) {
+            builder.field(IndexAction.Field.OP_TYPE.getPreferredName(), opType.getLowercase());
+        }
         builder.endObject();
         IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, client);
         XContentParser parser = createParser(builder);
@@ -101,6 +105,9 @@ public class IndexActionTests extends ESTestCase {
         }
         if (timestampField != null) {
             assertThat(executable.action().executionTimeField, equalTo(timestampField));
+        }
+        if (opType != null) {
+            assertThat(executable.action().opType, equalTo(opType));
         }
         assertThat(executable.action().timeout, equalTo(writeTimeout));
     }
@@ -143,7 +150,7 @@ public class IndexActionTests extends ESTestCase {
     }
 
     public void testUsingParameterIdWithBulkOrIdFieldThrowsIllegalState() {
-        final IndexAction action = new IndexAction("test-index", "123", null, null, null, refreshPolicy);
+        final IndexAction action = new IndexAction("test-index", "123", null, null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
         final Map<String, Object> docWithId = Map.of(
@@ -191,7 +198,7 @@ public class IndexActionTests extends ESTestCase {
 
         final IndexAction action = new IndexAction(configureIndexDynamically ? null : "my_index",
                 configureIdDynamically ? null : "my_id",
-                null, null, null, refreshPolicy);
+                null, null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
@@ -211,7 +218,7 @@ public class IndexActionTests extends ESTestCase {
     }
 
     public void testThatIndexActionCanBeConfiguredWithDynamicIndexNameAndBulk() throws Exception {
-        final IndexAction action = new IndexAction(null, null, null, null, null, refreshPolicy);
+        final IndexAction action = new IndexAction(null, null, null, null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
@@ -239,7 +246,7 @@ public class IndexActionTests extends ESTestCase {
     public void testConfigureIndexInMapAndAction() {
         String fieldName = "_index";
         final IndexAction action = new IndexAction("my_index",
-                null,null, null, null, refreshPolicy);
+                null, null,null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
@@ -258,8 +265,7 @@ public class IndexActionTests extends ESTestCase {
         String docId = randomAlphaOfLength(5);
         String timestampField = randomFrom("@timestamp", null);
 
-        IndexAction action = new IndexAction("test-index", docIdAsParam ? docId : null, timestampField, null, null,
-                refreshPolicy);
+        IndexAction action = new IndexAction("test-index", docIdAsParam ? docId : null, null, timestampField, null, null, refreshPolicy);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client, TimeValue.timeValueSeconds(30),
                 TimeValue.timeValueSeconds(30));
         ZonedDateTime executionTime = DateUtils.nowWithMillisResolution();
@@ -308,7 +314,7 @@ public class IndexActionTests extends ESTestCase {
     }
 
     public void testFailureResult() throws Exception {
-        IndexAction action = new IndexAction("test-index", null, "@timestamp", null, null, refreshPolicy);
+        IndexAction action = new IndexAction("test-index", null, null, "@timestamp", null, null, refreshPolicy);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 

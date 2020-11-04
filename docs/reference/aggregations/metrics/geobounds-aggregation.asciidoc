@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-geobounds-aggregation]]
-=== Geo Bounds Aggregation
+=== Geo-bounds aggregation
+++++
+<titleabbrev>Geo-bounds</titleabbrev>
+++++
 
 A metric aggregation that computes the bounding box containing all geo values for a field.
 

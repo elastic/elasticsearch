@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 
 import java.io.IOException;
-import java.util.List;
+import org.elasticsearch.common.collect.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;

@@ -246,7 +246,8 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
         long minimumIntervalMillis = minimumInterval.getMillis();
         long nextInterval = lifecycle.calculateNextInterval();
         if (nextInterval >= 0 && minimumIntervalMillis > 0 && nextInterval < minimumIntervalMillis) {
-            throw new IllegalArgumentException("invalid schedule [" + lifecycle.getSchedule() + "]: too frequent");
+            throw new IllegalArgumentException("invalid schedule [" + lifecycle.getSchedule() + "]: " +
+                "schedule would be too frequent, executing more than every [" + minimumInterval.getStringRep() + "]");
         }
     }
 

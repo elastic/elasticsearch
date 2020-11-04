@@ -25,7 +25,7 @@ setup:
             location: "my-snaps"
 
   - do:
-      catch: bad_request
+      catch: /invalid schedule \[0 \* \* \* \* \?\][:] schedule would be too frequent, executing more than every \[15m\]/
       slm.put_lifecycle:
         policy_id: "daily-snapshots"
         body: |

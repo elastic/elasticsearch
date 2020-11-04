@@ -20,9 +20,9 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
@@ -74,13 +74,6 @@ public class FetchContext {
      */
     public MapperService mapperService() {
         return searchContext.mapperService();
-    }
-
-    /**
-     * The index settings for the index we are fetching documents from
-     */
-    public IndexSettings getIndexSettings() {
-        return mapperService().getIndexSettings();
     }
 
     /**
@@ -167,6 +160,14 @@ public class FetchContext {
     }
 
     /**
+     * Does the index analyzer for this field have token filters that may produce
+     * backwards offsets in term vectors
+     */
+    public boolean containsBrokenAnalysis(String field) {
+        return getQueryShardContext().containsBrokenAnalysis(field);
+    }
+
+    /**
      * Should the response include scores, even if scores were not calculated in the original query
      */
     public boolean fetchScores() {
@@ -206,5 +207,9 @@ public class FetchContext {
      */
     public SearchExtBuilder getSearchExt(String name) {
         return searchContext.getSearchExt(name);
+    }
+
+    public QueryShardContext getQueryShardContext() {
+        return searchContext.getQueryShardContext();
     }
 }

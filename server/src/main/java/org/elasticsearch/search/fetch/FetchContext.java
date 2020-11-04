@@ -172,7 +172,7 @@ public class FetchContext {
      * backwards offsets in term vectors
      */
     public boolean containsBrokenAnalysis(String field) {
-        return mapperService().containsBrokenAnalysis(field);
+        return getQueryShardContext().containsBrokenAnalysis(field);
     }
 
     /**

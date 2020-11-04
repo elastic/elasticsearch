@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.spatial.util;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.store.ByteBuffersDataOutput;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -40,12 +38,11 @@ public class GeoTestUtils {
     public static GeometryDocValueReader geometryDocValueReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         geometry = indexer.prepareForIndexing(geometry);
-        ByteBuffersDataOutput output =
-            GeometryDocValueWriter.write(indexer.indexShape(null, geometry), encoder, new CentroidCalculator(geometry));
         GeometryDocValueReader reader = new GeometryDocValueReader();
-        reader.reset(new BytesRef(output.toArrayCopy(), 0, Math.toIntExact(output.size())));
+        reader.reset(GeometryDocValueWriter.write(indexer.indexShape(null, geometry), encoder, new CentroidCalculator(geometry)));
         return reader;
     }
+
     public static BinaryGeoShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry) {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, name);
         geometry = indexer.prepareForIndexing(geometry);

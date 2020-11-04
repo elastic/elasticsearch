@@ -104,8 +104,6 @@ class TriangleTreeWriter {
         private TriangleTreeNode right;
         /** root node of edge tree */
         private final ShapeField.DecodedTriangle component;
-        /** component type */
-        private final ShapeField.DecodedTriangle.TYPE type;
 
         private TriangleTreeNode(ShapeField.DecodedTriangle component) {
             this.minY = Math.min(Math.min(component.aY, component.bY), component.cY);
@@ -113,7 +111,6 @@ class TriangleTreeWriter {
             this.minX = Math.min(Math.min(component.aX, component.bX), component.cX);
             this.maxX = Math.max(Math.max(component.aX, component.bX), component.cX);
             this.component = component;
-            this.type = component.type;
         }
 
         private void writeTo(ByteBuffersDataOutput out) throws IOException {
@@ -150,9 +147,9 @@ class TriangleTreeWriter {
             byte metadata = 0;
             metadata |= (left != null) ? (1 << 0) : 0;
             metadata |= (right != null) ? (1 << 1) : 0;
-            if (type == ShapeField.DecodedTriangle.TYPE.POINT) {
+            if (component.type == ShapeField.DecodedTriangle.TYPE.POINT) {
                 metadata |= (1 << 2);
-            } else if (type == ShapeField.DecodedTriangle.TYPE.LINE) {
+            } else if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
                 metadata |= (1 << 3);
                 metadata |= (component.ab) ? (1 << 4) : 0;
             } else {
@@ -166,12 +163,12 @@ class TriangleTreeWriter {
         private void writeComponent(ByteBuffersDataOutput out) throws IOException {
             out.writeVLong((long) maxX - component.aX);
             out.writeVLong((long) maxY - component.aY);
-            if (type == ShapeField.DecodedTriangle.TYPE.POINT) {
+            if (component.type == ShapeField.DecodedTriangle.TYPE.POINT) {
                return;
             }
             out.writeVLong((long) maxX - component.bX);
             out.writeVLong((long) maxY - component.bY);
-            if (type == ShapeField.DecodedTriangle.TYPE.LINE) {
+            if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
                 return;
             }
             out.writeVLong((long) maxX - component.cX);
@@ -205,10 +202,10 @@ class TriangleTreeWriter {
 
         private int componentSize(ByteBuffersDataOutput scratchBuffer) throws IOException {
             scratchBuffer.reset();
-            if (type == ShapeField.DecodedTriangle.TYPE.POINT) {
+            if (component.type == ShapeField.DecodedTriangle.TYPE.POINT) {
                 scratchBuffer.writeVLong((long) maxX - component.aX);
                 scratchBuffer.writeVLong((long) maxY - component.aY);
-            } else if (type == ShapeField.DecodedTriangle.TYPE.LINE) {
+            } else if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
                 scratchBuffer.writeVLong((long) maxX - component.aX);
                 scratchBuffer.writeVLong((long) maxY - component.aY);
                 scratchBuffer.writeVLong((long) maxX - component.bX);

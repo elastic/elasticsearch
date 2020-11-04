@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
@@ -39,8 +38,7 @@ public class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
     @Override
     public BytesRef binaryValue() {
         try {
-            final ByteBuffersDataOutput output = GeometryDocValueWriter.write(fields, CoordinateEncoder.GEO, centroidCalculator);
-            return new BytesRef(output.toArrayCopy(), 0, Math.toIntExact(output.size()));
+            return GeometryDocValueWriter.write(fields, CoordinateEncoder.GEO, centroidCalculator);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to encode shape", e);
         }

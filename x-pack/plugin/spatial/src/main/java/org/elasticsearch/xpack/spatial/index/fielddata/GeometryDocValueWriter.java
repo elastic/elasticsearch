@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,7 +24,7 @@ public class GeometryDocValueWriter {
     }
 
     /*** Serialize the interval tree in the provided data output */
-    public static ByteBuffersDataOutput write(final List<IndexableField> fields,
+    public static BytesRef write(final List<IndexableField> fields,
                                               final CoordinateEncoder coordinateEncoder,
                                               final CentroidCalculator centroidCalculator) throws IOException {
         final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
@@ -32,6 +33,6 @@ public class GeometryDocValueWriter {
         centroidCalculator.getDimensionalShapeType().writeTo(out);
         out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
         TriangleTreeWriter.writeTo(out, fields);
-        return out;
+        return new BytesRef(out.toArrayCopy(), 0, Math.toIntExact(out.size()));
     }
 }

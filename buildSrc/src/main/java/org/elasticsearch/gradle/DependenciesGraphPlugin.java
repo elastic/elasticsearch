@@ -53,9 +53,9 @@ public class DependenciesGraphPlugin implements Plugin<Project> {
                 if (url == null || token == null) {
                     // If there are more than one DependenciesGraphTasks to run, print the message only for one of
                     // them as the resolving action is the same for all
-                    final String msg =
-                        "The environment variables SCA_URL and SCA_TOKEN need to be set before task " + depGraphTasks.get(0) + " can run";
-                    throw new GradleException(msg);
+                    throw new GradleException(
+                        "The environment variables SCA_URL and SCA_TOKEN need to be set before task " + depGraphTasks.get(0) + " can run"
+                    );
                 }
             }
         });

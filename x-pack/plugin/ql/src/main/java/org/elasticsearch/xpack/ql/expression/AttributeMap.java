@@ -15,7 +15,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableCollection;
 import static java.util.Collections.unmodifiableSet;
@@ -141,8 +140,8 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     @SuppressWarnings("rawtypes")
-    public static final AttributeMap EMPTY = new AttributeMap<>();
-    
+    private static final AttributeMap EMPTY = new AttributeMap<>();
+
     @SuppressWarnings("unchecked")
     public static final <E> AttributeMap<E> emptyAttributeMap() {
         return EMPTY;
@@ -155,23 +154,6 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     public AttributeMap() {
         delegate = new LinkedHashMap<>();
-    }
-
-    /**
-     * Please use the {@link AttributeMap#builder()} instead.
-     */
-    @Deprecated
-    public AttributeMap(Map<Attribute, E> attr) {
-        if (attr.isEmpty()) {
-            delegate = emptyMap();
-        }
-        else {
-            delegate = new LinkedHashMap<>(attr.size());
-
-            for (Entry<Attribute, E> entry : attr.entrySet()) {
-                delegate.put(new AttributeWrapper(entry.getKey()), entry.getValue());
-            }
-        }
     }
 
     public AttributeMap(Attribute key, E value) {
@@ -393,7 +375,10 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         }
 
         public AttributeMap<E> build() {
-            return new AttributeMap<>(map);
+            // copy, in case someone would do a .build, .put, .build sequence
+            AttributeMap<E> m = new AttributeMap<>();
+            m.addAll(map);
+            return m;
         }
     }
 }

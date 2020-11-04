@@ -92,6 +92,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.DAY_INTERVAL;
@@ -421,19 +422,19 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
             // track aliases defined in the SELECT and used inside GROUP BY
             // SELECT x AS a ... GROUP BY a
-            Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
             String id = null;
-            for (NamedExpression ne : a.aggregates()) {
-                if (ne instanceof Alias) {
-                    aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
-                }
+
+            List<Alias> aliases = a.aggregates().stream()
+                .filter(ne -> ne instanceof Alias)
+                .map(ne -> (Alias)ne)
+                .collect(Collectors.toList());
+
+            if (aliases.isEmpty() == false) {
+                AttributeMap.Builder<Expression> aliasMapBuilder = AttributeMap.<Expression>builder().putAll(queryC.aliases());
+                aliases.forEach(alias -> aliasMapBuilder.put(alias.toAttribute(), alias.child()));
+                queryC = queryC.withAliases(aliasMapBuilder.build());
             }
 
-            if (aliasMap.isEmpty() == false) {
-                Map<Attribute, Expression> newAliases = new LinkedHashMap<>(queryC.aliases());
-                newAliases.putAll(aliasMap);
-                queryC = queryC.withAliases(new AttributeMap<>(newAliases));
-            }
 
             // build the group aggregation
             // NB: any reference in grouping is already "optimized" by its source so there's no need to look for aliases

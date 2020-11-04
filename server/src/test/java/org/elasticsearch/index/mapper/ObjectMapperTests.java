@@ -117,6 +117,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64607")
     public void testMerge() throws IOException {
         MergeReason reason = randomFrom(MergeReason.values());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));

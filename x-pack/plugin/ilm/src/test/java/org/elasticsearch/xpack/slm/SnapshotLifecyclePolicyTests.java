@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.slm;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -51,19 +52,19 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
         {
             SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "0 0/5 * * * ?", "repo", Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY);
-            assertThat(p.calculateNextInterval(), equalTo(300000L));
+            assertThat(p.calculateNextInterval(), equalTo(TimeValue.timeValueMinutes(5)));
         }
 
         {
             SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", "repo", Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY);
-            assertThat(p.calculateNextInterval(), equalTo(-1L));
+            assertThat(p.calculateNextInterval(), equalTo(TimeValue.MINUS_ONE));
         }
 
         {
             SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "* * * 31 FEB ? *", "repo", Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY);
-            assertThat(p.calculateNextInterval(), equalTo(-1L));
+            assertThat(p.calculateNextInterval(), equalTo(TimeValue.MINUS_ONE));
         }
     }
 

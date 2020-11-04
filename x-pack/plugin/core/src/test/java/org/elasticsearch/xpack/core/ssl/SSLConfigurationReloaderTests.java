@@ -502,6 +502,29 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
     }
 
+    /**
+     * Tests the initiation of ssl configuration file watchers when there is an exception. An exception is caused by a missing file
+     */
+    public void testAccessToSslConfigurationException() throws Exception {
+        Path tempDir = createTempDir();
+        Path clientCertPath = tempDir.resolve("testclient.crt");
+        Settings settings = baseKeystoreSettings(tempDir, null)
+            .putList("xpack.security.transport.ssl.certificate_authorities", clientCertPath.toString())
+            .put("path.home", createTempDir())
+            .build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+
+        try {
+            new SSLConfigurationReloader(env, null, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
+        } catch (Exception e) {
+            exceptionRef.set(e);
+        }
+
+        assertNotNull(exceptionRef.get());
+        assertThat(exceptionRef.get(), throwableWithMessage(containsString("failed to get access to ssl configuration")));
+    }
+
     private Settings.Builder baseKeystoreSettings(Path tempDir, MockSecureSettings secureSettings) throws IOException {
         final Path keyPath = tempDir.resolve("testclient.pem");
         final Path certPath = tempDir.resolve("testclientcert.crt"); // testclient.crt filename already used in #testPEMTrustReloadException

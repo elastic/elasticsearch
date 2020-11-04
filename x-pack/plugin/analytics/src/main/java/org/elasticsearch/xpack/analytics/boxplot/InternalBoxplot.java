@@ -26,6 +26,13 @@ import java.util.stream.Stream;
 
 public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValue implements Boxplot {
 
+    /**
+     * This value is used in determining the width of the whiskers of the boxplot.  After the IQR value is calculated, it gets multiplied
+     * by this multiplier to decide how far out from the q1 and q3 points to extend the whiskers.  The value of 1.5 is traditional.
+     * See https://en.wikipedia.org/wiki/Box_plot
+     */
+    public static final double IQR_MULTIPLIER = 1.5;
+
     enum Metrics {
         MIN {
             @Override
@@ -137,8 +144,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         double q3 = state.quantile(0.75);
         double q1 = state.quantile(0.25);
         double iqr = q3 - q1;
-        double upper = q3 + (1.5 * iqr);
-        double lower = q1 - (1.5 * iqr);
+        double upper = q3 + (IQR_MULTIPLIER * iqr);
+        double lower = q1 - (IQR_MULTIPLIER * iqr);
         Centroid prev = null;
         // Does this iterate in ascending order? if not, we might need to sort...
         for (Centroid c : state.centroids()) {

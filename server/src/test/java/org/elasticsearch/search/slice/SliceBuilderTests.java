@@ -51,7 +51,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -126,7 +125,7 @@ public class SliceBuilderTests extends ESTestCase {
             TextSearchInfo.NONE, Collections.emptyMap()) {
 
             @Override
-            public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
                 throw new UnsupportedOperationException();
             }
 

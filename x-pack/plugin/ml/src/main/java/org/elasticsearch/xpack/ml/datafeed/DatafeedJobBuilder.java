@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -15,29 +14,24 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
@@ -81,7 +75,7 @@ public class DatafeedJobBuilder {
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
         final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, parentTaskId);
 
-        // Step 5. Build datafeed job object
+        // Build datafeed job object
         Consumer<Context> contextHanlder = context -> {
             TimeValue frequency = getFrequencyOrDefault(datafeedConfigHolder.get(), jobHolder.get(), xContentRegistry);
             TimeValue queryDelay = datafeedConfigHolder.get().getQueryDelay();
@@ -134,52 +128,34 @@ public class DatafeedJobBuilder {
                 dataExtractorFactoryHandler);
         };
 
-        Consumer<DataCounts> dataCountsHandler = dataCounts -> {
-            if (dataCounts.getLatestRecordTimeStamp() != null) {
-                context.latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
-            }
-            context.haveSeenDataPreviously = (dataCounts.getInputRecordCount() > 0);
-            jobResultsProvider.datafeedTimingStats(jobHolder.get().getId(), datafeedTimingStatsHandler, listener::onFailure);
-        };
-
-        // Collect data counts
-        Consumer<QueryPage<Bucket>> bucketsHandler = buckets -> {
-            if (buckets.results().size() == 1) {
-                TimeValue bucketSpan = jobHolder.get().getAnalysisConfig().getBucketSpan();
-                context.latestFinalBucketEndMs = buckets.results().get(0).getTimestamp().getTime() + bucketSpan.millis() - 1;
-            }
-            jobResultsProvider.dataCounts(jobHolder.get().getId(), dataCountsHandler, listener::onFailure);
-        };
-
-        // Collect latest bucket
-        Consumer<String> jobIdConsumer = jobId -> {
-            BucketsQueryBuilder latestBucketQuery = new BucketsQueryBuilder()
-                    .sortField(Result.TIMESTAMP.getPreferredName())
-                    .sortDescending(true)
-                    .size(1)
-                    .includeInterim(false);
-            jobResultsProvider.bucketsViaInternalClient(jobId, latestBucketQuery, bucketsHandler, e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                    QueryPage<Bucket> empty = new QueryPage<>(Collections.emptyList(), 0, Bucket.RESULT_TYPE_FIELD);
-                    bucketsHandler.accept(empty);
-                } else {
-                    listener.onFailure(e);
+        ActionListener<RestartTimeInfo> restartTimeInfoListener = ActionListener.wrap(
+            restartTimeInfo -> {
+                if (restartTimeInfo.getLatestFinalBucketTimeMs() != null) {
+                    TimeValue bucketSpan = jobHolder.get().getAnalysisConfig().getBucketSpan();
+                    context.latestFinalBucketEndMs = restartTimeInfo.getLatestFinalBucketTimeMs() + bucketSpan.millis() - 1;
                 }
-            });
-        };
+                if (restartTimeInfo.getLatestRecordTimeMs() != null) {
+                    context.latestRecordTimeMs = restartTimeInfo.getLatestRecordTimeMs();
+                }
+                context.haveSeenDataPreviously = restartTimeInfo.haveSeenDataPreviously();
+                jobResultsProvider.datafeedTimingStats(jobHolder.get().getId(), datafeedTimingStatsHandler, listener::onFailure);
+            },
+            listener::onFailure
+        );
 
         // Get the job config and re-validate
         // Re-validation is required as the config has been re-read since
         // the previous validation
+        // Finally, get restart info
         ActionListener<Job.Builder> jobConfigListener = ActionListener.wrap(
                 jobBuilder -> {
                     try {
                         jobHolder.set(jobBuilder.build());
                         DatafeedJobValidator.validate(datafeedConfigHolder.get(), jobHolder.get(), xContentRegistry);
-                        jobIdConsumer.accept(jobHolder.get().getId());
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
+                    jobResultsProvider.getRestartTimeInfo(jobHolder.get().getId(), restartTimeInfoListener);
                 },
                 listener::onFailure
         );

@@ -334,7 +334,11 @@ public final class ConfigurationUtils {
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     try {
-                        processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
+                        if (entry.getValue() == null) {
+                            throw newConfigurationException(entry.getKey(), null, null, "processor config cannot be [null]");
+                        } else {
+                            processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
+                        }
                     } catch (Exception e) {
                         exception = ExceptionsHelper.useOrSuppress(exception, e);
                     }
@@ -402,14 +406,8 @@ public final class ConfigurationUtils {
             normalizedScript.put(ScriptType.INLINE.getParseField().getPreferredName(), config);
             return readProcessor(processorFactories, scriptService, type, normalizedScript);
         } else {
-            if (config == null) {
-                throw newConfigurationException(type, null, null,
-                    "property isn't a map, but of type [null]");
-            } else {
-                throw newConfigurationException(type, null, null,
-                    "property isn't a map, but of type [" + config.getClass().getName() + "]");
-            }
-
+            throw newConfigurationException(type, null, null,
+                "property isn't a map, but of type [" + config.getClass().getName() + "]");
         }
     }
 

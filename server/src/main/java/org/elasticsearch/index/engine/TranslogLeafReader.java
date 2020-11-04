@@ -170,6 +170,7 @@ public final class TranslogLeafReader extends LeafReader {
 
     @Override
     protected void doClose() {
+
     }
 
     @Override

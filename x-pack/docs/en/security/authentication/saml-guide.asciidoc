@@ -145,8 +145,11 @@ xpack.security.authc.realms.saml.saml1::
     See <<realms>> for more explanation of realms.
 
 order::
-    You should define a unique order on each realm in your authentication chain.
-    Realms with a lower order are consulted first. Although not required, use of this setting is strongly recommended when you configure multiple realms. Defaults to Integer.MAX_VALUE.
+    The order of the realm within the realm chain. Realms with a lower order have
+highest priority and are consulted first. We recommend giving password-based
+realms such as file, native, LDAP, and Active Directory the lowest order (highest priority),
+followed by SSO realms such as SAML and OpenID Connect. If you have multiple realms of the
+same type, give the most frequently accessed realm the lowest order to have it consulted first.
 
 
 idp.metadata.path::

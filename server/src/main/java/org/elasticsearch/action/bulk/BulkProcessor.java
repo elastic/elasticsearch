@@ -460,18 +460,6 @@ public class BulkProcessor implements Closeable {
     }
 
     /**
-     * Discards pending requests.
-     */
-    public void discard() {
-        lock.lock();
-        try {
-            bulkRequest = bulkRequestSupplier.get();
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    /**
      * Flush pending delete or index requests.
      */
     public void flush() {

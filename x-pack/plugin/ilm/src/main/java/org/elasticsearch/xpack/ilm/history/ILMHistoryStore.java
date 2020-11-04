@@ -19,9 +19,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -50,7 +48,7 @@ import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.IND
  * appropriate index. It sets up a {@link BulkProcessor} for indexing in bulk, and handles creation
  * of the index/alias as needed for ILM policies.
  */
-public class ILMHistoryStore implements Closeable, ClusterStateListener {
+public class ILMHistoryStore implements Closeable {
     private static final Logger logger = LogManager.getLogger(ILMHistoryStore.class);
 
     public static final String ILM_HISTORY_DATA_STREAM = "ilm-history-" + INDEX_TEMPLATE_VERSION;
@@ -58,11 +56,8 @@ public class ILMHistoryStore implements Closeable, ClusterStateListener {
     private final boolean ilmHistoryEnabled;
     private final BulkProcessor processor;
     private final ThreadPool threadPool;
-    private final ClusterService clusterService;
 
     public ILMHistoryStore(Settings nodeSettings, Client client, ClusterService clusterService, ThreadPool threadPool) {
-        this.clusterService = clusterService;
-        clusterService.addListener(this);
         this.ilmHistoryEnabled = LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
         this.threadPool = threadPool;
 
@@ -165,7 +160,6 @@ public class ILMHistoryStore implements Closeable, ClusterStateListener {
 
     @Override
     public void close() {
-        clusterService.removeListener(this);
         try {
             processor.awaitClose(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
@@ -173,11 +167,7 @@ public class ILMHistoryStore implements Closeable, ClusterStateListener {
         }
     }
 
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.previousState().metadata().dataStreams().containsKey(ILM_HISTORY_DATA_STREAM) &&
-            event.state().metadata().dataStreams().containsKey(ILM_HISTORY_DATA_STREAM) == false) {
-            processor.discard();
-        }
+    public void flush(){
+        processor.flush();
     }
 }

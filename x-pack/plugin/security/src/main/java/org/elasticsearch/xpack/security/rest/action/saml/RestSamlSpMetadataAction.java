@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -29,9 +27,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestSamlSpMetadataAction extends SamlBaseRestHandler {
 
-    static final ObjectParser<SamlSpMetadataRequest, Void> PARSER = new ObjectParser<>("security_saml_metadata",
-        SamlSpMetadataRequest::new);
-
     public RestSamlSpMetadataAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
@@ -49,19 +44,16 @@ public class RestSamlSpMetadataAction extends SamlBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        try (XContentParser parser = request.contentParser()) {
-            final SamlSpMetadataRequest SamlSpRequest = PARSER.parse(parser, null);
-            SamlSpRequest.setRealmName(request.param("realm"));
-            return channel -> client.execute(SamlSpMetadataAction.INSTANCE, SamlSpRequest,
-                new RestBuilderListener<SamlSpMetadataResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(SamlSpMetadataResponse response, XContentBuilder builder) throws Exception {
-                    builder.startObject();
-                    builder.field("metadata", response.getXMLString());
-                    builder.endObject();
-                    return new BytesRestResponse(RestStatus.OK, builder);
-                }
-            });
-        }
+        final SamlSpMetadataRequest SamlSpRequest = new SamlSpMetadataRequest(request.param("realm"));
+        return channel -> client.execute(SamlSpMetadataAction.INSTANCE, SamlSpRequest,
+            new RestBuilderListener<SamlSpMetadataResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(SamlSpMetadataResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                builder.field("metadata", response.getXMLString());
+                builder.endObject();
+                return new BytesRestResponse(RestStatus.OK, builder);
+            }
+        });
     }
 }

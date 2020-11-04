@@ -18,14 +18,15 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class SamlSpMetadataRequest extends ActionRequest {
 
-    String realmName;
+    private String realmName;
 
     public SamlSpMetadataRequest(StreamInput in) throws IOException {
         super(in);
         realmName = in.readOptionalString();
     }
 
-    public SamlSpMetadataRequest() {
+    public SamlSpMetadataRequest(String realmName) {
+        this.realmName = realmName;
     }
 
     @Override

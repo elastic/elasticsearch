@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataResponse;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.security.authc.saml.SamlEntityDescriptorBuilder;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
+import org.elasticsearch.xpack.security.authc.saml.SamlSpMetadataBuilder;
 import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorMarshaller;
@@ -63,8 +63,8 @@ public class TransportSamlSpMetadataAction
     private void prepareMetadata(SamlRealm realm, ActionListener<SamlSpMetadataResponse> listener) {
         try {
             final EntityDescriptorMarshaller marshaller = new EntityDescriptorMarshaller();
-            final SamlEntityDescriptorBuilder samlEntityDescriptorBuilder = new SamlEntityDescriptorBuilder(realm);
-            final EntityDescriptor descriptor = samlEntityDescriptorBuilder.getEntityDescriptor();
+            final SamlSpMetadataBuilder builder = new SamlSpMetadataBuilder(realm);
+            final EntityDescriptor descriptor = builder.build();
             final Element element = marshaller.marshall(descriptor);
             final StringWriter writer = new StringWriter();
             final Transformer serializer = SamlUtils.getHardenedXMLTransformer();

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.saml;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.opensaml.saml.common.xml.SAMLConstants;
+import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.metadata.AssertionConsumerService;
 import org.opensaml.saml.saml2.metadata.AttributeConsumingService;
 import org.opensaml.saml.saml2.metadata.ContactPerson;
@@ -109,6 +110,14 @@ public class SamlSpMetadataBuilder {
         this.authnRequestsSigned = Boolean.FALSE;
         this.assertionConsumerServiceUrl = spConfig.getAscUrl();
         this.singleLogoutServiceUrl = spConfig.getLogoutUrl();
+        if (spConfig.getEncryptionCredentials() != null) {
+            this.encryptionCertificates.addAll(spConfig.getEncryptionCredentials()
+                .stream().map(credential -> credential.getEntityCertificate()).collect(Collectors.toList()));
+        }
+        if(spConfig.getSigningConfiguration() != null && spConfig.getSigningConfiguration().getCredential() != null) {
+            this.signingCertificate = spConfig.getSigningConfiguration().getCredential().getEntityCertificate();
+        }
+        this.authnRequestsSigned = spConfig.getSigningConfiguration().shouldSign(AuthnRequest.DEFAULT_ELEMENT_LOCAL_NAME);
     }
 
     /**
@@ -241,7 +250,7 @@ public class SamlSpMetadataBuilder {
             spRoleDescriptor.getNameIDFormats().add(buildNameIdFormat());
         }
         spRoleDescriptor.getAssertionConsumerServices().add(buildAssertionConsumerService());
-        if (attributeNames.size() > 0) {
+        if (attributeNames != null && attributeNames.size() > 0) {
             spRoleDescriptor.getAttributeConsumingServices().add(buildAttributeConsumerService());
         }
         if (Strings.hasText(singleLogoutServiceUrl)) {
@@ -256,7 +265,9 @@ public class SamlSpMetadataBuilder {
         if (organization != null) {
             descriptor.setOrganization(buildOrganization());
         }
-        contacts.forEach(c -> descriptor.getContactPersons().add(buildContact(c)));
+        if(contacts != null && contacts.size() > 0) {
+            contacts.forEach(c -> descriptor.getContactPersons().add(buildContact(c)));
+        }
 
         return descriptor;
     }

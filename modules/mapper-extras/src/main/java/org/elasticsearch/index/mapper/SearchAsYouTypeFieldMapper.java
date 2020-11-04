@@ -57,6 +57,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -95,18 +96,14 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     public static final TypeParser PARSER
         = new TypeParser((n, c) -> new Builder(n, () -> c.getIndexAnalyzers().getDefaultIndexAnalyzer()));
 
-    private static SearchAsYouTypeFieldMapper toType(FieldMapper in) {
-        return (SearchAsYouTypeFieldMapper) in;
-    }
-
-    private static SearchAsYouTypeFieldType ft(FieldMapper in) {
-        return toType(in).fieldType();
+    private static Builder builder(FieldMapper in) {
+        return ((SearchAsYouTypeFieldMapper)in).builder;
     }
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
+        private final Parameter<Boolean> index = Parameter.indexParam(m -> builder(m).index.get(), true);
+        private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.get(), false);
 
         // This is only here because for some reason the initial impl of this always serialized
         // `doc_values=false`, even though it cannot be set; and so we need to continue
@@ -120,7 +117,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             .alwaysSerialize();
 
         private final Parameter<Integer> maxShingleSize = Parameter.intParam("max_shingle_size", false,
-            m -> toType(m).maxShingleSize, Defaults.MAX_SHINGLE_SIZE)
+            m -> builder(m).maxShingleSize.get(), Defaults.MAX_SHINGLE_SIZE)
             .setValidator(v -> {
                 if (v < MAX_SHINGLE_SIZE_LOWER_BOUND || v > MAX_SHINGLE_SIZE_UPPER_BOUND) {
                     throw new MapperParsingException("[max_shingle_size] must be at least [" + MAX_SHINGLE_SIZE_LOWER_BOUND
@@ -130,17 +127,17 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             .alwaysSerialize();
 
         final TextParams.Analyzers analyzers;
-        final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ft(m).getTextSearchInfo().getSimilarity());
+        final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
 
-        final Parameter<String> indexOptions = TextParams.indexOptions(m -> toType(m).indexOptions);
-        final Parameter<Boolean> norms = TextParams.norms(true, m -> ft(m).getTextSearchInfo().hasNorms());
-        final Parameter<String> termVectors = TextParams.termVectors(m -> toType(m).termVectors);
+        final Parameter<String> indexOptions = TextParams.indexOptions(m -> builder(m).indexOptions.get());
+        final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.get());
+        final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.get());
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name, Supplier<NamedAnalyzer> defaultAnalyzer) {
             super(name);
-            this.analyzers = new TextParams.Analyzers(defaultAnalyzer);
+            this.analyzers = new TextParams.Analyzers(defaultAnalyzer, m -> builder(m).analyzers);
         }
 
         @Override
@@ -159,12 +156,15 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             fieldType.setStored(store.getValue());
             TextParams.setTermVectorParams(termVectors.getValue(), fieldType);
 
+            Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
+
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
 
             SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(buildFullName(context), fieldType, similarity.getValue(),
                 analyzers.getSearchAnalyzer(), analyzers.getSearchQuoteAnalyzer(), meta.getValue());
-            ft.setIndexAnalyzer(analyzers.getIndexAnalyzer());
+
+            indexAnalyzers.put(ft.name(), indexAnalyzer);
 
             // set up the prefix field
             FieldType prefixft = new FieldType(fieldType);
@@ -182,8 +182,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             TextSearchInfo prefixSearchInfo = new TextSearchInfo(prefixft, similarity.getValue(), prefixSearchWrapper, searchAnalyzer);
             final PrefixFieldType prefixFieldType
                 = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
-            prefixFieldType.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper));
+            final NamedAnalyzer prefixAnalyzer
+                = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper);
             final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType);
+            indexAnalyzers.put(prefixFieldType.name(), prefixAnalyzer);
 
             // set up the shingle fields
             final ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[maxShingleSize.getValue() - 1];
@@ -203,14 +205,16 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 TextSearchInfo textSearchInfo
                     = new TextSearchInfo(shingleft, similarity.getValue(), shingleSearchWrapper, shingleSearchQuoteWrapper);
                 final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldName, shingleSize, textSearchInfo);
-                shingleFieldType.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper));
                 shingleFieldType.setPrefixFieldType(prefixFieldType);
                 shingleFieldTypes[i] = shingleFieldType;
+                NamedAnalyzer shingleAnalyzer
+                    = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper);
                 shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType);
+                indexAnalyzers.put(shingleFieldType.name(), shingleAnalyzer);
             }
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
-            return new SearchAsYouTypeFieldMapper(name, ft, copyTo.build(), prefixFieldMapper, shingleFieldMappers, this);
+            return new SearchAsYouTypeFieldMapper(name, ft, copyTo.build(), indexAnalyzers, prefixFieldMapper, shingleFieldMappers, this);
         }
     }
 
@@ -546,29 +550,23 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
     }
 
-    private final boolean index;
-    private final boolean store;
-    private final String indexOptions;
-    private final String termVectors;
-
     private final int maxShingleSize;
     private final PrefixFieldMapper prefixField;
     private final ShingleFieldMapper[] shingleFields;
+    private final Builder builder;
 
     public SearchAsYouTypeFieldMapper(String simpleName,
                                       SearchAsYouTypeFieldType mappedFieldType,
                                       CopyTo copyTo,
+                                      Map<String, NamedAnalyzer> indexAnalyzers,
                                       PrefixFieldMapper prefixField,
                                       ShingleFieldMapper[] shingleFields,
                                       Builder builder) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, MultiFields.empty(), copyTo);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();
-        this.index = builder.index.getValue();
-        this.store = builder.store.getValue();
-        this.indexOptions = builder.indexOptions.getValue();
-        this.termVectors = builder.termVectors.getValue();
+        this.builder = builder;
     }
 
     @Override
@@ -578,12 +576,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             return;
         }
 
-        if (this.index == false && this.store == false) {
+        if (this.builder.index.get() == false && this.builder.store.get() == false) {
             return;
         }
 
         context.doc().add(new Field(fieldType().name(), value, fieldType().fieldType));
-        if (this.index) {
+        if (this.builder.index.get()) {
             for (ShingleFieldMapper subFieldMapper : shingleFields) {
                 context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
             }
@@ -599,9 +597,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), () -> fieldType().indexAnalyzer()).init(this);
+        return new Builder(simpleName(), builder.analyzers.indexAnalyzer::getDefaultValue).init(this);
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {

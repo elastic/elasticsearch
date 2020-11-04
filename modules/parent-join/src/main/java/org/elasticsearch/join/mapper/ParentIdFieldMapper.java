@@ -60,7 +60,6 @@ public final class ParentIdFieldMapper extends FieldMapper {
     public static final class ParentIdFieldType extends StringFieldType {
         public ParentIdFieldType(String name, boolean eagerGlobalOrdinals) {
             super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
         }
 
@@ -91,7 +90,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     protected ParentIdFieldMapper(String name, boolean eagerGlobalOrdinals) {
-        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), MultiFields.empty(), CopyTo.empty());
+        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
     }
 
     @Override

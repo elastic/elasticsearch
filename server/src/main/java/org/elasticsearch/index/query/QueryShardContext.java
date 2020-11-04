@@ -363,6 +363,14 @@ public class QueryShardContext extends QueryRewriteContext {
         return Arrays.asList(types);
     }
 
+    /**
+     * Does the index analyzer for this field have token filters that may produce
+     * backwards offsets in term vectors
+     */
+    public boolean containsBrokenAnalysis(String field) {
+        return mapperService.containsBrokenAnalysis(field);
+    }
+
     private SearchLookup lookup = null;
 
     /**

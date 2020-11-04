@@ -131,6 +131,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             context.lookup().source(),
             context.bigArrays(),
             fieldType,
+            searchContext.getQueryShardContext().getIndexAnalyzer(),
             sourceFieldNames,
             filterDuplicateText
         );
@@ -157,6 +158,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         private final SourceLookup sourceLookup;
         private final BigArrays bigArrays;
         private final MappedFieldType fieldType;
+        private final Analyzer analyzer;
         private final String[] sourceFieldNames;
         private ObjectArray<DuplicateByteSequenceSpotter> dupSequenceSpotters;
 
@@ -164,12 +166,14 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             SourceLookup sourceLookup,
             BigArrays bigArrays,
             MappedFieldType fieldType,
+            Analyzer analyzer,
             String[] sourceFieldNames,
             boolean filterDuplicateText
         ) {
             this.sourceLookup = sourceLookup;
             this.bigArrays = bigArrays;
             this.fieldType = fieldType;
+            this.analyzer = analyzer;
             this.sourceFieldNames = sourceFieldNames;
             dupSequenceSpotters = filterDuplicateText ? bigArrays.newObjectArray(1) : null;
         }
@@ -223,7 +227,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                                     return obj.toString();
                                 })
                                 .iterator();
-                            Analyzer analyzer = fieldType.indexAnalyzer();
                             while (itr.hasNext()) {
                                 TokenStream ts = analyzer.tokenStream(fieldType.name(), itr.next());
                                 processTokenStream(doc, owningBucketOrd, ts, inDocTerms, spotter);

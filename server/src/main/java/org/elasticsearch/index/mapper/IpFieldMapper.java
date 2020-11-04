@@ -434,4 +434,5 @@ public class IpFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
+
 }

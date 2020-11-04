@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,7 +41,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             new MappingLookup(
                 Collections.emptyList(),
                 singletonList(objectMapper),
-                singletonList(aliasMapper), 0, Lucene.STANDARD_ANALYZER));
+                singletonList(aliasMapper), 0));
         assertEquals("Alias [some.path] is defined both as an object and an alias", e.getMessage());
     }
 
@@ -55,7 +54,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             new MappingLookup(
                 Arrays.asList(field, invalidField),
                 emptyList(),
-                singletonList(invalidAlias), 0, Lucene.STANDARD_ANALYZER));
+                singletonList(invalidAlias), 0));
 
         assertEquals("Alias [invalid] is defined both as an alias and a concrete field", e.getMessage());
     }
@@ -68,7 +67,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         MappingLookup mappers = new MappingLookup(
             singletonList(field),
             emptyList(),
-            Arrays.asList(alias, invalidAlias), 0, Lucene.STANDARD_ANALYZER);
+            Arrays.asList(alias, invalidAlias), 0);
         alias.validate(mappers);
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> invalidAlias.validate(mappers));
@@ -84,7 +83,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             MappingLookup mappers = new MappingLookup(
                 emptyList(),
                 emptyList(),
-                singletonList(invalidAlias), 0, null);
+                singletonList(invalidAlias), 0);
             invalidAlias.validate(mappers);
         });
 
@@ -99,7 +98,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             MappingLookup mappers = new MappingLookup(
                 emptyList(),
                 emptyList(),
-                singletonList(invalidAlias), 0, Lucene.STANDARD_ANALYZER);
+                singletonList(invalidAlias), 0);
             invalidAlias.validate(mappers);
         });
 
@@ -115,7 +114,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             singletonList(createFieldMapper("nested", "field")),
             singletonList(objectMapper),
             singletonList(aliasMapper),
-            0, Lucene.STANDARD_ANALYZER);
+            0);
         aliasMapper.validate(mappers);
     }
 
@@ -127,7 +126,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             singletonList(createFieldMapper("object1", "field")),
             Arrays.asList(createObjectMapper("object1"), createObjectMapper("object2")),
             singletonList(aliasMapper),
-            0, Lucene.STANDARD_ANALYZER);
+            0);
         aliasMapper.validate(mappers);
     }
 
@@ -140,7 +139,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 singletonList(createFieldMapper("nested", "field")),
                 Collections.singletonList(objectMapper),
                 singletonList(aliasMapper),
-                0, Lucene.STANDARD_ANALYZER);
+                0);
             aliasMapper.validate(mappers);
         });
 
@@ -158,7 +157,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 singletonList(createFieldMapper("nested1", "field")),
                 Arrays.asList(createNestedObjectMapper("nested1"), createNestedObjectMapper("nested2")),
                 singletonList(aliasMapper),
-                0, Lucene.STANDARD_ANALYZER);
+                0);
             aliasMapper.validate(mappers);
         });
 

@@ -51,6 +51,7 @@ import static java.util.Map.entry;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -89,7 +90,7 @@ public class IndexActionTests extends ESTestCase {
         if (writeTimeout != null) {
             builder.field(IndexAction.Field.TIMEOUT.getPreferredName(), writeTimeout.millis());
         }
-        DocWriteRequest.OpType opType = randomBoolean() ? DocWriteRequest.OpType.fromId(randomFrom(new Byte[] { 0, 1, 2, 3 })) : null;
+        DocWriteRequest.OpType opType = randomBoolean() ? DocWriteRequest.OpType.fromId(randomFrom(new Byte[] { 0, 1 })) : null;
         if (opType != null) {
             builder.field(IndexAction.Field.OP_TYPE.getPreferredName(), opType.getLowercase());
         }
@@ -137,16 +138,43 @@ public class IndexActionTests extends ESTestCase {
                 .endObject());
     }
 
+    public void testOpTypeThatCannotBeParsed() throws Exception {
+        expectParseFailure(jsonBuilder()
+            .startObject()
+            .field(IndexAction.Field.OP_TYPE.getPreferredName(), randomAlphaOfLength(10))
+            .endObject(),
+            "failed to parse op_type value for field [op_type]");
+    }
+
+    public void testUnsupportedOpType() throws Exception {
+        expectParseFailure(jsonBuilder()
+            .startObject()
+            .field(IndexAction.Field.OP_TYPE.getPreferredName(),
+                randomFrom(DocWriteRequest.OpType.INDEX.name(), DocWriteRequest.OpType.CREATE.name()))
+            .endObject(),
+            "op_type value for field [op_type] must be [index] or [create]");
+    }
+
+    private void expectParseFailure(XContentBuilder builder, String expectedMessage) throws Exception {
+        expectFailure(ElasticsearchParseException.class, builder, expectedMessage);
+    }
+
     private void expectParseFailure(XContentBuilder builder) throws Exception {
         expectFailure(ElasticsearchParseException.class, builder);
     }
 
     private void expectFailure(Class clazz, XContentBuilder builder) throws Exception {
+        expectFailure(clazz, builder, null);
+    }
+
+    private void expectFailure(Class clazz, XContentBuilder builder, String expectedMessage) throws Exception {
         IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, client);
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        expectThrows(clazz, () ->
-                actionParser.parseExecutable(randomAlphaOfLength(4), randomAlphaOfLength(5), parser));
+        Throwable t = expectThrows(clazz, () -> actionParser.parseExecutable(randomAlphaOfLength(4), randomAlphaOfLength(5), parser));
+        if (expectedMessage != null) {
+            assertThat(t.getMessage(), containsString(expectedMessage));
+        }
     }
 
     public void testUsingParameterIdWithBulkOrIdFieldThrowsIllegalState() {

@@ -594,7 +594,7 @@ public class WatchTests extends ESTestCase {
             TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
             WriteRequest.RefreshPolicy refreshPolicy = randomBoolean() ? null : randomFrom(WriteRequest.RefreshPolicy.values());
             IndexAction action = new IndexAction("_index", randomBoolean() ? "123" : null,
-                randomBoolean() ? DocWriteRequest.OpType.fromId(randomFrom(new Byte[] { 0, 1, 2, 3 })) : null, null, timeout, timeZone,
+                randomBoolean() ? DocWriteRequest.OpType.fromId(randomFrom(new Byte[] { 0, 1 })) : null, null, timeout, timeZone,
                 refreshPolicy);
             list.add(new ActionWrapper("_index_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService),  randomTransform(),

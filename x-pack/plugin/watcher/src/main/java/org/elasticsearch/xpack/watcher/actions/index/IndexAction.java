@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -159,6 +160,10 @@ public class IndexAction implements Action {
                 } else if (Field.OP_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         opType = DocWriteRequest.OpType.fromString(parser.text());
+                        if (List.of(DocWriteRequest.OpType.CREATE, DocWriteRequest.OpType.INDEX).contains(opType) == false) {
+                            throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. op_type value for field [{}] " +
+                                "must be [index] or [create]", TYPE, watchId, actionId, currentFieldName);
+                        }
                     } catch (IllegalArgumentException e) {
                         throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed to parse op_type value for " +
                             "field [{}]", TYPE, watchId, actionId, currentFieldName);

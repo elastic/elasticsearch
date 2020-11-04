@@ -23,11 +23,11 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -86,7 +86,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                        ClusterState state,
                                        ActionListener<CreateIndexResponse> finalListener) {
             AtomicReference<String> indexNameRef = new AtomicReference<>();
-            ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(
+            ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
                 response -> {
                     String indexName = indexNameRef.get();
                     assert indexName != null;
@@ -107,12 +107,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 finalListener::onFailure
             );
             clusterService.submitStateUpdateTask("auto create [" + request.index() + "]",
-                new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
-
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
+                new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {

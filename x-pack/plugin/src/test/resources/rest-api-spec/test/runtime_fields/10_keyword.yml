@@ -368,7 +368,7 @@ setup:
         index: sensor
         body:
           runtime_mappings:
-            voltage.rating:
+            voltage_rating:
               type: keyword
               script: |
                 double v = doc['voltage'].value;
@@ -379,11 +379,11 @@ setup:
                 } else {
                   emit('ok');
                 }
-          fields: [voltage.rating]
+          fields: [voltage_rating]
           sort: timestamp
   - match: {hits.total.value: 6}
   - match: {hits.hits.0._source.voltage: 4.0}
-  - match: {hits.hits.0.fields.voltage.rating: low}
+  - match: {hits.hits.0.fields.voltage_rating: [low]}
 
 
 ---

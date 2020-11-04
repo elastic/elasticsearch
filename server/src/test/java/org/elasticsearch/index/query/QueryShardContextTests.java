@@ -50,14 +50,21 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.Mapper.TypeParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -66,8 +73,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -305,12 +314,20 @@ public class QueryShardContextTests extends ESTestCase {
     }
 
     public void testRuntimeFields() throws IOException {
-        MapperService mapperService = mockMapperService("test");
-        Map<String, Object> runtimeFields = Map.ofEntries(
-            Map.entry("cat", Map.of("type", "keyword", "script", "emit('cat')")),
-            Map.entry("dog", Map.of("type", "keyword", "script", "emit('dog')")),
-            Map.entry("catdog", Map.of("type", "keyword", "script", "emit(doc['cat'].value + doc['dog'].value)"))
-        );
+        MapperService mapperService = mockMapperService("test", List.of(new MapperPlugin() {
+            @Override
+            public Map<String, TypeParser> getMappers() {
+                return Map.of("runtime", (name, node, parserContext) -> new Mapper.Builder(name) {
+                    @Override
+                    public Mapper build(BuilderContext context) {
+                        return new DummyMapper(name, new DummyMappedFieldType(name));
+                    }
+                });
+            }
+        }));
+        Map<String, Object> runtimeFields = new HashMap<>();
+        runtimeFields.put("cat", new HashMap<>(Map.of("type", "keyword")));
+        runtimeFields.put("dog", new HashMap<>(Map.of("type", "keyword")));
         QueryShardContext qsc = new QueryShardContext(
             0,
             mapperService.getIndexSettings(),
@@ -321,7 +338,7 @@ public class QueryShardContextTests extends ESTestCase {
             null,
             null,
             NamedXContentRegistry.EMPTY,
-            new NamedWriteableRegistry(Collections.emptyList()),
+            new NamedWriteableRegistry(List.of()),
             null,
             null,
             () -> 0,
@@ -332,7 +349,12 @@ public class QueryShardContextTests extends ESTestCase {
             runtimeFields
         );
         assertTrue(qsc.isFieldMapped("cat"));
-        assertThat(qsc.getFieldType(name))
+        assertThat(qsc.getFieldType("cat"), instanceOf(DummyMappedFieldType.class));
+        assertThat(qsc.simpleMatchToIndexNames("cat"), equalTo(Set.of("cat")));
+        assertTrue(qsc.isFieldMapped("dog"));
+        assertThat(qsc.getFieldType("dog"), instanceOf(DummyMappedFieldType.class));
+        assertThat(qsc.simpleMatchToIndexNames("dog"), equalTo(Set.of("dog")));
+        assertThat(qsc.simpleMatchToIndexNames("*"), equalTo(Set.of("cat", "dog")));
     }
 
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
@@ -344,7 +366,7 @@ public class QueryShardContextTests extends ESTestCase {
         String clusterAlias,
         TriFunction<String, LeafSearchLookup, Integer, String> runtimeDocValues
     ) {
-        MapperService mapperService = mockMapperService(indexUuid);
+        MapperService mapperService = mockMapperService(indexUuid, List.of());
         if (runtimeDocValues != null) {
             when(mapperService.fieldType(any())).thenAnswer(fieldTypeInv -> {
                 String fieldName = (String)fieldTypeInv.getArguments()[0];
@@ -359,7 +381,7 @@ public class QueryShardContextTests extends ESTestCase {
             null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
     }
 
-    private static MapperService mockMapperService(String indexUuid) {
+    private static MapperService mockMapperService(String indexUuid, List<MapperPlugin> mapperPlugins) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
         indexMetadataBuilder.settings(Settings.builder().put("index.version.created", Version.CURRENT)
             .put("index.number_of_shards", 1)
@@ -377,7 +399,7 @@ public class QueryShardContextTests extends ESTestCase {
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.index()).thenReturn(indexMetadata.getIndex());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        Map<String, Mapper.TypeParser> typeParserMap = IndicesModule.getMappers(Collections.emptyList());
+        Map<String, Mapper.TypeParser> typeParserMap = IndicesModule.getMappers(mapperPlugins);
         Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(name -> null, typeParserMap::get,
             Version.CURRENT, () -> null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
             () -> {
@@ -482,4 +504,45 @@ public class QueryShardContextTests extends ESTestCase {
         }
     }
 
+    private static class DummyMapper extends FieldMapper {
+        protected DummyMapper(String simpleName, MappedFieldType mappedFieldType) {
+            super(simpleName, mappedFieldType, Map.of(), MultiFields.empty(), CopyTo.empty());
+        }
+
+        @Override
+        protected void parseCreateField(ParseContext context) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Builder getMergeBuilder() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected String contentType() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static class DummyMappedFieldType extends MappedFieldType {
+        public DummyMappedFieldType(String name) {
+            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, null);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String typeName() {
+            return "runtime";
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new UnsupportedOperationException();
+        }
+    }
 }

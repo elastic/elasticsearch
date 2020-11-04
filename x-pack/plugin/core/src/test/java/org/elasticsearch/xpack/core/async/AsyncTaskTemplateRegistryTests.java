@@ -121,8 +121,8 @@ public class AsyncTaskTemplateRegistryTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.singletonMap(ASYNC_SEARCH_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION - 1),
-            nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.singletonMap(ASYNC_SEARCH_TEMPLATE_NAME,
+            INDEX_TEMPLATE_VERSION - 1), nodes);
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);

@@ -35,8 +35,8 @@ public class RestListWatchesAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
         final ListWatchesAction.Request listWatchesRequest;
-        if (request.hasContent()) {
-            listWatchesRequest = ListWatchesAction.Request.fromXContent(request.contentParser());
+        if (request.hasContentOrSourceParam()) {
+            listWatchesRequest = ListWatchesAction.Request.fromXContent(request.contentOrSourceParamParser());
         } else {
             listWatchesRequest = new ListWatchesAction.Request(null, null, null, null);
         }

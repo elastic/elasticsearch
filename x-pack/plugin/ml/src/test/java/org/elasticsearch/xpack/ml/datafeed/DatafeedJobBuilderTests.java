@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 
@@ -186,7 +187,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         assertBusy(() -> wasHandlerCalled.get());
     }
 
-    public void testBuild_GivenBucketsRequestFails() {
+    public void testBuild_GivenRestartInfoRequestFails() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
@@ -197,10 +198,10 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         Exception error = new RuntimeException("error");
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            Consumer<Exception> consumer = (Consumer<Exception>) invocationOnMock.getArguments()[3];
-            consumer.accept(error);
+            ActionListener<RestartTimeInfo> restartTimeInfoListener = (ActionListener<RestartTimeInfo>) invocationOnMock.getArguments()[1];
+            restartTimeInfoListener.onFailure(error);
             return null;
-        }).when(jobResultsProvider).bucketsViaInternalClient(any(), any(), any(), any());
+        }).when(jobResultsProvider).getRestartTimeInfo(any(), any());
 
 
         givenJob(jobBuilder);

@@ -93,7 +93,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public FieldNamesFieldMapper build(BuilderContext context) {
+        public FieldNamesFieldMapper build() {
             if (enabled.getValue().explicit()) {
                 if (indexVersionCreated.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("The `enabled` setting for the `_field_names` field has been deprecated and "
@@ -131,7 +131,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 

@@ -22,10 +22,10 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -154,7 +154,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public AggregateDoubleMetricFieldMapper build(BuilderContext context) {
+        public AggregateDoubleMetricFieldMapper build(ContentPath context) {
             if (defaultMetric.isConfigured() == false) {
                 // If a single metric is contained, this should be the default
                 if (metrics.getValue().size() == 1) {
@@ -418,12 +418,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), mapperService) {
+            return new SourceValueFetcher(name(), context) {
                 @Override
                 @SuppressWarnings("unchecked")
                 protected Object parseSourceValue(Object value) {
@@ -481,11 +481,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     @Override
     public Iterator<Mapper> iterator() {
         return Collections.emptyIterator();
-    }
-
-    @Override
-    protected boolean indexedByDefault() {
-        return false;
     }
 
     @Override

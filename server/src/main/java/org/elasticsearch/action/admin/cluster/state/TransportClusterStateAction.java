@@ -29,6 +29,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -37,6 +39,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -149,9 +152,21 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 mdBuilder.version(currentState.metadata().version());
                 String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
-                    IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
-                    if (indexMetadata != null) {
-                        mdBuilder.put(indexMetadata, false);
+                    // If the requested index is part of a data stream then that data stream should also be included:
+                    IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(filteredIndex);
+                    if (indexAbstraction.getParentDataStream() != null) {
+                        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+                        mdBuilder.put(dataStream);
+                        // Also the IMD of other backing indices need to be included, otherwise the cluster state api
+                        // can't create a valid cluster state instance:
+                        for (Index backingIndex : dataStream.getIndices()) {
+                            mdBuilder.put(currentState.metadata().index(backingIndex), false);
+                        }
+                    } else {
+                        IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
+                        if (indexMetadata != null) {
+                            mdBuilder.put(indexMetadata, false);
+                        }
                     }
                 }
             } else {

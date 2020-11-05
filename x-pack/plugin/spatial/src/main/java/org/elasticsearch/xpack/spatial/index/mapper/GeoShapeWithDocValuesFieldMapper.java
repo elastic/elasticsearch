@@ -7,10 +7,8 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
-import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
@@ -19,6 +17,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.GeoShapeParser;
@@ -97,21 +96,21 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public GeoShapeWithDocValuesFieldMapper build(BuilderContext context) {
+        public GeoShapeWithDocValuesFieldMapper build(ContentPath contentPath) {
             GeometryParser geometryParser = new GeometryParser(
                 orientation.get().value().getAsBoolean(),
                 coerce.get().value(),
                 ignoreZValue.get().value());
             GeoShapeParser parser = new GeoShapeParser(geometryParser);
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(
-                buildFullName(context),
+                buildFullName(contentPath),
                 indexed.get(),
                 hasDocValues.get(),
                 orientation.get().value(),
                 parser,
                 meta.get());
             return new GeoShapeWithDocValuesFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, context), copyTo.build(),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(),
                 new GeoShapeIndexer(orientation.get().value().getAsBoolean(), ft.name()), parser, this);
         }
 
@@ -119,25 +118,16 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     @Override
     @SuppressWarnings({"rawtypes", "unchecked"})
-    protected void addDocValuesFields(String name, Geometry shape, List fields, ParseContext context) {
+    protected void addDocValuesFields(String name, Geometry shape, List<IndexableField> fields, ParseContext context) {
         CentroidCalculator calculator = new CentroidCalculator(shape);
-        final byte[] scratch = new byte[7 * Integer.BYTES];
-        // doc values are generated from the indexed fields.
-        ShapeField.DecodedTriangle[] triangles = new ShapeField.DecodedTriangle[fields.size()];
-        for (int i = 0; i < fields.size(); i++) {
-            BytesRef bytesRef = ((List<IndexableField>)fields).get(i).binaryValue();
-            assert bytesRef.length == 7 * Integer.BYTES;
-            System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
-            ShapeField.decodeTriangle(scratch, triangles[i] = new ShapeField.DecodedTriangle());
-        }
         BinaryGeoShapeDocValuesField docValuesField =
             (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
         if (docValuesField == null) {
-            docValuesField = new BinaryGeoShapeDocValuesField(name, triangles, calculator);
+            docValuesField = new BinaryGeoShapeDocValuesField(name, fields, calculator);
             context.doc().addWithKey(name, docValuesField);
 
         } else {
-            docValuesField.add(triangles, calculator);
+            docValuesField.add(fields, calculator);
         }
     }
 

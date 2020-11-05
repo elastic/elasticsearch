@@ -153,6 +153,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
+    protected final MapperService createMapperService(Settings settings, String mappings) throws IOException {
+        MapperService mapperService = createMapperService(Version.CURRENT, settings, () -> true, mapping(b -> {}));
+        merge(mapperService, mappings);
+        return mapperService;
+    }
+
     protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
@@ -241,6 +247,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
      */
     protected final void merge(MapperService mapperService, String mapping) throws IOException {
         mapperService.merge(null, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+    }
+
+    protected final void merge(MapperService mapperService, MapperService.MergeReason reason, String mapping) throws IOException {
+        mapperService.merge(null, new CompressedXContent(mapping), reason);
     }
 
     /**
@@ -442,6 +452,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
         when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
+        when(queryShardContext.getObjectMapper(anyString())).thenAnswer(
+            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString()));
         when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );

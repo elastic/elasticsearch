@@ -52,10 +52,10 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
     public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
         String field = fieldType.name();
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.sourcePath(field)).thenReturn(Set.of(field));
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.sourcePath(field)).thenReturn(Set.of(field));
 
-        ValueFetcher fetcher = fieldType.valueFetcher(mapperService, null, format);
+        ValueFetcher fetcher = fieldType.valueFetcher(queryShardContext, null, format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
         return fetcher.fetchValues(lookup);

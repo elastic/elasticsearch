@@ -33,7 +33,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
@@ -158,7 +157,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             for (Geometry geometry : geometries) {
                 Document document = new Document();
                 CentroidCalculator calculator = new CentroidCalculator(geometry);
-                document.add(new BinaryGeoShapeDocValuesField("field", GeoTestUtils.toDecodedTriangles(geometry), calculator));
+                document.add(GeoTestUtils.binaryGeoShapeDocValuesField("field", geometry));
                 w.addDocument(document);
                 if (targetShapeType.compareTo(calculator.getDimensionalShapeType()) == 0) {
                     double weight = calculator.sumWeight();

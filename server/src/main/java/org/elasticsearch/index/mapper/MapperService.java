@@ -121,7 +121,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
-        this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
+        this.indexAnalyzer = new MapperAnalyzerWrapper();
         this.mapperRegistry = mapperRegistry;
         Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
             dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
@@ -444,6 +444,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.indexAnalyzer;
     }
 
+    public boolean containsBrokenAnalysis(String field) {
+        return this.indexAnalyzer.containsBrokenAnalysis(field);
+    }
+
     @Override
     public void close() throws IOException {
         indexAnalyzers.close();
@@ -476,25 +480,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /** An analyzer wrapper that can lookup fields within the index mappings */
     final class MapperAnalyzerWrapper extends DelegatingAnalyzerWrapper {
 
-        private final Analyzer defaultAnalyzer;
-        private final Function<MappedFieldType, Analyzer> extractAnalyzer;
-
-        MapperAnalyzerWrapper(Analyzer defaultAnalyzer, Function<MappedFieldType, Analyzer> extractAnalyzer) {
+        MapperAnalyzerWrapper() {
             super(Analyzer.PER_FIELD_REUSE_STRATEGY);
-            this.defaultAnalyzer = defaultAnalyzer;
-            this.extractAnalyzer = extractAnalyzer;
         }
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
-            MappedFieldType fieldType = fieldType(fieldName);
-            if (fieldType != null) {
-                Analyzer analyzer = extractAnalyzer.apply(fieldType);
-                if (analyzer != null) {
-                    return analyzer;
-                }
-            }
-            return defaultAnalyzer;
+            return mapper.mappers().indexAnalyzer();
+        }
+
+        boolean containsBrokenAnalysis(String field) {
+            return mapper.mappers().indexAnalyzer().containsBrokenAnalysis(field);
         }
     }
 

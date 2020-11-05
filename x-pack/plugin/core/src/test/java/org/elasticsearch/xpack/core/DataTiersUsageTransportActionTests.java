@@ -26,10 +26,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DataTiersUsageTransportActionTests extends ESTestCase {
+
     public void testCalculateMAD() {
         assertThat(DataTiersUsageTransportAction.computeMedianAbsoluteDeviation(new TDigestState(10)), equalTo(0L));
 
-        TDigestState sketch = new TDigestState(randomDoubleBetween(0, 1000, false));
+        TDigestState sketch = new TDigestState(randomDoubleBetween(1, 1000, false));
         sketch.add(1);
         sketch.add(1);
         sketch.add(2);

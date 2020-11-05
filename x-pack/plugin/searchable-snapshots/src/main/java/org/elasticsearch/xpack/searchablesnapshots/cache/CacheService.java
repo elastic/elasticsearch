@@ -42,11 +42,13 @@ public class CacheService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
+    public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
+    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "range_size",
         new ByteSizeValue(32, ByteSizeUnit.MB),                 // default
-        new ByteSizeValue(4, ByteSizeUnit.KB),                  // min
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // max
+        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
+        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
     );
 

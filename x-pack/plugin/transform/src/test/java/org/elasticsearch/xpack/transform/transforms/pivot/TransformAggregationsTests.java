@@ -32,6 +32,10 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("double", TransformAggregations.resolveTargetMapping("avg", "int"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("avg", "double"));
 
+        // median_absolute_deviation
+        assertEquals("double", TransformAggregations.resolveTargetMapping("median_absolute_deviation", "int"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("median_absolute_deviation", "double"));
+
         // cardinality
         assertEquals("long", TransformAggregations.resolveTargetMapping("cardinality", "int"));
         assertEquals("long", TransformAggregations.resolveTargetMapping("cardinality", "double"));
@@ -78,8 +82,9 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("bucket_selector", "int"));
 
         // weighted_avg
-        assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("weighted_avg", null));
-        assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("weighted_avg", "double"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("weighted_avg", null));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("weighted_avg", "double"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("weighted_avg", "int"));
 
         // percentile
         assertEquals("double", TransformAggregations.resolveTargetMapping("percentiles", null));

@@ -53,7 +53,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -108,19 +107,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldType = builder.build(
-            new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0))
-        );
+        wildcardFieldType = builder.build(new ContentPath(0));
 
         Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.V_7_9_0);
-        wildcardFieldType79 = builder79.build(
-            new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0))
-        );
+        wildcardFieldType79 = builder79.build(new ContentPath(0));
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(KEYWORD_FIELD_NAME);
-        keywordFieldType = kwBuilder.build(
-            new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0))
-        );
+        keywordFieldType = kwBuilder.build(new ContentPath(0));
         super.setUp();
     }
 

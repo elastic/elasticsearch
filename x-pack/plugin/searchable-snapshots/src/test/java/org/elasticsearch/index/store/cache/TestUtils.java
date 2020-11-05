@@ -16,11 +16,7 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.IndexInputStats;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
@@ -29,12 +25,9 @@ import java.io.InputStream;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
-import static com.carrotsearch.randomizedtesting.generators.RandomPicks.randomFrom;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,27 +35,6 @@ import static org.mockito.Mockito.mock;
 
 public final class TestUtils {
     private TestUtils() {}
-
-    public static void noOpCacheCleaner() {}
-
-    public static CacheService createDefaultCacheService() {
-        return new CacheService(TestUtils::noOpCacheCleaner, Settings.EMPTY);
-    }
-
-    public static CacheService createCacheService(final Random random) {
-        final ByteSizeValue cacheSize = new ByteSizeValue(
-            randomIntBetween(random, 1, 100),
-            randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB))
-        );
-        return new CacheService(TestUtils::noOpCacheCleaner, cacheSize, randomCacheRangeSize(random));
-    }
-
-    public static ByteSizeValue randomCacheRangeSize(final Random random) {
-        return new ByteSizeValue(
-            randomIntBetween(random, 1, 100),
-            randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB))
-        );
-    }
 
     public static long numberOfRanges(long fileSize, long rangeSize) {
         return numberOfRanges(toIntBytes(fileSize), toIntBytes(rangeSize));

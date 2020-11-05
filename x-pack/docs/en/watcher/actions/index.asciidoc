@@ -26,8 +26,8 @@ The following snippet shows a simple `index` action definition:
 <1> The id of the action
 <2> An optional <<condition,condition>> to restrict action execution
 <3> An optional <<transform,transform>> to transform the payload and prepare the data that should be indexed
-<4> The elasticsearch index to store the data to
-<5> An optional `_id` for the document, if it should always be the same document.
+<4> The index, alias, or data stream to which the data will be written
+<5> An optional `_id` for the document
 
 
 [[index-action-attributes]]
@@ -37,10 +37,14 @@ The following snippet shows a simple `index` action definition:
 |======
 |Name                     |Required    | Default    | Description
 
-| `index`                 | yes        | -          | The Elasticsearch index to index into.
+| `index`                 | yes        | -          | The index, alias, or data stream to index into.
 
 
 | `doc_id`                | no         | -          | The optional `_id` of the document.
+
+| `op_type`               | no         | `index`    | The <<docs-index-api-op_type,op_type>> for the index operation.
+                                                      Must be one of either `index` or `create`. Must be `create` if
+                                                      `index` is a data stream.
 
 | `execution_time_field`  | no         | -          | The field that will store/index the watch execution
                                                       time.

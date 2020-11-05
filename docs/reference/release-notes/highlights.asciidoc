@@ -51,7 +51,7 @@ data on every document.
 
 Elasticsearch offers the ability to configure the
 {ref}/index-modules.html#index-codec[`index.codec`] setting to tell
-Elasticsearch how aggressively to compress stored fields. Both supported values
+{es} how aggressively to compress stored fields. Both supported values
 `default` and `best_compression` will get better compression with this change.
 
 [discrete]

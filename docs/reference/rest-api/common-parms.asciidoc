@@ -666,6 +666,7 @@ supported:
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
+* <<search-aggregations-metrics-median-absolute-deviation-aggregation,Median absolute deviation>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
 * <<search-aggregations-bucket-missing-aggregation,Missing>>
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>

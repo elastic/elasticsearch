@@ -155,9 +155,9 @@ public class MergedPointRangeQueryTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             query,
             ignored -> mergeToMergedQuery(lhs, rhs),
-            ignored -> mergeToMergedQuery(lhs, randomValueOtherThan(lhs, () -> randomValueOtherThan(rhs, supplier))));
+            ignored -> mergeToMergedQuery(lhs, randomValueOtherThan(lhs, () -> randomValueOtherThan(rhs, supplier)))
+        );
     }
-
 
     private Query randomIntPointRangequery(String field, int dims) {
         int[] lower = new int[dims];

@@ -105,13 +105,13 @@ public class MergedPointRangeQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        Weight delegateForMultiValuedSegmentsWeight = delegateForMultiValuedSegments.createWeight(searcher, scoreMode, boost);
         return new Weight(this) {
-            Weight mostCompactWeight;
+            Weight multiValuedSegmentWeight;
+            Weight singleValuedSegmentWeight;
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                return delegateForMultiValuedSegmentsWeight.isCacheable(ctx);
+                return true;
             }
 
             @Override
@@ -136,12 +136,9 @@ public class MergedPointRangeQuery extends Query {
                 }
                 if (points.size() == points.getDocCount()) {
                     // Each doc that has points has exactly one point.
-                    if (mostCompactWeight == null) {
-                        mostCompactWeight = delegateForSingleValuedSegments.createWeight(searcher, scoreMode, boost);
-                    }
-                    return mostCompactWeight.scorerSupplier(context);
+                    return singleValuedSegmentWeight().scorerSupplier(context);
                 }
-                return delegateForMultiValuedSegmentsWeight.scorerSupplier(context);
+                return multiValuedSegmentWeight().scorerSupplier(context);
             }
 
             @Override
@@ -152,12 +149,26 @@ public class MergedPointRangeQuery extends Query {
             @Override
             @Deprecated
             public void extractTerms(Set<Term> terms) {
-                delegateForMultiValuedSegmentsWeight.extractTerms(terms);
+                // We don't have Terms, just numbers
             }
 
             @Override
             public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                return delegateForMultiValuedSegmentsWeight.explain(context, doc);
+                return multiValuedSegmentWeight().explain(context, doc);
+            }
+
+            private Weight singleValuedSegmentWeight() throws IOException {
+                if (singleValuedSegmentWeight == null) {
+                    singleValuedSegmentWeight = delegateForSingleValuedSegments.createWeight(searcher, scoreMode, boost);
+                }
+                return singleValuedSegmentWeight;
+            }
+
+            private Weight multiValuedSegmentWeight() throws IOException {
+                if (multiValuedSegmentWeight == null) {
+                    multiValuedSegmentWeight = delegateForMultiValuedSegments.createWeight(searcher, scoreMode, boost);
+                }
+                return multiValuedSegmentWeight;
             }
         };
     }

@@ -414,7 +414,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         if (unwrappedLhs instanceof PointRangeQuery && unwrappedRhs instanceof PointRangeQuery) {
             Query merged = MergedPointRangeQuery.merge((PointRangeQuery) unwrappedLhs, (PointRangeQuery) unwrappedRhs);
             if (merged != null) {
-                // TODO rewrap?
+                // Should we rewrap here?
                 return merged;
             }
         }

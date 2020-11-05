@@ -79,17 +79,32 @@ greater false positives. Note: This parameter is only relevant for `term` and
 `recursive` strategies.
 | `0.025`
 
-|`orientation` |Optionally define how to interpret vertex order for
-polygons / multipolygons.  This parameter defines one of two coordinate
-system rules (Right-hand or Left-hand) each of which can be specified in three
-different ways. 1. Right-hand rule: `right`, `ccw`, `counterclockwise`,
-2. Left-hand rule: `left`, `cw`, `clockwise`. The default orientation
-(`counterclockwise`) complies with the OGC standard which defines
-outer ring vertices in counterclockwise order with inner ring(s) vertices (holes)
-in clockwise order. Setting this parameter in the geo_shape mapping explicitly
-sets vertex order for the coordinate list of a geo_shape field but can be
-overridden in each individual GeoJSON or WKT document.
-| `ccw`
+|`orientation` 
+a|Optional. Vertex order for the shape's coordinates list.
+
+This parameter sets and returns only a `RIGHT` (counterclockwise) or `LEFT`
+(clockwise) value. However, you can specify either value in multiple ways.
+
+To set `RIGHT`, use one of the following arguments or its uppercase
+variant:
+
+* `right`
+* `counterclockwise`
+* `ccw`
+
+To set `LEFT`, use one of the following arguments or its uppercase
+variant:
+
+* `left`
+* `clockwise`
+* `cw`
+
+Defaults to `RIGHT` to comply with https://www.ogc.org/docs/is[OGC standards].
+OGC standards define outer ring vertices in counterclockwise order with inner
+ring (hole) vertices in clockwise order.
+
+Individual GeoJSON or WKT documents can override this parameter.
+| `RIGHT`
 
 |`points_only` |deprecated[6.6, PrefixTrees no longer used] Setting this option to
 `true` (defaults to `false`) configures the `geo_shape` field type for point

@@ -8,7 +8,6 @@
     ".deprecation-indexing-mappings",
     ".deprecation-indexing-settings"
   ],
-  "allow_auto_create": true,
   "_meta": {
     "description": "default template for ES deprecation logs index template installed by x-pack",
     "managed": true

@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.aggregations.InternalOrder.isKeyAsc;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
 
 public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends InternalTerms.Bucket<B>>
@@ -257,9 +258,9 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     }
 
     private List<B> reduceMergeSort(List<InternalAggregation> aggregations,
-                                    BucketOrder reduceOrder, ReduceContext reduceContext) {
-        assert isKeyOrder(reduceOrder);
-        final Comparator<MultiBucketsAggregation.Bucket> cmp = reduceOrder.comparator();
+                                    BucketOrder thisReduceOrder, ReduceContext reduceContext) {
+        assert isKeyOrder(thisReduceOrder);
+        final Comparator<MultiBucketsAggregation.Bucket> cmp = thisReduceOrder.comparator();
         final PriorityQueue<IteratorAndCurrent<B>> pq = new PriorityQueue<>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent<B> a, IteratorAndCurrent<B> b) {
@@ -369,6 +370,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 bucket.docCountError -= thisAggDocCountError;
             }
         }
+
+        final List<B> reducedBuckets;
         /**
          * Buckets returned by a partial reduce or a shard response are sorted by key since {@link Version#V_7_10_0}.
          * That allows to perform a merge sort when reducing multiple aggregations together.
@@ -376,8 +379,13 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
          * the provided aggregations use a different {@link InternalTerms#reduceOrder}.
          */
         BucketOrder thisReduceOrder = getReduceOrder(aggregations);
-        List<B> reducedBuckets = isKeyOrder(thisReduceOrder) ?
-            reduceMergeSort(aggregations, thisReduceOrder, reduceContext) : reduceLegacy(aggregations, reduceContext);
+        if (isKeyOrder(thisReduceOrder)) {
+            // extract the primary sort in case this is a compound order.
+            thisReduceOrder = InternalOrder.key(isKeyAsc(thisReduceOrder) ? true : false);
+            reducedBuckets = reduceMergeSort(aggregations, thisReduceOrder, reduceContext);
+        } else {
+            reducedBuckets = reduceLegacy(aggregations, reduceContext);
+        }
         final B[] list;
         if (reduceContext.isFinalReduce()) {
             final int size = Math.min(requiredSize, reducedBuckets.size());

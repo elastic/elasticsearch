@@ -166,6 +166,13 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(e2.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_second_unknown")));
         assertThat(e2.getMetadata("es.processor_type"), equalTo(Collections.singletonList("second_unknown_processor")));
         assertThat(e2.getMetadata("es.property_name"), is(nullValue()));
+
+        List<Map<String, Object>> config3 = new ArrayList<>();
+        config3.add(Collections.singletonMap("test_processor", null));
+        ElasticsearchParseException e3 = expectThrows(ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readProcessorConfigs(config3, scriptService, registry));
+        assertThat(e3.getMetadata("es.processor_type"), equalTo(Collections.singletonList("test_processor")));
+        assertThat(e3.getMessage(), equalTo("processor config cannot be [null]"));
     }
 
     public void testReadProcessorNullDescription() throws Exception {

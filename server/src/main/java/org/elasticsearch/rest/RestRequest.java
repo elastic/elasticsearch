@@ -88,13 +88,13 @@ public class RestRequest implements ToXContent.Params {
 
     private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
                         Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
-        try{
+        try {
             this.parsedAccept = parseHeaderWithMediaType(httpRequest.getHeaders(), "Accept");
             this.parsedContentType = parseHeaderWithMediaType(httpRequest.getHeaders(), "Content-Type");
             if (parsedContentType != null) {
                 this.xContentType.set(parsedContentType.toMediaType(XContentType.MEDIA_TYPE_REGISTRY));
             }
-        }catch (IllegalArgumentException e){
+        } catch (IllegalArgumentException e) {
             throw new MediaTypeHeaderException(e);
         }
         this.xContentRegistry = xContentRegistry;
@@ -112,7 +112,7 @@ public class RestRequest implements ToXContent.Params {
         if (header == null || header.isEmpty()) {
             return null;
         } else if (header.size() > 1) {
-            throw new IllegalArgumentException("Incorrect header ["+headerName+"]. " +
+            throw new IllegalArgumentException("Incorrect header [" + headerName + "]. " +
                 "Only one value should be provided");
         }
         String rawContentType = header.get(0);

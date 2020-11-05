@@ -45,7 +45,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
             new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT));
     }
 
-    public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes(){
+    public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
         return SqlMediaTypeParser.MEDIA_TYPE_REGISTRY;
     }
 

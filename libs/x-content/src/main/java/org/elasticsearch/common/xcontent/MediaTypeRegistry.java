@@ -47,7 +47,7 @@ public class MediaTypeRegistry<T extends MediaType> {
     private Map<String, Map<String, Pattern>> parametersMap = new HashMap<>();
 
     public T queryParamToMediaType(String format) {
-        if(format == null) {
+        if (format == null) {
             return null;
         }
         return queryParamToMediaType.get(format.toLowerCase(Locale.ROOT));
@@ -65,7 +65,7 @@ public class MediaTypeRegistry<T extends MediaType> {
         for (T mediaType : mediaTypes) {
             Set<MediaType.HeaderValue> tuples = mediaType.headerValues();
             for (MediaType.HeaderValue headerValue : tuples) {
-                queryParamToMediaType.put(mediaType.queryParameter(),mediaType);
+                queryParamToMediaType.put(mediaType.queryParameter(), mediaType);
                 typeWithSubtypeToMediaType.put(headerValue.v1(), mediaType);
                 parametersMap.put(headerValue.v1(), convertPatterns(headerValue.v2()));
             }
@@ -73,7 +73,7 @@ public class MediaTypeRegistry<T extends MediaType> {
         return this;
     }
 
-    private Map<String,Pattern> convertPatterns(Map<String,String> paramNameAndValueRegex){
+    private Map<String,Pattern> convertPatterns(Map<String, String> paramNameAndValueRegex) {
         Map<String, Pattern> parametersForMediaType = new HashMap<>(paramNameAndValueRegex.size());
         for (Map.Entry<String, String> params : paramNameAndValueRegex.entrySet()) {
             String parameterName = params.getKey().toLowerCase(Locale.ROOT);

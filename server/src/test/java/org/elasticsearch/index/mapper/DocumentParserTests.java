@@ -350,7 +350,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             context.path().add(nameParts[i]);
         }
         Mapper.Builder builder = new ObjectMapper.Builder(nameParts[nameParts.length - 1], Version.CURRENT).enabled(true);
-        return (ObjectMapper)builder.build(new ContentPath());
+        return (ObjectMapper)builder.build(context.path());
     }
 
     public void testEmptyMappingUpdate() throws Exception {

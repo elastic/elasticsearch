@@ -63,6 +63,7 @@ public class ParsedMediaType {
 
     /**
      * Parses a header value into it's parts.
+     * follows https://tools.ietf.org/html/rfc7231#section-3.1.1.1 but allows only single media type and do not support quality factors
      * Note: parsing can return null, but it will throw exceptions once https://github.com/elastic/elasticsearch/issues/63080 is done
      * Do not rely on nulls
      *
@@ -90,15 +91,15 @@ public class ParsedMediaType {
                     if (paramsAsString.isEmpty()) {
                         continue;
                     }
-                    // intentionally allowing to have spaces around `=`
-                    // https://tools.ietf.org/html/rfc7231#section-3.1.1.1 disallows this
-                    String[] keyValueParam = elements[i].trim().split("=");
+                    //spaces are allowed between parameters, but not between '=' sign
+                    String[] keyValueParam = paramsAsString.split("=");
+                    if (keyValueParam.length != 2 || hasSpaces(keyValueParam[0]) || hasSpaces(keyValueParam[1])) {
+                        throw new IllegalArgumentException("invalid parameters for header [" + headerValue + "]");
+                    }
                     if (keyValueParam.length == 2) {
                         String parameterName = keyValueParam[0].toLowerCase(Locale.ROOT).trim();
                         String parameterValue = keyValueParam[1].toLowerCase(Locale.ROOT).trim();
                         parameters.put(parameterName, parameterValue);
-                    } else {
-                        throw new IllegalArgumentException("invalid parameters for header [" + headerValue + "]");
                     }
                 }
                 return new ParsedMediaType(splitMediaType[0].trim().toLowerCase(Locale.ROOT),
@@ -106,6 +107,10 @@ public class ParsedMediaType {
             }
         }
         return null;
+    }
+
+    private static boolean hasSpaces(String s) {
+        return s.trim().equals(s) == false;
     }
 
     /**

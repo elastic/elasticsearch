@@ -263,6 +263,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(testRepository, testSnapshot);
         createSnapshotRequest.indices(testIndex);
         createSnapshotRequest.waitForCompletion(true);
+        createSnapshotRequest.includeGlobalState(false); // GWB-> Remove this once index replacement is in place
         if (randomBoolean()) {
             createSnapshotRequest.userMetadata(randomUserMetadata());
         }

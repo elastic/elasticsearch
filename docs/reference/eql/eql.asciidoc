@@ -396,7 +396,7 @@ following precedence:
 . <<sort-search-results,`_doc` order>>
 
 To specify a tiebreaker field, use the `tiebreaker_field` parameter. If you use
-{ecs-ref}[ECS], we recommend using `event.sequence` as the tiebreaker field.
+the {ecs-ref}[ECS], we recommend using `event.sequence` as the tiebreaker field.
 
 [source,console]
 ----

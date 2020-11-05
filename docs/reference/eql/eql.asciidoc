@@ -395,13 +395,14 @@ following precedence:
 . Tiebreaker field, if specified
 . <<sort-search-results,`_doc` order>>
 
-To specify a tiebreaker field, use the `tiebreaker_field` parameter:
+To specify a tiebreaker field, use the `tiebreaker_field` parameter. If you use
+{ecs-ref}[ECS], we recommend using `event.sequence` as the tiebreaker field.
 
 [source,console]
 ----
 GET /my-index-000001/_eql/search
 {
-  "tiebreaker_field": "event.id",
+  "tiebreaker_field": "event.sequence",
   "query": """
     process where process.name == "cmd.exe" and stringContains(process.executable, "System32")
   """

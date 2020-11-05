@@ -287,7 +287,7 @@ POST /_aliases
 
 <1> An index we've added by mistake
 <2> The index we should have added
-<3> `remove_index` is just like <<indices-delete-index>> but will only remove a concrete index.
+<3> `remove_index` is just like <<indices-delete-index>> and will only remove a concrete index.
 
 [[filtered]]
 ===== Filtered aliases

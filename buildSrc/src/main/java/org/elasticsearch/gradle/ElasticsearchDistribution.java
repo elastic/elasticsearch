@@ -31,6 +31,7 @@ import java.io.File;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Function;
 
 public class ElasticsearchDistribution implements Buildable, Iterable<File> {
@@ -205,7 +206,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
      * if not executed before, this
      * freezes the distribution configuration and
      * runs distribution finalizer logic.
-     * */
+     */
     public ElasticsearchDistribution maybeFreeze() {
         if (!froozen) {
             finalizeValues();
@@ -237,25 +238,31 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
     @Override
     public TaskDependency getBuildDependencies() {
-        // For non-required Docker distributions, skip building the distribution is Docker is unavailable
-        if (isDocker() && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false) {
-            return task -> Collections.emptySet();
-        }
-        maybeFreeze();
-        return getType().shouldExtract() ? extracted.getBuildDependencies() : configuration.getBuildDependencies();
+        Optional<TaskDependency> dockerBuildDependencies = dockerBuildDependencies();
+        return dockerBuildDependencies.orElseGet(() -> {
+            maybeFreeze();
+            return getType().shouldExtract() ? extracted.getBuildDependencies() : configuration.getBuildDependencies();
+        });
     }
 
     public TaskDependency getArchiveBuildDependencies() {
+        Optional<TaskDependency> dockerBuildDependencies = dockerBuildDependencies();
+        return dockerBuildDependencies.orElseGet(() -> {
+            maybeFreeze();
+            return configuration.getBuildDependencies();
+        });
+    }
+
+    private Optional<TaskDependency> dockerBuildDependencies() {
         // For non-required Docker distributions, skip building the distribution is Docker is unavailable
-        if (isDocker() && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false) {
-            return task -> Collections.emptySet();
-        }
-        maybeFreeze();
-        return configuration.getBuildDependencies();
+        return (isDocker() && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false)
+            ? Optional.of(task -> Collections.emptySet())
+            : Optional.empty();
     }
 
     @Override
     public Iterator<File> iterator() {
+        maybeFreeze();
         return getType().shouldExtract() ? extracted.iterator() : configuration.iterator();
     }
 

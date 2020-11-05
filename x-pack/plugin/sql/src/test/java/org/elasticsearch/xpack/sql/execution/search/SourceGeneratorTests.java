@@ -98,7 +98,7 @@ public class SourceGeneratorTests extends ESTestCase {
 
     public void testSortFieldSpecified() {
         FieldSortBuilder sortField = fieldSort("test").unmappedType("keyword");
-
+        
         QueryContainer container = new QueryContainer()
                 .addSort("id", new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")),
                         Direction.ASC, Missing.LAST));

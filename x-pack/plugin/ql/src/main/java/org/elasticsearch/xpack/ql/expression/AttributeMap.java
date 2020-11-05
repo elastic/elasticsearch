@@ -141,7 +141,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     @SuppressWarnings("rawtypes")
     private static final AttributeMap EMPTY = new AttributeMap<>();
-
+    
     @SuppressWarnings("unchecked")
     public static final <E> AttributeMap<E> emptyAttributeMap() {
         return EMPTY;
@@ -359,6 +359,10 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         return new Builder<>();
     }
 
+    public static <E> Builder<E> builder(AttributeMap<E> map) {
+        return new Builder<E>().putAll(map);
+    }
+
     public static class Builder<E> {
         private final AttributeMap<E> map = new AttributeMap<>();
 
@@ -372,6 +376,10 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         public Builder<E> putAll(AttributeMap<E> m) {
             map.addAll(m);
             return this;
+        }
+
+        public boolean isEmpty() {
+            return map.isEmpty();
         }
 
         public AttributeMap<E> build() {

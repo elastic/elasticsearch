@@ -92,7 +92,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.DAY_INTERVAL;
@@ -424,15 +423,17 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             // SELECT x AS a ... GROUP BY a
             String id = null;
 
-            List<Alias> aliases = a.aggregates().stream()
-                .filter(ne -> ne instanceof Alias)
-                .map(ne -> (Alias)ne)
-                .collect(Collectors.toList());
+            AttributeMap.Builder<Expression> aliases = AttributeMap.builder();
+            for (NamedExpression ne : a.aggregates()) {
+                if (ne instanceof Alias) {
+                    Alias alias = (Alias) ne;
+                    aliases.put(alias.toAttribute(), alias.child());
+                }
+            }
 
             if (aliases.isEmpty() == false) {
-                AttributeMap.Builder<Expression> aliasMapBuilder = AttributeMap.<Expression>builder().putAll(queryC.aliases());
-                aliases.forEach(alias -> aliasMapBuilder.put(alias.toAttribute(), alias.child()));
-                queryC = queryC.withAliases(aliasMapBuilder.build());
+                aliases.putAll(queryC.aliases());
+                queryC = queryC.withAliases(aliases.build());
             }
 
 

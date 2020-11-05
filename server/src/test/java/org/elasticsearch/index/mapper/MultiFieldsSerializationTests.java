@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -50,9 +49,8 @@ public class MultiFieldsSerializationTests extends ESTestCase {
             builder.add(new BooleanFieldMapper.Builder(name));
         }
 
-        Mapper.BuilderContext ctx = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath());
         Mapper.Builder root = new BooleanFieldMapper.Builder("root");
-        FieldMapper.MultiFields multiFields = builder.build(root, ctx);
+        FieldMapper.MultiFields multiFields = builder.build(root, new ContentPath());
 
         String serialized = Strings.toString(multiFields);
         int lastStart = 0;

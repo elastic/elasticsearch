@@ -30,7 +30,6 @@ import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -182,23 +181,23 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public CompletionFieldMapper build(BuilderContext context) {
-            checkCompletionContextsLimit(context);
+        public CompletionFieldMapper build(ContentPath contentPath) {
+            checkCompletionContextsLimit();
             NamedAnalyzer completionAnalyzer = new NamedAnalyzer(this.searchAnalyzer.getValue().name(), AnalyzerScope.INDEX,
                 new CompletionAnalyzer(this.searchAnalyzer.getValue(), preserveSeparators.getValue(), preservePosInc.getValue()));
 
             CompletionFieldType ft
-                = new CompletionFieldType(buildFullName(context), completionAnalyzer, meta.getValue());
+                = new CompletionFieldType(buildFullName(contentPath), completionAnalyzer, meta.getValue());
             ft.setContextMappings(contexts.getValue());
             return new CompletionFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
 
-        private void checkCompletionContextsLimit(BuilderContext context) {
+        private void checkCompletionContextsLimit() {
             if (this.contexts.getValue() != null && this.contexts.getValue().size() > COMPLETION_CONTEXTS_LIMIT) {
                 deprecationLogger.deprecate("excessive_completion_contexts",
                     "You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
-                        " in the mapping for index [" + context.indexSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME) + "]. " +
+                        " in the mapping for field [" + name() + "]. " +
                         "The maximum allowed number of completion contexts in a mapping will be limited to " +
                         "[" + COMPLETION_CONTEXTS_LIMIT + "] starting in version [8.0].");
             }

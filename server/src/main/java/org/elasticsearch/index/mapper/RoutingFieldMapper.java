@@ -71,7 +71,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public RoutingFieldMapper build(BuilderContext context) {
+        public RoutingFieldMapper build(ContentPath contentPath) {
             return new RoutingFieldMapper(required.getValue());
         }
     }

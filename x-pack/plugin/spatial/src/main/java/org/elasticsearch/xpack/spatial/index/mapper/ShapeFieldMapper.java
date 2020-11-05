@@ -14,6 +14,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -71,14 +72,14 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         }
 
         @Override
-        public ShapeFieldMapper build(BuilderContext context) {
+        public ShapeFieldMapper build(ContentPath contentPath) {
             GeometryParser geometryParser
                 = new GeometryParser(orientation.get().value().getAsBoolean(), coerce.get().value(), ignoreZValue.get().value());
             Parser<Geometry> parser = new GeoShapeParser(geometryParser);
             ShapeFieldType ft
-                = new ShapeFieldType(buildFullName(context), indexed.get(), orientation.get().value(), parser, meta.get());
+                = new ShapeFieldType(buildFullName(contentPath), indexed.get(), orientation.get().value(), parser, meta.get());
             return new ShapeFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, context), copyTo.build(),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(),
                 new ShapeIndexer(ft.name()), parser, this);
         }
     }

@@ -19,10 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-
 import java.io.IOException;
 import java.util.Collections;
 
@@ -34,9 +30,7 @@ public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        MappedFieldType mapper = new RankFeatureFieldMapper.Builder("field").build(context).fieldType();
+        MappedFieldType mapper = new RankFeatureFieldMapper.Builder("field").build(new ContentPath()).fieldType();
 
         assertEquals(Collections.singletonList(3.14f), fetchSourceValue(mapper, 3.14));
         assertEquals(Collections.singletonList(42.9f), fetchSourceValue(mapper, "42.9"));

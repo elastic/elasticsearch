@@ -45,7 +45,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -248,7 +247,7 @@ final class DefaultSearchContext extends SearchContext {
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }
-        if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+        if (queryBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
             parsedQuery(new ParsedQuery(new BoostQuery(query(), queryBoost), parsedQuery()));
         }
         this.query = buildFilteredQuery(query);
@@ -324,11 +323,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public int numberOfShards() {
         return request.numberOfShards();
-    }
-
-    @Override
-    public float queryBoost() {
-        return queryBoost;
     }
 
     @Override

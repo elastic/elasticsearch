@@ -65,7 +65,6 @@ public final class TransformAggregations {
         "histogram",
         "ip_range",
         "matrix_stats",
-        "median_absolute_deviation",
         "nested",
         "percentile_ranks",
         "range",
@@ -95,6 +94,7 @@ public final class TransformAggregations {
      */
     enum AggregationType {
         AVG("avg", DOUBLE),
+        MEDIAN_ABSOLUTE_DEVIATION("median_absolute_deviation", DOUBLE),
         CARDINALITY("cardinality", LONG),
         VALUE_COUNT("value_count", LONG),
         MAX("max", SOURCE),

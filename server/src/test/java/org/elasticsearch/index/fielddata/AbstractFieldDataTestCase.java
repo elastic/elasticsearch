@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -95,36 +94,36 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
-        final BuilderContext context = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        final ContentPath contentPath = new ContentPath(1);
         if (type.equals("string")) {
             if (docValues) {
-                fieldType = new KeywordFieldMapper.Builder(fieldName).build(context).fieldType();
+                fieldType = new KeywordFieldMapper.Builder(fieldName).build(contentPath).fieldType();
             } else {
                 fieldType = new TextFieldMapper.Builder(fieldName, () -> Lucene.STANDARD_ANALYZER)
-                    .fielddata(true).build(context).fieldType();
+                    .fielddata(true).build(contentPath).fieldType();
             }
         } else if (type.equals("float")) {
             fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT, false, true)
-                    .docValues(docValues).build(context).fieldType();
+                    .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("double")) {
             fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, false, true)
-                    .docValues(docValues).build(context).fieldType();
+                    .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("long")) {
             fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG, false, true)
-                    .docValues(docValues).build(context).fieldType();
+                    .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("int")) {
             fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, false, true)
-                    .docValues(docValues).build(context).fieldType();
+                    .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("short")) {
             fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT, false, true)
-                    .docValues(docValues).build(context).fieldType();
+                    .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("byte")) {
             fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE, false, true)
-                    .docValues(docValues).build(context).fieldType();
+                    .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("geo_point")) {
-            fieldType = new GeoPointFieldMapper.Builder(fieldName, false).docValues(docValues).build(context).fieldType();
+            fieldType = new GeoPointFieldMapper.Builder(fieldName, false).docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("binary")) {
-            fieldType = new BinaryFieldMapper.Builder(fieldName, docValues).build(context).fieldType();
+            fieldType = new BinaryFieldMapper.Builder(fieldName, docValues).build(contentPath).fieldType();
         } else {
             throw new UnsupportedOperationException(type);
         }

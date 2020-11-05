@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -72,7 +73,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             this(name, IGNORE_MALFORMED_SETTING.get(settings));
         }
 
-        private Builder(String name, boolean ignoreMalformedByDefault) {
+        public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -118,16 +119,16 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public UnsignedLongFieldMapper build(BuilderContext context) {
+        public UnsignedLongFieldMapper build(ContentPath contentPath) {
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
-                buildFullName(context),
+                buildFullName(contentPath),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
                 parsedNullValue(),
                 meta.getValue()
             );
-            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 

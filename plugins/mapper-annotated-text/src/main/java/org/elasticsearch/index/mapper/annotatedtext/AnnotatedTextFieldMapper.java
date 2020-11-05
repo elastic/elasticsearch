@@ -34,6 +34,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -108,14 +109,14 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 meta);
         }
 
-        private AnnotatedTextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
+        private AnnotatedTextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {
             TextSearchInfo tsi = new TextSearchInfo(
                 fieldType,
                 similarity.get(),
                 wrapAnalyzer(analyzers.getSearchAnalyzer()),
                 wrapAnalyzer(analyzers.getSearchQuoteAnalyzer()));
             AnnotatedTextFieldType ft = new AnnotatedTextFieldType(
-                buildFullName(context),
+                buildFullName(contentPath),
                 store.getValue(),
                 tsi,
                 meta.getValue());
@@ -123,7 +124,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public AnnotatedTextFieldMapper build(BuilderContext context) {
+        public AnnotatedTextFieldMapper build(ContentPath contentPath) {
             FieldType fieldType = TextParams.buildFieldType(() -> true, store, indexOptions, norms, termVectors);
             if (fieldType.indexOptions() == IndexOptions.NONE ) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
@@ -135,8 +136,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 }
             }
             return new AnnotatedTextFieldMapper(
-                    name, fieldType, buildFieldType(fieldType, context),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
+                    name, fieldType, buildFieldType(fieldType, contentPath),
+                    multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 

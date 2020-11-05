@@ -113,11 +113,11 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IpFieldMapper build(BuilderContext context) {
+        public IpFieldMapper build(ContentPath contentPath) {
             return new IpFieldMapper(name,
-                new IpFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+                new IpFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
                     hasDocValues.getValue(), parseNullValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
 
     }

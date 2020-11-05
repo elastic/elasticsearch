@@ -86,19 +86,14 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                 }
 
                 @Override
-                protected boolean modifyMapping(String index, Map<String, Object> mapping) {
-                    Object properties = mapping.get("properties");
-                    if (properties == null || false == (properties instanceof Map)) {
-                        return true;
-                    }
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> propertiesMap = (Map<String, Object>) properties;
+                protected boolean modifyMappingProperties(String index, Map<String, Object> properties) {
                     Map<String, Object> untouchedMapping = new HashMap<>();
                     Map<String, Map<String, Object>> runtimeMapping = new HashMap<>();
-                    if (false == runtimeifyMappingProperties(propertiesMap, untouchedMapping, runtimeMapping)) {
+                    if (false == runtimeifyMappingProperties(properties, untouchedMapping, runtimeMapping)) {
                         return false;
                     }
-                    mapping.put("properties", untouchedMapping);
+                    properties.clear();
+                    properties.putAll(untouchedMapping);
                     mappedFields.put(index, untouchedMapping.keySet());
                     runtimeMappings.put(index, runtimeMapping);
                     return true;

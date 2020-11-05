@@ -125,10 +125,7 @@ public abstract class CoreTestTranslater {
     }
 
     protected static Map<String, Object> runtimeFieldLoadingFromSource(String name, String type) {
-        return Map.ofEntries(
-            Map.entry("type", type),
-            Map.entry("script", painlessToLoadFromSource(name, type))
-        );
+        return Map.of("type", type, "script", painlessToLoadFromSource(name, type));
     }
 
     private ExecutableSection addIndexTemplate() {
@@ -268,9 +265,13 @@ public abstract class CoreTestTranslater {
                 if (false == (mapping instanceof Map)) {
                     continue;
                 }
+                Object properties = ((Map<?, ?>) mapping).get("properties");
+                if (false == (properties instanceof Map)) {
+                    continue;
+                }
                 @SuppressWarnings("unchecked")
-                Map<String, Object> mappingMap = (Map<String, Object>) mapping;
-                if (false == modifyMapping(index, mappingMap)) {
+                Map<String, Object> propertiesMap = (Map<String, Object>) properties;
+                if (false == modifyMappingProperties(index, propertiesMap)) {
                     return false;
                 }
             }
@@ -280,7 +281,7 @@ public abstract class CoreTestTranslater {
         /**
          * Modify the mapping defined in the test.
          */
-        protected abstract boolean modifyMapping(String index, Map<String, Object> mapping);
+        protected abstract boolean modifyMappingProperties(String index, Map<String, Object> properties);
 
         /**
          * Modify the provided map in place, translating all fields into
@@ -375,9 +376,7 @@ public abstract class CoreTestTranslater {
                     null,
                     true,
                     XContentType.JSON,
-                    (index, type) -> {
-                        indexRequests.add(index);
-                    },
+                    (index, type) -> indexRequests.add(index),
                     u -> {},
                     d -> {}
                 );

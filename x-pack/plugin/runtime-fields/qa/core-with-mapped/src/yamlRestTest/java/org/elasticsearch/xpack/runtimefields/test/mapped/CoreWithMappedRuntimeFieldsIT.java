@@ -43,16 +43,10 @@ public class CoreWithMappedRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
         protected Suite suite(ClientYamlTestCandidate candidate) {
             return new Suite(candidate) {
                 @Override
-                protected boolean modifyMapping(String index, Map<String, Object> mapping) {
-                    Object properties = mapping.get("properties");
-                    if (properties == null || false == (properties instanceof Map)) {
-                        return true;
-                    }
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> propertiesMap = (Map<String, Object>) properties;
-                    Map<String, Object> newProperties = new HashMap<>(propertiesMap.size());
-                    Map<String, Map<String, Object>> runtimeProperties = new HashMap<>(propertiesMap.size());
-                    if (false == runtimeifyMappingProperties(propertiesMap, newProperties, runtimeProperties)) {
+                protected boolean modifyMappingProperties(String index, Map<String, Object> properties) {
+                    Map<String, Object> newProperties = new HashMap<>(properties.size());
+                    Map<String, Map<String, Object>> runtimeProperties = new HashMap<>(properties.size());
+                    if (false == runtimeifyMappingProperties(properties, newProperties, runtimeProperties)) {
                         return false;
                     }
                     for (Map.Entry<String, Map<String, Object>> runtimeProperty : runtimeProperties.entrySet()) {
@@ -60,7 +54,8 @@ public class CoreWithMappedRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
                         runtimeProperty.getValue().put("type", "runtime");
                         newProperties.put(runtimeProperty.getKey(), runtimeProperty.getValue());
                     }
-                    mapping.put("properties", newProperties);
+                    properties.clear();
+                    properties.putAll(newProperties);
                     return true;
                 }
 

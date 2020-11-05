@@ -654,6 +654,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "       \"avg\": {"
             + "         \"field\": \"stars\""
             + " } },"
+            + "     \"variability_rating\": {"
+            + "       \"median_absolute_deviation\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
             + "     \"sum_rating\": {"
             + "       \"sum\": {"
             + "         \"field\": \"stars\""
@@ -694,6 +698,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
         assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.variability_rating", searchResult)).get(0);
+        assertEquals(0.0, actual.doubleValue(), 0.000001);
         actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.sum_rating", searchResult)).get(0);
         assertEquals(159, actual.longValue());
         actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.cardinality_business", searchResult)).get(0);

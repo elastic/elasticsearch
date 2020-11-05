@@ -32,6 +32,10 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("double", TransformAggregations.resolveTargetMapping("avg", "int"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("avg", "double"));
 
+        // median_absolute_deviation
+        assertEquals("double", TransformAggregations.resolveTargetMapping("median_absolute_deviation", "int"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("median_absolute_deviation", "double"));
+
         // cardinality
         assertEquals("long", TransformAggregations.resolveTargetMapping("cardinality", "int"));
         assertEquals("long", TransformAggregations.resolveTargetMapping("cardinality", "double"));

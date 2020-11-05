@@ -314,11 +314,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract int[] docIdsToLoad();
 
-    public abstract int docIdsToLoadFrom();
-
     public abstract int docIdsToLoadSize();
 
-    public abstract SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize);
+    public abstract SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize);
 
     public abstract DfsSearchResult dfsResult();
 

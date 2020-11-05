@@ -165,7 +165,7 @@ public class TestSearchContext extends SearchContext {
     public int numberOfShards() {
         return 1;
     }
-    
+
     @Override
     public ScrollContext scrollContext() {
         return scrollContext;
@@ -490,17 +490,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public int docIdsToLoadFrom() {
-        return 0;
-    }
-
-    @Override
     public int docIdsToLoadSize() {
         return 0;
     }
 
     @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
         return null;
     }
 

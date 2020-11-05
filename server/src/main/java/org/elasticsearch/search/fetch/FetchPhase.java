@@ -105,7 +105,7 @@ public class FetchPhase {
 
         DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
-            docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
+            docs[index] = new DocIdToIndex(context.docIdsToLoad()[index], index);
         }
         // make sure that we iterate in doc id order
         Arrays.sort(docs);

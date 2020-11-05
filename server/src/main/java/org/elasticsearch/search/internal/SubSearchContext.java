@@ -52,7 +52,6 @@ public class SubSearchContext extends FilteredSearchContext {
     private final QuerySearchResult querySearchResult;
 
     private int[] docIdsToLoad;
-    private int docsIdsToLoadFrom;
     private int docsIdsToLoadSize;
 
     private StoredFieldsContext storedFields;
@@ -302,19 +301,13 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public int docIdsToLoadFrom() {
-        return docsIdsToLoadFrom;
-    }
-
-    @Override
     public int docIdsToLoadSize() {
         return docsIdsToLoadSize;
     }
 
     @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
         this.docIdsToLoad = docIdsToLoad;
-        this.docsIdsToLoadFrom = docsIdsToLoadFrom;
         this.docsIdsToLoadSize = docsIdsToLoadSize;
         return this;
     }

@@ -62,7 +62,8 @@ Adds an alias to an index.
 Removes an alias from an index.
 
 `remove_index`::
-Deletes a concrete index. Similar to the <<indices-delete-index, delete index API>>, but if the provided index is an alias, the action will fail.
+Deletes a concrete index, similar to the <<indices-delete-index, delete index
+API>>. Attempts to remove an index alias will fail.
 
 You can perform these actions on alias objects.
 Valid parameters for alias objects include:

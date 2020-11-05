@@ -58,7 +58,7 @@ Elasticsearch offers the ability to configure the
 [[data-tier-formalization]]
 === Data tiers
 
-7.10 introduces the concept of formalized data tiers within Elasticsearch.
+7.10 introduces the concept of formalized data tiers within {es}.
 {ref}/data-tiers.html[Data tiers] are a simple, integrated approach that gives
 users control over optimizing for cost, performance, and breadth/depth of data.
 Prior to this formalization, many users configured their own tier topology using 

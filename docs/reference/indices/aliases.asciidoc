@@ -62,8 +62,8 @@ Adds an alias to an index.
 Removes an alias from an index.
 
 `remove_index`::
-Deletes an index or index alias,
-like the <<indices-delete-index,delete index API>>.
+Deletes a concrete index, similar to the <<indices-delete-index, delete index
+API>>. Attempts to remove an index alias will fail.
 
 You can perform these actions on alias objects.
 Valid parameters for alias objects include:
@@ -287,7 +287,7 @@ POST /_aliases
 
 <1> An index we've added by mistake
 <2> The index we should have added
-<3> `remove_index` is just like <<indices-delete-index>>
+<3> `remove_index` is just like <<indices-delete-index>> but will only remove a concrete index.
 
 [[filtered]]
 ===== Filtered aliases

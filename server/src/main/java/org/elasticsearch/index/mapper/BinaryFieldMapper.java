@@ -44,7 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class BinaryFieldMapper extends ParametrizedFieldMapper {
+public class BinaryFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "binary";
 
@@ -52,7 +52,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         return (BinaryFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  false);
@@ -97,8 +97,8 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         @Override
@@ -184,7 +184,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new BinaryFieldMapper.Builder(simpleName()).init(this);
     }
 

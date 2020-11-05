@@ -433,7 +433,7 @@ public class QueryContainer {
         // update proc (if needed)
         if (qContainer.scalarFunctions().size() != scalarFunctions.size()) {
             qContainer = qContainer.withScalarProcessors(
-                AttributeMap.<Pipe>builder().putAll(qContainer.scalarFunctions).put(attr, proc).build());
+                AttributeMap.builder(qContainer.scalarFunctions).put(attr, proc).build());
         }
 
         return new Tuple<>(qContainer, new ComputedRef(proc));

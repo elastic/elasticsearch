@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -20,6 +21,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -35,6 +37,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -236,7 +239,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                     // A cache loader is not allowed to return null, return a marker object instead.
                     return NULL_MARKER;
                 } else {
-                    final BitSet bs = BitSet.of(s.iterator(), context.reader().maxDoc());
+                    final BitSet bs = bitSetFromDocIterator(s.iterator(), context.reader().maxDoc());
                     final long bitSetBytes = bs.ramBytesUsed();
                     if (bitSetBytes > this.maxWeightBytes) {
                         logger.warn("built a DLS BitSet that uses [{}] bytes; the DLS BitSet cache has a maximum size of [{}] bytes;" +
@@ -339,4 +342,30 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
             }
         });
     }
+
+    static BitSet bitSetFromDocIterator(DocIdSetIterator iter, int maxDoc) throws IOException {
+        // TODO: This snippet is copied from Lucene Bitset#of. Should we integrate it to Lucene?
+        final long cost = iter.cost();
+        final int threshold = maxDoc >>> 7;
+        final BitSet set;
+        if (cost < threshold) {
+            set = new SparseFixedBitSet(maxDoc);
+        } else {
+            set = new FixedBitSet(maxDoc);
+        }
+        if (iter.docID() != -1) {
+            throw new IllegalStateException("Must be an unpositioned iterator, got current position = " + iter.docID());
+        }
+        int matches = 0;
+        for (int doc = iter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iter.nextDoc()) {
+            matches++;
+            set.set(doc);
+        }
+        if (matches == maxDoc) {
+            return new MatchAllRoleBitSet(maxDoc);
+        } else {
+            return set;
+        }
+    }
+
 }

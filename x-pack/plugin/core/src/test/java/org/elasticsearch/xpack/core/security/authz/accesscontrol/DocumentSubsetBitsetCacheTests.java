@@ -18,10 +18,13 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
@@ -58,6 +61,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -460,6 +464,30 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             });
             assertThat(cache.entryCount(), equalTo(0));
             assertThat(cache.ramBytesUsed(), equalTo(0L));
+        }
+    }
+
+    public void testBitsetFromDocIterator() throws Exception {
+        int maxDocs = randomIntBetween(1, 10 * 1024);
+        int numDocs = 0;
+        FixedBitSet matches = new FixedBitSet(maxDocs);
+        for (int i = 0; i < maxDocs; i++) {
+            if (randomBoolean()) {
+                matches.set(i);
+                numDocs++;
+            }
+        }
+        DocIdSetIterator it = new BitSetIterator(matches, randomNonNegativeLong());
+        BitSet bitSet = DocumentSubsetBitsetCache.bitSetFromDocIterator(it, maxDocs);
+        assertThat(bitSet.cardinality(), equalTo(numDocs));
+        assertThat(bitSet.length(), equalTo(maxDocs));
+        for (int i = 0; i < maxDocs; i++) {
+            assertThat(bitSet.get(i), equalTo(matches.get(i)));
+            assertThat(bitSet.nextSetBit(i), equalTo(matches.nextSetBit(i)));
+            assertThat(bitSet.prevSetBit(i), equalTo(matches.prevSetBit(i)));
+        }
+        if (numDocs == maxDocs) {
+            assertThat(bitSet, instanceOf(MatchAllRoleBitSet.class));
         }
     }
 

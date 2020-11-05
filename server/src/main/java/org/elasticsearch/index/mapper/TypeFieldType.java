@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -52,6 +51,13 @@ public final class TypeFieldType extends ConstantFieldType {
         this.type = type;
     }
 
+    /**
+     * Returns the name of the current type
+     */
+    public String getType() {
+        return type;
+    }
+
     @Override
     public String typeName() {
         return CONTENT_TYPE;
@@ -65,9 +71,13 @@ public final class TypeFieldType extends ConstantFieldType {
 
     @Override
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        Function<MapperService, String> typeFunction = mapperService -> type;
         deprecationLogger.deprecate("typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
-        return new ConstantIndexFieldData.Builder(typeFunction, name(), CoreValuesSourceType.BYTES);
+        return new ConstantIndexFieldData.Builder(type, name(), CoreValuesSourceType.BYTES);
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
     }
 
     @Override

@@ -19,13 +19,17 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -34,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 
@@ -360,20 +365,48 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         assertFalse(fields.containsKey("object"));
     }
 
-    private Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, String fieldPattern)
+    public void testTextSubFields() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("field")
+                    .field("type", "text")
+                    .startObject("index_prefixes").endObject()
+                    .field("index_phrases", true)
+                .endObject()
+            .endObject()
+        .endObject();
+
+        IndexService indexService = createIndex("index", Settings.EMPTY, mapping);
+        MapperService mapperService = indexService.mapperService();
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .array("field", "some text")
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
+        assertThat(fields.size(), equalTo(3));
+        assertThat(fields.keySet(), containsInAnyOrder("field", "field._index_prefix", "field._index_phrase"));
+
+        for (DocumentField field : fields.values()) {
+            assertThat(field.getValues().size(), equalTo(1));
+            assertThat(field.getValue(), equalTo("some text"));
+        }
+    }
+
+    private static Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, String fieldPattern)
         throws IOException {
 
         List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null));
         return fetchFields(mapperService, source, fields);
     }
 
-    private Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
+    private static Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
         throws IOException {
 
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(mapperService, null, fields);
+        FieldFetcher fieldFetcher = FieldFetcher.create(createQueryShardContext(mapperService), null, fields);
         return fieldFetcher.fetch(sourceLookup, Set.of());
     }
 
@@ -396,5 +429,16 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
 
         IndexService indexService = createIndex("index", Settings.EMPTY, mapping);
         return indexService.mapperService();
+    }
+
+    private static QueryShardContext createQueryShardContext(MapperService mapperService) {
+        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT)
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        return new QueryShardContext(0, indexSettings, null, null, null, mapperService, null, null, null, null, null, null, null, null,
+            null, null, null);
     }
 }

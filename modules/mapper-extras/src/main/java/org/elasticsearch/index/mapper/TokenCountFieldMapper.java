@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -36,14 +37,14 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIn
  * A {@link FieldMapper} that takes a string and writes a count of the tokens in that string
  * to the index.  In most ways the mapper acts just like an {@link NumberFieldMapper}.
  */
-public class TokenCountFieldMapper extends ParametrizedFieldMapper {
+public class TokenCountFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "token_count";
 
     private static TokenCountFieldMapper toType(FieldMapper in) {
         return (TokenCountFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -73,14 +74,30 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
             if (analyzer.getValue() == null) {
                 throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
             }
-            MappedFieldType ft = new NumberFieldMapper.NumberFieldType(
+            MappedFieldType ft = new TokenCountFieldType(
                 buildFullName(context),
-                NumberFieldMapper.NumberType.INTEGER,
                 index.getValue(),
                 store.getValue(),
                 hasDocValues.getValue(),
+                nullValue.getValue(),
                 meta.getValue());
             return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+        }
+    }
+
+    static class TokenCountFieldType extends NumberFieldMapper.NumberFieldType {
+
+        TokenCountFieldType(String name, boolean isSearchable, boolean isStored,
+                            boolean hasDocValues, Number nullValue, Map<String, String> meta) {
+            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            if (hasDocValues() == false) {
+                return lookup -> List.of();
+            }
+            return new DocValueFetcher(docValueFormat(format, null), searchLookup.doc().getForField(this));
         }
     }
 
@@ -127,20 +144,6 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
         context.doc().addAll(
             NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, store)
         );
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected String parseSourceValue(Object value) {
-                return value.toString();
-            }
-        };
     }
 
     /**
@@ -194,7 +197,7 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

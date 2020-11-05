@@ -38,6 +38,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -49,7 +50,6 @@ import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -259,7 +259,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         restoredShard.refresh("test");
         assertEquals(restoredShard.docStats().getCount(), shard.docStats().getCount());
         EngineException engineException = expectThrows(EngineException.class, () -> restoredShard.get(
-            new Engine.Get(false, false, Integer.toString(0), new Term("_id", Uid.encodeId(Integer.toString(0))))));
+            new Engine.Get(false, false, Integer.toString(0))));
         assertEquals(engineException.getCause().getMessage(), "_source only indices can't be searched or filtered");
         SeqNoStats seqNoStats = restoredShard.seqNoStats();
         assertEquals(seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint());
@@ -285,7 +285,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         }
 
         for (int i = 0; i < numInitialDocs; i++) {
-            Engine.Get get = new Engine.Get(false, false, Integer.toString(i), new Term("_id", Uid.encodeId(Integer.toString(i))));
+            Engine.Get get = new Engine.Get(false, false, Integer.toString(i));
             Engine.GetResult original = shard.get(get);
             Engine.GetResult restored = targetShard.get(get);
             assertEquals(original.exists(), restored.exists());
@@ -327,7 +327,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     if (liveDocs == null || liveDocs.get(i)) {
                         rootFieldsVisitor.reset();
                         leafReader.document(i, rootFieldsVisitor);
-                        rootFieldsVisitor.postProcess(targetShard.mapperService());
+                        rootFieldsVisitor.postProcess(targetShard.mapperService()::fieldType);
                         String id = rootFieldsVisitor.id();
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";
@@ -368,6 +368,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
         final Repository repository = new FsRepository(repositoryMetadata, createEnvironment(), xContentRegistry(), clusterService,
+            MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         clusterService.addStateApplier(e -> repository.updateState(e.state()));
         // Apply state once to initialize repo properly like RepositoriesService would

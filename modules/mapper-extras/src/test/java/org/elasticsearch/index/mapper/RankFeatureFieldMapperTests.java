@@ -25,10 +25,7 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 
@@ -42,8 +39,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RankFeatureFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(10);
+    protected Object getSampleValueForDocument() {
+        return 10;
     }
 
     @Override
@@ -58,6 +55,12 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         assertEquals("_feature", termQuery.getTerm().field());
         assertEquals("field", termQuery.getTerm().text());
         assertNotNull(fields.getField("_feature"));
+    }
+
+    @Override
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
     }
 
     @Override
@@ -143,14 +146,5 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         })));
         assertEquals("[rank_feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
                 e.getCause().getMessage());
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        RankFeatureFieldMapper mapper = new RankFeatureFieldMapper.Builder("field").build(context);
-
-        assertEquals(List.of(3.14f), fetchSourceValue(mapper, 3.14));
-        assertEquals(List.of(42.9f), fetchSourceValue(mapper, "42.9"));
     }
 }

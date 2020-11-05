@@ -12,20 +12,26 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
+import static org.elasticsearch.index.store.cache.TestUtils.mergeContiguousRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -408,6 +414,32 @@ public class SparseFileTrackerTests extends ESTestCase {
         checkThread.join();
     }
 
+    public void testCompletedRanges() {
+        final byte[] fileContents = new byte[between(0, 1000)];
+        final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", fileContents.length);
+
+        final Set<AtomicBoolean> listenersCalled = new HashSet<>();
+        final SortedSet<Tuple<Long, Long>> gapsProcessed = Collections.synchronizedNavigableSet(
+            new TreeSet<>(Comparator.comparingLong(Tuple::v1))
+        );
+        for (int i = between(0, 10); i > 0; i--) {
+            waitForRandomRange(fileContents, sparseFileTracker, listenersCalled::add, gap -> {
+                if (processGap(fileContents, gap)) {
+                    gapsProcessed.add(Tuple.tuple(gap.start(), gap.end()));
+                }
+            });
+            assertTrue(listenersCalled.stream().allMatch(AtomicBoolean::get));
+        }
+
+        // merge adjacent processed ranges as the SparseFileTracker does internally when a gap is completed
+        // in order to check that SparseFileTracker.getCompletedRanges() returns the expected values
+        final SortedSet<Tuple<Long, Long>> expectedCompletedRanges = mergeContiguousRanges(gapsProcessed);
+
+        final SortedSet<Tuple<Long, Long>> completedRanges = sparseFileTracker.getCompletedRanges();
+        assertThat(completedRanges, hasSize(expectedCompletedRanges.size()));
+        assertThat(completedRanges, equalTo(expectedCompletedRanges));
+    }
+
     private static void checkRandomAbsentRange(byte[] fileContents, SparseFileTracker sparseFileTracker, boolean expectExact) {
         final long checkStart = randomLongBetween(0, fileContents.length - 1);
         final long checkEnd = randomLongBetween(0, fileContents.length);
@@ -487,19 +519,21 @@ public class SparseFileTrackerTests extends ESTestCase {
         }
     }
 
-    private static void processGap(byte[] fileContents, SparseFileTracker.Gap gap) {
+    private static boolean processGap(byte[] fileContents, SparseFileTracker.Gap gap) {
         for (long i = gap.start(); i < gap.end(); i++) {
             assertThat(fileContents[toIntBytes(i)], equalTo(UNAVAILABLE));
         }
 
         if (randomBoolean()) {
             gap.onFailure(new ElasticsearchException("simulated"));
+            return false;
         } else {
             for (long i = gap.start(); i < gap.end(); i++) {
                 fileContents[toIntBytes(i)] = AVAILABLE;
                 gap.onProgress(i + 1L);
             }
             gap.onCompletion();
+            return true;
         }
     }
 }

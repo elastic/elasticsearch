@@ -30,6 +30,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 
@@ -67,7 +68,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     }
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> {
-        final IndexSettings indexSettings = c.mapperService().getIndexSettings();
+        final IndexSettings indexSettings = c.getIndexSettings();
         return new NestedPathFieldMapper(indexSettings.getSettings());
     });
 
@@ -85,6 +86,11 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         @Override
         public Query existsQuery(QueryShardContext context) {
             throw new UnsupportedOperationException("Cannot run exists() query against the nested field path");
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
     }
 

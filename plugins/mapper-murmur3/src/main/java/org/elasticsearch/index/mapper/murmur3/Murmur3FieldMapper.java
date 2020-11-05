@@ -31,14 +31,11 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -46,7 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class Murmur3FieldMapper extends ParametrizedFieldMapper {
+public class Murmur3FieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "murmur3";
 
@@ -62,7 +59,7 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
         return (Murmur3FieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType().isStored(), false);
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -91,7 +88,7 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
         private Murmur3FieldType(String name, boolean isStored, Map<String, String> meta) {
-            super(name, false, isStored, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, false, isStored, true, TextSearchInfo.NONE, meta);
         }
 
         @Override
@@ -106,8 +103,13 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.toString(name(), context, format);
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Murmur3 fields are not searchable: [" + name() + "]");
+            throw new IllegalArgumentException("Murmur3 fields are not searchable: [" + name() + "]");
         }
     }
 
@@ -119,7 +121,7 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 
@@ -145,19 +147,6 @@ public class Murmur3FieldMapper extends ParametrizedFieldMapper {
                 context.doc().add(new StoredField(name(), hash));
             }
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected String parseSourceValue(Object value) {
-                return value.toString();
-            }
-        };
     }
 
 }

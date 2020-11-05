@@ -12,7 +12,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.PerClassResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.Result;
 
 import java.io.IOException;
@@ -95,8 +94,8 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
             result.getClasses(),
             equalTo(
                 List.of(
-                    new PerClassResult("dog", 0.5),
-                    new PerClassResult("cat", 0.5))));
+                    new PerClassSingleValue("dog", 0.5),
+                    new PerClassSingleValue("cat", 0.5))));
         assertThat(result.getOverallAccuracy(), equalTo(0.5));
     }
 
@@ -155,9 +154,9 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
                     0)),
             equalTo(
                 List.of(
-                    new Accuracy.PerClassResult("A", 25.0 / 51),  // 13 false positives, 13 false negatives
-                    new Accuracy.PerClassResult("B", 26.0 / 51),  //  8 false positives, 17 false negatives
-                    new Accuracy.PerClassResult("C", 28.0 / 51))) // 13 false positives, 10 false negatives
+                    new PerClassSingleValue("A", 25.0 / 51),  // 13 false positives, 13 false negatives
+                    new PerClassSingleValue("B", 26.0 / 51),  //  8 false positives, 17 false negatives
+                    new PerClassSingleValue("C", 28.0 / 51))) // 13 false positives, 10 false negatives
         );
     }
 

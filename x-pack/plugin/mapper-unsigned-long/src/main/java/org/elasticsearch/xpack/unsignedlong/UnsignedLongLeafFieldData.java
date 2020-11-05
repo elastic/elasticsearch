@@ -15,6 +15,8 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.DocValueFetcher;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 
@@ -71,7 +73,8 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
 
     @Override
     public ScriptDocValues<?> getScriptValues() {
-        return new UnsignedLongScriptDocValues(getLongValues());
+        // TODO: add support for scripts
+        throw new UnsupportedOperationException("Using unsigned_long in scripts is currently not supported!");
     }
 
     @Override
@@ -89,7 +92,28 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
         signedLongFD.close();
     }
 
-    private static double convertUnsignedLongToDouble(long value) {
+    @Override
+    public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+        SortedNumericDocValues values = getLongValues();
+        return new DocValueFetcher.Leaf() {
+            @Override
+            public boolean advanceExact(int docId) throws IOException {
+                return values.advanceExact(docId);
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.docValueCount();
+            }
+
+            @Override
+            public Object nextValue() throws IOException {
+                return format.format(values.nextValue());
+            }
+        };
+    }
+
+    static double convertUnsignedLongToDouble(long value) {
         if (value < 0L) {
             return sortableSignedLongToUnsigned(value); // add 2 ^ 63
         } else {

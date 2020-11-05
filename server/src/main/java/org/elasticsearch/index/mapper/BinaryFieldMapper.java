@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -45,7 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class BinaryFieldMapper extends ParametrizedFieldMapper {
+public class BinaryFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "binary";
 
@@ -53,7 +52,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         return (BinaryFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  false);
@@ -98,6 +97,11 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
+        }
+
+        @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             return DocValueFormat.BINARY;
         }
@@ -129,7 +133,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Binary fields do not support searching");
+            throw new IllegalArgumentException("Binary fields do not support searching");
         }
     }
 
@@ -180,20 +184,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
-    }
-
-    @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new BinaryFieldMapper.Builder(simpleName()).init(this);
     }
 

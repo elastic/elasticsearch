@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="basic"]
 [[delete-trained-models]]
-= Delete trained model API
+= Delete trained models API
 [subs="attributes"]
 ++++
-<titleabbrev>Delete trained model</titleabbrev>
+<titleabbrev>Delete trained models</titleabbrev>
 ++++
 
 Deletes an existing trained {infer} model that is currently not referenced by an
 ingest pipeline.
 
-experimental[]
+beta::[]
 
 
 [[ml-delete-trained-models-request]]
@@ -67,4 +67,3 @@ The API returns the following result:
   "acknowledged" : true
 }
 ----
-

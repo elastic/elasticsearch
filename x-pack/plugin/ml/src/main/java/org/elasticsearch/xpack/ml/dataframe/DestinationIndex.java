@@ -19,6 +19,9 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -28,14 +31,17 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -80,7 +86,8 @@ public final class DestinationIndex {
      * If the results mappings change in a way existing destination indices will fail to index
      * the results, this should be bumped accordingly.
      */
-    public static final Version MIN_COMPATIBLE_VERSION = Version.V_7_10_0;
+    public static final Version MIN_COMPATIBLE_VERSION =
+        StartDataFrameAnalyticsAction.TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED;
 
     private DestinationIndex() {}
 
@@ -103,9 +110,37 @@ public final class DestinationIndex {
     private static void prepareCreateIndexRequest(Client client, Clock clock, DataFrameAnalyticsConfig config,
                                                   ActionListener<CreateIndexRequest> listener) {
         AtomicReference<Settings> settingsHolder = new AtomicReference<>();
+        AtomicReference<MappingMetadata> mappingsHolder = new AtomicReference<>();
+
+        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(
+            fieldCapabilitiesResponse -> {
+                listener.onResponse(
+                    createIndexRequest(clock, config, settingsHolder.get(), mappingsHolder.get(), fieldCapabilitiesResponse));
+            },
+            listener::onFailure
+        );
 
         ActionListener<MappingMetadata> mappingsListener = ActionListener.wrap(
-            mappings -> listener.onResponse(createIndexRequest(clock, config, settingsHolder.get(), mappings)),
+            mappings -> {
+                mappingsHolder.set(mappings);
+
+                List<RequiredField> requiredFields = config.getAnalysis().getRequiredFields();
+                if (requiredFields.isEmpty()) {
+                    fieldCapabilitiesListener.onResponse(null);
+                    return;
+                }
+                FieldCapabilitiesRequest fieldCapabilitiesRequest =
+                    new FieldCapabilitiesRequest()
+                        .indices(config.getSource().getIndex())
+                        .fields(requiredFields.stream().map(RequiredField::getName).toArray(String[]::new));
+                ClientHelper.executeWithHeadersAsync(
+                    config.getHeaders(),
+                    ML_ORIGIN,
+                    client,
+                    FieldCapabilitiesAction.INSTANCE,
+                    fieldCapabilitiesRequest,
+                    fieldCapabilitiesListener);
+            },
             listener::onFailure
         );
 
@@ -131,13 +166,16 @@ public final class DestinationIndex {
             config.getHeaders(), ML_ORIGIN, client, GetSettingsAction.INSTANCE, getSettingsRequest, getSettingsResponseListener);
     }
 
-    private static CreateIndexRequest createIndexRequest(Clock clock, DataFrameAnalyticsConfig config, Settings settings,
-                                                         MappingMetadata mappings) {
+    private static CreateIndexRequest createIndexRequest(Clock clock,
+                                                         DataFrameAnalyticsConfig config,
+                                                         Settings settings,
+                                                         MappingMetadata mappings,
+                                                         FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         String destinationIndex = config.getDest().getIndex();
         Map<String, Object> mappingsAsMap = mappings.sourceAsMap();
         Map<String, Object> properties = getOrPutDefault(mappingsAsMap, PROPERTIES, HashMap::new);
         checkResultsFieldIsNotPresentInProperties(config, properties);
-        properties.putAll(createAdditionalMappings(config, Collections.unmodifiableMap(properties)));
+        properties.putAll(createAdditionalMappings(config, Collections.unmodifiableMap(properties), fieldCapabilitiesResponse));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
         metadata.putAll(createMetadata(config.getId(), clock, Version.CURRENT));
         return new CreateIndexRequest(destinationIndex, settings).mapping(mappingsAsMap);
@@ -171,10 +209,14 @@ public final class DestinationIndex {
         return maxValue;
     }
 
-    private static Map<String, Object> createAdditionalMappings(DataFrameAnalyticsConfig config, Map<String, Object> mappingsProperties) {
+    private static Map<String, Object> createAdditionalMappings(DataFrameAnalyticsConfig config,
+                                                                Map<String, Object> mappingsProperties,
+                                                                FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Map<String, Object> properties = new HashMap<>();
         properties.put(INCREMENTAL_ID, Map.of("type", NumberFieldMapper.NumberType.LONG.typeName()));
-        properties.putAll(config.getAnalysis().getExplicitlyMappedFields(mappingsProperties, config.getDest().getResultsField()));
+        properties.putAll(
+            config.getAnalysis().getExplicitlyMappedFields(
+                config.getDest().getResultsField(), fieldCapabilitiesResponse));
         return properties;
     }
 
@@ -199,7 +241,9 @@ public final class DestinationIndex {
     }
 
     @SuppressWarnings("unchecked")
-    public static void updateMappingsToDestIndex(Client client, DataFrameAnalyticsConfig config, GetIndexResponse getIndexResponse,
+    public static void updateMappingsToDestIndex(Client client,
+                                                 DataFrameAnalyticsConfig config,
+                                                 GetIndexResponse getIndexResponse,
                                                  ActionListener<AcknowledgedResponse> listener) {
         // We have validated the destination index should match a single index
         assert getIndexResponse.indices().length == 1;
@@ -212,16 +256,40 @@ public final class DestinationIndex {
         // Verify that the results field does not exist in the dest index
         checkResultsFieldIsNotPresentInProperties(config, destPropertiesAsMap);
 
-        // Determine mappings to be added to the destination index
-        Map<String, Object> addedMappings =
-            Map.of(PROPERTIES, createAdditionalMappings(config, Collections.unmodifiableMap(destPropertiesAsMap)));
+        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(
+            fieldCapabilitiesResponse -> {
+                // Determine mappings to be added to the destination index
+                Map<String, Object> addedMappings =
+                    Map.of(
+                        PROPERTIES,
+                        createAdditionalMappings(config, Collections.unmodifiableMap(destPropertiesAsMap), fieldCapabilitiesResponse));
 
-        // Add the mappings to the destination index
-        PutMappingRequest putMappingRequest =
-            new PutMappingRequest(getIndexResponse.indices())
-                .source(addedMappings);
+                // Add the mappings to the destination index
+                PutMappingRequest putMappingRequest =
+                    new PutMappingRequest(getIndexResponse.indices())
+                        .source(addedMappings);
+                ClientHelper.executeWithHeadersAsync(
+                    config.getHeaders(), ML_ORIGIN, client, PutMappingAction.INSTANCE, putMappingRequest, listener);
+            },
+            listener::onFailure
+        );
+
+        List<RequiredField> requiredFields = config.getAnalysis().getRequiredFields();
+        if (requiredFields.isEmpty()) {
+            fieldCapabilitiesListener.onResponse(null);
+            return;
+        }
+        FieldCapabilitiesRequest fieldCapabilitiesRequest =
+            new FieldCapabilitiesRequest()
+                .indices(config.getSource().getIndex())
+                .fields(requiredFields.stream().map(RequiredField::getName).toArray(String[]::new));
         ClientHelper.executeWithHeadersAsync(
-            config.getHeaders(), ML_ORIGIN, client, PutMappingAction.INSTANCE, putMappingRequest, listener);
+            config.getHeaders(),
+            ML_ORIGIN,
+            client,
+            FieldCapabilitiesAction.INSTANCE,
+            fieldCapabilitiesRequest,
+            fieldCapabilitiesListener);
     }
 
     private static void checkResultsFieldIsNotPresentInProperties(DataFrameAnalyticsConfig config, Map<String, Object> properties) {

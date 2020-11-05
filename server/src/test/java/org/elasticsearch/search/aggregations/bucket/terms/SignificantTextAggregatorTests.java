@@ -34,10 +34,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
@@ -58,6 +55,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
@@ -78,18 +76,16 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        // TODO it is likely accidental that SigText supports anything other than Bytes, and then only text fields
-        return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BYTES,
-            CoreValuesSourceType.RANGE,
-            CoreValuesSourceType.GEOPOINT);
+        return List.of(
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.BYTES
+        );
     }
 
     @Override
     protected List<String> unsupportedMappedFieldTypes() {
         return List.of(
-            BinaryFieldMapper.CONTENT_TYPE, // binary fields are not supported because they do not have analyzers
-            GeoPointFieldMapper.CONTENT_TYPE // geopoint fields cannot use term queries
+            BinaryFieldMapper.CONTENT_TYPE // binary fields are not supported because they do not have analyzers
         );
     }
 
@@ -98,9 +94,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      */
     public void testSignificance() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
@@ -144,11 +139,97 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testFieldAlias() throws IOException {
+    /**
+     * Uses the significant text aggregation to find the keywords in text fields and include/exclude selected terms
+     */
+    public void testIncludeExcludes() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
+
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            indexDocuments(w);
+
+            String [] incExcValues = {"duplicate"};
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("test expects a single segment", 1, reader.leaves().size());
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                // Inclusive of values
+                {
+                    SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").
+                        includeExclude(new IncludeExclude(incExcValues, null));
+                    SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler")
+                        .subAggregation(sigAgg);
+                    if(randomBoolean()){
+                        sigAgg.sourceFieldNames(Arrays.asList(new String [] {"json_only_field"}));
+                    }
+                    // Search "even" which should have duplication
+                    InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType);
+                    SignificantTerms terms = sampler.getAggregations().get("sig_text");
+
+                    assertNull(terms.getBucketByKey("even"));
+                    assertNotNull(terms.getBucketByKey("duplicate"));
+                    assertTrue(AggregationInspectionHelper.hasValue(sampler));
+
+                }
+                // Exclusive of values
+                {
+                    SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").
+                        includeExclude(new IncludeExclude(null, incExcValues));
+                    SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler")
+                        .subAggregation(sigAgg);
+                    if(randomBoolean()){
+                        sigAgg.sourceFieldNames(Arrays.asList(new String [] {"json_only_field"}));
+                    }
+                    // Search "even" which should have duplication
+                    InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType);
+                    SignificantTerms terms = sampler.getAggregations().get("sig_text");
+
+                    assertNotNull(terms.getBucketByKey("even"));
+                    assertNull(terms.getBucketByKey("duplicate"));
+                    assertTrue(AggregationInspectionHelper.hasValue(sampler));
+
+                }
+            }
+        }
+    }
+
+    public void testMissingField() throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text");
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            indexDocuments(w);
+
+            SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "this_field_does_not_exist")
+                .filterDuplicateText(true);
+            if(randomBoolean()){
+                sigAgg.sourceFieldNames(Arrays.asList(new String [] {"json_only_field"}));
+            }
+            SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler")
+                    .subAggregation(sigAgg);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () ->  searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType));
+                assertThat(e.getMessage(), equalTo("Field [this_field_does_not_exist] does not exist, SignificantText "
+                    + "requires an analyzed field"));
+            }
+        }
+    }
+
+    public void testFieldAlias() throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text");
+
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
@@ -197,9 +278,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     public void testInsideTermsAgg() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
@@ -256,9 +336,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      */
     public void testSignificanceOnTextArrays() throws IOException {
         TextFieldType textFieldType = new TextFieldType("text");
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
         indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {

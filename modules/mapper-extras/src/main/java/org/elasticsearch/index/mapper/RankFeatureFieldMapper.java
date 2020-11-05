@@ -40,7 +40,7 @@ import java.util.function.Supplier;
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField}.
  */
-public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
+public class RankFeatureFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "rank_feature";
 
@@ -59,7 +59,7 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         return ((RankFeatureFieldMapper)in).fieldType();
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> positiveScoreImpact
             = Parameter.boolParam("positive_score_impact", false, m -> ft(m).positiveScoreImpact, true);
@@ -91,7 +91,6 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         public RankFeatureFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
             super(name, true, false, false, TextSearchInfo.NONE, meta);
             this.positiveScoreImpact = positiveScoreImpact;
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -114,6 +113,19 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            return new SourceValueFetcher(name(), context) {
+                @Override
+                protected Float parseSourceValue(Object value) {
+                    return objectToFloat(value);
+                }
+            };
+        }
+
+        @Override
         public Query termQuery(Object value, QueryShardContext context) {
             throw new IllegalArgumentException("Queries on [rank_feature] fields are not supported");
         }
@@ -123,13 +135,8 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
 
     private RankFeatureFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                    MultiFields multiFields, CopyTo copyTo, boolean positiveScoreImpact) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         this.positiveScoreImpact = positiveScoreImpact;
-    }
-
-    @Override
-    protected RankFeatureFieldMapper clone() {
-        return (RankFeatureFieldMapper) super.clone();
     }
 
     @Override
@@ -162,7 +169,7 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         context.doc().addWithKey(name(), new FeatureField("_feature", name(), value));
     }
 
-    private Float objectToFloat(Object value) {
+    private static Float objectToFloat(Object value) {
         if (value instanceof Number) {
             return ((Number) value).floatValue();
         } else {
@@ -171,25 +178,12 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Float parseSourceValue(Object value) {
-                return objectToFloat(value);
-            }
-        };
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

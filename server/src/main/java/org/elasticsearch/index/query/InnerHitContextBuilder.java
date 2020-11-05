@@ -50,7 +50,7 @@ public abstract class InnerHitContextBuilder {
 
     public final void build(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException {
         long innerResultWindow = innerHitBuilder.getFrom() + innerHitBuilder.getSize();
-        int maxInnerResultWindow = parentSearchContext.mapperService().getIndexSettings().getMaxInnerResultWindow();
+        int maxInnerResultWindow = parentSearchContext.getQueryShardContext().getIndexSettings().getMaxInnerResultWindow();
         if (innerResultWindow > maxInnerResultWindow) {
             throw new IllegalArgumentException(
                 "Inner result window is too large, the inner hit definition's [" + innerHitBuilder.getName() +
@@ -89,12 +89,10 @@ public abstract class InnerHitContextBuilder {
             innerHitsContext.storedFieldsContext(innerHitBuilder.getStoredFieldsContext());
         }
         if (innerHitBuilder.getDocValueFields() != null) {
-            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(
-                queryShardContext.getMapperService(), innerHitBuilder.getDocValueFields());
+            FetchDocValuesContext docValuesContext = new FetchDocValuesContext(queryShardContext, innerHitBuilder.getDocValueFields());
             innerHitsContext.docValuesContext(docValuesContext);
         }
         if (innerHitBuilder.getFetchFields() != null) {
-            String indexName = queryShardContext.index().getName();
             FetchFieldsContext fieldsContext = new FetchFieldsContext(innerHitBuilder.getFetchFields());
             innerHitsContext.fetchFieldsContext(fieldsContext);
         }

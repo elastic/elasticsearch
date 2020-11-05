@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -95,15 +96,15 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(c.isIdFieldDataEnabled()));
 
     static final class IdFieldType extends TermBasedFieldType {
 
-        public static final IdFieldType INSTANCE = new IdFieldType();
+        private final BooleanSupplier fieldDataEnabled;
 
-        private IdFieldType() {
+        IdFieldType(BooleanSupplier fieldDataEnabled) {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.fieldDataEnabled = fieldDataEnabled;
         }
 
         @Override
@@ -115,6 +116,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public boolean isSearchable() {
             // The _id field is always searchable.
             return true;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
@@ -143,27 +149,26 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            if (fieldDataEnabled.getAsBoolean() == false) {
+                throw new IllegalArgumentException("Fielddata access on the _id field is disallowed, "
+                    + "you can re-enable it by updating the dynamic cluster setting: "
+                    + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
+            }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
-                    name(),
-                    TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
-                    CoreValuesSourceType.BYTES);
+                name(),
+                TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
+                CoreValuesSourceType.BYTES);
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(
                     IndexFieldDataCache cache,
-                    CircuitBreakerService breakerService,
-                    MapperService mapperService
+                    CircuitBreakerService breakerService
                 ) {
-                    if (mapperService.isIdFieldDataEnabled() == false) {
-                        throw new IllegalArgumentException("Fielddata access on the _id field is disallowed, "
-                            + "you can re-enable it by updating the dynamic cluster setting: "
-                            + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
-                    }
                     deprecationLogger.deprecate("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache,
-                        breakerService, mapperService);
+                        breakerService);
                     return new IndexFieldData<>() {
                         @Override
                         public String getFieldName() {
@@ -194,7 +199,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
                         @Override
                         public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+                                                            Nested nested, SortOrder sortOrder, DocValueFormat format,
+                                                            int bucketSize, BucketedSort.ExtraData extra) {
                             throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
                     };
@@ -230,7 +236,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     public BytesRef nextValue() throws IOException {
                         BytesRef encoded = inValues.nextValue();
                         return new BytesRef(Uid.decodeId(
-                                Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)));
+                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)));
                     }
 
                     @Override
@@ -251,12 +257,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    private IdFieldMapper() {
-        super(new IdFieldType());
+    private IdFieldMapper(BooleanSupplier fieldDataEnabled) {
+        super(new IdFieldType(fieldDataEnabled), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
+    public void preParse(ParseContext context) {
         BytesRef id = Uid.encodeId(context.sourceToParse().id());
         context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));
     }
@@ -265,5 +271,4 @@ public class IdFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
 }

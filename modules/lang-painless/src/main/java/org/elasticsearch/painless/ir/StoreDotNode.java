@@ -19,13 +19,9 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Type;
 
 public class StoreDotNode extends StoreNode {
 
@@ -59,18 +55,4 @@ public class StoreDotNode extends StoreNode {
         super(location);
     }
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getChildNode().write(classWriter, methodWriter, writeScope);
-
-        methodWriter.writeDebugInfo(getLocation());
-
-        if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
-            methodWriter.putStatic(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        } else {
-            methodWriter.putField(Type.getType(
-                    field.javaField.getDeclaringClass()), field.javaField.getName(), MethodWriter.getType(field.typeParameter));
-        }
-    }
 }

@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 public class CollationFieldTypeTests extends FieldTypeTestCase{
@@ -66,7 +65,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase{
 
         assertEquals(new TermQuery(new Term("field", expected)), ft.termQuery("I WİLL USE TURKİSH CASING", null));
 
-        MappedFieldType unsearchable = new CollationFieldType("field", false, false, true, collator, Collections.emptyMap());
+        MappedFieldType unsearchable = new CollationFieldType("field", false, collator);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> unsearchable.termQuery("bar", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -86,7 +85,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase{
         assertEquals(new TermInSetQuery("field", terms),
             ft.termsQuery(Arrays.asList("foo", "bar"), null));
 
-        MappedFieldType unsearchable = new CollationFieldType("field", false, false, true, collator, Collections.emptyMap());
+        MappedFieldType unsearchable = new CollationFieldType("field", false, collator);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -135,7 +134,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase{
         assertEquals("[range] queries on [text] or [keyword] fields cannot be executed when " +
                 "'search.allow_expensive_queries' is set to false.", ee.getMessage());
 
-        MappedFieldType unsearchable = new CollationFieldType("field", false, false, true, DEFAULT_COLLATOR, Collections.emptyMap());
+        MappedFieldType unsearchable = new CollationFieldType("field", false, DEFAULT_COLLATOR);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> unsearchable.rangeQuery("a", "b", false, false, null, null, null, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());

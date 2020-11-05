@@ -55,7 +55,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `preserve_existing`::
-(Optional, boolean) If `true`, existing index settings remain unchanged.
+(Optional, Boolean) If `true`, existing index settings remain unchanged.
 Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
@@ -147,7 +147,7 @@ and reopen the index.
 
 [NOTE]
 ====
-You cannot close the write index of a data stream. 
+You cannot close the write index of a data stream.
 
 To update the analyzer for a data stream's write index and future backing
 indices, update the analyzer in the <<create-a-data-stream-template,index

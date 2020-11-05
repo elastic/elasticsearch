@@ -22,7 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.PointBuilder;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -40,7 +42,7 @@ import java.util.List;
  * .point GeoPoint type
  * .shape GeoShape type
  */
-public class ExternalMapper extends ParametrizedFieldMapper {
+public class ExternalMapper extends FieldMapper {
 
     public static class Names {
         public static final String FIELD_BIN = "bin";
@@ -49,19 +51,19 @@ public class ExternalMapper extends ParametrizedFieldMapper {
         public static final String FIELD_SHAPE = "shape";
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private final BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
-        private final GeoPointFieldMapper.Builder latLonPointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
-        private final GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
-        private final Mapper.Builder<?> stringBuilder;
+        private final GeoPointFieldMapper.Builder latLonPointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT, false);
+        private final GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE, false, true);
+        private final Mapper.Builder stringBuilder;
         private final String generatedValue;
         private final String mapperName;
 
         public Builder(String name, String generatedValue, String mapperName) {
             super(name);
-            this.stringBuilder = new TextFieldMapper.Builder(name).store(false);
+            this.stringBuilder = new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER).store(false);
             this.generatedValue = generatedValue;
             this.mapperName = mapperName;
         }
@@ -99,6 +101,11 @@ public class ExternalMapper extends ParametrizedFieldMapper {
         @Override
         public String typeName() {
             return "faketype";
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
     }
 
@@ -162,22 +169,12 @@ public class ExternalMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                return value;
-            }
-        };
-    }
-
-    @Override
     public Iterator<Mapper> iterator() {
         return Iterators.concat(super.iterator(), Arrays.asList(binMapper, boolMapper, pointMapper, shapeMapper, stringMapper).iterator());
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), generatedValue, mapperName);
     }
 

@@ -50,6 +50,8 @@ import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -112,11 +114,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<PluginInfo> pluginsList = new ArrayList<>();
         // we need to build a List of plugins for checking mandatory plugins
         final List<String> pluginsNames = new ArrayList<>();
+
         // first we load plugins that are on the classpath. this is for tests
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", Version.CURRENT, "1.8",
-                                                   pluginClass.getName(), Collections.emptyList(), false);
+                                                   pluginClass.getName(), Collections.emptyList(), false, PluginType.ISOLATED, "");
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
@@ -347,16 +350,31 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private static Set<Bundle> findBundles(final Path directory, String type) throws IOException {
         final Set<Bundle> bundles = new HashSet<>();
         for (final Path plugin : findPluginDirs(directory)) {
-            final Bundle bundle = readPluginBundle(bundles, plugin, type);
-            bundles.add(bundle);
+            final Bundle bundle = readPluginBundle(plugin, type);
+            if (bundle.plugin.getType() == PluginType.BOOTSTRAP) {
+                logger.trace("--- skipping bootstrap plugin [{}] [{}]", type, plugin.toAbsolutePath());
+            } else {
+                if (bundles.add(bundle) == false) {
+                    throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
+                }
+                if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.CURRENT.isSnapshot() == false) {
+                    throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");
+                }
+            }
         }
+
+        logger.trace(
+            () -> "findBundles("
+                + type
+                + ") returning: "
+                + bundles.stream().map(b -> b.plugin.getName()).sorted().collect(Collectors.toList())
+        );
 
         return bundles;
     }
 
     // get a bundle for a single plugin dir
-    private static Bundle readPluginBundle(final Set<Bundle> bundles, final Path plugin, String type) throws IOException {
-        LogManager.getLogger(PluginsService.class).trace("--- adding [{}] [{}]", type, plugin.toAbsolutePath());
+    private static Bundle readPluginBundle(final Path plugin, String type) throws IOException {
         final PluginInfo info;
         try {
             info = PluginInfo.readFromProperties(plugin);
@@ -364,14 +382,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             throw new IllegalStateException("Could not load plugin descriptor for " + type +
                                             " directory [" + plugin.getFileName() + "]", e);
         }
-        final Bundle bundle = new Bundle(info, plugin);
-        if (bundles.add(bundle) == false) {
-            throw new IllegalStateException("duplicate " + type + ": " + info);
-        }
-        if (type.equals("module") && info.getName().startsWith("test-") && Build.CURRENT.isSnapshot() == false) {
-            throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");
-        }
-        return bundle;
+        return new Bundle(info, plugin);
     }
 
     /**
@@ -597,15 +608,31 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // reload SPI with any new services from the plugin
         reloadLuceneSPI(loader);
 
-        Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
-        if (loader != pluginClass.getClassLoader()) {
-            throw new IllegalStateException("Plugin [" + name + "] must reference a class loader local Plugin class ["
-                + bundle.plugin.getClassname()
-                + "] (class loader [" + pluginClass.getClassLoader() + "])");
+        ClassLoader cl = Thread.currentThread().getContextClassLoader();
+        try {
+            // Set context class loader to plugin's class loader so that plugins
+            // that have dependencies with their own SPI endpoints have a chance to load
+            // and initialize them appropriately.
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                Thread.currentThread().setContextClassLoader(loader);
+                return null;
+            });
+
+            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
+            if (loader != pluginClass.getClassLoader()) {
+                throw new IllegalStateException("Plugin [" + name + "] must reference a class loader local Plugin class ["
+                    + bundle.plugin.getClassname()
+                    + "] (class loader [" + pluginClass.getClassLoader() + "])");
+            }
+            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+            loaded.put(name, plugin);
+            return plugin;
+        } finally {
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                Thread.currentThread().setContextClassLoader(cl);
+                return null;
+            });
         }
-        Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-        loaded.put(name, plugin);
-        return plugin;
     }
 
     /**
@@ -628,7 +655,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {
         try {
-            return loader.loadClass(className).asSubclass(Plugin.class);
+            return Class.forName(className, false, loader).asSubclass(Plugin.class);
         } catch (ClassNotFoundException e) {
             throw new ElasticsearchException("Could not find plugin class [" + className + "]", e);
         }

@@ -38,9 +38,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -266,10 +264,10 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query buildFilteredQuery(Query query) {
         List<Query> filters = new ArrayList<>();
-
-        if (mapperService().hasNested()
-                && new NestedHelper(mapperService()).mightMatchNestedDocs(query)
-                && (aliasFilter == null || new NestedHelper(mapperService()).mightMatchNestedDocs(aliasFilter))) {
+        NestedHelper nestedHelper = new NestedHelper(queryShardContext::getObjectMapper, queryShardContext::isFieldMapped);
+        if (queryShardContext.hasNested()
+                && nestedHelper.mightMatchNestedDocs(query)
+                && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
             filters.add(Queries.newNonNestedFilter());
         }
 
@@ -278,7 +276,7 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            Query slicedQuery = sliceBuilder.toFilter(clusterService, request, queryShardContext);
+            Query slicedQuery = sliceBuilder.toFilter(clusterService, request, this.queryShardContext);
             if (slicedQuery instanceof MatchNoDocsQuery) {
                 return slicedQuery;
             } else {
@@ -748,16 +746,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         return fetchResult;
-    }
-
-    @Override
-    public MappedFieldType fieldType(String name) {
-        return mapperService().fieldType(name);
-    }
-
-    @Override
-    public ObjectMapper getObjectMapper(String name) {
-        return mapperService().getObjectMapper(name);
     }
 
     @Override

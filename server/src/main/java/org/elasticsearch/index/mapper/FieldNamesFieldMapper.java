@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -46,7 +47,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_field_names";
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(indexVersionCreated).init(this);
     }
 
@@ -127,6 +128,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
         public boolean isEnabled() {
             return enabled;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override

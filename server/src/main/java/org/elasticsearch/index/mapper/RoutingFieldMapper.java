@@ -23,6 +23,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 import java.util.List;
@@ -33,7 +35,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_routing";
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder().init(this);
     }
 
@@ -85,19 +87,23 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
         private RoutingFieldType() {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
+
+        @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
     }
 
     private final boolean required;
 
     private RoutingFieldMapper(boolean required) {
-        super(RoutingFieldType.INSTANCE);
+        super(RoutingFieldType.INSTANCE, Lucene.KEYWORD_ANALYZER);
         this.required = required;
     }
 

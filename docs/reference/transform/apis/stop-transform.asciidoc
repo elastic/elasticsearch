@@ -54,11 +54,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms2]
 
 `force`::
-  (Optional, boolean) Set to `true` to stop a failed {transform} or to 
+  (Optional, Boolean) Set to `true` to stop a failed {transform} or to 
   forcefully stop a {transform} that did not respond to the initial stop 
   request.
 
@@ -71,12 +71,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transfo
   call itself timed out while waiting for the status change. Defaults to `30s`
 
 `wait_for_completion`::
-  (Optional, boolean) If set to `true`, causes the API to block until the indexer 
+  (Optional, Boolean) If set to `true`, causes the API to block until the indexer 
   state completely stops. If set to `false`, the API returns immediately and the
   indexer will be stopped asynchronously in the background. Defaults to `false`.
 
 `wait_for_checkpoint`::
-  (Optional, boolean) If set to `true`, the transform will not completely stop
+  (Optional, Boolean) If set to `true`, the transform will not completely stop
   until the current checkpoint is completed. If set to `false`, the {transform}
   stops as soon as possible. Defaults to `false`.
 

@@ -78,7 +78,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version);
         gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version));
         gitExtension.setBwcBranch(versionInfoProvider.map(info -> info.branch));
-        gitExtension.setCheckoutDir(checkoutDir);
+        gitExtension.getCheckoutDir().set(checkoutDir);
 
         // we want basic lifecycle tasks like `clean` here.
         project.getPlugins().apply(LifecycleBasePlugin.class);
@@ -97,7 +97,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 buildBwcTaskProvider
             );
 
-            registerBwcArtifacts(project, distributionProject);
+            registerBwcDistributionArtifacts(project, distributionProject);
         }
 
         // Create build tasks for the JDBC driver used for compatibility testing
@@ -111,7 +111,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         createBuildBwcTask(bwcSetupExtension, project, bwcVersion, "jdbc", jdbcProjectDir, jdbcProjectArtifact, buildBwcTaskProvider);
     }
 
-    private void registerBwcArtifacts(Project bwcProject, DistributionProject distributionProject) {
+    private void registerBwcDistributionArtifacts(Project bwcProject, DistributionProject distributionProject) {
         String projectName = distributionProject.name;
         String buildBwcTask = buildBwcTaskName(projectName);
 
@@ -151,11 +151,13 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private static List<DistributionProject> resolveArchiveProjects(File checkoutDir, Version bwcVersion) {
         List<String> projects = new ArrayList<>();
-        projects.addAll(asList("deb", "rpm"));
-        if (bwcVersion.onOrAfter("7.0.0")) {
+        // All active BWC branches publish default and oss variants of rpm and deb packages
+        projects.addAll(asList("deb", "rpm", "oss-deb", "oss-rpm"));
+
+        if (bwcVersion.onOrAfter("7.0.0")) { // starting with 7.0 we bundle a jdk which means we have platform-specific archives
             projects.addAll(asList("oss-windows-zip", "windows-zip", "oss-darwin-tar", "darwin-tar", "oss-linux-tar", "linux-tar"));
-        } else {
-            projects.addAll(asList("oss-zip", "zip", "oss-deb", "oss-rpm"));
+        } else { // prior to 7.0 we published only a single zip and tar archives for oss and default distributions
+            projects.addAll(asList("oss-zip", "zip", "tar", "oss-tar"));
         }
 
         return projects.stream().map(name -> {
@@ -225,12 +227,14 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
      */
     private static class DistributionProject {
         private final String name;
+        private File checkoutDir;
         private String projectPath;
         private File distFile;
         private File expandedDistDir;
 
         DistributionProject(String name, String baseDir, Version version, String classifier, String extension, File checkoutDir) {
             this.name = name;
+            this.checkoutDir = checkoutDir;
             this.projectPath = baseDir + "/" + name;
             this.distFile = new File(
                 checkoutDir,
@@ -261,6 +265,10 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
         public File getExpandedDistDirectory() {
             return expandedDistDir;
+        }
+
+        public File getCheckoutDir() {
+            return checkoutDir;
         }
     }
 }

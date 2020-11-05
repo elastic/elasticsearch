@@ -22,11 +22,13 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -37,6 +39,7 @@ import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class DiscoveryNodeTests extends ESTestCase {
@@ -86,6 +89,55 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertEquals(transportAddress.getAddress(), serialized.getHostAddress());
         assertEquals(transportAddress.getAddress(), serialized.getAddress().getAddress());
         assertEquals(transportAddress.getPort(), serialized.getAddress().getPort());
+    }
+
+    public void testDiscoveryNodeRoleWithOldVersion() throws Exception {
+        InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
+        TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
+
+        DiscoveryNodeRole customRole = new DiscoveryNodeRole("custom_role", "z", true) {
+            @Override
+            public Setting<Boolean> legacySetting() {
+                return null;
+            }
+
+        };
+
+        DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(),
+            Collections.singleton(customRole), Version.CURRENT);
+
+        {
+            BytesStreamOutput streamOutput = new BytesStreamOutput();
+            streamOutput.setVersion(Version.CURRENT);
+            node.writeTo(streamOutput);
+
+            StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
+            in.setVersion(Version.CURRENT);
+            DiscoveryNode serialized = new DiscoveryNode(in);
+            final Set<DiscoveryNodeRole> roles = serialized.getRoles();
+            assertThat(roles, hasSize(1));
+            @SuppressWarnings("OptionalGetWithoutIsPresent") final DiscoveryNodeRole role = roles.stream().findFirst().get();
+            assertThat(role.roleName(), equalTo("custom_role"));
+            assertThat(role.roleNameAbbreviation(), equalTo("z"));
+            assertTrue(role.canContainData());
+        }
+
+        {
+            BytesStreamOutput streamOutput = new BytesStreamOutput();
+            streamOutput.setVersion(Version.V_7_11_0);
+            node.writeTo(streamOutput);
+
+            StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
+            in.setVersion(Version.V_7_11_0);
+            DiscoveryNode serialized = new DiscoveryNode(in);
+            final Set<DiscoveryNodeRole> roles = serialized.getRoles();
+            assertThat(roles, hasSize(1));
+            @SuppressWarnings("OptionalGetWithoutIsPresent") final DiscoveryNodeRole role = roles.stream().findFirst().get();
+            assertThat(role.roleName(), equalTo("custom_role"));
+            assertThat(role.roleNameAbbreviation(), equalTo("z"));
+            assertTrue(role.canContainData());
+        }
+
     }
 
     public void testDiscoveryNodeIsRemoteClusterClientDefault() {

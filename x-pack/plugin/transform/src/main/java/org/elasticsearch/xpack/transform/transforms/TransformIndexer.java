@@ -102,6 +102,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     // collects changes for continuous mode
     private ChangeCollector changeCollector;
+    // position of the change collector, in flux (not yet persisted as we haven't processed changes yet)
+    private Map<String, Object> nextChangeCollectorBucketPosition = null;
 
     private volatile Integer initialConfiguredPageSize;
     private volatile int pageSize = 0;
@@ -739,7 +741,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
 
         if (indexRequestStreamAndCursor == null || indexRequestStreamAndCursor.v1() == null) {
-            if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false || function.supportsIncrementalBucketUpdate() == false) {
+            if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false || changeCollector.queryForChanges() == false) {
                 return new IterationResult<>(Collections.emptyList(), null, true);
             }
 
@@ -752,7 +754,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // advance the cursor for changed bucket detection
             return new IterationResult<>(
                 Collections.emptyList(),
-                new TransformIndexerPosition(null, changeCollector.getBucketPosition()),
+                new TransformIndexerPosition(null, nextChangeCollectorBucketPosition),
                 false
             );
         }
@@ -777,7 +779,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private IterationResult<TransformIndexerPosition> processChangedBuckets(final SearchResponse searchResponse) {
-        if (changeCollector.processSearchResponse(searchResponse)) {
+        nextChangeCollectorBucketPosition = changeCollector.processSearchResponse(searchResponse);
+
+        if (nextChangeCollectorBucketPosition == null) {
             changeCollector.clear();
             return new IterationResult<>(Collections.emptyList(), null, true);
         }
@@ -863,7 +867,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // if its either the 1st run or not continuous, do not apply extra filters
         if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
             sourceBuilder.query(queryBuilder);
-            logger.trace("running query: {}", sourceBuilder);
+            logger.debug(() -> new ParameterizedMessage("[{}] Querying for data: {}", getJobId(), sourceBuilder));
 
             return sourceBuilder;
         }
@@ -880,7 +884,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         sourceBuilder.query(filteredQuery);
-        logger.trace("running query: {}", sourceBuilder);
+        logger.debug(() -> new ParameterizedMessage("[{}] Querying for data: {}", getJobId(), sourceBuilder));
 
         return sourceBuilder;
     }
@@ -977,8 +981,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return RunState.APPLY_RESULTS;
         }
 
-        // if incremental update is not supported, do a normal run
-        if (function.supportsIncrementalBucketUpdate() == false) {
+        // if we don't have a change collector or the collector does not require an extra run
+        if (changeCollector == null || changeCollector.queryForChanges() == false) {
             return RunState.APPLY_RESULTS;
         }
 

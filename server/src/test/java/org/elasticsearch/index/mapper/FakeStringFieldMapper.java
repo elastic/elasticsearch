@@ -54,11 +54,11 @@ public class FakeStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public FakeStringFieldMapper build(BuilderContext context) {
+        public FakeStringFieldMapper build(ContentPath contentPath) {
             return new FakeStringFieldMapper(
                 new FakeStringFieldType(name, true,
                     new TextSearchInfo(FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)),
-                multiFieldsBuilder.build(this, context), copyTo.build());
+                multiFieldsBuilder.build(this, contentPath), copyTo.build());
         }
     }
 

@@ -717,9 +717,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             } catch (ResponseException ee) {
                 // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified
                 //field or that doesn't support data streams so it's safe to ignore
-                int statusCode = e.getResponse().getStatusLine().getStatusCode();
+                int statusCode = ee.getResponse().getStatusLine().getStatusCode();
                 if (org.elasticsearch.common.collect.Set.of(404, 405, 500).contains(statusCode) == false) {
-                    throw e;
+                    throw ee;
                 }
             }
         }

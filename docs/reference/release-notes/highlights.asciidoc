@@ -42,7 +42,7 @@ fields, ingest pipelines or full-text indexing will see lower gains.
 
 {es} 7.10 depends on Apache Lucene 8.7, which introduces higher compression of
 stored fields, the part of the index that notably stores the
-{ref}mapping-source-field.html[`_source`]. On the various data sets that we 
+{ref}/mapping-source-field.html[`_source`]. On the various data sets that we 
 benchmark against, we noticed space reductions between 0% and 10%. This change 
 especially helps on data sets that have lots of redundant data across documents, 
 which is typically the case of the documents that are produced by our

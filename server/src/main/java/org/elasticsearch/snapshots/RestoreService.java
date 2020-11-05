@@ -86,6 +86,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -184,6 +185,20 @@ public class RestoreService implements ClusterStateApplier {
      * @param listener restore listener
      */
     public void restoreSnapshot(final RestoreSnapshotRequest request, final ActionListener<RestoreCompletionResponse> listener) {
+        restoreSnapshot(request, listener, (clusterState, builder) -> {});
+    }
+
+    /**
+     * Restores snapshot specified in the restore request.
+     *
+     * @param request  restore request
+     * @param listener restore listener
+     * @param updater  handler that allows callers to make modifications to {@link Metadata}
+     *                 in the same cluster state update as the restore operation
+     */
+    public void restoreSnapshot(final RestoreSnapshotRequest request,
+                                final ActionListener<RestoreCompletionResponse> listener,
+                                final BiConsumer<ClusterState, Metadata.Builder> updater) {
         try {
             // Read snapshot info and metadata from the repository
             final String repositoryName = request.repository();
@@ -455,6 +470,7 @@ public class RestoreService implements ClusterStateApplier {
                         }
 
                         RoutingTable rt = rtBuilder.build();
+                        updater.accept(currentState, mdBuilder);
                         ClusterState updatedState = builder.metadata(mdBuilder).blocks(blocks).routingTable(rt).build();
                         return allocationService.reroute(updatedState, "restored snapshot [" + snapshot + "]");
                     }

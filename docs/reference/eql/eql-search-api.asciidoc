@@ -250,8 +250,8 @@ Field used to sort events with the same
 If no tiebreaker field is specified or the events also share the same tiebreaker
 field value, {es} uses <<sort-search-results,`_doc` order>>.
 +
-If you use {ecs-ref}[ECS], we recommend using `event.sequence` as the tiebreaker
-field.
+If you use {ecs-ref}[Elastic Common Schema (ECS)], we recommend using
+`event.sequence` as the tiebreaker field.
 
 [[eql-search-api-timestamp-field]]
 `timestamp_field`::

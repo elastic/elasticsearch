@@ -153,7 +153,7 @@ public class MetadataIndexTemplateService {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new RemoveResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             }
         });
     }
@@ -1410,21 +1410,9 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    public static class RemoveResponse {
-        private final boolean acknowledged;
-
-        public RemoveResponse(boolean acknowledged) {
-            this.acknowledged = acknowledged;
-        }
-
-        public boolean acknowledged() {
-            return acknowledged;
-        }
-    }
-
     public interface RemoveListener {
 
-        void onResponse(RemoveResponse response);
+        void onResponse(AcknowledgedResponse response);
 
         void onFailure(Exception e);
     }

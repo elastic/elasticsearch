@@ -260,11 +260,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             }
         }
 
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
         private void allNodesResponded() {
             if (activeCopies.get() != expectedActiveCopies) {
                 logger.trace("not deleting shard {}, expected {} active copies, but only {} found active copies",

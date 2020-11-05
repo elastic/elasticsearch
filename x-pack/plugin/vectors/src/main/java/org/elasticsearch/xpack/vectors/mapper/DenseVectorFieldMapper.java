@@ -18,7 +18,6 @@ import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -109,11 +108,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new ArraySourceValueFetcher(name(), mapperService) {
+            return new ArraySourceValueFetcher(name(), context) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value;
@@ -207,16 +206,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "] doesn't not support indexing multiple values for the same field in the same document");
         }
         context.doc().addWithKey(fieldType().name(), field);
-    }
-
-    @Override
-    protected boolean indexedByDefault() {
-        return false;
-    }
-
-    @Override
-    protected boolean docValuesByDefault() {
-        return true;
     }
 
     @Override

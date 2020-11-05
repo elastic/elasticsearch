@@ -329,7 +329,7 @@ public class TextFieldMapper extends FieldMapper {
             return ft;
         }
 
-        private SubFieldInfo buildPrefixMapper(BuilderContext context, FieldType fieldType, TextFieldType tft) {
+        private SubFieldInfo buildPrefixInfo(BuilderContext context, FieldType fieldType, TextFieldType tft) {
             if (indexPrefixes.get() == null) {
                 return null;
             }
@@ -405,8 +405,8 @@ public class TextFieldMapper extends FieldMapper {
         public TextFieldMapper build(BuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
-            SubFieldInfo phraseFieldMapper = buildPhraseInfo(fieldType, tft);
-            SubFieldInfo prefixFieldMapper = buildPrefixMapper(context, fieldType, tft);
+            SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
+            SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             for (Mapper mapper : multiFields) {
                 if (mapper.name().endsWith(FAST_PHRASE_SUFFIX) || mapper.name().endsWith(FAST_PREFIX_SUFFIX)) {
@@ -414,8 +414,8 @@ public class TextFieldMapper extends FieldMapper {
                 }
             }
             return new TextFieldMapper(name, fieldType, tft,
-                indexAnalyzers(tft.name(), phraseFieldMapper, prefixFieldMapper),
-                prefixFieldMapper, phraseFieldMapper,
+                indexAnalyzers(tft.name(), phraseFieldInfo, prefixFieldInfo),
+                prefixFieldInfo, phraseFieldInfo,
                 multiFields, copyTo.build(), this);
         }
     }

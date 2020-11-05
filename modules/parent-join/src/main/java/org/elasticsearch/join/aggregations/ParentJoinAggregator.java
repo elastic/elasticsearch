@@ -113,8 +113,8 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
-    protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {
-        IndexReader indexReader = context().searcher().getIndexReader();
+    protected void prepareSubAggs(long[] bucketOrdsToCollect) throws IOException {
+        IndexReader indexReader = searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
             Scorer childDocsScorer = outFilter.scorer(ctx);
             if (childDocsScorer == null) {
@@ -155,9 +155,9 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                  * structure that maps a primitive long to a list of primitive
                  * longs. 
                  */
-                for (long owningBucketOrd: ordsToCollect) {
-                    if (collectionStrategy.exists(owningBucketOrd, globalOrdinal)) {
-                        collectBucket(sub, docId, owningBucketOrd);
+                for (long o: bucketOrdsToCollect) {
+                    if (collectionStrategy.exists(o, globalOrdinal)) {
+                        collectBucket(sub, docId, o);
                     }
                 }
             }
@@ -190,7 +190,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         private final BitArray ordsBits;
 
         public DenseCollectionStrategy(long maxOrd, BigArrays bigArrays) {
-            ordsBits = new BitArray(maxOrd, context.bigArrays());
+            ordsBits = new BitArray(maxOrd, bigArrays());
         }
 
         @Override

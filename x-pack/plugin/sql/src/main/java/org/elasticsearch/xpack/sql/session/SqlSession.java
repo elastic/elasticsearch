@@ -140,7 +140,7 @@ public class SqlSession implements Session {
             }
 
             boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();
-            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen, configuration.filter(),
+            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen,
                     wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {

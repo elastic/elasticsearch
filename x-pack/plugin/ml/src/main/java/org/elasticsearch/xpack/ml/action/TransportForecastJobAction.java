@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -29,6 +28,7 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 
@@ -65,8 +65,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     }
 
     @Override
-    protected void taskOperation(ForecastJobAction.Request request, TransportOpenJobAction.JobTask task,
-                                 ActionListener<ForecastJobAction.Response> listener) {
+    protected void taskOperation(ForecastJobAction.Request request, JobTask task, ActionListener<ForecastJobAction.Response> listener) {
         jobManager.getJob(task.getJobId(), ActionListener.wrap(
                 job -> {
                     validate(job, request);
@@ -145,7 +144,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
         long jobLimitMegaBytes = job.getAnalysisLimits() == null || job.getAnalysisLimits().getModelMemoryLimit() == null ?
             AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB :
             job.getAnalysisLimits().getModelMemoryLimit();
-        long allowedMax = (long)(new ByteSizeValue(jobLimitMegaBytes, ByteSizeUnit.MB).getBytes() * 0.40);
+        long allowedMax = (long)(ByteSizeValue.ofMb(jobLimitMegaBytes).getBytes() * 0.40);
         long adjustedMax = Math.min(requestedLimit, allowedMax - 1);
         if (adjustedMax != requestedLimit) {
             String msg = "requested forecast memory limit [" +

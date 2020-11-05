@@ -141,8 +141,11 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyM
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.PerClassSingleValue;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocPoint;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResult;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
@@ -1789,17 +1792,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(confusionMatrix.getFalseNegatives(), equalTo(3L));  // docs #5, #6 and #7
         assertNull(confusionMatrixResult.getScoreByThreshold("0.1"));
 
-        AucRocMetric.Result aucRocResult =
+        AucRocResult aucRocResult =
             evaluateDataFrameResponse.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME);
         assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-        assertThat(aucRocResult.getScore(), closeTo(0.70025, 1e-9));
+        assertThat(aucRocResult.getValue(), closeTo(0.70025, 1e-9));
         assertNotNull(aucRocResult.getCurve());
-        List<AucRocMetric.AucRocPoint> curve = aucRocResult.getCurve();
-        AucRocMetric.AucRocPoint curvePointAtThreshold0 = curve.stream().filter(p -> p.getThreshold() == 0.0).findFirst().get();
+        List<AucRocPoint> curve = aucRocResult.getCurve();
+        AucRocPoint curvePointAtThreshold0 = curve.stream().filter(p -> p.getThreshold() == 0.0).findFirst().get();
         assertThat(curvePointAtThreshold0.getTruePositiveRate(), equalTo(1.0));
         assertThat(curvePointAtThreshold0.getFalsePositiveRate(), equalTo(1.0));
         assertThat(curvePointAtThreshold0.getThreshold(), equalTo(0.0));
-        AucRocMetric.AucRocPoint curvePointAtThreshold1 = curve.stream().filter(p -> p.getThreshold() == 1.0).findFirst().get();
+        AucRocPoint curvePointAtThreshold1 = curve.stream().filter(p -> p.getThreshold() == 1.0).findFirst().get();
         assertThat(curvePointAtThreshold1.getTruePositiveRate(), equalTo(0.0));
         assertThat(curvePointAtThreshold1.getFalsePositiveRate(), equalTo(0.0));
         assertThat(curvePointAtThreshold1.getThreshold(), equalTo(1.0));
@@ -1925,9 +1928,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
             assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
 
-            AucRocMetric.Result aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
+            AucRocResult aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocResult.getScore(), closeTo(0.6425, 1e-9));
+            assertThat(aucRocResult.getValue(), closeTo(0.6425, 1e-9));
             assertNotNull(aucRocResult.getCurve());
         }
         {  // Accuracy
@@ -1947,11 +1950,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 equalTo(
                     List.of(
                         // 9 out of 10 examples were classified correctly
-                        new AccuracyMetric.PerClassResult("ant", 0.9),
+                        new PerClassSingleValue("ant", 0.9),
                         // 6 out of 10 examples were classified correctly
-                        new AccuracyMetric.PerClassResult("cat", 0.6),
+                        new PerClassSingleValue("cat", 0.6),
                         // 8 out of 10 examples were classified correctly
-                        new AccuracyMetric.PerClassResult("dog", 0.8))));
+                        new PerClassSingleValue("dog", 0.8))));
             assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.6));  // 6 out of 10 examples were classified correctly
         }
         {  // Precision
@@ -1971,9 +1974,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 equalTo(
                     List.of(
                         // 3 out of 5 examples labeled as "cat" were classified correctly
-                        new PrecisionMetric.PerClassResult("cat", 0.6),
+                        new PerClassSingleValue("cat", 0.6),
                         // 3 out of 4 examples labeled as "dog" were classified correctly
-                        new PrecisionMetric.PerClassResult("dog", 0.75))));
+                        new PerClassSingleValue("dog", 0.75))));
             assertThat(precisionResult.getAvgPrecision(), equalTo(0.675));
         }
         {  // Recall
@@ -1993,11 +1996,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 equalTo(
                     List.of(
                         // 3 out of 5 examples labeled as "cat" were classified correctly
-                        new RecallMetric.PerClassResult("cat", 0.6),
+                        new PerClassSingleValue("cat", 0.6),
                         // 3 out of 4 examples labeled as "dog" were classified correctly
-                        new RecallMetric.PerClassResult("dog", 0.75),
+                        new PerClassSingleValue("dog", 0.75),
                         // no examples labeled as "ant" were classified correctly
-                        new RecallMetric.PerClassResult("ant", 0.0))));
+                        new PerClassSingleValue("ant", 0.0))));
             assertThat(recallResult.getAvgRecall(), equalTo(0.45));
         }
         {  // No size provided for MulticlassConfusionMatrixMetric, default used instead

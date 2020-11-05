@@ -60,8 +60,13 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) {
+    protected Object getSampleValueForDocument() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected Object getSampleValueForQuery() {
+        return "text";
     }
 
     @Override
@@ -390,6 +395,9 @@ public class RuntimeFieldMapperTests extends MapperTestCase {
                     }
                     if (context == StringFieldScript.CONTEXT) {
                         return StringFieldScriptTests.DUMMY;
+                    }
+                    if (context == GeoPointFieldScript.CONTEXT) {
+                        return GeoPointFieldScriptTests.DUMMY;
                     }
                     throw new IllegalArgumentException("Unsupported context: " + context);
                 };

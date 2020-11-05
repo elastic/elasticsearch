@@ -134,7 +134,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void kill() {
+    public void kill(boolean awaitCompletion) {
         open = false;
     }
 

@@ -40,15 +40,20 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -56,7 +61,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -173,7 +177,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public Similarity getSearchSimilarity() {
-        return similarityService != null ? similarityService.similarity(mapperService) : null;
+        return similarityService != null ? similarityService.similarity(mapperService::fieldType) : null;
     }
 
     public List<String> defaultFields() {
@@ -217,6 +221,23 @@ public class QueryShardContext extends QueryRewriteContext {
         return Map.copyOf(namedQueries);
     }
 
+    public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
+        return mapperService.documentMapper() == null ? null : mapperService.documentMapper().parse(source);
+    }
+
+    public FieldNameAnalyzer getFieldNameIndexAnalyzer() {
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        return documentMapper == null ? null : documentMapper.mappers().indexAnalyzer();
+    }
+
+    public boolean hasNested() {
+        return mapperService.hasNested();
+    }
+
+    public boolean hasMappings() {
+        return mapperService.documentMapper() != null;
+    }
+
     /**
      * Returns all the fields that match a given pattern. If prefixed with a
      * type then the fields will be returned with a type prefix.
@@ -249,19 +270,30 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.getObjectMapper(name);
     }
 
+    public boolean isMetadataField(String field) {
+        return mapperService.isMetadataField(field);
+    }
+
+    public Set<String> sourcePath(String fullName) {
+        return mapperService.sourcePath(fullName);
+    }
+
+    public boolean isSourceEnabled() {
+        return mapperService.documentMapper().sourceMapper().enabled();
+    }
+
     /**
      * Given a type (eg. long, string, ...), returns an anonymous field type that can be used for search operations.
      * Generally used to handle unmapped fields in the context of sorting.
      */
     public MappedFieldType buildAnonymousFieldType(String type) {
-        final Mapper.TypeParser.ParserContext parserContext = mapperService.documentMapperParser().parserContext();
+        final Mapper.TypeParser.ParserContext parserContext = mapperService.parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(type);
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
-        final Mapper.Builder<?> builder = typeParser.parse("__anonymous_" + type, Collections.emptyMap(), parserContext);
-        final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1));
-        Mapper mapper = builder.build(builderContext);
+        final Mapper.Builder builder = typeParser.parse("__anonymous_" + type, Collections.emptyMap(), parserContext);
+        Mapper mapper = builder.build(new ContentPath(1));
         if (mapper instanceof FieldMapper) {
             return ((FieldMapper)mapper).fieldType();
         }
@@ -294,10 +326,18 @@ public class QueryShardContext extends QueryRewriteContext {
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder
                 = new TextFieldMapper.Builder(name, () -> mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer());
-            return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
+            return builder.build(new ContentPath(1)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
+    }
+
+    /**
+     * Does the index analyzer for this field have token filters that may produce
+     * backwards offsets in term vectors
+     */
+    public boolean containsBrokenAnalysis(String field) {
+        return mapperService.containsBrokenAnalysis(field);
     }
 
     private SearchLookup lookup = null;
@@ -308,7 +348,7 @@ public class QueryShardContext extends QueryRewriteContext {
     public SearchLookup lookup() {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
-                mapperService,
+                this::getFieldType,
                 (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
             );
         }
@@ -324,7 +364,7 @@ public class QueryShardContext extends QueryRewriteContext {
          * Real customization coming soon, I promise!
          */
         return new SearchLookup(
-            mapperService,
+            this::getFieldType,
             (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
         );
     }
@@ -468,13 +508,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return indexSettings;
     }
 
-    /**
-     * Return the MapperService.
-     */
-    public MapperService getMapperService() {
-        return mapperService;
-    }
-
     /** Return the current {@link IndexReader}, or {@code null} if no index reader is available,
      *  for instance if this rewrite context is used to index queries (percolation). */
     public IndexReader getIndexReader() {
@@ -507,9 +540,5 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public BitsetFilterCache getBitsetFilterCache() {
         return bitsetFilterCache;
-    }
-
-    public AggregationUsageService getUsageService() {
-        return valuesSourceRegistry.getUsageService();
     }
 }

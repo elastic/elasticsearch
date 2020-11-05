@@ -9,7 +9,7 @@
 
 Instantiates a {dfanalytics-job}.
 
-experimental[]
+beta::[]
 
 [[ml-put-dfanalytics-request]]
 == {api-request-title}
@@ -63,7 +63,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-def
 == {api-request-body-title}
 
 `allow_lazy_start`::
-(Optional, boolean)
+(Optional, Boolean)
 Specifies whether this job can start when there is insufficient {ml} node
 capacity for it to be immediately assigned to a node. The default is `false`; if
 a {ml} node with capacity to run the job cannot immediately be found, the API
@@ -136,8 +136,17 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 `num_top_classes`::::
 (Optional, integer)
 Defines the number of categories for which the predicted probabilities are
-reported. It must be non-negative. If it is greater than the total number of
-categories, the API reports all category probabilities. Defaults to 2.
+reported. It must be non-negative or -1. If it is -1 or greater than the total
+number of categories, probabilities are reported for all categories; if you have
+a large number of categories, there could be a significant effect on the size of your destination index. Defaults to 2. 
++
+--
+NOTE: To use the
+{ml-docs}/ml-dfanalytics-evaluate.html#ml-dfanalytics-class-aucroc[AUC ROC evaluation method],
+`num_top_classes` must be set to `-1` or a value greater than or equal to the
+total number of categories.
+
+--
 
 `num_top_feature_importance_values`::::
 (Optional, integer)
@@ -168,7 +177,7 @@ The configuration information necessary to perform
 [%collapsible%open]
 =====
 `compute_feature_influence`::::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
 
 `feature_influence_threshold`::::
@@ -188,7 +197,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=n-neighbors]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
 
 `standardization_enabled`::::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 //End outlier_detection
 =====

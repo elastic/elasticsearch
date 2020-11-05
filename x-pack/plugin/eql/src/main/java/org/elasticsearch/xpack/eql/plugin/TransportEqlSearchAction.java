@@ -108,7 +108,6 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         ZoneId zoneId = DateUtils.of("Z");
         QueryBuilder filter = request.filter();
         TimeValue timeout = TimeValue.timeValueSeconds(30);
-        boolean includeFrozen = request.indicesOptions().ignoreThrottled() == false;
         String clientId = null;
 
         ParserParams params = new ParserParams(zoneId)
@@ -118,8 +117,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .size(request.size())
             .fetchSize(request.fetchSize());
 
-        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, includeFrozen,
-                request.fetchSize(), clientId, new TaskId(nodeId, task.getId()), task);
+        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout,
+                request.indicesOptions(), request.fetchSize(), clientId, new TaskId(nodeId, task.getId()), task);
         planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())),
             listener::onFailure));
     }

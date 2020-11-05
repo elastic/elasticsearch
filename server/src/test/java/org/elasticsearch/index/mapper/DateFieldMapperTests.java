@@ -41,8 +41,8 @@ import static org.hamcrest.Matchers.notNullValue;
 public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("2016-03-11");
+    protected Object getSampleValueForDocument() {
+        return "2016-03-11";
     }
 
     @Override

@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[search-aggregations-pipeline-normalize-aggregation]]
-=== Normalize Aggregation
+=== Normalize aggregation
+++++
+<titleabbrev>Normalize</titleabbrev>
+++++
 
 A parent pipeline aggregation which calculates the specific normalized/rescaled value for a specific bucket value.
 Values that cannot be normalized, will be skipped using the <<gap-policy, skip gap policy>>.

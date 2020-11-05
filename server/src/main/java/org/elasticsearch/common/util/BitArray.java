@@ -84,6 +84,14 @@ public final class BitArray implements Releasable {
         return Long.MAX_VALUE;
     }
 
+    public long cardinality() {
+        long cardinality = 0;
+        for (int i = 0; i < bits.size(); ++i) {
+            cardinality += Long.bitCount(bits.get(i));
+        }
+        return cardinality;
+    }
+
     /**
      * Clear the {@code index}th bit.
      */

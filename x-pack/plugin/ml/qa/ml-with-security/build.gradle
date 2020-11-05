@@ -92,7 +92,7 @@ yamlRestTest {
     'ml/data_frame_analytics_crud/Test put classification given max_trees is greater than 2k',
     'ml/data_frame_analytics_crud/Test put classification given feature_bag_fraction is negative',
     'ml/data_frame_analytics_crud/Test put classification given feature_bag_fraction is greater than one',
-    'ml/data_frame_analytics_crud/Test put classification given num_top_classes is less than zero',
+    'ml/data_frame_analytics_crud/Test put classification given num_top_classes is less than minus one',
     'ml/data_frame_analytics_crud/Test put classification given num_top_classes is greater than 1k',
     'ml/data_frame_analytics_crud/Test put classification given training_percent is less than zero',
     'ml/data_frame_analytics_crud/Test put classification given training_percent is greater than hundred',

@@ -10,15 +10,26 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import java.io.IOException;
+import java.util.AbstractMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse> {
 
@@ -31,62 +42,126 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        static final ParseField POLICY_FIELD = new ParseField("policy");
-
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
-            "put_autoscaling_policy_request",
-            a -> new Request((AutoscalingPolicy) a[0])
-        );
+        private static final ConstructingObjectParser<Request, String> PARSER;
 
         static {
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), AutoscalingPolicy::parse, POLICY_FIELD);
+            PARSER = new ConstructingObjectParser<>("put_autocaling_policy_request", false, (c, name) -> {
+                @SuppressWarnings("unchecked")
+                final List<String> roles = (List<String>) c[0];
+                @SuppressWarnings("unchecked")
+                final var deciders = (List<Map.Entry<String, AutoscalingDeciderConfiguration>>) c[1];
+                return new Request(
+                    name,
+                    roles != null ? roles.stream().collect(Sets.toUnmodifiableSortedSet()) : null,
+                    deciders != null
+                        ? new TreeMap<>(deciders.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+                        : null
+                );
+            });
+            PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), AutoscalingPolicy.ROLES_FIELD);
+            PARSER.declareNamedObjects(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c, n) -> new AbstractMap.SimpleEntry<>(n, p.namedObject(AutoscalingDeciderConfiguration.class, n, null)),
+                AutoscalingPolicy.DECIDERS_FIELD
+            );
         }
+
+        private final String name;
+        private final SortedSet<String> roles;
+        private final SortedMap<String, AutoscalingDeciderConfiguration> deciders;
 
         public static Request parse(final XContentParser parser, final String name) {
             return PARSER.apply(parser, name);
         }
 
-        private final AutoscalingPolicy policy;
-
-        public AutoscalingPolicy policy() {
-            return policy;
-        }
-
-        public Request(final AutoscalingPolicy policy) {
-            this.policy = Objects.requireNonNull(policy);
+        public Request(
+            final String name,
+            final SortedSet<String> roles,
+            final SortedMap<String, AutoscalingDeciderConfiguration> deciders
+        ) {
+            this.name = name;
+            this.roles = roles;
+            this.deciders = deciders;
         }
 
         public Request(final StreamInput in) throws IOException {
             super(in);
-            policy = new AutoscalingPolicy(in);
+            name = in.readString();
+            if (in.readBoolean()) {
+                roles = in.readSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
+            } else {
+                roles = null;
+            }
+            if (in.readBoolean()) {
+                deciders = new TreeMap<>(
+                    in.readNamedWriteableList(AutoscalingDeciderConfiguration.class)
+                        .stream()
+                        .collect(Collectors.toMap(AutoscalingDeciderConfiguration::name, Function.identity()))
+                );
+            } else {
+                deciders = null;
+            }
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
-            policy.writeTo(out);
+            out.writeString(name);
+            if (roles != null) {
+                out.writeBoolean(true);
+                out.writeCollection(roles, StreamOutput::writeString);
+            } else {
+                out.writeBoolean(false);
+            }
+            if (deciders != null) {
+                out.writeBoolean(true);
+                out.writeNamedWriteableList(deciders.values().stream().collect(Collectors.toUnmodifiableList()));
+            } else {
+                out.writeBoolean(false);
+            }
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public SortedSet<String> roles() {
+            return roles;
+        }
+
+        public SortedMap<String, AutoscalingDeciderConfiguration> deciders() {
+            return deciders;
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            // TODO: validate that the policy deciders are non-empty
+            if (roles != null) {
+                List<String> errors = roles.stream()
+                    .filter(Predicate.not(DiscoveryNode.getPossibleRoleNames()::contains))
+                    .collect(Collectors.toList());
+                if (errors.isEmpty() == false) {
+                    ActionRequestValidationException exception = new ActionRequestValidationException();
+                    exception.addValidationErrors(errors);
+                    return exception;
+                }
+            }
+
             return null;
         }
 
         @Override
-        public boolean equals(final Object o) {
+        public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            final Request request = (Request) o;
-            return policy.equals(request.policy);
+            Request request = (Request) o;
+            return name.equals(request.name) && Objects.equals(roles, request.roles) && Objects.equals(deciders, request.deciders);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(policy);
+            return Objects.hash(name, roles, deciders);
         }
-
     }
 
 }

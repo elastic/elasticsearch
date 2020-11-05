@@ -81,7 +81,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+    public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
         return DateFieldType.handleNow(context, now -> {
             long originLong = DateFieldType.parseToLong(
@@ -98,8 +98,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
                 leafFactory(context)::newInstance,
                 name(),
                 originLong,
-                pivotTime.getMillis(),
-                boost
+                pivotTime.getMillis()
             );
         });
     }

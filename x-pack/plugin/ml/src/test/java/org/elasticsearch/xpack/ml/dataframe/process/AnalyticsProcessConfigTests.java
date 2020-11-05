@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,7 +47,7 @@ public class AnalyticsProcessConfigTests extends ESTestCase {
         jobId = randomAlphaOfLength(10);
         rows = randomNonNegativeLong();
         cols = randomIntBetween(1, 42000);
-        memoryLimit = new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
+        memoryLimit = ByteSizeValue.ofBytes(randomNonNegativeLong());
         threads = randomIntBetween(1, 8);
         resultsField = randomAlphaOfLength(10);
 

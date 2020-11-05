@@ -33,7 +33,7 @@ and can be configured manually or via <<indices-templates, index templates>>.
 ==== Options
 
 `enabled`::
-(Optional, boolean)
+(Optional, Boolean)
 Controls whether {ilm-init} automatically migrates the index during this phase.
 Defaults to `true`.
 

@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.yaml.snakeyaml.util.UriEncoder;
 
+import javax.print.attribute.standard.JobStateReason;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
@@ -247,8 +248,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         String jobId = "test-export-import-job";
         createFarequoteJob(jobId);
         Response jobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "?for_export=true"));
+            new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "?exclude_generated=true"));
         Map<String, Object> originalJobBody = (Map<String, Object>)((List<?>) entityAsMap(jobResponse).get("jobs")).get(0);
+        originalJobBody.remove("job_id");
 
         XContentBuilder xContentBuilder = jsonBuilder().map(originalJobBody);
         Request request = new Request("PUT", BASE_PATH + "anomaly_detectors/" + jobId + "-import");
@@ -256,8 +258,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response importedJobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "-import" + "?for_export=true"));
+            new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "-import" + "?exclude_generated=true"));
         Map<String, Object> importedJobBody = (Map<String, Object>)((List<?>) entityAsMap(importedJobResponse).get("jobs")).get(0);
+        importedJobBody.remove("job_id");
         assertThat(originalJobBody, equalTo(importedJobBody));
     }
 
@@ -270,8 +273,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         createDatafeed(datafeedId, jobId);
 
         Response dfResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "?for_export=true"));
+            new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "?exclude_generated=true"));
         Map<String, Object> originalDfBody = (Map<String, Object>)((List<?>) entityAsMap(dfResponse).get("datafeeds")).get(0);
+        originalDfBody.remove("datafeed_id");
 
         //Delete this so we can PUT another datafeed for the same job
         client().performRequest(new Request("DELETE", BASE_PATH + "datafeeds/" + datafeedId));
@@ -284,8 +288,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response importedDfResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "-import" + "?for_export=true"));
+            new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "-import" + "?exclude_generated=true"));
         Map<String, Object> importedDfBody = (Map<String, Object>)((List<?>) entityAsMap(importedDfResponse).get("datafeeds")).get(0);
+        importedDfBody.remove("datafeed_id");
         assertThat(originalDfBody, equalTo(importedDfBody));
     }
 
@@ -325,8 +330,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response jobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?for_export=true"));
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?exclude_generated=true"));
         Map<String, Object> originalJobBody = (Map<String, Object>)((List<?>) entityAsMap(jobResponse).get("data_frame_analytics")).get(0);
+        originalJobBody.remove("id");
 
         XContentBuilder newBuilder = jsonBuilder().map(originalJobBody);
         request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import");
@@ -334,10 +340,11 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response importedJobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?for_export=true"));
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?exclude_generated=true"));
         Map<String, Object> importedJobBody = (Map<String, Object>)((List<?>) entityAsMap(importedJobResponse)
             .get("data_frame_analytics"))
             .get(0);
+        importedJobBody.remove("id");
         assertThat(originalJobBody, equalTo(importedJobBody));
     }
 
@@ -378,8 +385,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response jobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?for_export=true"));
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?exclude_generated=true"));
         Map<String, Object> originalJobBody = (Map<String, Object>)((List<?>) entityAsMap(jobResponse).get("data_frame_analytics")).get(0);
+        originalJobBody.remove("id");
 
         XContentBuilder newBuilder = jsonBuilder().map(originalJobBody);
         request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import");
@@ -387,10 +395,11 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response importedJobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?for_export=true"));
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?exclude_generated=true"));
         Map<String, Object> importedJobBody = (Map<String, Object>)((List<?>) entityAsMap(importedJobResponse)
             .get("data_frame_analytics"))
             .get(0);
+        importedJobBody.remove("id");
         assertThat(originalJobBody, equalTo(importedJobBody));
     }
 
@@ -431,8 +440,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response jobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?for_export=true"));
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?exclude_generated=true"));
         Map<String, Object> originalJobBody = (Map<String, Object>)((List<?>) entityAsMap(jobResponse).get("data_frame_analytics")).get(0);
+        originalJobBody.remove("id");
 
         XContentBuilder newBuilder = jsonBuilder().map(originalJobBody);
         request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import");
@@ -440,10 +450,11 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response importedJobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?for_export=true"));
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?exclude_generated=true"));
         Map<String, Object> importedJobBody = (Map<String, Object>)((List<?>) entityAsMap(importedJobResponse)
             .get("data_frame_analytics"))
             .get(0);
+        importedJobBody.remove("id");
         assertThat(originalJobBody, equalTo(importedJobBody));
     }
 

@@ -670,3 +670,34 @@ setup:
             },
             "description": "yaml test transform on airline-data"
           }
+
+---
+"Test transform for export":
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "yaml test transform on airline-data"
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform:
+        transform_id: "airline-transform"
+        exclude_generated: true
+
+  - match: {transforms.0.source.index: ["airline-data"]}
+  - match: {transforms.0.dest.index: "airline-data-by-airline"}
+  - match: {transforms.0.pivot.group_by.airline.terms.field: "airline"}
+  - match: {transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime"}
+  - match: {transforms.0.description: "yaml test transform on airline-data"}
+  - match: {transforms.0.id: "airline-transform"}
+  - is_false: transforms.0.create_time
+  - is_false: transforms.0.version

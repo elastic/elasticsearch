@@ -51,7 +51,7 @@ class PluginBuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         project.pluginManager.apply(BuildPlugin)
         project.pluginManager.apply(RestTestBasePlugin)
-        project.pluginManager.apply(CompileOnlyResolvePlugin.class);
+        project.pluginManager.apply(CompileOnlyResolvePlugin.class)
 
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
@@ -82,7 +82,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             if (extension1.description == null) {
                 throw new InvalidUserDataException('description is a required setting for esplugin')
             }
-            if (extension1.classname == null) {
+            if (extension1.type != PluginType.BOOTSTRAP && extension1.classname == null) {
                 throw new InvalidUserDataException('classname is a required setting for esplugin')
             }
 
@@ -92,10 +92,12 @@ class PluginBuildPlugin implements Plugin<Project> {
                     'version'             : extension1.version,
                     'elasticsearchVersion': Version.fromString(VersionProperties.elasticsearch).toString(),
                     'javaVersion'         : project.targetCompatibility as String,
-                    'classname'           : extension1.classname,
+                    'classname'           : extension1.type == PluginType.BOOTSTRAP ? "" : extension1.classname,
                     'extendedPlugins'     : extension1.extendedPlugins.join(','),
                     'hasNativeController' : extension1.hasNativeController,
-                    'requiresKeystore'    : extension1.requiresKeystore
+                    'requiresKeystore'    : extension1.requiresKeystore,
+                    'type'                : extension1.type.toString(),
+                    'javaOpts'            : extension1.javaOpts,
             ]
             project.tasks.named('pluginProperties').configure {
                 expand(properties)

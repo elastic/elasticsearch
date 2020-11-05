@@ -26,7 +26,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Multiclas
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
-import org.elasticsearch.client.ml.dataframe.evaluation.classification.AucRocMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetricResultTests;
@@ -49,7 +49,7 @@ public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<Eva
             case OutlierDetection.NAME:
                 metrics = randomSubsetOf(
                     Arrays.asList(
-                        AucRocMetricResultTests.randomResult(),
+                        AucRocResultTests.randomResult(),
                         PrecisionMetricResultTests.randomResult(),
                         RecallMetricResultTests.randomResult(),
                         ConfusionMatrixMetricResultTests.randomResult()));
@@ -63,6 +63,7 @@ public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<Eva
             case Classification.NAME:
                 metrics = randomSubsetOf(
                     Arrays.asList(
+                        AucRocResultTests.randomResult(),
                         AccuracyMetricResultTests.randomResult(),
                         org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetricResultTests.randomResult(),
                         org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetricResultTests.randomResult(),

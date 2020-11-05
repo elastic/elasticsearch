@@ -39,8 +39,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RankFeatureFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(10);
+    protected Object getSampleValueForDocument() {
+        return 10;
     }
 
     @Override
@@ -55,6 +55,12 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         assertEquals("_feature", termQuery.getTerm().field());
         assertEquals("field", termQuery.getTerm().text());
         assertNotNull(fields.getField("_feature"));
+    }
+
+    @Override
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
     }
 
     @Override

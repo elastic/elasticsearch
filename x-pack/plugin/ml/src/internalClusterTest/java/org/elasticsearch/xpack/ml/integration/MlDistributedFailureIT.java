@@ -17,7 +17,6 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -367,10 +366,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // Open 4 small jobs.  Since there is only 1 node in the cluster they'll have to go on that node.
 
-        setupJobWithoutDatafeed("small1", new ByteSizeValue(2, ByteSizeUnit.MB));
-        setupJobWithoutDatafeed("small2", new ByteSizeValue(2, ByteSizeUnit.MB));
-        setupJobWithoutDatafeed("small3", new ByteSizeValue(2, ByteSizeUnit.MB));
-        setupJobWithoutDatafeed("small4", new ByteSizeValue(2, ByteSizeUnit.MB));
+        setupJobWithoutDatafeed("small1", ByteSizeValue.ofMb(2));
+        setupJobWithoutDatafeed("small2", ByteSizeValue.ofMb(2));
+        setupJobWithoutDatafeed("small3", ByteSizeValue.ofMb(2));
+        setupJobWithoutDatafeed("small4", ByteSizeValue.ofMb(2));
 
         // Expand the cluster to 3 nodes.  The 4 small jobs will stay on the
         // same node because we don't rebalance jobs that are happily running.
@@ -384,7 +383,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // Open a big job.  This should go on a different node to the 4 small ones.
 
-        setupJobWithoutDatafeed("big1", new ByteSizeValue(500, ByteSizeUnit.MB));
+        setupJobWithoutDatafeed("big1", ByteSizeValue.ofMb(500));
 
         // Stop the current master node - this should be the one with the 4 small jobs on.
 

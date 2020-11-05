@@ -698,7 +698,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "          \"type\": \"double\"\n" +
             "        }," +
             "        \"" + DISCRETE_NUMERICAL_FEATURE_FIELD + "\": {\n" +
-            "          \"type\": \"long\"\n" +
+            "          \"type\": \"unsigned_long\"\n" +
             "        }," +
             "        \"" + DEPENDENT_VARIABLE_FIELD + "\": {\n" +
             "          \"type\": \"double\"\n" +

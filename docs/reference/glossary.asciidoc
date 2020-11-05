@@ -450,6 +450,22 @@ in the <<glossary-mapping,mapping>>.
 // end::routing-def[]
 --
 
+[[glossary-searchable-snapshot]] searchable snapshot ::
+// tag::searchable-snapshot-def[]
+A <<glossary-snapshot, snapshot>> of an index that has been mounted as a
+<<glossary-searchable-snapshot-index, searchable snapshot index>> and can be
+searched as if it were a regular index.
+// end::searchable-snapshot-def[]
+
+[[glossary-searchable-snapshot-index]] searchable snapshot index ::
+// tag::searchable-snapshot-index-def[]
+An <<glossary-index, index>> whose data is stored in a <<glossary-snapshot,
+snapshot>> that resides in a separate <<glossary-snapshot-repository,snapshot
+repository>> such as AWS S3. Searchable snapshot indices do not need
+<<glossary-replica-shard,replica>> shards for resilience, since their data is
+reliably stored outside the cluster.
+// end::searchable-snapshot-index-def[]
+
 [[glossary-shard]] shard ::
 +
 --
@@ -486,9 +502,11 @@ See the {ref}/indices-shrink-index.html[shrink index API].
 
 [[glossary-snapshot]] snapshot ::
 // tag::snapshot-def[]
-A backup taken from a running {es} cluster.
-A snapshot can include backups of an entire cluster or only data streams and
-indices you specify.
+Captures the state of the whole cluster or of particular indices or data
+streams at a particular point in time. Snapshots provide a back up of a running
+cluster, ensuring you can restore your data in the event of a failure. You can
+also mount indices or datastreams from snapshots as read-only
+{ref}/glossary.html#glossary-searchable-snapshot-index[searchable snapshots].
 // end::snapshot-def[]
 
 [[glossary-snapshot-lifecycle-policy]] snapshot lifecycle policy ::

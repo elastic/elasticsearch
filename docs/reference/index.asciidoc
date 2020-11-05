@@ -30,8 +30,6 @@ include::indices/index-templates.asciidoc[]
 
 include::data-streams/data-streams.asciidoc[]
 
-include::datatiers.asciidoc[]
-
 include::ingest.asciidoc[]
 
 include::search/search-your-data/search-your-data.asciidoc[]
@@ -45,6 +43,8 @@ include::eql/eql.asciidoc[]
 include::sql/index.asciidoc[]
 
 include::scripting.asciidoc[]
+
+include::data-management.asciidoc[]
 
 include::ilm/index.asciidoc[]
 

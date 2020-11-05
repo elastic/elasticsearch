@@ -35,8 +35,8 @@ import java.io.IOException;
 public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(true);
+    protected Object getSampleValueForDocument() {
+        return true;
     }
 
     @Override

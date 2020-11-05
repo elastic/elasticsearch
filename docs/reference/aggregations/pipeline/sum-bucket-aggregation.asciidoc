@@ -1,5 +1,9 @@
 [[search-aggregations-pipeline-sum-bucket-aggregation]]
-=== Sum Bucket Aggregation
+=== Sum bucket aggregation
+++++
+<titleabbrev>Sum bucket</titleabbrev>
+++++
+
 
 A sibling pipeline aggregation which calculates the sum across all buckets of a specified metric in a sibling aggregation.
 The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.

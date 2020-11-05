@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -30,39 +31,15 @@ import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
-    public static class BuilderContext {
-        private final Settings indexSettings;
-        private final ContentPath contentPath;
-
-        public BuilderContext(Settings indexSettings, ContentPath contentPath) {
-            Objects.requireNonNull(indexSettings, "indexSettings is required");
-            this.contentPath = contentPath;
-            this.indexSettings = indexSettings;
-        }
-
-        public ContentPath path() {
-            return this.contentPath;
-        }
-
-        public Settings indexSettings() {
-            return this.indexSettings;
-        }
-
-        public Version indexCreatedVersion() {
-            return Version.indexCreated(indexSettings);
-        }
-    }
-
-    public abstract static class Builder<T extends Builder> {
+    public abstract static class Builder {
 
         public String name;
-
-        protected T builder;
 
         protected Builder(String name) {
             this.name = name;
@@ -73,7 +50,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         /** Returns a newly built mapper. */
-        public abstract Mapper build(BuilderContext context);
+        public abstract Mapper build(ContentPath contentPath);
     }
 
     public interface TypeParser {
@@ -81,46 +58,53 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         class ParserContext {
 
             private final Function<String, SimilarityProvider> similarityLookupService;
-
-            private final MapperService mapperService;
-
             private final Function<String, TypeParser> typeParsers;
-
             private final Version indexVersionCreated;
-
             private final Supplier<QueryShardContext> queryShardContextSupplier;
-
             private final DateFormatter dateFormatter;
-
             private final ScriptService scriptService;
+            private final IndexAnalyzers indexAnalyzers;
+            private final IndexSettings indexSettings;
+            private final BooleanSupplier idFieldDataEnabled;
 
             public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
-                                 MapperService mapperService, Function<String, TypeParser> typeParsers,
-                                 Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier,
-                                 DateFormatter dateFormatter, ScriptService scriptService) {
+                                 Function<String, TypeParser> typeParsers,
+                                 Version indexVersionCreated,
+                                 Supplier<QueryShardContext> queryShardContextSupplier,
+                                 DateFormatter dateFormatter,
+                                 ScriptService scriptService,
+                                 IndexAnalyzers indexAnalyzers,
+                                 IndexSettings indexSettings,
+                                 BooleanSupplier idFieldDataEnabled) {
                 this.similarityLookupService = similarityLookupService;
-                this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
                 this.indexVersionCreated = indexVersionCreated;
                 this.queryShardContextSupplier = queryShardContextSupplier;
                 this.dateFormatter = dateFormatter;
                 this.scriptService = scriptService;
+                this.indexAnalyzers = indexAnalyzers;
+                this.indexSettings = indexSettings;
+                this.idFieldDataEnabled = idFieldDataEnabled;
             }
 
             public IndexAnalyzers getIndexAnalyzers() {
-                return mapperService.getIndexAnalyzers();
+                return indexAnalyzers;
+            }
+
+            public IndexSettings getIndexSettings() {
+                return indexSettings;
+            }
+
+            public BooleanSupplier isIdFieldDataEnabled() {
+                return idFieldDataEnabled;
             }
 
             public Settings getSettings() {
-                return mapperService.getIndexSettings().getSettings();
+                return indexSettings.getSettings();
             }
 
             public SimilarityProvider getSimilarity(String name) {
                 return similarityLookupService.apply(name);
-            }
-
-            public MapperService mapperService() {
-                return mapperService;
             }
 
             public TypeParser typeParser(String type) {
@@ -163,17 +147,16 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
-                    super(in.similarityLookupService(), in.mapperService(), in.typeParsers(),
-                            in.indexVersionCreated(), in.queryShardContextSupplier(), in.getDateFormatter(), in.scriptService());
+                    super(in.similarityLookupService, in.typeParsers, in.indexVersionCreated, in.queryShardContextSupplier,
+                        in.dateFormatter, in.scriptService, in.indexAnalyzers, in.indexSettings, in.idFieldDataEnabled);
                 }
 
                 @Override
                 public boolean isWithinMultiField() { return true; }
             }
-
         }
 
-        Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
+        Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
     }
 
     private final String simpleName;

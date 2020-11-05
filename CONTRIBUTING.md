@@ -3,6 +3,9 @@ Contributing to elasticsearch
 
 Elasticsearch is an open source project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
 
+If you want to be rewarded for your contributions, sign up for the [Elastic Contributor Program](https://www.elastic.co/community/contributor). Each time you
+make a valid contribution, you’ll earn points that increase your chances of winning prizes and being recognized as a top contributor.
+
 Bug reports
 -----------
 
@@ -166,7 +169,7 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
 Elasticsearch builds using Gradle and Java 14. When importing into Eclipse you
 will either need to use an appropriate JDK to run Eclipse itself (e.g. by
 specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
-defining the JDK Gradle uses by setting **Prefercences** > **Gradle** >
+defining the JDK Gradle uses by setting **Preferences** > **Gradle** >
 **Advanced Options** > **Java home** to an appropriate version.
 
 IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`

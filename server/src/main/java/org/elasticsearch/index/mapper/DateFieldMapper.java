@@ -69,7 +69,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.time.DateUtils.toLong;
 
 /** A {@link FieldMapper} for dates. */
-public final class DateFieldMapper extends ParametrizedFieldMapper {
+public final class DateFieldMapper extends FieldMapper {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateFieldMapper.class);
 
@@ -229,7 +229,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
          * Build Distance feature query. Field must have doc values
          */
         protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
-           return distanceFeatureQuery(field, boost, origin, convertToIndex(origin), convert(pivot));
+            return distanceFeatureQuery(field, boost, origin, convertToIndex(origin), convert(pivot));
         }
 
         /**
@@ -301,7 +301,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         return (DateFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -365,11 +365,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public DateFieldMapper build(BuilderContext context) {
-            DateFieldType ft = new DateFieldType(buildFullName(context), index.getValue(), store.getValue(), docValues.getValue(),
+        public DateFieldMapper build(ContentPath contentPath) {
+            DateFieldType ft = new DateFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), docValues.getValue(),
                 buildFormatter(), resolution, nullValue.getValue(), meta.getValue());
             Long nullTimestamp = parseNullValue(ft);
-            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
+            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
                 copyTo.build(), nullTimestamp, resolution, this);
         }
     }
@@ -439,13 +439,13 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();
             DateFormatter formatter = format != null
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
                 : defaultFormatter;
 
-            return new SourceValueFetcher(name(), mapperService, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 public String parseSourceValue(Object value) {
                     String date = value.toString();
@@ -555,11 +555,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+        public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
-            assert hasDocValues();
-            return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime);
+            // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
+            return resolution.distanceFeatureQuery(name(), 1.0f, originLong, pivotTime);
         }
 
         @Override
@@ -673,13 +673,13 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     private final Version indexCreatedVersion;
 
     private DateFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Long nullValue,
-        Resolution resolution,
-        Builder builder) {
+            String simpleName,
+            MappedFieldType mappedFieldType,
+            MultiFields multiFields,
+            CopyTo copyTo,
+            Long nullValue,
+            Resolution resolution,
+            Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
@@ -695,7 +695,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), resolution, null, ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
 
@@ -707,11 +707,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return fieldType().resolution.type();
-    }
-
-    @Override
-    protected DateFieldMapper clone() {
-        return (DateFieldMapper) super.clone();
     }
 
     @Override

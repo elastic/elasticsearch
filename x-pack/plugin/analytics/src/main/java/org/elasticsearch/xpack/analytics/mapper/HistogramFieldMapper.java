@@ -31,17 +31,15 @@ import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -59,7 +57,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * Field Mapper for pre-aggregated histograms.
  */
-public class HistogramFieldMapper extends ParametrizedFieldMapper {
+public class HistogramFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "histogram";
 
     public static final ParseField COUNTS_FIELD = new ParseField("counts");
@@ -69,7 +67,7 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
         return (HistogramFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
@@ -86,9 +84,9 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public HistogramFieldMapper build(BuilderContext context) {
-            return new HistogramFieldMapper(name, new HistogramFieldType(buildFullName(context), meta.getValue()),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+        public HistogramFieldMapper build(ContentPath contentPath) {
+            return new HistogramFieldMapper(name, new HistogramFieldType(buildFullName(contentPath), meta.getValue()),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -115,7 +113,7 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault).init(this);
     }
 
@@ -127,7 +125,7 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
     public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, false, false, true, TextSearchInfo.NONE, meta);
         }
 
         @Override
@@ -136,8 +134,8 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         @Override
@@ -220,9 +218,8 @@ public class HistogramFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "[" + CONTENT_TYPE + "] field do not support searching, " +
-                "use dedicated aggregations instead: ["
-                + name() + "]");
+            throw new IllegalArgumentException("[" + CONTENT_TYPE + "] field do not support searching, " +
+                "use dedicated aggregations instead: [" + name() + "]");
         }
     }
 

@@ -66,6 +66,10 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         this.subAggregationsSupplier = subAggregationsSupplier;
     }
 
+    public final InternalAggregations createSubAggregations() {
+        return subAggregationsSupplier.get();
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();

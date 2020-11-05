@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<R
         RangeAggregator.Range[] ranges,
         boolean keyed,
         InternalRange.Factory<?, ?> rangeFactory,
-        QueryShardContext queryShardContext,
+        AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata
@@ -47,7 +47,7 @@ public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<R
             ranges,
             keyed,
             rangeFactory,
-            queryShardContext,
+            context,
             parent,
             subFactoriesBuilder,
             metadata

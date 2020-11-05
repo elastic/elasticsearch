@@ -27,13 +27,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -431,7 +431,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
@@ -441,14 +441,14 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         LongBounds roundedBounds = null;
         if (this.extendedBounds != null) {
             // parse any string bounds to longs and round
-            roundedBounds = this.extendedBounds.parseAndValidate(name, "extended_bounds" , queryShardContext, config.format())
+            roundedBounds = this.extendedBounds.parseAndValidate(name, "extended_bounds" , context::nowInMillis, config.format())
                 .round(rounding);
         }
 
         LongBounds roundedHardBounds = null;
         if (this.hardBounds != null) {
             // parse any string bounds to longs and round
-            roundedHardBounds = this.hardBounds.parseAndValidate(name, "hard_bounds" , queryShardContext, config.format())
+            roundedHardBounds = this.hardBounds.parseAndValidate(name, "hard_bounds" , context::nowInMillis, config.format())
                 .round(rounding);
         }
 
@@ -474,7 +474,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             rounding,
             roundedBounds,
             roundedHardBounds,
-            queryShardContext,
+            context,
             parent,
             subFactoriesBuilder,
             metadata);

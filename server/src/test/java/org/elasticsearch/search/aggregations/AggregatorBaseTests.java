@@ -25,24 +25,22 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -50,7 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class AggregatorBaseTests extends ESSingleNodeTestCase {
+public class AggregatorBaseTests extends MapperServiceTestCase {
 
     class BogusAggregator extends AggregatorBase {
         BogusAggregator(SearchContext searchContext, Aggregator parent) throws IOException {
@@ -98,7 +96,7 @@ public class AggregatorBaseTests extends ESSingleNodeTestCase {
         String fieldName,
         NumberFieldMapper.NumberType numType,
         boolean indexed,
-        QueryShardContext context
+        AggregationContext context
     ) {
         MappedFieldType ft
             = new NumberFieldMapper.NumberFieldType(fieldName, numType, indexed, false, true, false, null, Collections.emptyMap());
@@ -109,7 +107,7 @@ public class AggregatorBaseTests extends ESSingleNodeTestCase {
         String fieldName,
         DateFieldMapper.Resolution resolution,
         boolean indexed,
-        QueryShardContext context
+        AggregationContext context
     ) {
         MappedFieldType ft = new DateFieldMapper.DateFieldType(fieldName, indexed, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, null, Collections.emptyMap());
@@ -117,12 +115,8 @@ public class AggregatorBaseTests extends ESSingleNodeTestCase {
     }
 
     public void testShortcutIsApplicable() throws IOException {
-        IndexService indexService = createIndex("index", Settings.EMPTY, "type", "bytes", "type=keyword");
-        client().prepareIndex("index").setId("1").setSource("bytes", "abc").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-
-        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
-
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", "abc"))), context -> {
             for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
                 assertNotNull(
                     pointReaderShim(mockSearchContext(new MatchAllDocsQuery()), null, getVSConfig("number", type, true, context))
@@ -178,6 +172,6 @@ public class AggregatorBaseTests extends ESSingleNodeTestCase {
                 ).apply(scratch),
                 equalTo(expected.toEpochMilli())
             );
-        }
+        });
     }
 }

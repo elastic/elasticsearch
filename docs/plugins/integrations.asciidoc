@@ -39,7 +39,7 @@ NOTE: Rivers were used to import data from external systems into Elasticsearch p
 releases 2.0 and later do not support rivers.
 
 [discrete]
-==== Supported by Elasticsearch:
+==== Supported by Elastic:
 
 * {logstash-ref}/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
   The Logstash `elasticsearch` output plugin.
@@ -83,16 +83,12 @@ releases 2.0 and later do not support rivers.
 === Deployment
 
 [discrete]
-==== Supported by Elasticsearch:
-
-* https://github.com/elastic/ansible-elasticsearch[Ansible playbook for Elasticsearch]:
-  An officially supported ansible playbook for Elasticsearch. Tested with the latest version of 5.x and 6.x on Ubuntu 14.04/16.04, Debian 8, Centos 7.
+==== Supported by the community:
+* https://github.com/elastic/ansible-elasticsearch[Ansible]:
+  Ansible playbook for Elasticsearch.
 
 * https://github.com/elastic/puppet-elasticsearch[Puppet]:
   Elasticsearch puppet module.
-
-[discrete]
-==== Supported by the community:
 
 * https://github.com/elastic/cookbook-elasticsearch[Chef]:
   Chef cookbook for Elasticsearch
@@ -158,7 +154,7 @@ releases 2.0 and later do not support rivers.
 === Hadoop integrations
 
 [discrete]
-==== Supported by Elasticsearch:
+==== Supported by Elastic:
 
 * link:/guide/en/elasticsearch/hadoop/current/[es-hadoop]: Elasticsearch real-time
   search and analytics natively integrated with Hadoop. Supports Map/Reduce,

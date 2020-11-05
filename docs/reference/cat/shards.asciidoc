@@ -273,7 +273,10 @@ Reason the shard is unassigned. Returned values are:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+`local`::
+(Optional, boolean)
++
+deprecated::[7.10.0,"This parameter does not affect the request. It will be removed in a future release."]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
@@ -378,7 +381,7 @@ my-index-000001 0 r INITIALIZING    0 14.3mb 192.168.56.30 bGG90GE
 ===== Example with reasons for unassigned shards
 
 The following request returns the `unassigned.reason` column, which indicates
-why a shard is unassigned. 
+why a shard is unassigned.
 
 
 [source,console]

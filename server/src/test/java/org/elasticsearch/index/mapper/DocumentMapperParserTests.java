@@ -28,7 +28,7 @@ public class DocumentMapperParserTests extends MapperServiceTestCase {
         }));
         assertNotNull(docMapper.mappers().getMapper("foo.bar"));
         assertNotNull(docMapper.mappers().getMapper("foo.baz"));
-        assertNotNull(docMapper.objectMappers().get("foo"));
+        assertNotNull(docMapper.mappers().objectMappers().get("foo"));
     }
 
     public void testFieldNameWithDeepDots() throws Exception {
@@ -46,7 +46,7 @@ public class DocumentMapperParserTests extends MapperServiceTestCase {
         }));
         assertNotNull(docMapper.mappers().getMapper("foo.bar"));
         assertNotNull(docMapper.mappers().getMapper("foo.baz.deep.field"));
-        assertNotNull(docMapper.objectMappers().get("foo"));
+        assertNotNull(docMapper.mappers().objectMappers().get("foo"));
     }
 
     public void testFieldNameWithDotsConflict() {

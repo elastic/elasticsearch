@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
@@ -447,7 +446,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .setPartial(false)
             .execute();
         logger.info("--> wait for block to kick in");
-        waitForBlockOnAnyDataNode(repositoryName, TimeValue.timeValueMinutes(1));
+        waitForBlockOnAnyDataNode(repositoryName);
 
         // non-partial snapshots do not allow delete operations on data streams where snapshot has not been completed
         try {

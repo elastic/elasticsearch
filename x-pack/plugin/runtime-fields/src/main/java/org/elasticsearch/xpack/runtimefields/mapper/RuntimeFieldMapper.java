@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -26,7 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
+public final class RuntimeFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "runtime";
 
@@ -57,7 +58,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new RuntimeFieldMapper.Builder(simpleName(), scriptCompiler).init(this);
     }
 
@@ -71,9 +72,9 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
         return CONTENT_TYPE;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
-        static final Map<String, BiFunction<Builder, BuilderContext, AbstractScriptFieldType<?>>> FIELD_TYPE_RESOLVER = Map.of(
+        static final Map<String, BiFunction<Builder, ContentPath, AbstractScriptFieldType<?>>> FIELD_TYPE_RESOLVER = Map.of(
             BooleanFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
@@ -127,6 +128,20 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
                 builder.formatAndLocaleNotSupported();
                 StringFieldScript.Factory factory = builder.scriptCompiler.compile(builder.script.getValue(), StringFieldScript.CONTEXT);
                 return new KeywordScriptFieldType(
+                    builder.buildFullName(context),
+                    builder.script.getValue(),
+                    factory,
+                    builder.meta.getValue()
+                );
+            },
+            GeoPointFieldMapper.CONTENT_TYPE,
+            (builder, context) -> {
+                builder.formatAndLocaleNotSupported();
+                GeoPointFieldScript.Factory factory = builder.scriptCompiler.compile(
+                    builder.script.getValue(),
+                    GeoPointFieldScript.CONTEXT
+                );
+                return new GeoPointScriptFieldType(
                     builder.buildFullName(context),
                     builder.script.getValue(),
                     factory,
@@ -202,8 +217,8 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public RuntimeFieldMapper build(BuilderContext context) {
-            BiFunction<Builder, BuilderContext, AbstractScriptFieldType<?>> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
+        public RuntimeFieldMapper build(ContentPath contentPath) {
+            BiFunction<Builder, ContentPath, AbstractScriptFieldType<?>> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
                 runtimeType.getValue()
             );
             if (fieldTypeResolver == null) {
@@ -211,7 +226,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
                     "runtime_type [" + runtimeType.getValue() + "] not supported for " + CONTENT_TYPE + " field [" + name + "]"
                 );
             }
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
             if (multiFields.iterator().hasNext()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [fields]");
             }
@@ -221,7 +236,7 @@ public final class RuntimeFieldMapper extends ParametrizedFieldMapper {
             }
             return new RuntimeFieldMapper(
                 name,
-                fieldTypeResolver.apply(this, context),
+                fieldTypeResolver.apply(this, contentPath),
                 MultiFields.empty(),
                 CopyTo.empty(),
                 runtimeType.getValue(),

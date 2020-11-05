@@ -34,7 +34,7 @@ import java.util.Objects;
 public class EqlSearchRequest implements Validatable, ToXContentObject {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, false, true, false);
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, true, false);
 
     private QueryBuilder filter = null;
     private String timestampField = "@timestamp";

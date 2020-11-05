@@ -13,8 +13,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
@@ -47,8 +47,7 @@ public abstract class CartesianFieldMapperTests  extends ESSingleNodeTestCase {
 
     public void testWKT() throws IOException {
         String mapping = Strings.toString(createDefaultMapping(FIELD_NAME, randomBoolean(), randomBoolean()));
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -63,9 +62,9 @@ public abstract class CartesianFieldMapperTests  extends ESSingleNodeTestCase {
     public void testEmptyName() throws IOException {
         String mapping = Strings.toString(createDefaultMapping("", randomBoolean(), randomBoolean()));
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test").mapperService();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parser.parse("type", new CompressedXContent(mapping))
+            () -> mapperService.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
@@ -73,8 +72,7 @@ public abstract class CartesianFieldMapperTests  extends ESSingleNodeTestCase {
     public void testInvalidPointValuesIgnored() throws IOException {
         String mapping = Strings.toString(createDefaultMapping(FIELD_NAME, true, randomBoolean()));
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
 
         assertThat(defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -144,8 +142,7 @@ public abstract class CartesianFieldMapperTests  extends ESSingleNodeTestCase {
 
     public void testZValue() throws IOException {
         String mapping = Strings.toString(createDefaultMapping(FIELD_NAME, false, true));
-        DocumentMapper defaultMapper = createIndex("test1").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test1").mapperService().parse("type", new CompressedXContent(mapping));
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test1", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -157,8 +154,7 @@ public abstract class CartesianFieldMapperTests  extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
 
         mapping = Strings.toString(createDefaultMapping(FIELD_NAME, false, false));
-        DocumentMapper defaultMapper2 = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper2 = createIndex("test2").mapperService().parse("type", new CompressedXContent(mapping));
 
         MapperParsingException e = expectThrows(MapperParsingException.class,
             () -> defaultMapper2.parse(new SourceToParse("test2", "1",

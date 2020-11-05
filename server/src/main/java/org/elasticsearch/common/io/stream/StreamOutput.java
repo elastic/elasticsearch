@@ -59,6 +59,7 @@ import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.time.Instant;
+import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
@@ -828,6 +829,15 @@ public abstract class StreamOutput extends OutputStream {
                         o.writeByte((byte) 26);
                         o.writeString(v.toString());
                     }
+            ),
+            entry(
+                OffsetTime.class,
+                (o, v) -> {
+                    o.writeByte((byte) 27);
+                    final OffsetTime offsetTime = (OffsetTime) v;
+                    o.writeString(offsetTime.getOffset().getId());
+                    o.writeLong(offsetTime.toLocalTime().toNanoOfDay());
+                }
             ));
 
     private static Class<?> getGenericType(Object value) {

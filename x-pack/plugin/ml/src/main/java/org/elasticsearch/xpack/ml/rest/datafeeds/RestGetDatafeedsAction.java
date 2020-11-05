@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_EXPORT;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 public class RestGetDatafeedsAction extends BaseRestHandler {
 
@@ -57,6 +57,6 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Collections.singleton(FOR_EXPORT);
+        return Collections.singleton(EXCLUDE_GENERATED);
     }
 }

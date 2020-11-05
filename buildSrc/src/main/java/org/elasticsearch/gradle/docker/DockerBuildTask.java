@@ -20,8 +20,11 @@ package org.elasticsearch.gradle.docker;
 
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
@@ -40,6 +43,8 @@ import java.io.IOException;
 import java.util.Arrays;
 
 public class DockerBuildTask extends DefaultTask {
+    private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
+
     private final WorkerExecutor workerExecutor;
     private final RegularFileProperty markerFile = getProject().getObjects().fileProperty();
     private final DirectoryProperty dockerContext = getProject().getObjects().directoryProperty();
@@ -47,6 +52,7 @@ public class DockerBuildTask extends DefaultTask {
     private String[] tags;
     private boolean pull = true;
     private boolean noCache = true;
+    private String[] baseImages;
 
     @Inject
     public DockerBuildTask(WorkerExecutor workerExecutor) {
@@ -62,6 +68,7 @@ public class DockerBuildTask extends DefaultTask {
             params.getTags().set(Arrays.asList(tags));
             params.getPull().set(pull);
             params.getNoCache().set(noCache);
+            params.getBaseImages().set(baseImages);
         });
     }
 
@@ -98,6 +105,15 @@ public class DockerBuildTask extends DefaultTask {
         this.noCache = noCache;
     }
 
+    @Input
+    public String[] getBaseImages() {
+        return baseImages;
+    }
+
+    public void setBaseImages(String[] baseImages) {
+        this.baseImages = baseImages;
+    }
+
     @OutputFile
     public RegularFileProperty getMarkerFile() {
         return markerFile;
@@ -111,26 +127,56 @@ public class DockerBuildTask extends DefaultTask {
             this.execOperations = execOperations;
         }
 
+        /**
+         * Wraps `docker pull` in a retry loop, to try and provide some resilience against
+         * transient errors
+         * @param baseImage the image to pull.
+         */
+        private void pullBaseImage(String baseImage) {
+            final int maxAttempts = 10;
+
+            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                    LoggedExec.exec(execOperations, spec -> {
+                        spec.executable("docker");
+                        spec.args("pull");
+                        spec.args(baseImage);
+                    });
+
+                    return;
+                } catch (Exception e) {
+                    LOGGER.warn("Attempt {}/{} to pull Docker base image {} failed", attempt, maxAttempts, baseImage);
+                }
+            }
+
+            // If we successfully ran `docker pull` above, we would have returned before this point.
+            throw new GradleException("Failed to pull Docker base image [" + baseImage + "], all attempts failed");
+        }
+
         @Override
         public void execute() {
+            final Parameters parameters = getParameters();
+
+            if (parameters.getPull().get()) {
+                for (String baseImage : parameters.getBaseImages().get()) {
+                    pullBaseImage(baseImage);
+                }
+            }
+
             LoggedExec.exec(execOperations, spec -> {
                 spec.executable("docker");
 
-                spec.args("build", getParameters().getDockerContext().get().getAsFile().getAbsolutePath());
+                spec.args("build", parameters.getDockerContext().get().getAsFile().getAbsolutePath());
 
-                if (getParameters().getPull().get()) {
-                    spec.args("--pull");
-                }
-
-                if (getParameters().getNoCache().get()) {
+                if (parameters.getNoCache().get()) {
                     spec.args("--no-cache");
                 }
 
-                getParameters().getTags().get().forEach(tag -> spec.args("--tag", tag));
+                parameters.getTags().get().forEach(tag -> spec.args("--tag", tag));
             });
 
             try {
-                getParameters().getMarkerFile().getAsFile().get().createNewFile();
+                parameters.getMarkerFile().getAsFile().get().createNewFile();
             } catch (IOException e) {
                 throw new RuntimeException("Failed to create marker file", e);
             }
@@ -147,5 +193,7 @@ public class DockerBuildTask extends DefaultTask {
         Property<Boolean> getPull();
 
         Property<Boolean> getNoCache();
+
+        Property<String[]> getBaseImages();
     }
 }

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.session;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -20,7 +21,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final String[] indices;
     private final TimeValue requestTimeout;
     private final String clientId;
-    private final boolean includeFrozenIndices;
+    private final IndicesOptions indicesOptions;
     private final TaskId taskId;
     private final EqlSearchTask task;
     private final int fetchSize;
@@ -29,7 +30,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final QueryBuilder filter;
 
     public EqlConfiguration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter, TimeValue requestTimeout,
-                            boolean includeFrozen, int fetchSize, String clientId, TaskId taskId,
+                            IndicesOptions indicesOptions, int fetchSize, String clientId, TaskId taskId,
                             EqlSearchTask task) {
         super(zi, username, clusterName);
 
@@ -37,7 +38,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.filter = filter;
         this.requestTimeout = requestTimeout;
         this.clientId = clientId;
-        this.includeFrozenIndices = includeFrozen;
+        this.indicesOptions = indicesOptions;
         this.taskId = taskId;
         this.task = task;
         this.fetchSize = fetchSize;
@@ -67,8 +68,8 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         return clientId;
     }
 
-    public boolean includeFrozen() {
-        return includeFrozenIndices;
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
     public boolean isCancelled() {

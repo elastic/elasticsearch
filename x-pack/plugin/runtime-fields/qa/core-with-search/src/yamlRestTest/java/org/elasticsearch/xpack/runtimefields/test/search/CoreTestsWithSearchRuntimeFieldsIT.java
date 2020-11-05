@@ -45,10 +45,16 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
         return new SearchRequestRuntimeFieldTranslater().parameters();
     }
 
+    /**
+     * Translating the tests is fairly difficult here because instead of ES
+     * tracking the mappings we have to track them. We don't have to do it as
+     * well as ES, just well enough that we can decorate the search requests
+     * with types that make most tests "just work".
+     */
     private static class SearchRequestRuntimeFieldTranslater extends CoreTestTranslater {
         @Override
-        protected Map<String, Object> indexTemplate() {
-            return indexTemplateToDisableRuntimeCompatibleFields();
+        protected Map<String, Object> dynamicTemplateFor(String type) {
+            return dynamicTemplateToDisableRuntimeCompatibleFields(type);
         }
 
         @Override
@@ -85,7 +91,6 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                     if (properties == null || false == (properties instanceof Map)) {
                         return true;
                     }
-                    mapping.put("dynamic", false);
                     @SuppressWarnings("unchecked")
                     Map<String, Object> propertiesMap = (Map<String, Object>) properties;
                     Map<String, Object> untouchedMapping = new HashMap<>();
@@ -105,7 +110,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         search.addBody(new HashMap<>());
                     }
                     for (Map<String, Object> body : search.getBodies()) {
-                        Map<?, ?> runtimeMapping = runtimeMappings(body.get("index"));
+                        Map<?, ?> runtimeMapping = runtimeMappings(search.getParams().get("index"));
                         if (runtimeMapping == null) {
                             return false;
                         }

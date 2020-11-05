@@ -110,59 +110,18 @@ public abstract class CoreTestTranslater {
         )
     );
 
-    protected abstract Map<String, Object> indexTemplate();
+    protected abstract Map<String, Object> dynamicTemplateFor(String type);
 
-    protected static Map<String, Object> indexTemplateToDisableRuntimeCompatibleFields() {
-        List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
-        for (String type : PAINLESS_TO_EMIT.keySet()) {
-            if (type.equals("ip")) {
-                // There isn't a dynamic template to pick up ips. They'll just look like strings.
-                continue;
-            }
-            Map<String, Object> mapping = Map.of("type", type, "index", false, "doc_values", false);
-            if (type.equals("keyword")) {
-                /*
-                 * For "string"-type dynamic mappings emulate our default
-                 * behavior with a top level text field and a `.keyword`
-                 * multi-field. In our case we disable the keyword field
-                 * and substitute it with an enabled one on the search
-                 * request.
-                 */
-                mapping = Map.of("type", "text", "fields", Map.of("keyword", mapping));
-                dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", "string", "mapping", mapping)));
-            } else {
-                dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", type, "mapping", mapping)));
-            }
-        }
-        return Map.of("settings", Map.of(), "mappings", Map.of("dynamic_templates", dynamicTemplates));
+    protected static Map<String, Object> dynamicTemplateToDisableRuntimeCompatibleFields(String type) {
+        return Map.of("type", type, "index", false, "doc_values", false);
     }
 
-    protected static Map<String, Object> indexTemplateToAddRuntimeFields() {
-        List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
-        for (String type : PAINLESS_TO_EMIT.keySet()) {
-            if (type.equals("ip")) {
-                // There isn't a dynamic template to pick up ips. They'll just look like strings.
-                continue;
-            }
-            Map<String, Object> mapping = Map.ofEntries(
-                Map.entry("type", "runtime"),
-                Map.entry("runtime_type", type),
-                Map.entry("script", painlessToLoadFromSource("{name}", type))
-            );
-            if (type.equals("keyword")) {
-                /*
-                 * For "string"-type dynamic mappings emulate our default
-                 * behavior with a top level text field and a `.keyword`
-                 * multi-field. But instead of the default, use a runtime
-                 * field for the multi-field.
-                 */
-                mapping = Map.of("type", "text", "fields", Map.of("keyword", mapping));
-                dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", "string", "mapping", mapping)));
-            } else {
-                dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", type, "mapping", mapping)));
-            }
-        }
-        return Map.of("settings", Map.of(), "mappings", Map.of("dynamic_templates", dynamicTemplates));
+    protected static Map<String, Object> dynamicTemplateToAddRuntimeFields(String type) {
+        return Map.ofEntries(
+            Map.entry("type", "runtime"),
+            Map.entry("runtime_type", type),
+            Map.entry("script", painlessToLoadFromSource("{name}", type))
+        );
     }
 
     protected static Map<String, Object> runtimeFieldLoadingFromSource(String name, String type) {
@@ -182,11 +141,33 @@ public abstract class CoreTestTranslater {
             @Override
             public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
                 Map<String, String> params = Map.of("name", "hack_dynamic_mappings", "create", "true");
+                List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
+                for (String type : PAINLESS_TO_EMIT.keySet()) {
+                    if (type.equals("ip")) {
+                        // There isn't a dynamic template to pick up ips. They'll just look like strings.
+                        continue;
+                    }
+                    Map<String, Object> mapping = dynamicTemplateFor(type);
+                    if (type.equals("keyword")) {
+                        /*
+                         * For "string"-type dynamic mappings emulate our default
+                         * behavior with a top level text field and a `.keyword`
+                         * multi-field. In our case we disable the keyword field
+                         * and substitute it with an enabled one on the search
+                         * request.
+                         */
+                        mapping = Map.of("type", "text", "fields", Map.of("keyword", mapping));
+                        dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", "string", "mapping", mapping)));
+                    } else {
+                        dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", type, "mapping", mapping)));
+                    }
+                }
+                Map<String, Object> indexTemplate = Map.of("settings", Map.of(), "mappings", Map.of("dynamic_templates", dynamicTemplates));
                 List<Map<String, Object>> bodies = List.of(
                     Map.ofEntries(
                         Map.entry("index_patterns", "*"),
                         Map.entry("priority", Integer.MAX_VALUE - 1),
-                        Map.entry("template", indexTemplate())
+                        Map.entry("template", indexTemplate)
                     )
                 );
                 ClientYamlTestResponse response = executionContext.callApi("indices.put_index_template", params, bodies, Map.of());

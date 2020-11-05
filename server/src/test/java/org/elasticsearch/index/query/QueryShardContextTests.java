@@ -324,12 +324,14 @@ public class QueryShardContextTests extends ESTestCase {
                 });
             }
         }));
+        when(mapperService.fieldType("pig")).thenReturn(new DummyMappedFieldType("pig"));
+        when(mapperService.simpleMatchToFullName("*")).thenReturn(Set.of("pig"));
         /*
          * Making these immutable here test that we don't modify them.
          * Modifying them would cause all kinds of problems if two
          * shards are parsed on the same node.
          */
-        Map<String, Object> runtimeFields = Map.ofEntries(
+        Map<String, Object> runtimeMappings = Map.ofEntries(
             Map.entry("cat", Map.of("type", "keyword")),
             Map.entry("dog", Map.of("type", "keyword"))
         );
@@ -351,7 +353,7 @@ public class QueryShardContextTests extends ESTestCase {
             null,
             () -> true,
             null,
-            runtimeFields
+            runtimeMappings
         );
         assertTrue(qsc.isFieldMapped("cat"));
         assertThat(qsc.getFieldType("cat"), instanceOf(DummyMappedFieldType.class));
@@ -359,7 +361,10 @@ public class QueryShardContextTests extends ESTestCase {
         assertTrue(qsc.isFieldMapped("dog"));
         assertThat(qsc.getFieldType("dog"), instanceOf(DummyMappedFieldType.class));
         assertThat(qsc.simpleMatchToIndexNames("dog"), equalTo(Set.of("dog")));
-        assertThat(qsc.simpleMatchToIndexNames("*"), equalTo(Set.of("cat", "dog")));
+        assertTrue(qsc.isFieldMapped("pig"));
+        assertThat(qsc.getFieldType("pig"), instanceOf(DummyMappedFieldType.class));
+        assertThat(qsc.simpleMatchToIndexNames("pig"), equalTo(Set.of("pig")));
+        assertThat(qsc.simpleMatchToIndexNames("*"), equalTo(Set.of("cat", "dog", "pig")));
     }
 
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -117,22 +118,26 @@ public final class QueryParserHelper {
     static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
                                                          boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
         Set<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
+        LogManager.getLogger().error("ADSFDSAF {} {}", fieldOrPattern, allFields);
         Map<String, Float> fields = new HashMap<>();
 
         for (String fieldName : allFields) {
             if (fieldSuffix != null && context.getFieldType(fieldName + fieldSuffix) != null) {
                 fieldName = fieldName + fieldSuffix;
             }
+            LogManager.getLogger().error("ADSFDSAF1 {}", fieldName);
 
             if (context.isFieldMapped(fieldName) == false) {
                 continue;
             }
+            LogManager.getLogger().error("ADSFDSAF2 {}", fieldName);
 
             MappedFieldType fieldType = context.getFieldType(fieldName);
             if (acceptMetadataField == false && fieldType.name().startsWith("_")) {
                 // Ignore metadata fields
                 continue;
             }
+            LogManager.getLogger().error("ADSFDSAF3 {}", fieldName);
 
             if (acceptAllTypes == false) {
                 if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {

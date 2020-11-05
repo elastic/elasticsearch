@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class PercentilesAggregationBuilder extends AbstractPercentilesAggregationBuilder<PercentilesAggregationBuilder> {
     public static final String NAME = Percentiles.TYPE_NAME;
@@ -146,5 +147,10 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return Arrays.stream(values).mapToObj(Double::toString).collect(Collectors.toSet());
     }
 }

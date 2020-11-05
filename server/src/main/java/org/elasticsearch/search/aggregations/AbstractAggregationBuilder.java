@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Base implementation of a {@link AggregationBuilder}.
@@ -34,8 +35,18 @@ import java.util.Objects;
 public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationBuilder<AB>>
     extends AggregationBuilder {
 
-    protected Map<String, Object> metadata;
+    // common sets for output generated
+    protected static class OutputFieldNames {
+        // special type when the output is unknown, e.g. because its the result of a script
+        public static final Set<String> UNKNOWN = Collections.emptySet();
+        public static final Set<String> DOC_COUNT_ONLY = Collections.singleton("doc_count");
+        public static final Set<String> SINGLE_VALUE = Collections.singleton("value");
+        public static final Set<String> KEY_AND_DOC_COUNT = Set.of("key", "doc_count");
+        public static final Set<String> RANGE = Set.of("key", "doc_count", "from", "to");
+        public static final Set<String> SIGNIFICANT = Set.of("key", "doc_count", "score", "bg_count");
+    }
 
+    protected Map<String, Object> metadata;
     /**
      * Constructs a new aggregation builder.
      *

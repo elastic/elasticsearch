@@ -416,4 +416,9 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         return keyed == that.keyed
             && ranges.equals(that.ranges);
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.RANGE;
+    }
 }

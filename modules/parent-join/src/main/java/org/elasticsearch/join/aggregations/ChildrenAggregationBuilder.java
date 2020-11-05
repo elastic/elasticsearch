@@ -100,6 +100,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
         return BucketCardinality.ONE;
     }
 
+    @Override
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
@@ -182,5 +183,10 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return ValuesSourceRegistry.UNREGISTERED_KEY;
+    }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.UNKNOWN;
     }
 }

@@ -43,6 +43,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
@@ -353,5 +354,14 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        List<String> keys = filters.stream().map(kf -> kf.key()).collect(Collectors.toList());
+        if (otherBucket) {
+            keys.add(otherBucketKey);
+        }
+        return keys;
     }
 }

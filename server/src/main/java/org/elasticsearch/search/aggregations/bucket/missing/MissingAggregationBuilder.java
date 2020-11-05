@@ -97,6 +97,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
         return BucketCardinality.ONE;
     }
 
+    @Override
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
@@ -117,5 +118,10 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.DOC_COUNT_ONLY;
     }
 }

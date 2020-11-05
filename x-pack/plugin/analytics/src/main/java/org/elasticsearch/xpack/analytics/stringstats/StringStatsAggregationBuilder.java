@@ -137,4 +137,9 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         StringStatsAggregationBuilder other = (StringStatsAggregationBuilder) obj;
         return showDistribution == other.showDistribution;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.UNKNOWN;
+    }
 }

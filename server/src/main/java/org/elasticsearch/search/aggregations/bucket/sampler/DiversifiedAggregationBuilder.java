@@ -202,4 +202,9 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.DOC_COUNT_ONLY;
+    }
 }

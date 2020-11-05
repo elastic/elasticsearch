@@ -63,6 +63,11 @@ public class ParsedPercentilesBucket extends ParsedPercentiles implements Percen
     }
 
     @Override
+    public String getValueAsString(String name) {
+        return percentileAsString(Double.parseDouble(name));
+    }
+
+    @Override
     public Iterable<String> valueNames() {
         return percentiles.keySet().stream().map(d -> d.toString()).collect(Collectors.toList());
     }

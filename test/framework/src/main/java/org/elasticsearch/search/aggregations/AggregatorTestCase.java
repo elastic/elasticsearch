@@ -934,6 +934,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
             throw new UnsupportedOperationException();
 
         }
+
+        @Override
+        public Iterable<String> getOutputFieldNames() {
+            return OutputFieldNames.UNKNOWN;
+        }
     }
 
     public static class InternalAggCardinality extends InternalAggregation {

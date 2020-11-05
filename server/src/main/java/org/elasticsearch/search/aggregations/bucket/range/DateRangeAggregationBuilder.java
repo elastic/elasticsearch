@@ -333,4 +333,9 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
                 metadata);
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.RANGE;
+    }
 }

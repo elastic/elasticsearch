@@ -418,6 +418,11 @@ public class SearchModuleTests extends ESTestCase {
         private static TestAggregationBuilder fromXContent(String name, XContentParser p) {
             return null;
         }
+
+        @Override
+        public Iterable<String> getOutputFieldNames() {
+            return OutputFieldNames.UNKNOWN;
+        }
     }
 
     /**

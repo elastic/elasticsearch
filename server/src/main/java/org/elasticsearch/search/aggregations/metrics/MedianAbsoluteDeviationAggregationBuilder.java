@@ -151,4 +151,9 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.SINGLE_VALUE;
+    }
 }

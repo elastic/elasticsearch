@@ -246,6 +246,11 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         return Objects.equals(numBuckets, other.numBuckets) && Objects.equals(minimumIntervalExpression, other.minimumIntervalExpression);
     }
 
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.KEY_AND_DOC_COUNT;
+    }
+
     public static class RoundingInfo implements Writeable {
         final Rounding rounding;
         final int[] innerIntervals;

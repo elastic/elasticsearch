@@ -179,4 +179,9 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.RANGE;
+    }
 }

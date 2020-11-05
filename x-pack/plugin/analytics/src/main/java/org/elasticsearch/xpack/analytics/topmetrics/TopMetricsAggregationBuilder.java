@@ -24,6 +24,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -160,5 +161,10 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
 
     List<MultiValuesSourceFieldConfig> getMetricFields() {
         return metricFields;
+    }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return metricFields.stream().map(mf -> mf.getFieldName()).collect(Collectors.toList());
     }
 }

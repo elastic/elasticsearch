@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 public class GeoCentroidAggregationBuilder
         extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregationBuilder> {
@@ -44,6 +45,8 @@ public class GeoCentroidAggregationBuilder
         NAME,
         MetricAggregatorSupplier.class
     );
+
+    private static final Set<String> OUTPUT_FIELDS = Set.of("location", "count");
 
     public static final ObjectParser<GeoCentroidAggregationBuilder, String> PARSER =
         ObjectParser.fromBuilder(NAME, GeoCentroidAggregationBuilder::new);
@@ -107,5 +110,10 @@ public class GeoCentroidAggregationBuilder
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OUTPUT_FIELDS;
     }
 }

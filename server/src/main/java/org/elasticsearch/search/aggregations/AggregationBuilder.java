@@ -65,6 +65,9 @@ public abstract class AggregationBuilder
         return name;
     }
 
+    /** Return the field names this aggregation creates*/
+    public abstract Iterable<String> getOutputFieldNames();
+
     /** Internal: build an {@link AggregatorFactory} based on the configuration of this builder. */
     protected abstract AggregatorFactory build(AggregationContext context, AggregatorFactory parent) throws IOException;
 
@@ -147,7 +150,7 @@ public abstract class AggregationBuilder
      * and pipeline aggregations. Just "zero", "one", and "many".
      * <p>
      * Unlike {@link CardinalityUpperBound} which is <strong>total</strong>
-     * instead of <strong>per parent bucket</strong>. 
+     * instead of <strong>per parent bucket</strong>.
      */
     public enum BucketCardinality {
         NONE, ONE, MANY;

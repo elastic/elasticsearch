@@ -86,10 +86,16 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
             super(in);
         }
 
+        @Override
         public abstract double value(String name);
 
         public String valueAsString(String name) {
             return format.format(value(name)).toString();
+        }
+
+        @Override
+        public String getValueAsString(String name) {
+            return valueAsString(name);
         }
 
         @Override

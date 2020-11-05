@@ -532,6 +532,11 @@ public class TransportSearchIT extends ESIntegTestCase {
         public String getType() {
             return "test";
         }
+
+        @Override
+        public Iterable<String> getOutputFieldNames() {
+            return OutputFieldNames.UNKNOWN;
+        }
     }
 
     /**

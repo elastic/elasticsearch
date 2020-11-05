@@ -139,5 +139,10 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return InternalBoxplot.metricNames;
+    }
 }
 

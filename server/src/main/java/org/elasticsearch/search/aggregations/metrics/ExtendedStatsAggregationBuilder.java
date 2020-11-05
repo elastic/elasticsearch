@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -50,6 +51,8 @@ public class ExtendedStatsAggregationBuilder
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(ExtendedStatsAggregationBuilder::sigma, ExtendedStatsAggregator.SIGMA_FIELD);
     }
+
+    private static final List<String> OUTPUT_FIELDS = InternalExtendedStats.metricNames;
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         ExtendedStatsAggregatorFactory.registerAggregators(builder);
@@ -136,5 +139,10 @@ public class ExtendedStatsAggregationBuilder
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OUTPUT_FIELDS;
     }
 }

@@ -138,4 +138,9 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     public QueryBuilder getFilter() {
         return filter;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.DOC_COUNT_ONLY;
+    }
 }

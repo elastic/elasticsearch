@@ -474,4 +474,8 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
                 && Objects.equals(unit, other.unit);
     }
 
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.RANGE;
+    }
 }

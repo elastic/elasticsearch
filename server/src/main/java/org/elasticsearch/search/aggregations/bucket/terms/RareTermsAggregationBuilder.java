@@ -217,4 +217,9 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.KEY_AND_DOC_COUNT;
+    }
 }

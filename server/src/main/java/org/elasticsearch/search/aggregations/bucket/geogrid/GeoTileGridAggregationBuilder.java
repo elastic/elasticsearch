@@ -95,4 +95,9 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.KEY_AND_DOC_COUNT;
+    }
 }

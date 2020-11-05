@@ -70,6 +70,11 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
     }
 
     @Override
+    public String getValueAsString(String name) {
+        return percentileAsString(Double.parseDouble(name));
+    }
+
+    @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
             Map<String, Object> metadata) {
         return new InternalHDRPercentiles(name, keys, merged, keyed, format, metadata);

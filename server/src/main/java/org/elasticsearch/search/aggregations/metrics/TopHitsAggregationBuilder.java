@@ -846,4 +846,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     public String getType() {
         return NAME;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.UNKNOWN;
+    }
 }

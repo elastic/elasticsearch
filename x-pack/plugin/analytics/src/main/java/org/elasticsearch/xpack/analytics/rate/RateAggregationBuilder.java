@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.analytics.rate;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
@@ -28,6 +24,10 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.Objects;
 
 public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, RateAggregationBuilder> {
     public static final String NAME = "rate";
@@ -194,5 +194,10 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), rateUnit, rateMode);
+    }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.SINGLE_VALUE;
     }
 }

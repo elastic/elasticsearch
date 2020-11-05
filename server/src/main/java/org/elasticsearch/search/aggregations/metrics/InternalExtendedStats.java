@@ -28,6 +28,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InternalExtendedStats extends InternalStats implements ExtendedStats {
     enum Metrics {
@@ -40,6 +42,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             return Metrics.valueOf(name);
         }
     }
+
+    public static List<String> metricNames = Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toList());
 
     private final double sumOfSqrs;
     private final double sigma;
@@ -113,6 +117,11 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             return getStdDeviationBound(Bounds.LOWER_SAMPLING);
         }
         return super.value(name);
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return metricNames;
     }
 
     public double getSigma() {

@@ -94,4 +94,9 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
         deprecationLogger.deprecate("deprecated_mock", DEPRECATION_MESSAGE);
         return new MockDeprecatedAggregationBuilder();
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.UNKNOWN;
+    }
 }

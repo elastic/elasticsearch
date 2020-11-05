@@ -140,4 +140,9 @@ public class DelayedShardAggregationBuilder extends AbstractAggregationBuilder<D
     public int hashCode() {
         return Objects.hash(super.hashCode(), delay);
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.UNKNOWN;
+    }
 }

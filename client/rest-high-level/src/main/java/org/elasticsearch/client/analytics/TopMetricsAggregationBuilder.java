@@ -109,4 +109,9 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return metrics;
+    }
 }

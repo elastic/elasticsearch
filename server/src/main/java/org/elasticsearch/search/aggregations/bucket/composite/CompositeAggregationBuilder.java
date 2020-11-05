@@ -279,4 +279,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
             Objects.equals(sources, other.sources) &&
             Objects.equals(after, other.after);
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.KEY_AND_DOC_COUNT;
+    }
 }

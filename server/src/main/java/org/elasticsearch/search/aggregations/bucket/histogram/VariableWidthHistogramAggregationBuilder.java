@@ -219,4 +219,9 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.KEY_AND_DOC_COUNT;
+    }
 }

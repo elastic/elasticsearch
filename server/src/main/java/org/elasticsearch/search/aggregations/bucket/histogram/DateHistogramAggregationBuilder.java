@@ -173,6 +173,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     /** Get the current interval in milliseconds that is set on this builder. */
+    @Override
     @Deprecated
     public long interval() {
         return dateHistogramInterval.interval();
@@ -185,6 +186,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *  @deprecated use {@link #fixedInterval(DateHistogramInterval)} or {@link #calendarInterval(DateHistogramInterval)} instead
      *  @since 7.2.0
      */
+    @Override
     @Deprecated
     public DateHistogramAggregationBuilder interval(long interval) {
         dateHistogramInterval.interval(interval);
@@ -192,6 +194,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     /** Get the current date interval that is set on this builder. */
+    @Override
     @Deprecated
     public DateHistogramInterval dateHistogramInterval() {
        return dateHistogramInterval.dateHistogramInterval();
@@ -204,6 +207,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *  @deprecated use {@link #fixedInterval(DateHistogramInterval)} or {@link #calendarInterval(DateHistogramInterval)} instead
      *  @since 7.2.0
      */
+    @Override
     @Deprecated
     public DateHistogramAggregationBuilder dateHistogramInterval(DateHistogramInterval interval) {
         dateHistogramInterval.dateHistogramInterval(interval);
@@ -218,6 +222,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *
      * @param interval The calendar interval to use with the aggregation
      */
+    @Override
     public DateHistogramAggregationBuilder calendarInterval(DateHistogramInterval interval) {
         dateHistogramInterval.calendarInterval(interval);
         return this;
@@ -231,6 +236,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *
      * @param interval The fixed interval to use with the aggregation
      */
+    @Override
     public DateHistogramAggregationBuilder fixedInterval(DateHistogramInterval interval) {
         dateHistogramInterval.fixedInterval(interval);
         return this;
@@ -498,5 +504,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                 && Objects.equals(offset, other.offset)
                 && Objects.equals(extendedBounds, other.extendedBounds)
                 && Objects.equals(hardBounds, other.hardBounds);
+    }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.KEY_AND_DOC_COUNT;
     }
 }

@@ -148,4 +148,9 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     public String getType() {
         return NAME;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.DOC_COUNT_ONLY;
+    }
 }

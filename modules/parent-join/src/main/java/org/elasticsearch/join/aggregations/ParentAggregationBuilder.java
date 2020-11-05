@@ -182,4 +182,9 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return ValuesSourceRegistry.UNREGISTERED_KEY;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.UNKNOWN;
+    }
 }

@@ -128,4 +128,9 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     public String getType() {
         return NAME;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.SINGLE_VALUE;
+    }
 }

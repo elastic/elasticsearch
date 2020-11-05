@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<GeoBoundsAggregationBuilder> {
     public static final String NAME = "geo_bounds";
@@ -52,6 +53,8 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         GeoBoundsAggregatorFactory.registerAggregators(builder);
     }
+
+    private static final Set<String> OUTPUT_FIELDS = Set.of("top_left", "bottom_right");
 
     private boolean wrapLongitude = true;
 
@@ -144,5 +147,10 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OUTPUT_FIELDS;
     }
 }

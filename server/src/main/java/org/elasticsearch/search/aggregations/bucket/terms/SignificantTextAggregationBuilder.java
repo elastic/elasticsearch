@@ -387,4 +387,9 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     public String getType() {
         return NAME;
     }
+
+    @Override
+    public Iterable<String> getOutputFieldNames() {
+        return OutputFieldNames.SIGNIFICANT;
+    }
 }

@@ -392,6 +392,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
         when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
+        when(queryShardContext.getObjectMapper(anyString())).thenAnswer(
+            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString()));
         when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );

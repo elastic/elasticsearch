@@ -295,6 +295,10 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.sourcePath(fullName);
     }
 
+    public boolean isSourceEnabled() {
+        return mapperService.documentMapper().sourceMapper().enabled();
+    }
+
     /**
      * Returns s {@link DocumentMapper} instance for the given type.
      * Delegates to {@link MapperService#documentMapper(String)}

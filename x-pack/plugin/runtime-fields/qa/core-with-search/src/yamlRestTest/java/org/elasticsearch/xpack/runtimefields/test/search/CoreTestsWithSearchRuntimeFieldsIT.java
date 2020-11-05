@@ -189,7 +189,8 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         } catch (IllegalArgumentException iae) {
                             // Try the next one
                         }
-                        indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "keyword"));
+                        // Strings are funny, the regular dynamic mapping puts them in "name.keyword" so we follow along.
+                        indexRuntimeMappings.put(name + ".keyword", runtimeFieldLoadingFromSource(name, "keyword"));
                     }
                     return true;
                 }

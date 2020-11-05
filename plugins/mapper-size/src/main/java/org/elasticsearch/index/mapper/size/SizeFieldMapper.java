@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -52,7 +53,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public SizeFieldMapper build(BuilderContext context) {
+        public SizeFieldMapper build(ContentPath contentPath) {
             return new SizeFieldMapper(enabled.getValue(), new NumberFieldType(NAME, NumberType.INTEGER));
         }
     }

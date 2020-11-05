@@ -64,7 +64,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ExternalMetadataMapper build(BuilderContext context) {
+        public ExternalMetadataMapper build(ContentPath contentPath) {
             return new ExternalMetadataMapper();
         }
 

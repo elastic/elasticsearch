@@ -80,7 +80,7 @@ public class MockMetadataMapperPlugin extends Plugin implements MapperPlugin {
             }
 
             @Override
-            public MockMetadataMapper build(BuilderContext context) {
+            public MockMetadataMapper build(ContentPath contentPath) {
                 return new MockMetadataMapper();
             }
         }

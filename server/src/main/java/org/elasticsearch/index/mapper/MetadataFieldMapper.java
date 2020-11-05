@@ -129,7 +129,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
 
         @Override
-        public abstract MetadataFieldMapper build(BuilderContext context);
+        public abstract MetadataFieldMapper build(ContentPath contentPath);
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {

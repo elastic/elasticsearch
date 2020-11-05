@@ -54,7 +54,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public DocCountFieldMapper build(BuilderContext context) {
+        public DocCountFieldMapper build(ContentPath contentPath) {
             return new DocCountFieldMapper();
         }
     }

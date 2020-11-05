@@ -396,9 +396,9 @@ following precedence:
 . For basic queries, the <<sort-search-results,`_doc` order>>
 
 To specify a tiebreaker field, use the `tiebreaker_field` parameter. If you
-specify a tiebreaker field, all documents in the searched data streams or
-indices must contain the field. If you use the {ecs-ref}[ECS], we recommend
-using `event.sequence` as the tiebreaker field.
+specify a tiebreaker field for a sequence query, all documents in the searched
+data streams or indices must contain the field. If you use the {ecs-ref}[ECS],
+we recommend using `event.sequence` as the tiebreaker field.
 
 [source,console]
 ----

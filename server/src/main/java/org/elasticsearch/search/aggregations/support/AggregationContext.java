@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -207,6 +208,8 @@ public abstract class AggregationContext {
      */
     public abstract CircuitBreaker breaker();
 
+    public abstract Analyzer indexAnalyzer();
+
     /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link QueryShardContext} and the top level
@@ -348,6 +351,11 @@ public abstract class AggregationContext {
         @Override
         public CircuitBreaker breaker() {
             return context.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
+        }
+
+        @Override
+        public Analyzer indexAnalyzer() {
+            return context.getQueryShardContext().getIndexAnalyzer();
         }
     }
 }

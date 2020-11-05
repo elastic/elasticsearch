@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -416,6 +417,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             @Override
             public CircuitBreaker breaker() {
                 return breaker;
+            }
+
+            @Override
+            public Analyzer indexAnalyzer() {
+                throw new UnsupportedOperationException();
             }
         };
     }

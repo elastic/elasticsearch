@@ -114,7 +114,7 @@
 ---
 "Test fields option on flattened object field":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.9.99"
       reason: "Fields option on search request was added in 7.10"
 
   - do:

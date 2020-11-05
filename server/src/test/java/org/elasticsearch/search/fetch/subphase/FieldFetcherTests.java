@@ -524,12 +524,24 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "unmapped_object", true);
         assertThat(fields.size(), equalTo(0));
 
+        fields = fetchFields(mapperService, source, "unmap*object", true);
+        assertThat(fields.size(), equalTo(0));
+
         fields = fetchFields(mapperService, source, "unmapped_object.*", true);
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.keySet(), containsInAnyOrder("unmapped_object.a", "unmapped_object.b"));
 
         assertThat(fields.get("unmapped_object.a").getValue(), equalTo("foo"));
         assertThat(fields.get("unmapped_object.b").getValue(), equalTo("bar"));
+
+        fields = fetchFields(mapperService, source, "unmapped_object.a", true);
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get("unmapped_object.a").getValue(), equalTo("foo"));
+
+        fields = fetchFields(mapperService, source, "unmapped_object.b", true);
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get("unmapped_object.b").getValue(), equalTo("bar"));
+
     }
 
     private Map<String, DocumentField> fetchFields(

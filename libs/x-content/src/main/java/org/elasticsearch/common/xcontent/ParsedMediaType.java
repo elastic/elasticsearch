@@ -130,7 +130,7 @@ public class ParsedMediaType {
     }
 
     private boolean isValidParameter(String paramName, String value, Map<String, Pattern> registeredParams) {
-        if(registeredParams.containsKey(paramName)){
+        if (registeredParams.containsKey(paramName)) {
             Pattern regex = registeredParams.get(paramName);
             return regex.matcher(value).matches();
         }

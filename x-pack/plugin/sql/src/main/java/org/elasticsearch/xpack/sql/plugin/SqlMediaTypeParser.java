@@ -43,7 +43,7 @@ public class SqlMediaTypeParser {
                 MEDIA_TYPE_REGISTRY.queryParamToMediaType(request.param(URL_PARAM_FORMAT)));
         }
 
-        if(request.getParsedAccept() != null) {
+        if (request.getParsedAccept() != null) {
             return request.getParsedAccept().toMediaType(MEDIA_TYPE_REGISTRY);
         }
         return request.getXContentType();

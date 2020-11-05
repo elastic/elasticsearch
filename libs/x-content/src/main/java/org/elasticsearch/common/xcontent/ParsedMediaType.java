@@ -33,7 +33,9 @@ import java.util.regex.Pattern;
  * @see MediaTypeRegistry
  */
 public class ParsedMediaType {
-    //sun.net.www.protocol.http.HttpURLConnection sets a default Accept header if it was not provided on a request
+    // TODO this should be removed once strict parsing is implemented https://github.com/elastic/elasticsearch/issues/63080
+    // sun.net.www.protocol.http.HttpURLConnection sets a default Accept header if it was not provided on a request.
+    // For this value Parsing returns null.
     public static final String DEFAULT_ACCEPT_STRING = "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2";
 
     private final String type;
@@ -51,7 +53,7 @@ public class ParsedMediaType {
     /**
      * The parsed mime type without the associated parameters. Will always return lowercase.
      */
-    public String mimeTypeWithoutParams() {
+    public String mediaTypeWithoutParameters() {
         return type + "/" + subType;
     }
 
@@ -61,8 +63,10 @@ public class ParsedMediaType {
 
     /**
      * Parses a header value into it's parts.
+     * Note: parsing can return null, but it will throw exceptions once https://github.com/elastic/elasticsearch/issues/63080 is done
+     * Do not rely on nulls
      *
-     * @return a {@link ParsedMediaType} if the header could be parsed. TODO: don't return null
+     * @return a {@link ParsedMediaType} if the header could be parsed.
      * @throws IllegalArgumentException if the header is malformed
      */
     public static ParsedMediaType parseMediaType(String headerValue) {
@@ -86,6 +90,8 @@ public class ParsedMediaType {
                     if (paramsAsString.isEmpty()) {
                         continue;
                     }
+                    // intentionally allowing to have spaces around `=`
+                    // https://tools.ietf.org/html/rfc7231#section-3.1.1.1 disallows this
                     String[] keyValueParam = elements[i].trim().split("=");
                     if (keyValueParam.length == 2) {
                         String parameterName = keyValueParam[0].toLowerCase(Locale.ROOT).trim();
@@ -106,13 +112,13 @@ public class ParsedMediaType {
      * Resolves this instance to a MediaType instance defined in given MediaTypeRegistry.
      * Performs validation against parameters.
      * @param mediaTypeRegistry a registry where a mapping between a raw media type to an instance MediaType is defined
-     * @return a MediaType instance
+     * @return a MediaType instance or null if no media type could be found or if a known parameter do not passes validation
      */
     public  <T extends MediaType> T toMediaType(MediaTypeRegistry<T> mediaTypeRegistry) {
-        T type = mediaTypeRegistry.typeWithSubtypeToMediaType(mimeTypeWithoutParams());
+        T type = mediaTypeRegistry.typeWithSubtypeToMediaType(mediaTypeWithoutParameters());
         if (type != null) {
 
-            Map<String, Pattern> registeredParams = mediaTypeRegistry.parametersFor(mimeTypeWithoutParams());
+            Map<String, Pattern> registeredParams = mediaTypeRegistry.parametersFor(mediaTypeWithoutParameters());
             for (Map.Entry<String, String> givenParamEntry : parameters.entrySet()) {
                 if (isValidParameter(givenParamEntry.getKey(), givenParamEntry.getValue(), registeredParams) == false) {
                     return null;
@@ -124,11 +130,11 @@ public class ParsedMediaType {
     }
 
     private boolean isValidParameter(String paramName, String value, Map<String, Pattern> registeredParams) {
-        if(registeredParams.containsKey(paramName)){
+        if (registeredParams.containsKey(paramName)) {
             Pattern regex = registeredParams.get(paramName);
             return regex.matcher(value).matches();
         }
-        // undefined parameters are not allowed
-        return false;
+        //TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
+        return true;
     }
 }

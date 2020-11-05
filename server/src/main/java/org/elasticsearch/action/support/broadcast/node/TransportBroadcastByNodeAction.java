@@ -44,7 +44,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -335,11 +334,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                     @Override
                     public void handleException(TransportException exp) {
                         onNodeFailure(node, nodeIndex, exp);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
                     }
                 });
             } catch (Exception e) {

@@ -116,8 +116,6 @@ public class XContentTypeTests extends ESTestCase {
             equalTo(XContentType.JSON));
         assertThat(XContentType.fromMediaType("APPLICATION/JSON"),
             equalTo(XContentType.JSON));
-
-
     }
 
     public void testVersionParsing() {
@@ -147,12 +145,13 @@ public class XContentTypeTests extends ESTestCase {
     }
 
     public void testUnrecognizedParameters() {
+        //unrecognised parameters are ignored
         String version = String.valueOf(randomNonNegativeByte());
 
         assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version),
-            is(nullValue()));
-
-        assertThat(XContentType.parseVersion("application/json; sth=123"),
-            is(nullValue()));
+            is(XContentType.JSON));
+        // TODO do not allow parsing unrecognized parameter value https://github.com/elastic/elasticsearch/issues/63080
+        // assertThat(XContentType.parseVersion("application/json;compatible-with=123"),
+        //   is(nullValue()));
     }
 }

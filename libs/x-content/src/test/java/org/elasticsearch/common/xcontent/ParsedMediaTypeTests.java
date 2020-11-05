@@ -54,17 +54,13 @@ public class ParsedMediaTypeTests extends ESTestCase {
             equalTo(Map.of("charset", "utf-8", "compatible-with", "123")));
         assertThat(ParsedMediaType.parseMediaType(mediaType + "; compatible-with=123;\n charset=UTF-8").getParameters(),
             equalTo(Map.of("charset", "utf-8", "compatible-with", "123")));
-
-
     }
 
     public void testInvalidParameters() {
         String mediaType = "application/vnd.elasticsearch+json";
         expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(mediaType + "; keyvalueNoEqualsSign")
             .toMediaType(mediaTypeRegistry));
-        // allowing spaces between =
-        // expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(mediaType + "; key = value")
-        //            .toMediaType(mediaTypeRegistry));
+
         expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(mediaType + "; key=")
             .toMediaType(mediaTypeRegistry));
     }
@@ -72,7 +68,7 @@ public class ParsedMediaTypeTests extends ESTestCase {
     public void testXContentTypes() {
         for (XContentType xContentType : XContentType.values()) {
             ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(xContentType.mediaTypeWithoutParameters());
-            assertEquals(xContentType.mediaTypeWithoutParameters(), parsedMediaType.mimeTypeWithoutParams());
+            assertEquals(xContentType.mediaTypeWithoutParameters(), parsedMediaType.mediaTypeWithoutParameters());
         }
     }
 
@@ -89,14 +85,14 @@ public class ParsedMediaTypeTests extends ESTestCase {
         //be lenient with white space since it can be really hard to troubleshoot
         String mediaType = "  application/foo  ";
         ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaType + "    ;  compatible-with =  123  ;  charset=UTF-8");
-        assertEquals("application/foo", parsedMediaType.mimeTypeWithoutParams());
+        assertEquals("application/foo", parsedMediaType.mediaTypeWithoutParameters());
         assertEquals((Map.of("charset", "utf-8", "compatible-with", "123")), parsedMediaType.getParameters());
     }
 
     public void testEmptyParams() {
         String mediaType = "application/foo";
         ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaType + randomFrom("", " ", ";", ";;", ";;;"));
-        assertEquals("application/foo", parsedMediaType.mimeTypeWithoutParams());
+        assertEquals("application/foo", parsedMediaType.mediaTypeWithoutParameters());
         assertEquals(Collections.emptyMap(), parsedMediaType.getParameters());
     }
 

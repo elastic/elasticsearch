@@ -103,7 +103,7 @@ public interface RestHandler {
         return false;
     }
 
-    default MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes(){
+    default MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
         return XContentType.MEDIA_TYPE_REGISTRY;
     }
 

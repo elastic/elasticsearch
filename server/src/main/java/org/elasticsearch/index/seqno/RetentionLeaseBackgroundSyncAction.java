@@ -119,11 +119,6 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                     }
 
                     @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-
-                    @Override
                     public void handleResponse(ReplicationResponse response) {
                         task.setPhase("finished");
                         taskManager.unregister(task);

@@ -199,11 +199,6 @@ public abstract class TransportInstanceSingleOperationAction<
                 }
 
                 @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-
-                @Override
                 public void handleResponse(Response response) {
                     listener.onResponse(response);
                 }

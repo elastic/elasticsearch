@@ -39,10 +39,11 @@ public class SqlMediaTypeParser {
             // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
             return XContentType.CBOR;
         } else if (request.hasParam(URL_PARAM_FORMAT)) {
-            return validateColumnarRequest(sqlRequest.columnar(), MEDIA_TYPE_REGISTRY.formatToMediaType(request.param(URL_PARAM_FORMAT)));
+            return validateColumnarRequest(sqlRequest.columnar(),
+                MEDIA_TYPE_REGISTRY.queryParamToMediaType(request.param(URL_PARAM_FORMAT)));
         }
 
-        if(request.getParsedAccept() != null) {
+        if (request.getParsedAccept() != null) {
             return request.getParsedAccept().toMediaType(MEDIA_TYPE_REGISTRY);
         }
         return request.getXContentType();

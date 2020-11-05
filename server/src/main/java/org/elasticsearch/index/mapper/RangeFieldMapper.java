@@ -25,7 +25,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -158,7 +157,6 @@ public class RangeFieldMapper extends FieldMapper {
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
             dateMathParser = null;
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.coerce = coerce;
         }
 
@@ -172,7 +170,6 @@ public class RangeFieldMapper extends FieldMapper {
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.coerce = coerce;
         }
 
@@ -189,13 +186,13 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();
             DateFormatter formatter = format != null
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
                 : defaultFormatter;
 
-            return new SourceValueFetcher(name(), mapperService) {
+            return new SourceValueFetcher(name(), context) {
 
                 @Override
                 @SuppressWarnings("unchecked")

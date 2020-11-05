@@ -85,7 +85,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String formatPathParameter() {
+        public String queryParameter() {
             return FORMAT_TEXT;
         }
 
@@ -105,10 +105,12 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public Set<Tuple<String, Map<String,String>>> mediaTypeMappings() {
+        public Set<HeaderValue> headerValues() {
             return Set.of(
-                Tuple.tuple(CONTENT_TYPE_TXT,
-                    Map.of("header", "present|absent", "charset", "utf-8")));
+                new HeaderValue(CONTENT_TYPE_TXT,
+                    Map.of("header", "present|absent")),
+                new HeaderValue(VENDOR_CONTENT_TYPE_TXT,
+                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
 
     },
@@ -135,7 +137,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String formatPathParameter() {
+        public String queryParameter() {
             return FORMAT_CSV;
         }
 
@@ -227,11 +229,12 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public  Set<Tuple<String, Map<String,String>>> mediaTypeMappings() {
+        public Set<HeaderValue> headerValues() {
             return Set.of(
-                Tuple.tuple(CONTENT_TYPE_CSV,
-                    Map.of("header", "present|absent", "charset", "utf-8",
-                        "delimiter", ".+")));// more detailed parsing is in TextFormat.CSV#delimiter
+                new HeaderValue(CONTENT_TYPE_CSV,
+                    Map.of("header", "present|absent","delimiter", ".+")),// more detailed parsing is in TextFormat.CSV#delimiter
+                new HeaderValue(VENDOR_CONTENT_TYPE_CSV,
+                    Map.of("header", "present|absent","delimiter", ".+", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     },
 
@@ -249,7 +252,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String formatPathParameter() {
+        public String queryParameter() {
             return FORMAT_TSV;
         }
 
@@ -285,10 +288,11 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public  Set<Tuple<String, Map<String,String>>> mediaTypeMappings() {
+        public Set<HeaderValue> headerValues() {
             return Set.of(
-                Tuple.tuple(CONTENT_TYPE_TSV,
-                    Map.of("header", "present|absent", "charset", "utf-8")));
+                new HeaderValue(CONTENT_TYPE_TSV, Map.of("header", "present|absent")),
+                new HeaderValue(VENDOR_CONTENT_TYPE_TSV,
+                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     };
 
@@ -296,8 +300,11 @@ enum TextFormat implements MediaType {
     private static final String FORMAT_CSV = "csv";
     private static final String FORMAT_TSV = "tsv";
     private static final String CONTENT_TYPE_TXT = "text/plain";
+    private static final String VENDOR_CONTENT_TYPE_TXT = "text/vnd.elasticsearch+plain";
     private static final String CONTENT_TYPE_CSV = "text/csv";
+    private static final String VENDOR_CONTENT_TYPE_CSV = "text/vnd.elasticsearch+csv";
     private static final String CONTENT_TYPE_TSV = "text/tab-separated-values";
+    private static final String VENDOR_CONTENT_TYPE_TSV = "text/vnd.elasticsearch+tab-separated-values";
     private static final String URL_PARAM_HEADER = "header";
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";

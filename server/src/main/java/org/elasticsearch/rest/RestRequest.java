@@ -88,14 +88,14 @@ public class RestRequest implements ToXContent.Params {
 
     private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
                         Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
-        try{
+        try {
             this.parsedAccept = parseHeaderWithMediaType(httpRequest.getHeaders(), "Accept");
             this.parsedContentType = parseHeaderWithMediaType(httpRequest.getHeaders(), "Content-Type");
             if (parsedContentType != null) {
                 this.xContentType.set(parsedContentType.toMediaType(XContentType.MEDIA_TYPE_REGISTRY));
             }
-        }catch (IllegalArgumentException e){
-            throw new ContentTypeHeaderException(e);
+        } catch (IllegalArgumentException e) {
+            throw new MediaTypeHeaderException(e);
         }
         this.xContentRegistry = xContentRegistry;
         this.httpRequest = httpRequest;
@@ -107,12 +107,13 @@ public class RestRequest implements ToXContent.Params {
     }
 
     private static @Nullable ParsedMediaType parseHeaderWithMediaType(Map<String, List<String>> headers, String headerName) {
-        //TOOD: shouldn't this be case insensitive ?
+        //TODO: make all usages of headers case-insensitive
         List<String> header = headers.get(headerName);
         if (header == null || header.isEmpty()) {
             return null;
         } else if (header.size() > 1) {
-            throw new IllegalArgumentException("only one value for the  header should be provided");
+            throw new IllegalArgumentException("Incorrect header [" + headerName + "]. " +
+                "Only one value should be provided");
         }
         String rawContentType = header.get(0);
         if (Strings.hasText(rawContentType)) {
@@ -144,7 +145,7 @@ public class RestRequest implements ToXContent.Params {
      * @param httpRequest      the http request
      * @param httpChannel      the http channel
      * @throws BadParameterException      if the parameters can not be decoded
-     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
+     * @throws MediaTypeHeaderException if the Content-Type or Accept header can not be parsed
      */
     public static RestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
         Map<String, String> params = params(httpRequest.uri());
@@ -182,7 +183,7 @@ public class RestRequest implements ToXContent.Params {
      * @param xContentRegistry the content registry
      * @param httpRequest      the http request
      * @param httpChannel      the http channel
-     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
+     * @throws MediaTypeHeaderException if the Content-Type or Accept header can not be parsed
      */
     public static RestRequest requestWithoutParameters(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest,
                                                        HttpChannel httpChannel) {
@@ -548,9 +549,9 @@ public class RestRequest implements ToXContent.Params {
         throw new IllegalArgumentException("empty Content-Type header");
     }
 
-    public static class ContentTypeHeaderException extends RuntimeException {
+    public static class MediaTypeHeaderException extends RuntimeException {
 
-        ContentTypeHeaderException(final IllegalArgumentException cause) {
+        MediaTypeHeaderException(final IllegalArgumentException cause) {
             super(cause);
         }
 

@@ -467,11 +467,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     public void handleException(TransportException exp) {
                         reqListener.onFailure(exp);
                     }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
                 })
         );
     }

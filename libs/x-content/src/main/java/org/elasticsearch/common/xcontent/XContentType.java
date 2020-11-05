@@ -19,13 +19,11 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -49,7 +47,7 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String formatPathParameter() {
+        public String queryParameter() {
             return "json";
         }
 
@@ -59,15 +57,15 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public Set<Tuple<String, Map<String, String>>> mediaTypeMappings() {
+        public Set<HeaderValue> headerValues() {
             return Set.of(
-                Tuple.tuple("application/json", Map.of("charset", "UTF-8")),
-                Tuple.tuple("application/x-ndjson", Map.of("charset", "UTF-8")),
-                Tuple.tuple("application/*", Collections.emptyMap()),
-                Tuple.tuple("application/vnd.elasticsearch+json",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8")),
-                Tuple.tuple("application/vnd.elasticsearch+x-ndjson",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8")));
+                new HeaderValue("application/json"),
+                new HeaderValue("application/x-ndjson"),
+                new HeaderValue("application/*"),
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "json",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)),
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "x-ndjson",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     },
     /**
@@ -80,7 +78,7 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String formatPathParameter() {
+        public String queryParameter() {
             return "smile";
         }
 
@@ -90,11 +88,11 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public Set<Tuple<String, Map<String, String>>> mediaTypeMappings() {
+        public Set<HeaderValue> headerValues() {
             return Set.of(
-                Tuple.tuple("application/smile", Map.of("charset", "UTF-8")),
-                Tuple.tuple("application/vnd.elasticsearch+smile",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8")));
+                new HeaderValue("application/smile"),
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "smile",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     },
     /**
@@ -107,7 +105,7 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String formatPathParameter() {
+        public String queryParameter() {
             return "yaml";
         }
 
@@ -117,11 +115,11 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public Set<Tuple<String, Map<String, String>>> mediaTypeMappings() {
+        public Set<HeaderValue> headerValues() {
             return Set.of(
-                Tuple.tuple("application/yaml", Map.of("charset", "UTF-8")),
-                Tuple.tuple("application/vnd.elasticsearch+yaml",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, "charset", "UTF-8")));
+                new HeaderValue("application/yaml"),
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "yaml",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     },
     /**
@@ -134,7 +132,7 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public String formatPathParameter() {
+        public String queryParameter() {
             return "cbor";
         }
 
@@ -144,16 +142,17 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public Set<Tuple<String, Map<String, String>>> mediaTypeMappings() {
+        public Set<HeaderValue> headerValues() {
             return Set.of(
-                Tuple.tuple("application/cbor", Map.of("charset", "UTF-8")),
-                Tuple.tuple("application/vnd.elasticsearch+cbor",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN,"charset", "UTF-8")));
+                new HeaderValue("application/cbor"),
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "cbor",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     };
 
     public static final MediaTypeRegistry<XContentType> MEDIA_TYPE_REGISTRY = new MediaTypeRegistry<XContentType>()
         .register(XContentType.values());
+    public static final String VENDOR_APPLICATION_PREFIX = "application/vnd.elasticsearch+";
 
     /**
      * Accepts a format string, which is most of the time is equivalent to MediaType's subtype i.e. <code>application/<b>json</b></code>
@@ -162,7 +161,7 @@ public enum XContentType implements MediaType {
      * This method will return {@code null} if no match is found
      */
     public static XContentType fromFormat(String format) {
-        return MEDIA_TYPE_REGISTRY.formatToMediaType(format);
+        return MEDIA_TYPE_REGISTRY.queryParamToMediaType(format);
     }
 
     /**
@@ -205,10 +204,7 @@ public enum XContentType implements MediaType {
         return mediaTypeWithoutParameters();
     }
 
-
     public abstract XContent xContent();
 
     public abstract String mediaTypeWithoutParameters();
-
-
 }

@@ -58,7 +58,9 @@ final class MethodHandlers {
     }
 
     /**
-     * Returns the handler for the given method and version or {@code null} if none exists.
+     * Returns the handler for the given method and version.
+     * If a handler for given version do not exist, a handler for Version.CURRENT will be returned.
+     * or {@code null} if none exists.
      */
     RestHandler getHandler(RestRequest.Method method, Version version) {
         Map<Version, RestHandler> versionToHandlers = methodHandlers.get(method);
@@ -67,7 +69,6 @@ final class MethodHandlers {
         }
         final RestHandler handler = versionToHandlers.get(version);
         return handler != null || version.equals(Version.CURRENT) ? handler : versionToHandlers.get(Version.CURRENT);
-
     }
 
     /**

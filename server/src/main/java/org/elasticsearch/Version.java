@@ -271,11 +271,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.toString = major + "." + minor + "." + revision;
         this.previousMajorId = major > 0 ? (major - 1) * 1000000 + 99 : major;
     }
+
     public Version previousMajor() {
         return Version.fromId(previousMajorId);
     }
 
-    public static Version minimumRestCompatibilityVersion(){
+    public static Version minimumRestCompatibilityVersion() {
         return Version.CURRENT.previousMajor();
     }
 

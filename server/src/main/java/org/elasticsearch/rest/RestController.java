@@ -250,8 +250,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            // Using a version from a handler because if a version from headers was PREVIOUS, but no handler was found for that version,
+            // Using a version from a handler because if no handler was found for requested version,
             // we would return a handler for CURRENT. Therefore no compatible logic in serialisation (toXContent) should be applied
+            // see MethodHandlers#getHandler
             responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength,
                                                               handler.compatibleWithVersion());
             // TODO: Count requests double in the circuit breaker if they need copying?

@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -29,6 +30,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -503,6 +505,14 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         );
         Iterator<Mapper> iterator = mapper.mappers().getMapper("field").iterator();
         assertFalse(iterator.hasNext());
+    }
+
+    public void testFieldCaps() throws IOException {
+        MapperService aggMetricMapperService = createMapperService(fieldMapping(this::minimalMapping));
+        MappedFieldType fieldType = aggMetricMapperService.fieldType("field");
+        assertThat(fieldType.familyTypeName(), equalTo("double"));
+        assertTrue(fieldType.isSearchable());
+        assertTrue(fieldType.isAggregatable());
     }
 
     /*

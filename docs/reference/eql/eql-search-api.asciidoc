@@ -245,7 +245,7 @@ this value.
 [[eql-search-api-tiebreaker-field]]
 `tiebreaker_field`::
 (Optional, string)
-Field used to sort events with the same
+Field used to sort hits with the same
 <<eql-search-api-timestamp-field,timestamp>> in ascending, lexicographic order.
 If you specify a tiebreaker field for a sequence query, all documents in the
 searched data streams or indices must contain the field. For basic queries, {es}

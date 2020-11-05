@@ -98,6 +98,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                     'requiresKeystore'    : extension1.requiresKeystore,
                     'type'                : extension1.type.toString(),
                     'javaOpts'            : extension1.javaOpts,
+                    'licensed'            : extension1.licensed,
             ]
             project.tasks.named('pluginProperties').configure {
                 expand(properties)

@@ -54,7 +54,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public DocCountFieldMapper build(BuilderContext context) {
+        public MetadataFieldMapper build(ContentPath contentPath) {
             return new DocCountFieldMapper();
         }
     }
@@ -68,6 +68,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         public DocCountFieldType() {
             super(NAME, false, false, true, TextSearchInfo.NONE,  Collections.emptyMap());
         }
+
 
         @Override
         public String typeName() {
@@ -90,12 +91,12 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), mapperService, defaultValue) {
+            return new SourceValueFetcher(name(), context, defaultValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if ("".equals(value)) {

@@ -179,9 +179,9 @@ setup:
   - do:
       msearch:
         body:
-          -
+          - {}
           - { query: { match: { _index: test }}, pit: { id: "$point_in_time_id" }}
-          -
+          - {}
           - { query: { match_all: {}}, pit: { id: "$point_in_time_id" }}
 
   - match:  { responses.0.hits.total.value:     3   }

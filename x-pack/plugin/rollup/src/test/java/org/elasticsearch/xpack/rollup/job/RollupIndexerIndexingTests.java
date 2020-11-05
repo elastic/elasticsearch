@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -536,7 +535,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
                 MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberFieldMapper.NumberType.LONG, false, false)
-                        .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
+                        .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -545,7 +544,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
                 MappedFieldType ft = new KeywordFieldMapper.Builder(field)
-                        .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
+                        .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -554,7 +553,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         if (job.getMetricsConfig() != null) {
             for (MetricConfig metric : job.getMetricsConfig()) {
                 MappedFieldType ft = new NumberFieldMapper.Builder(metric.getField(), NumberFieldMapper.NumberType.LONG, false, false)
-                        .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
+                        .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }

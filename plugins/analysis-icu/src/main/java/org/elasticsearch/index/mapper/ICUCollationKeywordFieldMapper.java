@@ -280,14 +280,14 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ICUCollationKeywordFieldMapper build(BuilderContext context) {
+        public ICUCollationKeywordFieldMapper build(ContentPath contentPath) {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
-            CollationFieldType ft = new CollationFieldType(buildFullName(context), indexed.getValue(),
+            CollationFieldType ft = new CollationFieldType(buildFullName(contentPath), indexed.getValue(),
                 stored.getValue(), hasDocValues.getValue(), collator, nullValue.getValue(), ignoreAbove.getValue(),
                 meta.getValue());
             return new ICUCollationKeywordFieldMapper(name, buildFieldType(), ft,
-                multiFieldsBuilder.build(this, context), copyTo.build(), collator, this);
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), collator, this);
         }
     }
 

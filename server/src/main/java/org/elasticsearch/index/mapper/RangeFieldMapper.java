@@ -119,28 +119,28 @@ public class RangeFieldMapper extends FieldMapper {
             return List.of(index, hasDocValues, store, coerce, format, locale, meta);
         }
 
-        protected RangeFieldType setupFieldType(BuilderContext context) {
+        protected RangeFieldType setupFieldType(ContentPath contentPath) {
             if (format.isConfigured()) {
                 if (type != RangeType.DATE) {
                     throw new IllegalArgumentException("field [" + name() + "] of type [range]"
                         + " should not define a dateTimeFormatter unless it is a " + RangeType.DATE + " type");
                 }
-                return new RangeFieldType(buildFullName(context), index.getValue(), store.getValue(), hasDocValues.getValue(),
+                return new RangeFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), hasDocValues.getValue(),
                     DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue()),
                     coerce.getValue().value(), meta.getValue());
             }
             if (type == RangeType.DATE) {
-                return new RangeFieldType(buildFullName(context), index.getValue(), store.getValue(), hasDocValues.getValue(),
+                return new RangeFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), hasDocValues.getValue(),
                     Defaults.DATE_FORMATTER, coerce.getValue().value(), meta.getValue());
             }
-            return new RangeFieldType(buildFullName(context), type, index.getValue(), store.getValue(), hasDocValues.getValue(),
+            return new RangeFieldType(buildFullName(contentPath), type, index.getValue(), store.getValue(), hasDocValues.getValue(),
                 coerce.getValue().value(), meta.getValue());
         }
 
         @Override
-        public RangeFieldMapper build(BuilderContext context) {
-            RangeFieldType ft = setupFieldType(context);
-            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), type, this);
+        public RangeFieldMapper build(ContentPath contentPath) {
+            RangeFieldType ft = setupFieldType(contentPath);
+            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), type, this);
         }
     }
 

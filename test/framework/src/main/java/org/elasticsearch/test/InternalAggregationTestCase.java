@@ -414,7 +414,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createTestInstance(randomAlphaOfLength(5));
     }
 
-    private T createTestInstance(String name) {
+    public final Map<String, Object> createTestMetadata() {
         Map<String, Object> metadata = null;
         if (randomBoolean()) {
             metadata = new HashMap<>();
@@ -423,7 +423,11 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
         }
-        return createTestInstance(name, metadata);
+        return metadata;
+    }
+
+    private T createTestInstance(String name) {
+        return createTestInstance(name, createTestMetadata());
     }
 
     /** Return an instance on an unmapped field. */

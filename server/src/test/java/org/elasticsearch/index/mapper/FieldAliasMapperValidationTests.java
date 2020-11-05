@@ -19,9 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -171,26 +169,21 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         assertEquals(expectedMessage, e.getMessage());
     }
 
-    private static final Settings SETTINGS = Settings.builder()
-        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-        .build();
-
     private static FieldMapper createFieldMapper(String parent, String name) {
-        Mapper.BuilderContext context = new Mapper.BuilderContext(SETTINGS, new ContentPath(parent));
-        return new BooleanFieldMapper.Builder(name).build(context);
+        return new BooleanFieldMapper.Builder(name).build(new ContentPath(parent));
     }
 
     private static ObjectMapper createObjectMapper(String name) {
         return new ObjectMapper(name, name,
             new Explicit<>(true, false),
             ObjectMapper.Nested.NO,
-            ObjectMapper.Dynamic.FALSE, emptyMap(), SETTINGS);
+            ObjectMapper.Dynamic.FALSE, emptyMap(), Version.CURRENT);
     }
 
     private static ObjectMapper createNestedObjectMapper(String name) {
         return new ObjectMapper(name, name,
             new Explicit<>(true, false),
             ObjectMapper.Nested.newNested(),
-            ObjectMapper.Dynamic.FALSE, emptyMap(), SETTINGS);
+            ObjectMapper.Dynamic.FALSE, emptyMap(), Version.CURRENT);
     }
 }

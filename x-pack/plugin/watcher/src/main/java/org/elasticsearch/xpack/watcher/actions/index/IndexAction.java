@@ -6,9 +6,11 @@
 package org.elasticsearch.xpack.watcher.actions.index;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,6 +33,7 @@ public class IndexAction implements Action {
     @Nullable @Deprecated final String docType;
     @Nullable final String index;
     @Nullable final String docId;
+    @Nullable final DocWriteRequest.OpType opType;
     @Nullable final String executionTimeField;
     @Nullable final TimeValue timeout;
     @Nullable final ZoneId dynamicNameTimeZone;
@@ -42,18 +45,20 @@ public class IndexAction implements Action {
     public IndexAction(@Nullable String index, @Nullable String docId,
                        @Nullable String executionTimeField,
                        @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone, @Nullable RefreshPolicy refreshPolicy) {
-        this(index, null, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
+        this(index, null, docId, null, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
     }
+
     /**
      * Document types are deprecated, use constructor without docType
      */
     @Deprecated
-    public IndexAction(@Nullable String index, @Nullable String docType, @Nullable String docId,
-                       @Nullable String executionTimeField,
-                       @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone, @Nullable RefreshPolicy refreshPolicy) {
+    public IndexAction(@Nullable String index, @Nullable String docType, @Nullable String docId, @Nullable DocWriteRequest.OpType opType,
+                       @Nullable String executionTimeField, @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone,
+                       @Nullable RefreshPolicy refreshPolicy) {
         this.index = index;
         this.docType = docType;
         this.docId = docId;
+        this.opType = opType;
         this.executionTimeField = executionTimeField;
         this.timeout = timeout;
         this.dynamicNameTimeZone = dynamicNameTimeZone;
@@ -77,6 +82,10 @@ public class IndexAction implements Action {
         return docId;
     }
 
+    public DocWriteRequest.OpType getOpType() {
+        return opType;
+    }
+
     public String getExecutionTimeField() {
         return executionTimeField;
     }
@@ -96,7 +105,10 @@ public class IndexAction implements Action {
 
         IndexAction that = (IndexAction) o;
 
-        return Objects.equals(index, that.index) && Objects.equals(docType, that.docType) && Objects.equals(docId, that.docId)
+        return Objects.equals(index, that.index)
+                && Objects.equals(docType, that.docType)
+                && Objects.equals(docId, that.docId)
+                && Objects.equals(opType, that.opType)
                 && Objects.equals(executionTimeField, that.executionTimeField)
                 && Objects.equals(timeout, that.timeout)
                 && Objects.equals(dynamicNameTimeZone, that.dynamicNameTimeZone)
@@ -105,7 +117,7 @@ public class IndexAction implements Action {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, docType, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
+        return Objects.hash(index, docType, docId, opType, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
     }
 
     @Override
@@ -119,6 +131,9 @@ public class IndexAction implements Action {
         }
         if (docId != null) {
             builder.field(Field.DOC_ID.getPreferredName(), docId);
+        }
+        if (opType != null) {
+            builder.field(Field.OP_TYPE.getPreferredName(), opType);
         }
         if (executionTimeField != null) {
             builder.field(Field.EXECUTION_TIME_FIELD.getPreferredName(), executionTimeField);
@@ -139,6 +154,7 @@ public class IndexAction implements Action {
         String index = null;
         String docType = null;
         String docId = null;
+        DocWriteRequest.OpType opType = null;
         String executionTimeField = null;
         TimeValue timeout = null;
         ZoneId dynamicNameTimeZone = null;
@@ -169,6 +185,17 @@ public class IndexAction implements Action {
                     docType = parser.text();
                 } else if (Field.DOC_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     docId = parser.text();
+                } else if (Field.OP_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    try {
+                        opType = DocWriteRequest.OpType.fromString(parser.text());
+                        if (List.of(DocWriteRequest.OpType.CREATE, DocWriteRequest.OpType.INDEX).contains(opType) == false) {
+                            throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. op_type value for field [{}] " +
+                                "must be [index] or [create]", TYPE, watchId, actionId, currentFieldName);
+                        }
+                    } catch (IllegalArgumentException e) {
+                        throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed to parse op_type value for " +
+                            "field [{}]", TYPE, watchId, actionId, currentFieldName);
+                    }
                 } else if (Field.EXECUTION_TIME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     executionTimeField = parser.text();
                 } else if (Field.TIMEOUT_HUMAN.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -193,7 +220,7 @@ public class IndexAction implements Action {
             }
         }
 
-        return new IndexAction(index, docType, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
+        return new IndexAction(index, docType, docId, opType, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
     }
 
     /**
@@ -289,6 +316,7 @@ public class IndexAction implements Action {
         final String index;
         final String docType;
         String docId;
+        DocWriteRequest.OpType opType;
         String executionTimeField;
         TimeValue timeout;
         ZoneId dynamicNameTimeZone;
@@ -310,6 +338,11 @@ public class IndexAction implements Action {
 
         public Builder setDocId(String docId) {
             this.docId = docId;
+            return this;
+        }
+
+        public Builder setOpType(DocWriteRequest.OpType opType) {
+            this.opType = opType;
             return this;
         }
 
@@ -335,7 +368,7 @@ public class IndexAction implements Action {
 
         @Override
         public IndexAction build() {
-            return new IndexAction(index, docType, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
+            return new IndexAction(index, docType, docId, opType, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
         }
     }
 
@@ -343,6 +376,7 @@ public class IndexAction implements Action {
         ParseField INDEX = new ParseField("index");
         ParseField DOC_TYPE = new ParseField("doc_type");
         ParseField DOC_ID = new ParseField("doc_id");
+        ParseField OP_TYPE = new ParseField("op_type");
         ParseField EXECUTION_TIME_FIELD = new ParseField("execution_time_field");
         ParseField SOURCE = new ParseField("source");
         ParseField RESPONSE = new ParseField("response");

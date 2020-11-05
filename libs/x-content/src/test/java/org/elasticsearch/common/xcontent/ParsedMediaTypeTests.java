@@ -103,6 +103,17 @@ public class ParsedMediaTypeTests extends ESTestCase {
             () -> ParsedMediaType.parseMediaType(mediaType + "    ;  compatible-with =  123  ;  charset=UTF-8"));
         assertThat(exception.getMessage(),
             equalTo("invalid parameters for header [application/foo    ;  compatible-with =  123  ;  charset=UTF-8]"));
+
+        expectThrows(IllegalArgumentException.class,
+            () -> ParsedMediaType.parseMediaType(mediaType + ";k =y"));
+        expectThrows(IllegalArgumentException.class,
+            () -> ParsedMediaType.parseMediaType(mediaType + ";k= y"));
+        expectThrows(IllegalArgumentException.class,
+            () -> ParsedMediaType.parseMediaType(mediaType + ";k = y"));
+        expectThrows(IllegalArgumentException.class,
+            () -> ParsedMediaType.parseMediaType(mediaType + ";= y"));
+        expectThrows(IllegalArgumentException.class,
+            () -> ParsedMediaType.parseMediaType(mediaType + ";k="));
     }
 
     public void testDefaultAcceptHeader() {

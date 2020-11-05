@@ -93,7 +93,7 @@ public class ParsedMediaType {
                     }
                     //spaces are allowed between parameters, but not between '=' sign
                     String[] keyValueParam = paramsAsString.split("=");
-                    if (keyValueParam.length != 2 || hasSpaces(keyValueParam[0]) || hasSpaces(keyValueParam[1])) {
+                    if (keyValueParam.length != 2 || hasTrailingSpace(keyValueParam[0]) || hasLeadingSpace(keyValueParam[1])) {
                         throw new IllegalArgumentException("invalid parameters for header [" + headerValue + "]");
                     }
                     String parameterName = keyValueParam[0].toLowerCase(Locale.ROOT).trim();
@@ -107,10 +107,13 @@ public class ParsedMediaType {
         return null;
     }
 
-    private static boolean hasSpaces(String s) {
-        return s.trim().equals(s) == false;
+    private static boolean hasTrailingSpace(String s) {
+        return s.length() == 0 || Character.isWhitespace(s.charAt(s.length()-1));
     }
 
+    private static boolean hasLeadingSpace(String s) {
+        return s.length() == 0 || Character.isWhitespace(s.charAt(0));
+    }
     /**
      * Resolves this instance to a MediaType instance defined in given MediaTypeRegistry.
      * Performs validation against parameters.

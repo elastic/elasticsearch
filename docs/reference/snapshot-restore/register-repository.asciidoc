@@ -162,6 +162,9 @@ unit, for example: `1GB`, `10MB`, `5KB`, `500B`. Defaults to `null` (unlimited c
 `max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to unlimited. Note that restores are also throttled through <<recovery,recovery settings>>.
 `max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `40mb` per second.
 `readonly`:: Makes repository read-only.  Defaults to `false`.
+`max_number_of_snapshots`:: Limits the maximum number of snapshots that the repository may contain. Defaults to `500`. Note that snapshot repositories do not
+scale indefinitely in size and might lead to master node performance and stability issues if they grow past a certain size. We do not recommend increasing this setting.
+Instead you should delete older snapshots or use multiple repositories.
 
 [discrete]
 [[snapshots-read-only-repository]]

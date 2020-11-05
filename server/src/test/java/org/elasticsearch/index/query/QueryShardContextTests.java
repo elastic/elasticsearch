@@ -50,12 +50,12 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.Mapper.TypeParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -318,7 +318,7 @@ public class QueryShardContextTests extends ESTestCase {
             public Map<String, TypeParser> getMappers() {
                 return Map.of("runtime", (name, node, parserContext) -> new Mapper.Builder(name) {
                     @Override
-                    public Mapper build(BuilderContext context) {
+                    public Mapper build(ContentPath path) {
                         return new DummyMapper(name, new DummyMappedFieldType(name));
                     }
                 });

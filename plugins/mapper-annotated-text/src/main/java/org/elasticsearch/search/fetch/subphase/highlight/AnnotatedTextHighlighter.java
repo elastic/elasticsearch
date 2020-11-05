@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
@@ -62,8 +61,8 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     }
 
     @Override
-    protected Analyzer getAnalyzer(DocumentMapper docMapper) {
-        return new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper));
+    protected Analyzer wrapAnalyzer(Analyzer analyzer) {
+        return new AnnotatedHighlighterAnalyzer(super.wrapAnalyzer(analyzer));
     }
 
     @Override

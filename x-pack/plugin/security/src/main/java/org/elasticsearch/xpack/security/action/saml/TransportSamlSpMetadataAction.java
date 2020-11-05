@@ -80,7 +80,8 @@ public class TransportSamlSpMetadataAction
             serializer.transform(new DOMSource(element), new StreamResult(writer));
             listener.onResponse(new SamlSpMetadataResponse(writer.toString()));
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("Error during SAML SP metadata generation for real [{}]", realm.name()), e);
+            logger.error(new ParameterizedMessage(
+                "Error during SAML SP metadata generation for realm [{}]", realm.name()), e);
             listener.onFailure(e);
         }
     }

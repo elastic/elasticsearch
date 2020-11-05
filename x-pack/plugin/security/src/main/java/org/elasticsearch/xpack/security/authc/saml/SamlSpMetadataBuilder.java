@@ -225,7 +225,7 @@ public class SamlSpMetadataBuilder {
             spRoleDescriptor.getNameIDFormats().add(buildNameIdFormat());
         }
         spRoleDescriptor.getAssertionConsumerServices().add(buildAssertionConsumerService());
-        if (attributeNames != null && attributeNames.size() > 0) {
+        if (attributeNames.size() > 0) {
             spRoleDescriptor.getAttributeConsumingServices().add(buildAttributeConsumerService());
         }
         if (Strings.hasText(singleLogoutServiceUrl)) {
@@ -240,7 +240,7 @@ public class SamlSpMetadataBuilder {
         if (organization != null) {
             descriptor.setOrganization(buildOrganization());
         }
-        if(contacts != null && contacts.size() > 0) {
+        if(contacts.size() > 0) {
             contacts.forEach(c -> descriptor.getContactPersons().add(buildContact(c)));
         }
 

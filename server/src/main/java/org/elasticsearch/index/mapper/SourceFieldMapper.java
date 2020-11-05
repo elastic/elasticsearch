@@ -91,7 +91,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public SourceFieldMapper build(BuilderContext context) {
+        public SourceFieldMapper build(ContentPath contentPath) {
             return new SourceFieldMapper(enabled.getValue(),
                 includes.getValue().toArray(new String[0]),
                 excludes.getValue().toArray(new String[0]));

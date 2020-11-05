@@ -70,18 +70,18 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TokenCountFieldMapper build(BuilderContext context) {
+        public TokenCountFieldMapper build(ContentPath contentPath) {
             if (analyzer.getValue() == null) {
                 throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
             }
             MappedFieldType ft = new TokenCountFieldType(
-                buildFullName(context),
+                buildFullName(contentPath),
                 index.getValue(),
                 store.getValue(),
                 hasDocValues.getValue(),
                 nullValue.getValue(),
                 meta.getValue());
-            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 

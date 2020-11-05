@@ -23,13 +23,13 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -94,12 +94,9 @@ public class RangeFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final RangeType type;
+        private final Version indexCreatedVersion;
 
-        public Builder(String name, RangeType type, Settings settings) {
-            this(name, type, COERCE_SETTING.get(settings));
-        }
-
-        public Builder(String name, RangeType type, boolean coerceByDefault) {
+        public Builder(String name, RangeType type, boolean coerceByDefault, Version indexCreatedVersion) {
             super(name);
             this.type = type;
             this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
@@ -107,6 +104,7 @@ public class RangeFieldMapper extends FieldMapper {
                 format.neverSerialize();
                 locale.neverSerialize();
             }
+            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         public void docValues(boolean hasDocValues) {
@@ -123,34 +121,34 @@ public class RangeFieldMapper extends FieldMapper {
             return Arrays.asList(index, hasDocValues, store, coerce, format, locale, boost, meta);
         }
 
-        protected RangeFieldType setupFieldType(BuilderContext context) {
+        protected RangeFieldType setupFieldType(ContentPath contentPath) {
             if (format.isConfigured()) {
                 if (type != RangeType.DATE) {
                     throw new IllegalArgumentException("field [" + name() + "] of type [range]"
                         + " should not define a dateTimeFormatter unless it is a " + RangeType.DATE + " type");
                 }
                 DateFormatter dateTimeFormatter;
-                if (Joda.isJodaPattern(context.indexCreatedVersion(), format.getValue())) {
+                if (Joda.isJodaPattern(indexCreatedVersion, format.getValue())) {
                     dateTimeFormatter = Joda.forPattern(format.getValue()).withLocale(locale.getValue());
                 } else {
                     dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
                 }
-                return new RangeFieldType(buildFullName(context), index.getValue(), store.getValue(), hasDocValues.getValue(),
+                return new RangeFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), hasDocValues.getValue(),
                     dateTimeFormatter, coerce.getValue().value(), meta.getValue());
             }
             if (type == RangeType.DATE) {
-                return new RangeFieldType(buildFullName(context), index.getValue(), store.getValue(), hasDocValues.getValue(),
+                return new RangeFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), hasDocValues.getValue(),
                     Defaults.DATE_FORMATTER, coerce.getValue().value(), meta.getValue());
             }
-            return new RangeFieldType(buildFullName(context), type, index.getValue(), store.getValue(), hasDocValues.getValue(),
+            return new RangeFieldType(buildFullName(contentPath), type, index.getValue(), store.getValue(), hasDocValues.getValue(),
                 coerce.getValue().value(), meta.getValue());
         }
 
         @Override
-        public RangeFieldMapper build(BuilderContext context) {
-            RangeFieldType ft = setupFieldType(context);
+        public RangeFieldMapper build(ContentPath contentPath) {
+            RangeFieldType ft = setupFieldType(contentPath);
             ft.setBoost(boost.getValue());
-            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), type, this);
+            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), type, this);
         }
     }
 
@@ -286,6 +284,7 @@ public class RangeFieldMapper extends FieldMapper {
     private final Locale locale;
 
     private final boolean coerceByDefault;
+    private final Version indexCreatedVersion;
 
     private RangeFieldMapper(
         String simpleName,
@@ -303,6 +302,7 @@ public class RangeFieldMapper extends FieldMapper {
         this.format = builder.format.getValue();
         this.locale = builder.locale.getValue();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     boolean coerce() {
@@ -311,7 +311,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, coerceByDefault).init(this);
+        return new Builder(simpleName(), type, coerceByDefault, indexCreatedVersion).init(this);
     }
 
     @Override

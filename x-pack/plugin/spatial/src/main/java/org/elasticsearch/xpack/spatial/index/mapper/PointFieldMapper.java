@@ -15,6 +15,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -91,12 +92,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         }
 
         @Override
-        public FieldMapper build(BuilderContext context) {
+        public FieldMapper build(ContentPath contentPath) {
             CartesianPointParser parser
                 = new CartesianPointParser(name, nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
             PointFieldType ft
-                = new PointFieldType(buildFullName(context), indexed.get(), stored.get(), hasDocValues.get(), parser, meta.get());
-            return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
+                = new PointFieldType(buildFullName(contentPath), indexed.get(), stored.get(), hasDocValues.get(), parser, meta.get());
+            return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
                 copyTo.build(), new PointIndexer(ft), parser, this);
         }
 

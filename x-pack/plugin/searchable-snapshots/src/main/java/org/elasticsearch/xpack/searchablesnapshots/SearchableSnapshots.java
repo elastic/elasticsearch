@@ -182,7 +182,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
             SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
-            CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING
+            CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING,
+            CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING
         );
     }
 
@@ -200,7 +201,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final IndexNameExpressionResolver resolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        final CacheService cacheService = new CacheService(new NodeEnvironmentCacheCleaner(nodeEnvironment), settings);
+        final CacheService cacheService = new CacheService(
+            settings,
+            clusterService,
+            threadPool,
+            nodeEnvironment,
+            new NodeEnvironmentCacheCleaner(nodeEnvironment)
+        );
         this.cacheService.set(cacheService);
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.threadPool.set(threadPool);

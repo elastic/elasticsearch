@@ -444,7 +444,7 @@ public class CacheFile {
                         assert completedRanges != null;
                         assert completedRanges.isEmpty() == false;
 
-                        IOUtils.fsync(file, false, false); // TODO don't forget to fsync parent directory
+                        IOUtils.fsync(file, false, false);
                         success = true;
                         return completedRanges;
                     } finally {

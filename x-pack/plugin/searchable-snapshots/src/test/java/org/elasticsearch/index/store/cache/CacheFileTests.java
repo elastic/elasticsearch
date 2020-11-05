@@ -335,7 +335,7 @@ public class CacheFileTests extends ESTestCase {
     public static void assertNumberOfFSyncs(final Path path, final Matcher<Long> matcher) {
         final FSyncTrackingFileSystemProvider provider = (FSyncTrackingFileSystemProvider) path.getFileSystem().provider();
         final AtomicLong fsyncCounter = provider.files.get(path);
-        assertThat("File [" + path + "] was never fsynced", notNullValue());
+        assertThat("File [" + path + "] was never fsynced", fsyncCounter, notNullValue());
         assertThat("Mismatching number of fsync for [" + path + "]", fsyncCounter.get(), matcher);
     }
 

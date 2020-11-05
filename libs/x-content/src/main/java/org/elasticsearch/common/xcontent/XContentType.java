@@ -185,6 +185,17 @@ public enum XContentType implements MediaType {
         this.index = index;
     }
 
+    public static Byte parseVersion(String mediaType) {
+        ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaType);
+        if (parsedMediaType != null) {
+            String version = parsedMediaType
+                .getParameters()
+                .get(COMPATIBLE_WITH_PARAMETER_NAME);
+            return version != null ? Byte.parseByte(version) : null;
+        }
+        return null;
+    }
+
     public int index() {
         return index;
     }

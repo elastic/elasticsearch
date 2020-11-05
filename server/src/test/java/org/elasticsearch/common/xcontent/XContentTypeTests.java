@@ -118,18 +118,37 @@ public class XContentTypeTests extends ESTestCase {
             equalTo(XContentType.JSON));
     }
 
+    public void testVersionParsing() {
+        byte version = randomNonNegativeByte();
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+json;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+cbor;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+smile;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+x-ndjson;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("application/json"),
+            nullValue());
+
+
+        assertThat(XContentType.parseVersion("APPLICATION/VND.ELASTICSEARCH+JSON;COMPATIBLE-WITH=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("APPLICATION/JSON"),
+            nullValue());
+
+        //validation is done when parsing a MediaType
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + ".0"),
+            is(nullValue()));
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + "_sth"),
+            nullValue());
+    }
+
     public void testUnrecognizedParameters() {
         //unrecognised parameters are ignored
         String version = String.valueOf(randomNonNegativeByte());
 
         assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version),
-            is(nullValue()));
-
-
-        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + ".0"),
-            is(nullValue()));
-        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + "_sth"),
-            nullValue());
             is(XContentType.JSON));
         // TODO do not allow parsing unrecognized parameter value https://github.com/elastic/elasticsearch/issues/63080
         // assertThat(XContentType.parseVersion("application/json;compatible-with=123"),

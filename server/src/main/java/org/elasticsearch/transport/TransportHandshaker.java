@@ -151,11 +151,6 @@ final class TransportHandshaker {
                 listener.onFailure(e);
             }
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 
     static final class HandshakeRequest extends TransportRequest {

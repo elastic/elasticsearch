@@ -27,8 +27,6 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -59,36 +57,11 @@ public class MockMetadataMapperPlugin extends Plugin implements MapperPlugin {
         }
 
         @Override
-        public Iterator<Mapper> iterator() {
-            return Collections.emptyIterator();
-        }
-
-        @Override
         protected String contentType() {
             return CONTENT_TYPE;
         }
 
-        public static class Builder extends MetadataFieldMapper.Builder {
-
-            protected Builder() {
-                super(FIELD_NAME);
-            }
-
-            @Override
-            protected List<Parameter<?>> getParameters() {
-                return Collections.emptyList();
-            }
-
-            @Override
-            public MockMetadataMapper build(ContentPath contentPath) {
-                return new MockMetadataMapper();
-            }
-        }
-
-        public static final TypeParser PARSER = new ConfigurableTypeParser(
-            c -> new MockMetadataMapper(),
-            c -> new MockMetadataMapper.Builder()) {
-        };
+        public static final TypeParser PARSER = new FixedTypeParser(c -> new MockMetadataMapper());
     }
 
     @Override

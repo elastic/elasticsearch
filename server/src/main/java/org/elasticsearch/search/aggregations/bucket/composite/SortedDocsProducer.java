@@ -27,6 +27,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 
 import java.io.IOException;
 
@@ -54,6 +55,8 @@ abstract class SortedDocsProducer {
                                     Comparable leadSourceBucket, @Nullable DocIdSetBuilder builder) throws IOException {
         final int[] topCompositeCollected = new int[1];
         final boolean[] hasCollected = new boolean[1];
+        final DocCountProvider docCountProvider = new DocCountProvider();
+        docCountProvider.setLeafReaderContext(context);
         final LeafBucketCollector queueCollector = new LeafBucketCollector() {
             int lastDoc = -1;
 
@@ -66,7 +69,8 @@ abstract class SortedDocsProducer {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 hasCollected[0] = true;
-                if (queue.addIfCompetitive()) {
+                long docCount = docCountProvider.getDocCount(doc);
+                if (queue.addIfCompetitive(docCount)) {
                     topCompositeCollected[0]++;
                     if (adder != null && doc != lastDoc) {
                         if (remainingBits == 0) {

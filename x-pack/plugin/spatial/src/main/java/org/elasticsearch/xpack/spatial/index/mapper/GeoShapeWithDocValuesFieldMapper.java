@@ -7,10 +7,8 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
-import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
@@ -119,25 +117,16 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     @Override
     @SuppressWarnings({"rawtypes", "unchecked"})
-    protected void addDocValuesFields(String name, Geometry shape, List fields, ParseContext context) {
+    protected void addDocValuesFields(String name, Geometry shape, List<IndexableField> fields, ParseContext context) {
         CentroidCalculator calculator = new CentroidCalculator(shape);
-        final byte[] scratch = new byte[7 * Integer.BYTES];
-        // doc values are generated from the indexed fields.
-        ShapeField.DecodedTriangle[] triangles = new ShapeField.DecodedTriangle[fields.size()];
-        for (int i = 0; i < fields.size(); i++) {
-            BytesRef bytesRef = ((List<IndexableField>)fields).get(i).binaryValue();
-            assert bytesRef.length == 7 * Integer.BYTES;
-            System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
-            ShapeField.decodeTriangle(scratch, triangles[i] = new ShapeField.DecodedTriangle());
-        }
         BinaryGeoShapeDocValuesField docValuesField =
             (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
         if (docValuesField == null) {
-            docValuesField = new BinaryGeoShapeDocValuesField(name, triangles, calculator);
+            docValuesField = new BinaryGeoShapeDocValuesField(name, fields, calculator);
             context.doc().addWithKey(name, docValuesField);
 
         } else {
-            docValuesField.add(triangles, calculator);
+            docValuesField.add(fields, calculator);
         }
     }
 

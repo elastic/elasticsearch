@@ -1,8 +1,8 @@
 setup:
 
   - skip:
-      version: " - 7.9.99"
-      reason: "unsigned_long was added in 7.10"
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/64361"
 
   - do:
       indices.create:

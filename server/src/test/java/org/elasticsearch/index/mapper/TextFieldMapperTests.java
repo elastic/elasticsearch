@@ -774,7 +774,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     public void testIndexPrefixMapping() throws IOException {
 
         {
-            DocumentMapper mapper = createDocumentMapper(
+            MapperService ms = createMapperService(
                 fieldMapping(
                     b -> b.field("type", "text")
                         .field("analyzer", "standard")
@@ -785,11 +785,13 @@ public class TextFieldMapperTests extends MapperTestCase {
                 )
             );
 
-            assertThat(mapper.mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=2:10"));
+            assertThat(ms.documentMapper().mappers().getMapper("field._index_prefix").toString(), containsString("prefixChars=2:10"));
 
-            ParsedDocument doc = mapper.parse(source(b -> b.field("field", "Some English text that is going to be very useful")));
+            ParsedDocument doc
+                = ms.documentMapper().parse(source(b -> b.field("field", "Some English text that is going to be very useful")));
             IndexableField[] fields = doc.rootDoc().getFields("field._index_prefix");
             assertEquals(1, fields.length);
+            withLuceneIndex(ms, iw -> iw.addDocument(doc.rootDoc()), ir -> {}); // check we can index
         }
 
         {
@@ -867,6 +869,10 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("synfield", "some text which we will index")));
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {}); // check indexing
+
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
 
         {

@@ -169,7 +169,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true),
             m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
         checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
-            m -> assertEquals(256, ((KeywordFieldMapper)m).ignoreAbove()));
+            m -> assertEquals(256, ((KeywordFieldMapper)m).fieldType().ignoreAbove()));
         checker.registerUpdateCheck(b -> b.field("split_queries_on_whitespace", true),
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
 

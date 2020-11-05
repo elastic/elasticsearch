@@ -59,7 +59,7 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
                 expectedMixedClusterTemplate += "12";
             }
 
-            if (ClusterType.MIXED == CLUSTER_TYPE) {
+            if (UPGRADE_FROM_VERSION.before(Version.V_7_10_0) && ClusterType.MIXED == CLUSTER_TYPE) {
                 assertTemplateExists(expectedMixedClusterTemplate);
             } else if (ClusterType.UPGRADED == CLUSTER_TYPE) {
                 assertIndexTemplateExists(expectedFinalTemplate);

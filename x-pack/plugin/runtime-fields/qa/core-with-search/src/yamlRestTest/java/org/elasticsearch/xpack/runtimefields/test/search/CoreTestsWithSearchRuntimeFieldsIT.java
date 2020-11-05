@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.runtimefields.test.search;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -19,6 +20,7 @@ import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xpack.runtimefields.test.CoreTestTranslater;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -115,24 +117,24 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                     return true;
                 }
 
-                private Map<?, ?> runtimeMappings(Object index) {
+                private Map<?, ?> runtimeMappings(String index) {
                     if (index == null) {
-                        return mergeMappings("*");
+                        return mergeMappings(index, new String[] { "*" });
                     }
-                    String indexStr = index.toString();
-                    if ("_all".equals(indexStr)) {
-                        return mergeMappings("*");
+                    String[] patterns = Arrays.stream(index.split(",")).map(m -> m.equals("_all") ? "*" : m).toArray(String[]::new);
+                    if (patterns.length == 0 && Regex.isSimpleMatchPattern(patterns[0])) {
+                        return runtimeMappings.get(patterns[0]);
                     }
-                    if (Regex.isSimpleMatchPattern(indexStr)) {
-                        return runtimeMappings.get(indexStr);
-                    }
-                    return mergeMappings(indexStr);
+                    return mergeMappings(index, patterns);
                 }
 
-                private Map<?, ?> mergeMappings(String pattern) {
+                private Map<?, ?> mergeMappings(String index, String[] patterns) {
                     Map<String, Map<String, Object>> merged = new HashMap<>();
                     for (Map.Entry<String, Map<String, Map<String, Object>>> indexEntry : runtimeMappings.entrySet()) {
-                        if (false == Regex.simpleMatch(pattern, indexEntry.getKey())) {
+                        if (index != null && index.equals("date*")) {
+                            LogManager.getLogger().error("ADSFASFDDAF {} {} {}", patterns, indexEntry.getKey(), Regex.simpleMatch(patterns, indexEntry.getKey()));
+                        }
+                        if (false == Regex.simpleMatch(patterns, indexEntry.getKey())) {
                             continue;
                         }
                         for (Map.Entry<String, Map<String, Object>> field : indexEntry.getValue().entrySet()) {
@@ -141,6 +143,20 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                                 merged.put(field.getKey(), field.getValue());
                             } else if (false == mergedConfig.equals(field.getValue())) {
                                 // The two indices have different runtime mappings for a field so we have to give up on running the test.
+                                return null;
+                            }
+                        }
+                    }
+                    for (Map.Entry<String, Set<String>> indexEntry : mappedFields.entrySet()) {
+                        if (index != null && index.equals("date*")) {
+                            LogManager.getLogger().error("ADSFASFDDAF {} {} {}", patterns, indexEntry.getKey(), Regex.simpleMatch(patterns, indexEntry.getKey()));
+                        }
+                        if (false == Regex.simpleMatch(patterns, indexEntry.getKey())) {
+                            continue;
+                        }
+                        for (String mappedField :indexEntry.getValue()) {
+                            if (merged.containsKey(mappedField)) {
+                                // We have a runtime mappings for a field *and* regular mapping. We can't make this test work so skip it. 
                                 return null;
                             }
                         }

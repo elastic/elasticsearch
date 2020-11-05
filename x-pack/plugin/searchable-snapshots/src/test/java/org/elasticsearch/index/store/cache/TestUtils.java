@@ -15,6 +15,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.IndexInputStats;
 
 import java.io.ByteArrayInputStream;
@@ -23,11 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
-import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
-import static com.carrotsearch.randomizedtesting.generators.RandomPicks.randomFrom;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;

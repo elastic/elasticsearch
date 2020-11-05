@@ -10,6 +10,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -115,15 +116,35 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                 }
 
                 private Map<?, ?> runtimeMappings(Object index) {
-                    if (index != null && false == "_all".equals(index)) {
-                        return runtimeMappings.get(index);
+                    if (index == null) {
+                        return mergeMappings("*");
                     }
-                    // No mapping index specified in the search, if there is just one index we can just us it
-                    if (runtimeMappings.size() == 1) {
-                        return runtimeMappings.values().iterator().next();
+                    String indexStr = index.toString();
+                    if ("_all".equals(indexStr)) {
+                        return mergeMappings("*");
                     }
-                    // TODO try and merge the mappings if targeting more than one index
-                    return null;
+                    if (Regex.isSimpleMatchPattern(indexStr)) {
+                        return runtimeMappings.get(indexStr);
+                    }
+                    return mergeMappings(indexStr);
+                }
+
+                private Map<?, ?> mergeMappings(String pattern) {
+                    Map<String, Map<String, Object>> merged = new HashMap<>();
+                    for (Map.Entry<String, Map<String, Map<String, Object>>> indexEntry: runtimeMappings.entrySet()) {
+                        if (false == Regex.simpleMatch(pattern, indexEntry.getKey())) {
+                            continue;
+                        }
+                        for (Map.Entry<String, Map<String, Object>> field : indexEntry.getValue().entrySet()) {
+                            Map<String, Object> mergedConfig = merged.get(field.getKey());
+                            if (mergedConfig == null) {
+                                merged.put(field.getKey(), field.getValue());
+                            } else if (false == mergedConfig.equals(field.getValue())) {
+                                return null;
+                            }
+                        }
+                    }
+                    return merged;
                 }
 
                 @Override

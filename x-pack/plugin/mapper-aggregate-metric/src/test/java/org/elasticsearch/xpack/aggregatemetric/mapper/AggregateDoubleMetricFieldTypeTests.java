@@ -6,11 +6,25 @@
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.ScoreScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
@@ -23,6 +37,9 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.subfieldName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
@@ -74,4 +91,59 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
         final Map<String, Object> metric = Map.of("min", 14.2, "max", defaultValue);
         assertEquals(List.of(defaultValue), fetchSourceValue(fieldType, metric));
     }
+
+    /** Tests that aggregate_metric_double uses the default_metric subfield's doc-values as values in scripts */
+    public void testUsedInScript() throws IOException {
+        final MappedFieldType mappedFieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.max);
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(
+                List.of(
+                    new NumericDocValuesField(subfieldName("field", Metric.max), Double.doubleToLongBits(10)),
+                    new NumericDocValuesField(subfieldName("field", Metric.min), Double.doubleToLongBits(2))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new NumericDocValuesField(subfieldName("field", Metric.max), Double.doubleToLongBits(4)),
+                    new NumericDocValuesField(subfieldName("field", Metric.min), Double.doubleToLongBits(1))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new NumericDocValuesField(subfieldName("field", Metric.max), Double.doubleToLongBits(7)),
+                    new NumericDocValuesField(subfieldName("field", Metric.min), Double.doubleToLongBits(4))
+                )
+            );
+            try (DirectoryReader reader = iw.getReader()) {
+                QueryShardContext queryShardContext = mock(QueryShardContext.class);
+                when(queryShardContext.getFieldType(anyString())).thenReturn(mappedFieldType);
+                when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
+                SearchLookup lookup = new SearchLookup(
+                    queryShardContext::getFieldType,
+                    (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
+                );
+                when(queryShardContext.lookup()).thenReturn(lookup);
+                IndexSearcher searcher = newSearcher(reader);
+                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
+                    @Override
+                    public boolean needs_score() {
+                        return false;
+                    }
+
+                    @Override
+                    public ScoreScript newInstance(LeafReaderContext ctx) {
+                        return new ScoreScript(Map.of(), queryShardContext.lookup(), ctx) {
+                            @Override
+                            public double execute(ExplanationHolder explanation) {
+                                Map<String, ScriptDocValues<?>> doc = getDoc();
+                                ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) doc.get("field");
+                                return doubles.get(0);
+                            }
+                        };
+                    }
+                }, 7f, "test", 0, Version.CURRENT)), equalTo(2));
+            }
+        }
+    }
+
 }

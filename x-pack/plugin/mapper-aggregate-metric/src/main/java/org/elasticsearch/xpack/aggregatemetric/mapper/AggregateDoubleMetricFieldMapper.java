@@ -328,7 +328,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 public LeafAggregateDoubleMetricFieldData load(LeafReaderContext context) {
                     return new LeafAggregateDoubleMetricFieldData() {
                         @Override
-                        public SortedNumericDoubleValues getAggregateMetricValues(final Metric metric) throws IOException {
+                        public SortedNumericDoubleValues getAggregateMetricValues(final Metric metric) {
                             try {
                                 final SortedNumericDocValues values = DocValues.getSortedNumeric(
                                     context.reader(),
@@ -359,13 +359,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                                     }
                                 };
                             } catch (IOException e) {
-                                throw new IOException("Cannot load doc values", e);
+                                throw new IllegalStateException("Cannot load doc values", e);
                             }
                         }
 
                         @Override
                         public ScriptDocValues<?> getScriptValues() {
-                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
+                            // getAggregateMetricValues returns all metric as doubles, including `value_count`
+                            return new ScriptDocValues.Doubles(getAggregateMetricValues(defaultMetric));
                         }
 
                         @Override

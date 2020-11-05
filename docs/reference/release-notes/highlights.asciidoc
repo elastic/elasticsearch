@@ -29,9 +29,9 @@ Other versions:
 ===  Indexing speed improvement
 
 {es} 7.10 improves indexing speed by up to 20%. We've reduced the coordination
-needed to add entries to the <<index-modules-translog,transaction log>>. This
-reduction allows for more concurrency and increases the transaction log buffer
-size from `8KB` to `1MB`. However, performance gains are lower for
+needed to add entries to the {ref}/index-modules-translog.html[transaction log].
+This reduction allows for more concurrency and increases the transaction
+log buffer size from `8KB` to `1MB`. However, performance gains are lower for
 full-text search and other analysis-intensive use cases. The heavier the
 indexing chain, the lower the gains, so indexing chains that involve many
 fields, ingest pipelines or full-text indexing will see lower gains.
@@ -42,38 +42,41 @@ fields, ingest pipelines or full-text indexing will see lower gains.
 
 {es} 7.10 depends on Apache Lucene 8.7, which introduces higher compression of
 stored fields, the part of the index that notably stores the
-<<mapping-source-field,`_source`>>. On the various datasets that we benchmark
-against, we noticed space reductions between 0% and 10%. This change especially
-helps on datasets that have lots of redundant data across documents, which is
-typically the case of the documents that are produced by our Observability
-solutions, which repeat metadata about the host that produced the data on every
-document.
+{ref}/mapping-source-field.html[`_source`]. On the various data sets that we 
+benchmark against, we noticed space reductions between 0% and 10%. This change 
+especially helps on data sets that have lots of redundant data across documents, 
+which is typically the case of the documents that are produced by our
+Observability solutions, which repeat metadata about the host that produced the
+data on every document.
 
-Elasticsearch offers the ability to configure the <<index-codec,`index.codec`>>
-setting to tell Elasticsearch how aggressively to compress stored fields. Both
-supported values `default` and `best_compression` will get better compression
-with this change.
+Elasticsearch offers the ability to configure the
+{ref}/index-modules.html#index-codec[`index.codec`] setting to tell
+{es} how aggressively to compress stored fields. Both supported values
+`default` and `best_compression` will get better compression with this change.
 
 [discrete]
 [[data-tier-formalization]]
 === Data tiers
 
-7.10 introduces the concept of formalized data tiers within Elasticsearch. <<data-tiers,Data tiers>>
-are a simple, integrated approach that gives users control over optimizing for cost,
-performance, and breadth/depth of data. Prior to this formalization, many users configured their own
-tier topology using custom node attributes as well as using {ilm-init} to manage the lifecycle and
+7.10 introduces the concept of formalized data tiers within {es}.
+{ref}/data-tiers.html[Data tiers] are a simple, integrated approach that gives
+users control over optimizing for cost, performance, and breadth/depth of data.
+Prior to this formalization, many users configured their own tier topology using 
+custom node attributes as well as using {ilm-init} to manage the lifecycle and
 location of data within a cluster.
 
-With this formalization, data tiers (content, hot, warm, and cold) can be explicitly configured
-using <<node-roles,node roles>>, and indices can be configured to be allocated within a specific
-tier using <<data-tier-shard-filtering,index-level data tier allocation filtering>>. {ilm-init} will
-make use of these tiers to <<ilm-migrate,automatically migrate>> data between nodes as an index goes
-through the phases of its lifecycle.
+With this formalization, data tiers (content, hot, warm, and cold) can be
+explicitly configured using {ref}/modules-node.html#node-roles[node roles], and 
+indices can be configured to be allocated within a specific tier using
+{ref}/data-tier-shard-filtering.html[index-level data tier allocation filtering]. 
+{ilm-init} will make use of these tiers to
+{ref}/ilm-migrate.html[automatically migrate] data between nodes as an index
+goes through the phases of its lifecycle.
 
-Newly created indices abstracted by a <<data-streams,data stream>> will be allocated to
-the `data_hot` tier automatically, while standalone indices will be allocated to
-the `data_content` tier automatically. Nodes with the pre-existing `data` role are 
-considered to be part of all tiers.
+Newly created indices abstracted by a {ref}/data-streams.html[data stream] will
+be allocated to the `data_hot` tier automatically, while standalone indices will
+be allocated to the `data_content` tier automatically. Nodes with the
+pre-existing `data` role are considered to be part of all tiers.
 
 
 [discrete]

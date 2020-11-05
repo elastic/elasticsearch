@@ -131,7 +131,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
 
                 private Map<?, ?> mergeMappings(String pattern) {
                     Map<String, Map<String, Object>> merged = new HashMap<>();
-                    for (Map.Entry<String, Map<String, Map<String, Object>>> indexEntry: runtimeMappings.entrySet()) {
+                    for (Map.Entry<String, Map<String, Map<String, Object>>> indexEntry : runtimeMappings.entrySet()) {
                         if (false == Regex.simpleMatch(pattern, indexEntry.getKey())) {
                             continue;
                         }
@@ -140,6 +140,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                             if (mergedConfig == null) {
                                 merged.put(field.getKey(), field.getValue());
                             } else if (false == mergedConfig.equals(field.getValue())) {
+                                // The two indices have different runtime mappings for a field so we have to give up on running the test.
                                 return null;
                             }
                         }

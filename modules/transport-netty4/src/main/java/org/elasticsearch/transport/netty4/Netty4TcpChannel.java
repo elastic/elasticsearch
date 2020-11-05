@@ -25,8 +25,8 @@ import io.netty.channel.ChannelPromise;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.concurrent.CompletableContext;
-import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportException;
 
@@ -142,11 +142,11 @@ public class Netty4TcpChannel implements TcpChannel {
     }
 
     @Override
-    public void sendMessage(OutboundHandler.SendContext sendContext) {
-        channel.writeAndFlush(sendContext, addPromise(sendContext, channel));
+    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+        channel.writeAndFlush(Netty4Utils.toByteBuf(reference), addPromise(listener, channel));
 
         if (channel.eventLoop().isShutdown()) {
-            sendContext.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
+            listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
         }
     }
 

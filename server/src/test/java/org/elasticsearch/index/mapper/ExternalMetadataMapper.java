@@ -22,11 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-
 public class ExternalMetadataMapper extends MetadataFieldMapper {
 
     static final String CONTENT_TYPE = "_external_root";
@@ -38,38 +33,15 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public Iterator<Mapper> iterator() {
-        return Collections.emptyIterator();
-    }
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
+    public void postParse(ParseContext context) {
         context.doc().add(new StringField(FIELD_NAME, FIELD_VALUE, Store.YES));
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder {
-
-        protected Builder() {
-            super(FIELD_NAME);
-        }
-
-        @Override
-        protected List<Parameter<?>> getParameters() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public ExternalMetadataMapper build(ContentPath contentPath) {
-            return new ExternalMetadataMapper();
-        }
-
-    }
-
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new ExternalMetadataMapper(), c -> new Builder());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new ExternalMetadataMapper());
 
 }

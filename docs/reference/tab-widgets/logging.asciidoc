@@ -1,0 +1,37 @@
+// tag::docker[]
+On <<docker,Docker>>, log messages go to the console and are handled by the
+configured Docker logging driver. To access logs, run `docker logs`.
+// end::docker[]
+
+// tag::deb[]
+For <<deb,Debian installations>>, {es} writes logs to `/var/log/elasticsearch`.
+// end::deb[]
+
+// tag::rpm[]
+For <<rpm,RPM installations>>, {es} writes logs to `/var/log/elasticsearch`.
+// end::rpm[]
+
+// tag::mac[]
+For <<targz,MacOS `.tar.gz`>> installations, {es} writes logs to
+`$ES_HOME/logs`.
+// end::mac[]
+
+// tag::brew[]
+For <<brew,MacOS Homebrew>> installations, {es} writes logs to
+`/usr/local/var/log/elasticsearch`.
+// end::brew[]
+
+// tag::linux[]
+For <<targz,Linux `.tar.gz`>> installations, {es} writes logs to
+`$ES_HOME/logs`.
+// end::linux[]
+
+// tag::win-zip[]
+For <<zip-windows,Windows `.zip`>> installations, {es} writes logs to
+`%ES_HOME%\logs`.
+// end::win-zip[]
+
+// tag::win-msi[]
+For <<windows,Windows `.msi`>> installations, {es} writes logs to
+`%ALLUSERSPROFILE%\Elastic\Elasticsearch\logs`.
+// end::win-msi[]

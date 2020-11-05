@@ -16,10 +16,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -43,8 +42,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A {@link FieldMapper} for indexing a sparse vector of floats.
  */
 @Deprecated
-public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
-
+public class SparseVectorFieldMapper extends FieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SparseVectorFieldMapper.class);
     public static final String DEPRECATION_MESSAGE = "The [sparse_vector] field type is deprecated and will be removed in 8.0.";
 
@@ -52,7 +50,7 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
     public static short MAX_DIMS_COUNT = 1024; //maximum allowed number of dimensions
     public static int MAX_DIMS_NUMBER = 65535; //maximum allowed dimension's number
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -69,10 +67,10 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public SparseVectorFieldMapper build(BuilderContext context) {
+        public SparseVectorFieldMapper build(ContentPath contentPath) {
             return new SparseVectorFieldMapper(
-                    name, new SparseVectorFieldType(buildFullName(context), meta.getValue()),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), indexCreatedVersion);
+                    name, new SparseVectorFieldType(buildFullName(contentPath), meta.getValue()),
+                    multiFieldsBuilder.build(this, contentPath), copyTo.build(), indexCreatedVersion);
         }
     }
 
@@ -99,11 +97,11 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService, false) {
+            return new SourceValueFetcher(name(), context, false) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value;
@@ -139,11 +137,6 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
                                     MultiFields multiFields, CopyTo copyTo, Version indexCreatedVersion) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.indexCreatedVersion = indexCreatedVersion;
-    }
-
-    @Override
-    protected SparseVectorFieldMapper clone() {
-        return (SparseVectorFieldMapper) super.clone();
     }
 
     @Override
@@ -208,7 +201,7 @@ public class SparseVectorFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexCreatedVersion).init(this);
     }
 }

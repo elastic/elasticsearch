@@ -6,22 +6,17 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.document.ShapeField;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.store.ByteBuffersDataOutput;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * A stateful lightweight per document geo values.
@@ -136,34 +131,16 @@ public abstract class GeoShapeValues {
 
         public static GeoShapeValue missing(String missing) {
             try {
-                Geometry geometry = MISSING_GEOMETRY_PARSER.fromWKT(missing);
-                ShapeField.DecodedTriangle[] triangles = toDecodedTriangles(geometry);
-                GeometryDocValueWriter writer =
-                    new GeometryDocValueWriter(Arrays.asList(triangles), CoordinateEncoder.GEO,
-                        new CentroidCalculator(geometry));
-                ByteBuffersDataOutput output = new ByteBuffersDataOutput();
-                writer.writeTo(output);
-                GeometryDocValueReader reader = new GeometryDocValueReader();
-                reader.reset(new BytesRef(output.toArrayCopy(), 0, Math.toIntExact(output.size())));
+                final GeoShapeIndexer indexer = new GeoShapeIndexer(true, "missing");
+                final Geometry geometry = indexer.prepareForIndexing(MISSING_GEOMETRY_PARSER.fromWKT(missing));
+                final BinaryGeoShapeDocValuesField field =
+                    new BinaryGeoShapeDocValuesField(missing, indexer.indexShape(null, geometry), new CentroidCalculator(geometry));
+                final GeometryDocValueReader reader = new GeometryDocValueReader();
+                reader.reset(field.binaryValue());
                 return new GeoShapeValue(reader);
             } catch (IOException | ParseException e) {
                 throw new IllegalArgumentException("Can't apply missing value [" + missing + "]", e);
             }
-        }
-
-        private static ShapeField.DecodedTriangle[] toDecodedTriangles(Geometry geometry)  {
-            GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-            geometry = indexer.prepareForIndexing(geometry);
-            List<IndexableField> fields = indexer.indexShape(null, geometry);
-            ShapeField.DecodedTriangle[] triangles = new ShapeField.DecodedTriangle[fields.size()];
-            final byte[] scratch = new byte[7 * Integer.BYTES];
-            for (int i = 0; i < fields.size(); i++) {
-                BytesRef bytesRef = fields.get(i).binaryValue();
-                assert bytesRef.length == 7 * Integer.BYTES;
-                System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
-                ShapeField.decodeTriangle(scratch, triangles[i] = new ShapeField.DecodedTriangle());
-            }
-            return triangles;
         }
     }
 

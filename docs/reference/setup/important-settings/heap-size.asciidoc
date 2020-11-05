@@ -1,4 +1,4 @@
-[[heap-size]]
+[[heap-size-settings]]
 [discrete]
 === Heap size settings
 

@@ -53,7 +53,7 @@ public class DocumentMapper implements ToXContentFragment {
     public static class Builder {
         private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers;
         private final RootObjectMapper rootObjectMapper;
-        private final Mapper.BuilderContext builderContext;
+        private final ContentPath contentPath;
         private final IndexSettings indexSettings;
         private final IndexAnalyzers indexAnalyzers;
         private final DocumentParser documentParser;
@@ -73,8 +73,8 @@ public class DocumentMapper implements ToXContentFragment {
             this.indexSettings = indexSettings;
             this.indexAnalyzers = indexAnalyzers;
             this.documentParser = documentParser;
-            this.builderContext = new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1));
-            this.rootObjectMapper = builder.build(builderContext);
+            this.contentPath = new ContentPath(1);
+            this.rootObjectMapper = builder.build(contentPath);
             this.metadataMappers = metadataMappersFunction.apply(rootObjectMapper.name());
         }
 
@@ -84,7 +84,7 @@ public class DocumentMapper implements ToXContentFragment {
         }
 
         public Builder put(MetadataFieldMapper.Builder mapper) {
-            MetadataFieldMapper metadataMapper = mapper.build(builderContext);
+            MetadataFieldMapper metadataMapper = mapper.build(contentPath);
             metadataMappers.put(metadataMapper.getClass(), metadataMapper);
             return this;
         }
@@ -121,7 +121,7 @@ public class DocumentMapper implements ToXContentFragment {
         this.documentParser = documentParser;
         this.indexSettings = indexSettings;
         this.indexAnalyzers = indexAnalyzers;
-        this.fieldMappers = MappingLookup.fromMapping(this.mapping, indexAnalyzers.getDefaultIndexAnalyzer());
+        this.fieldMappers = MappingLookup.fromMapping(this.mapping);
 
         try {
             mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);

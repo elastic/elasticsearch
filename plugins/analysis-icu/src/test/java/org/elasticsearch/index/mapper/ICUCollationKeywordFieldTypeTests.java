@@ -19,33 +19,26 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-
 import java.io.IOException;
 import java.util.Collections;
 
 public class ICUCollationKeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(context);
+        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(new ContentPath());
         assertEquals(Collections.singletonList("42"), fetchSourceValue(mapper.fieldType(), 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(mapper.fieldType(), true));
 
         ICUCollationKeywordFieldMapper ignoreAboveMapper = new ICUCollationKeywordFieldMapper.Builder("field")
             .ignoreAbove(4)
-            .build(context);
+            .build(new ContentPath());
         assertEquals(Collections.emptyList(), fetchSourceValue(ignoreAboveMapper.fieldType(), "value"));
         assertEquals(Collections.singletonList("42"), fetchSourceValue(ignoreAboveMapper.fieldType(), 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(ignoreAboveMapper.fieldType(), true));
 
         ICUCollationKeywordFieldMapper nullValueMapper = new ICUCollationKeywordFieldMapper.Builder("field")
             .nullValue("NULL")
-            .build(context);
+            .build(new ContentPath());
         assertEquals(Collections.singletonList("NULL"), fetchSourceValue(nullValueMapper.fieldType(), null));
     }
 }

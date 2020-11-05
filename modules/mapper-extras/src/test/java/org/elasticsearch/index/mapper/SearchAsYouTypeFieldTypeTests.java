@@ -113,7 +113,6 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         SearchAsYouTypeFieldType fieldType = createFieldType();
-        fieldType.setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
 
         assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(fieldType, "value"));
         assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(fieldType, 42L));

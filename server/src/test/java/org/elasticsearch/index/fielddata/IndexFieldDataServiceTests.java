@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -78,8 +77,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
-        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(ctx).fieldType();
+        ContentPath contentPath = new ContentPath(1);
+        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(contentPath).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper, "test", () -> {
             throw new UnsupportedOperationException();
@@ -87,10 +86,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.BYTE, false, true).build(ctx).fieldType(),
-                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.SHORT, false, true).build(ctx).fieldType(),
-                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.INTEGER, false, true).build(ctx).fieldType(),
-                new NumberFieldMapper.Builder("long", NumberFieldMapper.NumberType.LONG, false, true).build(ctx).fieldType()
+                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.BYTE, false, true).build(contentPath).fieldType(),
+                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.SHORT, false, true).build(contentPath).fieldType(),
+                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.INTEGER, false, true).build(contentPath).fieldType(),
+                new NumberFieldMapper.Builder("long", NumberFieldMapper.NumberType.LONG, false, true).build(contentPath).fieldType()
                 )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper, "test", () -> {
@@ -100,7 +99,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         }
 
         final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberFieldMapper.NumberType.FLOAT, false, true)
-                .build(ctx).fieldType();
+                .build(contentPath).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper, "test", () -> {
             throw new UnsupportedOperationException();
@@ -108,7 +107,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertTrue(fd instanceof SortedNumericIndexFieldData);
 
         final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", NumberFieldMapper.NumberType.DOUBLE, false, true)
-                .build(ctx).fieldType();
+                .build(contentPath).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, "test", () -> {
             throw new UnsupportedOperationException();
@@ -141,11 +140,11 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
 
-        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        final ContentPath contentPath = new ContentPath(1);
         final MappedFieldType mapper1
-            = new TextFieldMapper.Builder("field_1", () -> Lucene.STANDARD_ANALYZER).fielddata(true).build(ctx).fieldType();
+            = new TextFieldMapper.Builder("field_1", () -> Lucene.STANDARD_ANALYZER).fielddata(true).build(contentPath).fieldType();
         final MappedFieldType mapper2
-            = new TextFieldMapper.Builder("field_2", () -> Lucene.STANDARD_ANALYZER).fielddata(true).build(ctx).fieldType();
+            = new TextFieldMapper.Builder("field_2", () -> Lucene.STANDARD_ANALYZER).fielddata(true).build(contentPath).fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("field_1", "thisisastring", Store.NO));
@@ -207,9 +206,9 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
                 indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
 
-        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        final ContentPath contentPath = new ContentPath(1);
         final MappedFieldType mapper1
-            = new TextFieldMapper.Builder("s", () -> Lucene.STANDARD_ANALYZER).fielddata(true).build(ctx).fieldType();
+            = new TextFieldMapper.Builder("s", () -> Lucene.STANDARD_ANALYZER).fielddata(true).build(contentPath).fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));

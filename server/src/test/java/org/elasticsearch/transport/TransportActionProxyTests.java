@@ -133,11 +133,6 @@ public class TransportActionProxyTests extends ESTestCase {
                         latch.countDown();
                     }
                 }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
             });
         latch.await();
     }
@@ -191,11 +186,6 @@ public class TransportActionProxyTests extends ESTestCase {
                     } finally {
                         latch.countDown();
                     }
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
                 }
             });
         latch.await();

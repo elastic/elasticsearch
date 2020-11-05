@@ -287,6 +287,18 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.getObjectMapper(name);
     }
 
+    public boolean isMetadataField(String field) {
+        return mapperService.isMetadataField(field);
+    }
+
+    public Set<String> sourcePath(String fullName) {
+        return mapperService.sourcePath(fullName);
+    }
+
+    public boolean isSourceEnabled() {
+        return mapperService.documentMapper().sourceMapper().enabled();
+    }
+
     /**
      * Returns s {@link DocumentMapper} instance for the given type.
      * Delegates to {@link MapperService#documentMapper(String)}
@@ -315,8 +327,7 @@ public class QueryShardContext extends QueryRewriteContext {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
         final Mapper.Builder builder = typeParser.parse("__anonymous_" + type, Collections.emptyMap(), parserContext);
-        final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1));
-        Mapper mapper = builder.build(builderContext);
+        Mapper mapper = builder.build(new ContentPath(1));
         if (mapper instanceof FieldMapper) {
             return ((FieldMapper)mapper).fieldType();
         }
@@ -345,7 +356,7 @@ public class QueryShardContext extends QueryRewriteContext {
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder
                 = new TextFieldMapper.Builder(name, () -> mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer());
-            return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
+            return builder.build(new ContentPath(1)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
@@ -361,6 +372,14 @@ public class QueryShardContext extends QueryRewriteContext {
             return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
         }
         return Arrays.asList(types);
+    }
+
+    /**
+     * Does the index analyzer for this field have token filters that may produce
+     * backwards offsets in term vectors
+     */
+    public boolean containsBrokenAnalysis(String field) {
+        return mapperService.containsBrokenAnalysis(field);
     }
 
     private SearchLookup lookup = null;

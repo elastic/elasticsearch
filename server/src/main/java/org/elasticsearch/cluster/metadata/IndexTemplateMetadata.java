@@ -176,7 +176,8 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         if (!settings.equals(that.settings)) return false;
         if (!patterns.equals(that.patterns)) return false;
 
-        return Objects.equals(version, that.version);
+        return Objects.equals(aliases, that.aliases) &&
+            Objects.equals(version, that.version);
     }
 
     @Override
@@ -187,6 +188,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         result = 31 * result + patterns.hashCode();
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
+        result = 31 * result + aliases.hashCode();
         return result;
     }
 

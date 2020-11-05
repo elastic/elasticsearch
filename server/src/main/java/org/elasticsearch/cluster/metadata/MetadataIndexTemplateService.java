@@ -476,7 +476,8 @@ public class MetadataIndexTemplateService {
             final Template finalTemplate = new Template(finalSettings,
                 stringMappings == null ? null : new CompressedXContent(stringMappings), innerTemplate.aliases());
             finalIndexTemplate = new ComposableIndexTemplate(template.indexPatterns(), finalTemplate, template.composedOf(),
-                template.priority(), template.version(), template.metadata(), template.getDataStreamTemplate());
+                template.priority(), template.version(), template.metadata(), template.getDataStreamTemplate(),
+                template.getAllowAutoCreate());
         }
 
         if (finalIndexTemplate.equals(existing)) {
@@ -780,6 +781,11 @@ public class MetadataIndexTemplateService {
             templateBuilder.putAlias(aliasMetadata);
         }
         IndexTemplateMetadata template = templateBuilder.build();
+        IndexTemplateMetadata existingTemplate = currentState.metadata().templates().get(request.name);
+        if (template.equals(existingTemplate)) {
+            // The template is unchanged, therefore there is no need for a cluster state update
+            return currentState;
+        }
 
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(template);
 

@@ -6,8 +6,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -138,11 +136,7 @@ public class FlattenedFieldLookupTests extends ESTestCase {
     }
 
     private FlattenedFieldMapper createFlattenedMapper(String fieldName) {
-        Settings settings = Settings.builder()
-            .put("index.version.created", Version.CURRENT)
-            .build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        return new FlattenedFieldMapper.Builder(fieldName).build(context);
+        return new FlattenedFieldMapper.Builder(fieldName).build(new ContentPath());
     }
 
     public void testScriptDocValuesLookup() {

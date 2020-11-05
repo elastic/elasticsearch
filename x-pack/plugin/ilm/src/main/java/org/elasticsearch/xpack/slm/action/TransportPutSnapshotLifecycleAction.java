@@ -65,7 +65,7 @@ public class TransportPutSnapshotLifecycleAction extends
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
         clusterService.submitStateUpdateTask("put-snapshot-lifecycle-" + request.getLifecycleId(),
-            new AckedClusterStateUpdateTask<PutSnapshotLifecycleAction.Response>(request, listener) {
+            new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);

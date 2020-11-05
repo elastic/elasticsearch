@@ -29,7 +29,7 @@ fields can be customized when a mapping is created.
     The size of the `_source` field in bytes, provided by the
     {plugins}/mapper-size.html[`mapper-size` plugin].
 
-q[discrete]
+[discrete]
 === Doc count metadata field
 
 <<mapping-doc-count-field,`_doc_count`>>::

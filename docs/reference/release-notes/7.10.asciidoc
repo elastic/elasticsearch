@@ -36,7 +36,8 @@ Mapping::
 Cluster Coordination::
 * Deprecate and ignore join timeout {es-pull}60872[#60872] (issue: {es-issue}60873[#60873])
 
-
+Machine learning::
+* Renames \*/inference* APIs to \*/trained_models* {es-pull}63097[#63097]
 
 [[feature-7.10.0]]
 [float]

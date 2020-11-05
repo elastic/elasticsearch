@@ -6,35 +6,32 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
- * This is a tree-writer that serializes a list of {@link ShapeField.DecodedTriangle} as an interval tree
+ * This is a tree-writer that serializes a list of {@link IndexableField} as an interval tree
  * into a byte array.
  */
 public class GeometryDocValueWriter {
 
-    private final TriangleTreeWriter treeWriter;
-    private final CoordinateEncoder coordinateEncoder;
-    private final CentroidCalculator centroidCalculator;
-
-    public GeometryDocValueWriter(List<ShapeField.DecodedTriangle> triangles, CoordinateEncoder coordinateEncoder,
-                                  CentroidCalculator centroidCalculator) {
-        this.coordinateEncoder = coordinateEncoder;
-        this.centroidCalculator = centroidCalculator;
-        this.treeWriter = new TriangleTreeWriter(triangles);
+    private GeometryDocValueWriter() {
     }
 
-    /*** Serialize the interval tree in the provided data output */
-    public void writeTo(ByteBuffersDataOutput out) throws IOException {
+    /*** Serialize the triangle tree in a BytesRef */
+    public static BytesRef write(List<IndexableField> fields,
+                                 CoordinateEncoder coordinateEncoder,
+                                 CentroidCalculator centroidCalculator) throws IOException {
+        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
         out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
         centroidCalculator.getDimensionalShapeType().writeTo(out);
         out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
-        treeWriter.writeTo(out);
+        TriangleTreeWriter.writeTo(out, fields);
+        return new BytesRef(out.toArrayCopy(), 0, Math.toIntExact(out.size()));
     }
 }

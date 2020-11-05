@@ -103,11 +103,9 @@ public class PlainHighlighter implements Highlighter {
         Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().getType()).mappers().indexAnalyzer();
         Integer keywordIgnoreAbove = null;
         if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper mapper = (KeywordFieldMapper) context.mapperService().documentMapper()
-                .mappers().getMapper(fieldContext.fieldName);
-            keywordIgnoreAbove = mapper.ignoreAbove();
-        };
-        final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
+            keywordIgnoreAbove = ((KeywordFieldMapper.KeywordFieldType)fieldType).ignoreAbove();
+        }
+        final int maxAnalyzedOffset = context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
 
         textsToHighlight = HighlightUtils.loadFieldValues(fieldType, hitContext, fieldContext.forceSource);
 

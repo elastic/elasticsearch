@@ -187,13 +187,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         for (Map.Entry<String, MappedFieldType> entry : fieldNameToType.entrySet()) {
             String fieldName = entry.getKey();
             MappedFieldType fieldType = entry.getValue();
-
             when(mapperService.fieldType(fieldName)).thenReturn(fieldType);
-            when(searchContext.fieldType(fieldName)).thenReturn(fieldType);
         }
     }
 
-    // Make this @Before instead of @BeforeClass so it can call the non-static getSearchPlugins method
     @Before
     public void initValuesSourceRegistry() {
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
@@ -286,7 +283,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
         when(mapperService.indexAnalyzer()).thenReturn(new StandardAnalyzer()); // for significant text
-        when(searchContext.mapperService()).thenReturn(mapperService);
         QueryShardContext queryShardContext =
             queryShardContextMock(contextIndexSearcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);

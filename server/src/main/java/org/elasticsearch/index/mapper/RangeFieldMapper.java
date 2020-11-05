@@ -30,7 +30,6 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -96,10 +95,6 @@ public class RangeFieldMapper extends FieldMapper {
 
         private final RangeType type;
         private final Version indexCreatedVersion;
-
-        public Builder(String name, RangeType type, Settings settings) {
-            this(name, type, COERCE_SETTING.get(settings), Version.indexCreated(settings));
-        }
 
         public Builder(String name, RangeType type, boolean coerceByDefault, Version indexCreatedVersion) {
             super(name);

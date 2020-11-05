@@ -743,7 +743,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         }));
-        assertWarnings("You have defined more than [10] completion contexts in the mapping for index [null]. " +
+        assertWarnings("You have defined more than [10] completion contexts in the mapping for field [field]. " +
             "The maximum allowed number of completion contexts in a mapping will be limited to [10] starting in version [8.0].");
     }
 

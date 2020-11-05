@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.MediaTypeRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -42,6 +43,10 @@ public class RestSqlQueryAction extends BaseRestHandler {
         return List.of(
             new Route(GET, Protocol.SQL_QUERY_REST_ENDPOINT),
             new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT));
+    }
+
+    public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
+        return SqlMediaTypeParser.MEDIA_TYPE_REGISTRY;
     }
 
     @Override
@@ -83,9 +88,6 @@ public class RestSqlQueryAction extends BaseRestHandler {
             }
         });
     }
-
-
-
 
     @Override
     protected Set<String> responseParams() {

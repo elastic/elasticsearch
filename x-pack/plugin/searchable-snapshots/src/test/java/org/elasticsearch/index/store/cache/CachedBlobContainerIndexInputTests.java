@@ -7,15 +7,8 @@ package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
-import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -23,17 +16,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
-import org.elasticsearch.index.store.SearchableSnapshotDirectoryTests;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.EOFException;
@@ -49,7 +37,6 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
-import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.index.store.cache.TestUtils.singleSplitBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
@@ -59,11 +46,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
+public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
     public void testRandomReads() throws Exception {
-        final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
-        try (CacheService cacheService = createCacheService(random())) {
+        try (CacheService cacheService = randomCacheService()) {
             cacheService.start();
 
             SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
@@ -164,12 +150,12 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 }
             }
         } finally {
-            SearchableSnapshotDirectoryTests.terminateSafely(threadPool);
+            assertThreadPoolNotBusy(threadPool);
         }
     }
 
     public void testThrowsEOFException() throws Exception {
-        try (CacheService cacheService = createCacheService(random())) {
+        try (CacheService cacheService = randomCacheService()) {
             cacheService.start();
 
             SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
@@ -192,7 +178,6 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             );
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
-            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
             final Path shardDir;
             try {
                 shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
@@ -232,7 +217,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     }
                 }
             } finally {
-                SearchableSnapshotDirectoryTests.terminateSafely(threadPool);
+                assertThreadPoolNotBusy(threadPool);
             }
         }
     }
@@ -250,23 +235,6 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             }
         }
         return containsEOFException(throwable.getCause(), seenThrowables);
-    }
-
-    private SearchableSnapshotRecoveryState createRecoveryState() {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), 0),
-            randomAlphaOfLength(10),
-            true,
-            ShardRoutingState.INITIALIZING,
-            new RecoverySource.SnapshotRecoverySource(
-                UUIDs.randomBase64UUID(),
-                new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
-                Version.CURRENT,
-                new IndexId("some_index", UUIDs.randomBase64UUID(random()))
-            )
-        );
-        DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
-        return new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
     }
 
     /**

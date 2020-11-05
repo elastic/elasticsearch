@@ -297,7 +297,7 @@ public class TextFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder addMultiField(Mapper.Builder builder) {
+        public Builder addMultiField(FieldMapper.Builder builder) {
             this.multiFieldsBuilder.add(builder);
             return this;
         }

@@ -92,11 +92,6 @@ public final class TransportActionProxy {
                 throw new UncheckedIOException(e);
             }
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 
     static class ProxyRequest<T extends TransportRequest> extends TransportRequest {

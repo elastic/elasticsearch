@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.ArrayList;
@@ -29,26 +30,27 @@ import java.util.Set;
 /**
  * An implementation of {@link ValueFetcher} that knows how to extract values
  * from the document source.
- *
+ * <p>
  * This class differs from {@link SourceValueFetcher} in that it directly handles
  * array values in parsing. Field types should use this class if their corresponding
  * mapper returns true for {@link FieldMapper#parsesArrayValue()}.
  */
 public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
-    private final @Nullable Object nullValue;
+    private final @Nullable
+    Object nullValue;
 
-    public ArraySourceValueFetcher(String fieldName, MapperService mapperService) {
-        this(fieldName, mapperService, null);
+    public ArraySourceValueFetcher(String fieldName, QueryShardContext context) {
+        this(fieldName, context, null);
     }
 
     /**
      * @param fieldName The name of the field.
-     * @param mapperService A mapper service.
+     * @param context   The query shard context
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
-    public ArraySourceValueFetcher(String fieldName, MapperService mapperService, Object nullValue) {
-        this.sourcePaths = mapperService.sourcePath(fieldName);
+    public ArraySourceValueFetcher(String fieldName, QueryShardContext context, Object nullValue) {
+        this.sourcePaths = context.sourcePath(fieldName);
         this.nullValue = nullValue;
     }
 

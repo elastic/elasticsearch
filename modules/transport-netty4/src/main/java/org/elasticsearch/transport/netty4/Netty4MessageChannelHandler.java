@@ -92,6 +92,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
         assert msg instanceof ByteBuf;
+        assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
         final boolean queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
         assert queued;
         assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());

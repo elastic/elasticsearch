@@ -123,6 +123,7 @@ final class OutboundHandler {
     private void internalSend(TcpChannel channel, SendContext sendContext) throws IOException {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         BytesReference reference = sendContext.get();
+        // stash thread context so that channel event loop is not polluted by thread context
         try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
             channel.sendMessage(reference, sendContext);
         } catch (RuntimeException ex) {

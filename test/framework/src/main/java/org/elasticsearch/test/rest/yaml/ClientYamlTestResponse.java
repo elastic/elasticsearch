@@ -53,7 +53,7 @@ public class ClientYamlTestResponse {
         this.response = response;
         if (response.getEntity() != null) {
             String contentType = response.getHeader("Content-Type");
-            //Do not know about sql media types. relies on null
+
             this.bodyContentType = getContentTypeIgnoreExceptions(contentType);
             try {
                 byte[] bytes = EntityUtils.toByteArray(response.getEntity());
@@ -72,6 +72,12 @@ public class ClientYamlTestResponse {
         }
     }
 
+    /**
+     * A content type returned on a response can be a media type defined outside XContentType (for instance plain/text, plain/csv etc).
+     * This means that the response cannot be parsed.DefaultHttpHeaders
+     * Also in testing there is no access to media types defined outside of XContentType.
+     * Therefore a null has to be returned if a response content-type has a mediatype not defined in XContentType.
+     */
     private XContentType getContentTypeIgnoreExceptions(String contentType) {
         try {
             return XContentType.fromMediaType(contentType);

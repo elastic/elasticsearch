@@ -247,11 +247,12 @@ this value.
 (Optional, string)
 Field used to sort events with the same
 <<eql-search-api-timestamp-field,timestamp>> in ascending, lexicographic order.
-For basic queries, {es} uses <<sort-search-results,`_doc` order>> if no
-tiebreaker field is specified or the events also share the same tiebreaker value.
+If you specify a tiebreaker field, all documents in the searched data streams or
+indices must contain the field. For basic queries, {es} uses
+<<sort-search-results,`_doc` order>> if no tiebreaker field is specified or
+events also share the same tiebreaker value.
 +
-If you specify a tiebreaker field, all documents in the searched index or data
-stream must contain the field. If you use the {ecs-ref}[ECS], we recommend using
+ If you use the {ecs-ref}[ECS], we recommend using
 `event.sequence` as the tiebreaker field.
 
 [[eql-search-api-timestamp-field]]

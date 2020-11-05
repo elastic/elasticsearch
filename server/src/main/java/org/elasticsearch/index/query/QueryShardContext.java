@@ -278,6 +278,10 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.sourcePath(fullName);
     }
 
+    public boolean isSourceEnabled() {
+        return mapperService.documentMapper().sourceMapper().enabled();
+    }
+
     /**
      * Given a type (eg. long, string, ...), returns an anonymous field type that can be used for search operations.
      * Generally used to handle unmapped fields in the context of sorting.

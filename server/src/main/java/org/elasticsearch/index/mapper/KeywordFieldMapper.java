@@ -300,6 +300,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         public CollapseType collapseType() {
             return CollapseType.KEYWORD;
         }
+
+        /** Values that have more chars than the return value of this method will
+         *  be skipped at parsing time. */
+        public int ignoreAbove() {
+            return ignoreAbove;
+        }
     }
 
     private final boolean indexed;
@@ -331,12 +337,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
 
         this.indexAnalyzers = builder.indexAnalyzers;
-    }
-
-    /** Values that have more chars than the return value of this method will
-     *  be skipped at parsing time. */
-    public int ignoreAbove() {
-        return ignoreAbove;
     }
 
     @Override

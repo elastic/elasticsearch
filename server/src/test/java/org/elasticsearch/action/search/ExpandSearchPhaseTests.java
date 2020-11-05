@@ -240,4 +240,8 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(mockSearchPhaseContext.searchResponse.get());
     }
+
+    public void testCollapseWithRuntimeField() {
+        // NOCOMMIT write me.
+    }
 }

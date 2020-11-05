@@ -112,11 +112,32 @@ public abstract class CoreTestTranslater {
 
     protected abstract Map<String, Object> indexTemplate();
 
-    protected static Map<String, Object> indexTemplateToDisableAllFields() {
-        return Map.of("settings", Map.of(), "mappings", Map.of("dynamic", false));
+    protected static Map<String, Object> indexTemplateToDisableRuntimeCompatibleFields() {
+        List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
+        for (String type : PAINLESS_TO_EMIT.keySet()) {
+            if (type.equals("ip")) {
+                // There isn't a dynamic template to pick up ips. They'll just look like strings.
+                continue;
+            }
+            Map<String, Object> mapping = Map.of("type", type, "index", false, "doc_values", false);
+            if (type.equals("keyword")) {
+                /*
+                 * For "string"-type dynamic mappings emulate our default
+                 * behavior with a top level text field and a `.keyword`
+                 * multi-field. In our case we disable the keyword field
+                 * and substitute it with an enabled one on the search
+                 * request.
+                 */
+                mapping = Map.of("type", "text", "fields", Map.of("keyword", mapping));
+                dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", "string", "mapping", mapping)));
+            } else {
+                dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", type, "mapping", mapping)));
+            }
+        }
+        return Map.of("settings", Map.of(), "mappings", Map.of("dynamic_templates", dynamicTemplates));
     }
 
-    protected static Map<String, Object> indexTemplateToAddRuntimeFieldsToMappings() {
+    protected static Map<String, Object> indexTemplateToAddRuntimeFields() {
         List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
         for (String type : PAINLESS_TO_EMIT.keySet()) {
             if (type.equals("ip")) {
@@ -128,7 +149,7 @@ public abstract class CoreTestTranslater {
                 Map.entry("runtime_type", type),
                 Map.entry("script", painlessToLoadFromSource("{name}", type))
             );
-            if (type.contentEquals("keyword")) {
+            if (type.equals("keyword")) {
                 /*
                  * For "string"-type dynamic mappings emulate our default
                  * behavior with a top level text field and a `.keyword`

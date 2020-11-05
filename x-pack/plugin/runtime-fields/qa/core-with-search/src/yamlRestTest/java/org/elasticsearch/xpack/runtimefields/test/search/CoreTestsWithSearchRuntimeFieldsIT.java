@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.runtimefields.test.search;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -49,7 +48,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
     private static class SearchRequestRuntimeFieldTranslater extends CoreTestTranslater {
         @Override
         protected Map<String, Object> indexTemplate() {
-            return indexTemplateToDisableAllFields();
+            return indexTemplateToDisableRuntimeCompatibleFields();
         }
 
         @Override
@@ -116,14 +115,14 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                 }
 
                 private Map<?, ?> runtimeMappings(Object index) {
-                    if (index != null) {
+                    if (index != null && false == "_all".equals(index)) {
                         return runtimeMappings.get(index);
                     }
                     // No mapping index specified in the search, if there is just one index we can just us it
                     if (runtimeMappings.size() == 1) {
                         return runtimeMappings.values().iterator().next();
                     }
-                    // NOCOMMIT try and merge the mappings
+                    // TODO try and merge the mappings if targeting more than one index
                     return null;
                 }
 

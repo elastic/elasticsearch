@@ -36,7 +36,7 @@ public class CoreWithMappedRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
     private static class MappingRuntimeFieldTranslater extends CoreTestTranslater {
         @Override
         protected Map<String, Object> indexTemplate() {
-            return indexTemplateToAddRuntimeFieldsToMappings();
+            return indexTemplateToAddRuntimeFields();
         }
 
         @Override

@@ -256,7 +256,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            runtimeMappings = in.readMap();
+            if (in.readBoolean()) {
+                runtimeMappings = in.readMap();
+            }
         }
     }
 
@@ -320,7 +322,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeOptionalWriteable(pointInTimeBuilder);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMap(runtimeMappings);
+            if (runtimeMappings == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeMap(runtimeMappings);
+            }
         }
     }
 

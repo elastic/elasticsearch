@@ -116,7 +116,7 @@ See <<input-http>> for more details.
 ==== Chaining inputs
 
 You can create an <<input-chain,input chain>> to load data from multiple sources
-into a watch payload. The inputs in a chain are processed in order, so the the
+into a watch payload. The inputs in a chain are processed in order, so the
 data loaded by one input can be used by subsequent inputs.
 
 See <<input-chain>> for more details.

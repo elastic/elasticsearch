@@ -37,29 +37,6 @@ import java.util.function.Supplier;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
-    public static class BuilderContext {
-        private final Settings indexSettings;
-        private final ContentPath contentPath;
-
-        public BuilderContext(Settings indexSettings, ContentPath contentPath) {
-            Objects.requireNonNull(indexSettings, "indexSettings is required");
-            this.contentPath = contentPath;
-            this.indexSettings = indexSettings;
-        }
-
-        public ContentPath path() {
-            return this.contentPath;
-        }
-
-        public Settings indexSettings() {
-            return this.indexSettings;
-        }
-
-        public Version indexCreatedVersion() {
-            return Version.indexCreated(indexSettings);
-        }
-    }
-
     public abstract static class Builder {
 
         public String name;
@@ -73,7 +50,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         /** Returns a newly built mapper. */
-        public abstract Mapper build(BuilderContext context);
+        public abstract Mapper build(ContentPath contentPath);
     }
 
     public interface TypeParser {

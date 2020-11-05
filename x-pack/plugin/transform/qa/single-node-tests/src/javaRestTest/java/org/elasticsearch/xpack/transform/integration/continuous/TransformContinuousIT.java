@@ -124,8 +124,10 @@ public class TransformContinuousIT extends ESRestTestCase {
     @Before
     public void registerTestCases() {
         addTestCaseIfNotDisabled(new TermsGroupByIT());
+        addTestCaseIfNotDisabled(new TermsOnDateGroupByIT());
         addTestCaseIfNotDisabled(new DateHistogramGroupByIT());
         addTestCaseIfNotDisabled(new DateHistogramGroupByOtherTimeFieldIT());
+        addTestCaseIfNotDisabled(new HistogramGroupByIT());
     }
 
     @Before
@@ -175,18 +177,31 @@ public class TransformContinuousIT extends ESRestTestCase {
             }
         }
 
+        // generate date id's to group on
+        List<String> dates = new ArrayList<>();
+        dates.add(null);
+        for (int i = 0; i < 100; i++) {
+            dates.add(
+                // create a random date between 1/1/2001 and 1/1/2006
+                ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                    .format(Instant.ofEpochMilli(randomLongBetween(978307200000L, 1136073600000L)))
+            );
+        }
+
         putIndex(sourceIndexName, dateType, isDataStream);
         // create all transforms to test
         createTransforms();
 
         for (int run = 0; run < runs; run++) {
             Instant runDate = Instant.now();
+
             createOrUpdatePipeline(ContinuousTestCase.INGEST_RUN_FIELD, run);
 
             // shuffle the list to draw randomly from the first x entries (that way we do not update all entities in 1 run)
             Collections.shuffle(events, random());
             Collections.shuffle(metric_bucket, random());
             Collections.shuffle(locations, random());
+            Collections.shuffle(dates, random());
 
             final StringBuilder source = new StringBuilder();
             BulkRequest bulkRequest = new BulkRequest(sourceIndexName);
@@ -194,6 +209,7 @@ public class TransformContinuousIT extends ESRestTestCase {
             int numDocs = randomIntBetween(1000, 20000);
             for (int numDoc = 0; numDoc < numDocs; numDoc++) {
                 source.append("{");
+
                 String event = events.get((numDoc + randomIntBetween(0, 50)) % 50);
                 if (event != null) {
                     source.append("\"event\":\"").append(event).append("\",");
@@ -215,17 +231,22 @@ public class TransformContinuousIT extends ESRestTestCase {
                     source.append("\"location\":\"").append(randomizedLat + "," + randomizedLon).append("\",");
                 }
 
-                // simulate a different timestamp that is off from the timestamp used for sync, so it can fall into the previous bucket
-                String metric_date_string = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
-                    .format(runDate.minusSeconds(randomIntBetween(0, 5)).plusNanos(randomIntBetween(0, 999999)));
-                source.append("\"metric-timestamp\":\"").append(metric_date_string).append("\",");
+                String date = dates.get((numDoc + randomIntBetween(0, 50)) % 50);
+                if (date != null) {
+                    source.append("\"some-timestamp\":\"").append(date).append("\",");
+                }
 
-                String date_string = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                // simulate a different timestamp that is off from the timestamp used for sync, so it can fall into the previous bucket
+                String metricDateString = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
+                    .format(runDate.minusSeconds(randomIntBetween(0, 5)).plusNanos(randomIntBetween(0, 999999)));
+                source.append("\"metric-timestamp\":\"").append(metricDateString).append("\",");
+
+                String dateString = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
                     .format(runDate.plusNanos(randomIntBetween(0, 999999)));
 
-                source.append("\"timestamp\":\"").append(date_string).append("\",");
+                source.append("\"timestamp\":\"").append(dateString).append("\",");
                 // for data streams
-                source.append("\"@timestamp\":\"").append(date_string).append("\",");
+                source.append("\"@timestamp\":\"").append(dateString).append("\",");
                 source.append("\"run\":").append(run);
                 source.append("}");
 
@@ -325,6 +346,9 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .field("type", "integer")
                     .endObject()
                     .startObject("metric-timestamp")
+                    .field("type", dateType)
+                    .endObject()
+                    .startObject("some-timestamp")
                     .field("type", dateType)
                     .endObject()
                     .endObject()

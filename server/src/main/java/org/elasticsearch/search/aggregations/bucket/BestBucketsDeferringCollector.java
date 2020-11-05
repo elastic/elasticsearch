@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.LongUnaryOperator;
 
 /**
  * A specialization of {@link DeferringBucketCollector} that collects all
@@ -62,16 +63,16 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         }
     }
 
-    protected List<Entry> entries = new ArrayList<>();
-    protected BucketCollector collector;
     private final Query topLevelQuery;
     private final IndexSearcher searcher;
-    protected final boolean isGlobal;
-    protected LeafReaderContext context;
-    protected PackedLongValues.Builder docDeltasBuilder;
-    protected PackedLongValues.Builder bucketsBuilder;
-    protected long maxBucket = -1;
-    protected LongHash selectedBuckets;
+    private final boolean isGlobal;
+
+    private List<Entry> entries = new ArrayList<>();
+    private BucketCollector collector;
+    private LeafReaderContext context;
+    private PackedLongValues.Builder docDeltasBuilder;
+    private PackedLongValues.Builder bucketsBuilder;
+    private LongHash selectedBuckets;
 
     /**
      * Sole constructor.
@@ -97,21 +98,30 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         this.collector = MultiBucketCollector.wrap(deferredCollectors);
     }
 
+    /**
+     * Button up the builders for the current leaf.
+     */
     private void finishLeaf() {
         if (context != null) {
             assert docDeltasBuilder != null && bucketsBuilder != null;
+            assert docDeltasBuilder.size() > 0;
             entries.add(new Entry(context, docDeltasBuilder.build(), bucketsBuilder.build()));
+            clearLeaf();
         }
+    }
+
+    /**
+     * Clear the status for the current leaf.
+     */
+    private void clearLeaf() {
+        context = null;
+        docDeltasBuilder = null;
+        bucketsBuilder = null;
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
         finishLeaf();
-
-        context = null;
-        // allocates the builder lazily in case this segment doesn't contain any match
-        docDeltasBuilder = null;
-        bucketsBuilder = null;
 
         return new LeafBucketCollector() {
             int lastDoc = 0;
@@ -126,7 +136,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 docDeltasBuilder.add(doc - lastDoc);
                 bucketsBuilder.add(bucket);
                 lastDoc = doc;
-                maxBucket = Math.max(maxBucket, bucket);
             }
         };
     }
@@ -201,7 +210,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      */
     @Override
     public Aggregator wrap(final Aggregator in) {
-
         return new WrappedAggregator(in) {
             @Override
             public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
@@ -220,4 +228,87 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         };
     }
 
+    /**
+     * Merge or prune the selected buckets.
+     * <p>
+     * This process rebuilds some packed structures and is O(number_of_collected_docs) so
+     * do your best to skip calling it unless you need it.
+     *
+     * @param howToRewrite a unary operator which maps a bucket's ordinal to the ordinal it has
+     *   after this process. If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
+     */
+    public void rewriteBuckets(LongUnaryOperator howToRewrite) {
+        List<Entry> newEntries = new ArrayList<>(entries.size());
+        for (Entry sourceEntry : entries) {
+            PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+            PackedLongValues.Builder newDocDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+            PackedLongValues.Iterator docDeltasItr = sourceEntry.docDeltas.iterator();
+
+            long lastGoodDelta = 0;
+            for (PackedLongValues.Iterator itr = sourceEntry.buckets.iterator(); itr.hasNext();) {
+                long bucket = itr.next();
+                assert docDeltasItr.hasNext();
+                long delta = docDeltasItr.next();
+
+                // Only merge in the ordinal if it hasn't been "removed", signified with -1
+                long ordinal = howToRewrite.applyAsLong(bucket);
+
+                if (ordinal != -1) {
+                    newBuckets.add(ordinal);
+                    newDocDeltas.add(delta + lastGoodDelta);
+                    lastGoodDelta = 0;
+                } else {
+                    // we are skipping this ordinal, which means we need to accumulate the
+                    // doc delta's since the last "good" delta
+                    lastGoodDelta += delta;
+                }
+            }
+            // Only create an entry if this segment has buckets after merging
+            if (newBuckets.size() > 0) {
+                assert newDocDeltas.size() > 0 : "docDeltas was empty but we had buckets";
+                newEntries.add(new Entry(sourceEntry.context, newDocDeltas.build(), newBuckets.build()));
+            }
+        }
+        entries = newEntries;
+
+        // if there are buckets that have been collected in the current segment
+        // we need to update the bucket ordinals there too
+        if (bucketsBuilder != null && bucketsBuilder.size() > 0) {
+            PackedLongValues currentBuckets = bucketsBuilder.build();
+            PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+            PackedLongValues.Builder newDocDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+
+            // The current segment's deltas aren't built yet, so build to a temp object
+            PackedLongValues currentDeltas = docDeltasBuilder.build();
+            PackedLongValues.Iterator docDeltasItr = currentDeltas.iterator();
+
+            long lastGoodDelta = 0;
+            for (PackedLongValues.Iterator itr = currentBuckets.iterator(); itr.hasNext();) {
+                long bucket = itr.next();
+                assert docDeltasItr.hasNext();
+                long delta = docDeltasItr.next();
+                long ordinal = howToRewrite.applyAsLong(bucket);
+
+                // Only merge in the ordinal if it hasn't been "removed", signified with -1
+                if (ordinal != -1) {
+                    newBuckets.add(ordinal);
+                    newDocDeltas.add(delta + lastGoodDelta);
+                    lastGoodDelta = 0;
+                } else {
+                    // we are skipping this ordinal, which means we need to accumulate the
+                    // doc delta's since the last "good" delta.
+                    // The first is skipped because the original deltas are stored as offsets from first doc,
+                    // not offsets from 0
+                    lastGoodDelta += delta;
+                }
+            }
+            if (newDocDeltas.size() == 0) {
+                // We've decided not to keep *anything* in the current leaf so we should just pitch our state.
+                clearLeaf();
+            } else {
+                docDeltasBuilder = newDocDeltas;
+                bucketsBuilder = newBuckets;
+            }
+        }
+    }
 }

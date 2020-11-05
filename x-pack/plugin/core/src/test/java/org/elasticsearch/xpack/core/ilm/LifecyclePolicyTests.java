@@ -99,7 +99,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     public static LifecyclePolicy randomTimeseriesLifecyclePolicyWithAllPhases(@Nullable String lifecycleName) {
         List<String> phaseNames = TimeseriesLifecycleType.VALID_PHASES;
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
-        Function<String, Set<String>> validActions = (phase) ->  {
+        Function<String, Set<String>> validActions = (phase) -> {
             switch (phase) {
                 case "hot":
                     return TimeseriesLifecycleType.VALID_HOT_ACTIONS;
@@ -112,14 +112,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 default:
                     throw new IllegalArgumentException("invalid phase [" + phase + "]");
             }};
-        Function<String, LifecycleAction> randomAction = (action) ->  {
+        Function<String, LifecycleAction> randomAction = (action) -> {
             switch (action) {
                 case AllocateAction.NAME:
                     return AllocateActionTests.randomInstance();
                 case DeleteAction.NAME:
                     return new DeleteAction();
                 case WaitForSnapshotAction.NAME:
-                    return  WaitForSnapshotActionTests.randomInstance();
+                    return WaitForSnapshotActionTests.randomInstance();
                 case ForceMergeAction.NAME:
                     return ForceMergeActionTests.randomInstance();
                 case ReadOnlyAction.NAME:
@@ -157,7 +157,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         List<String> phaseNames = randomSubsetOf(
             between(0, TimeseriesLifecycleType.VALID_PHASES.size() - 1), TimeseriesLifecycleType.VALID_PHASES);
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
-        Function<String, Set<String>> validActions = (phase) ->  {
+        Function<String, Set<String>> validActions = (phase) -> {
             switch (phase) {
                 case "hot":
                     return TimeseriesLifecycleType.VALID_HOT_ACTIONS;
@@ -170,7 +170,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 default:
                     throw new IllegalArgumentException("invalid phase [" + phase + "]");
             }};
-        Function<String, LifecycleAction> randomAction = (action) ->  {
+        Function<String, LifecycleAction> randomAction = (action) -> {
             switch (action) {
                 case AllocateAction.NAME:
                     return AllocateActionTests.randomInstance();
@@ -204,8 +204,9 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<String> actionNames = randomSubsetOf(validActions.apply(phase));
 
-            // If the hot phase contains a forcemerge, also make sure to add a rollover, or else the policy will not validate
-            if (phase.equals(TimeseriesLifecycleType.HOT_PHASE) && actionNames.contains(ForceMergeAction.NAME)) {
+            // If the hot phase has any actions that require a rollover, then ensure there is one so that the policy will validate
+            if (phase.equals(TimeseriesLifecycleType.HOT_PHASE)
+                && actionNames.stream().anyMatch(TimeseriesLifecycleType.HOT_ACTIONS_THAT_REQUIRE_ROLLOVER::contains)) {
                 actionNames.add(RolloverAction.NAME);
             }
 
@@ -238,16 +239,16 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         String name = instance.getName();
         Map<String, Phase> phases = instance.getPhases();
         switch (between(0, 1)) {
-        case 0:
-            name = name + randomAlphaOfLengthBetween(1, 5);
-            break;
-        case 1:
-            String phaseName = randomValueOtherThanMany(phases::containsKey, () -> randomFrom(TimeseriesLifecycleType.VALID_PHASES));
-            phases = new LinkedHashMap<>(phases);
-            phases.put(phaseName, new Phase(phaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)), Collections.emptyMap()));
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name = name + randomAlphaOfLengthBetween(1, 5);
+                break;
+            case 1:
+                String phaseName = randomValueOtherThanMany(phases::containsKey, () -> randomFrom(TimeseriesLifecycleType.VALID_PHASES));
+                phases = new LinkedHashMap<>(phases);
+                phases.put(phaseName, new Phase(phaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)), Collections.emptyMap()));
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases);
     }
@@ -300,7 +301,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         MockStep secondActionStep = new MockStep(new StepKey("second_phase", "test2", "test"),
             PhaseCompleteStep.finalStep("second_phase").getKey());
         MockStep secondAfter = new MockStep(new StepKey("first_phase", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME),
-                secondActionStep.getKey());
+            secondActionStep.getKey());
         MockStep firstActionAnotherStep = new MockStep(new StepKey("first_phase", "test", "bar"), secondAfter.getKey());
         MockStep firstActionStep = new MockStep(new StepKey("first_phase", "test", "foo"), firstActionAnotherStep.getKey());
         MockStep firstAfter = new MockStep(new StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME), firstActionStep.getKey());
@@ -352,30 +353,30 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertFalse(policy.isActionSafe(new StepKey("second_phase", MockAction.NAME, randomAlphaOfLength(10))));
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> policy.isActionSafe(new StepKey("non_existant_phase", MockAction.NAME, randomAlphaOfLength(10))));
+            () -> policy.isActionSafe(new StepKey("non_existant_phase", MockAction.NAME, randomAlphaOfLength(10))));
         assertEquals("Phase [non_existant_phase]  does not exist in policy [" + policy.getName() + "]", exception.getMessage());
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> policy.isActionSafe(new StepKey("first_phase", "non_existant_action", randomAlphaOfLength(10))));
+            () -> policy.isActionSafe(new StepKey("first_phase", "non_existant_action", randomAlphaOfLength(10))));
         assertEquals("Action [non_existant_action] in phase [first_phase]  does not exist in policy [" + policy.getName() + "]",
-                exception.getMessage());
+            exception.getMessage());
 
         assertTrue(policy.isActionSafe(new StepKey("new", randomAlphaOfLength(10), randomAlphaOfLength(10))));
     }
 
     public void testValidatePolicyName() {
-        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) +
-            "," + randomAlphaOfLengthBetween(0,10)));
-        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) +
-            " " + randomAlphaOfLengthBetween(0,10)));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0, 10) +
+            "," + randomAlphaOfLengthBetween(0, 10)));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0, 10) +
+            " " + randomAlphaOfLengthBetween(0, 10)));
         expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName("_" + randomAlphaOfLengthBetween(1, 20)));
         expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(256, 1000)));
 
-        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1,10) + "_" + randomAlphaOfLengthBetween(0,10));
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1, 10) + "_" + randomAlphaOfLengthBetween(0, 10));
 
-        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) + "-" + randomAlphaOfLengthBetween(0,10));
-        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) + "+" + randomAlphaOfLengthBetween(0,10));
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0, 10) + "-" + randomAlphaOfLengthBetween(0, 10));
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0, 10) + "+" + randomAlphaOfLengthBetween(0, 10));
 
-        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1,255));
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1, 255));
     }
 }

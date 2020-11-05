@@ -97,7 +97,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public FieldNamesFieldMapper build(ContentPath contentPath) {
+        public FieldNamesFieldMapper build() {
             if (enabled.getValue().explicit()) {
                 deprecationLogger.deprecate("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
             }

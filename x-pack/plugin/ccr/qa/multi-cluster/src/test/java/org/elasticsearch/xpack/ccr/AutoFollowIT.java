@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -339,6 +340,112 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 ensureYellow(dataStreamName);
                 verifyDocuments(client(), dataStreamName, initialNumDocs + 1);
             });
+        }
+        // Cleanup:
+        {
+            deleteAutoFollowPattern("test_pattern");
+            deleteDataStream(dataStreamName);
+        }
+    }
+
+    public void testRolloverDataStreamInFollowClusterForbidden() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+
+        final int numDocs = 64;
+        final String dataStreamName = "logs-tomcat-prod";
+
+        int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+
+        // Create auto follow pattern
+        Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
+            bodyBuilder.startObject();
+            {
+                bodyBuilder.startArray("leader_index_patterns");
+                {
+                    bodyBuilder.value("logs-*");
+                }
+                bodyBuilder.endArray();
+                bodyBuilder.field("remote_cluster", "leader_cluster");
+            }
+            bodyBuilder.endObject();
+            request.setJsonEntity(Strings.toString(bodyBuilder));
+        }
+        assertOK(client().performRequest(request));
+
+        // Create data stream and ensure that is is auto followed
+        {
+            try (RestClient leaderClient = buildLeaderClient()) {
+                for (int i = 0; i < numDocs; i++) {
+                    Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+                    indexRequest.addParameter("refresh", "true");
+                    indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+                    assertOK(leaderClient.performRequest(indexRequest));
+                }
+                verifyDataStream(leaderClient, dataStreamName, ".ds-logs-tomcat-prod-000001");
+                verifyDocuments(leaderClient, dataStreamName, numDocs);
+            }
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
+                verifyDataStream(client(), dataStreamName, ".ds-logs-tomcat-prod-000001");
+                ensureYellow(dataStreamName);
+                verifyDocuments(client(), dataStreamName, numDocs);
+            });
+        }
+
+        // Rollover in leader cluster and ensure second backing index is replicated:
+        {
+            try (RestClient leaderClient = buildLeaderClient()) {
+                Request rolloverRequest = new Request("POST", "/" +  dataStreamName + "/_rollover");
+                assertOK(leaderClient.performRequest(rolloverRequest));
+                verifyDataStream(leaderClient, dataStreamName, ".ds-logs-tomcat-prod-000001", ".ds-logs-tomcat-prod-000002");
+
+                Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+                indexRequest.addParameter("refresh", "true");
+                indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+                assertOK(leaderClient.performRequest(indexRequest));
+                verifyDocuments(leaderClient, dataStreamName, numDocs + 1);
+            }
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 2));
+                verifyDataStream(client(), dataStreamName, ".ds-logs-tomcat-prod-000001", ".ds-logs-tomcat-prod-000002");
+                ensureYellow(dataStreamName);
+                verifyDocuments(client(), dataStreamName, numDocs + 1);
+            });
+        }
+
+        // Try rollover in follow cluster
+        {
+            Request rolloverRequest1 = new Request("POST", "/" +  dataStreamName + "/_rollover");
+            Exception e = expectThrows(ResponseException.class, () -> client().performRequest(rolloverRequest1));
+            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "] cannot be rolled over, " +
+                "because it is a replicated data stream"));
+            verifyDataStream(client(), dataStreamName, ".ds-logs-tomcat-prod-000001", ".ds-logs-tomcat-prod-000002");
+
+            // Unfollow .ds-logs-tomcat-prod-000001
+            pauseFollow(".ds-logs-tomcat-prod-000001");
+            closeIndex(".ds-logs-tomcat-prod-000001");
+            unfollow(".ds-logs-tomcat-prod-000001");
+
+            // Try again
+            Request rolloverRequest2 = new Request("POST", "/" +  dataStreamName + "/_rollover");
+            e = expectThrows(ResponseException.class, () -> client().performRequest(rolloverRequest2));
+            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "] cannot be rolled over, " +
+                "because it is a replicated data stream"));
+            verifyDataStream(client(), dataStreamName, ".ds-logs-tomcat-prod-000001", ".ds-logs-tomcat-prod-000002");
+
+            // Unfollow .ds-logs-tomcat-prod-000002
+            pauseFollow(".ds-logs-tomcat-prod-000002");
+            closeIndex(".ds-logs-tomcat-prod-000002");
+            unfollow(".ds-logs-tomcat-prod-000002");
+
+            // Try again and now the rollover should be successful since all backing indices are no longer follower indices:
+            Request rolloverRequest3 = new Request("POST", "/" +  dataStreamName + "/_rollover");
+            assertOK(client().performRequest(rolloverRequest3));
+            verifyDataStream(client(), dataStreamName, ".ds-logs-tomcat-prod-000001", ".ds-logs-tomcat-prod-000002",
+                ".ds-logs-tomcat-prod-000003");
         }
         // Cleanup:
         {

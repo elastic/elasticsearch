@@ -96,11 +96,9 @@ public class ParsedMediaType {
                     if (keyValueParam.length != 2 || hasSpaces(keyValueParam[0]) || hasSpaces(keyValueParam[1])) {
                         throw new IllegalArgumentException("invalid parameters for header [" + headerValue + "]");
                     }
-                    if (keyValueParam.length == 2) {
-                        String parameterName = keyValueParam[0].toLowerCase(Locale.ROOT).trim();
-                        String parameterValue = keyValueParam[1].toLowerCase(Locale.ROOT).trim();
-                        parameters.put(parameterName, parameterValue);
-                    }
+                    String parameterName = keyValueParam[0].toLowerCase(Locale.ROOT).trim();
+                    String parameterValue = keyValueParam[1].toLowerCase(Locale.ROOT).trim();
+                    parameters.put(parameterName, parameterValue);
                 }
                 return new ParsedMediaType(splitMediaType[0].trim().toLowerCase(Locale.ROOT),
                     splitMediaType[1].trim().toLowerCase(Locale.ROOT), parameters);

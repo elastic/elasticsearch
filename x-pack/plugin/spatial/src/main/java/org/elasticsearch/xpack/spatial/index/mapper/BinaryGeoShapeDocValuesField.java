@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
@@ -23,16 +24,15 @@ public class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
     private final List<IndexableField> fields;
     private final CentroidCalculator centroidCalculator;
 
-    public BinaryGeoShapeDocValuesField(String name, List<IndexableField> fields, CentroidCalculator centroidCalculator) {
+    public BinaryGeoShapeDocValuesField(String name) {
         super(name);
-        this.fields = new ArrayList<>(fields.size());
-        this.centroidCalculator = centroidCalculator;
-        this.fields.addAll(fields);
+        this.fields = new ArrayList<>();
+        this.centroidCalculator = new CentroidCalculator();
     }
 
-    public void add( List<IndexableField> fields, CentroidCalculator centroidCalculator) {
+    public void add(List<IndexableField> fields, Geometry geometry) {
         this.fields.addAll(fields);
-        this.centroidCalculator.addFrom(centroidCalculator);
+        this.centroidCalculator.add(geometry);
     }
 
     @Override

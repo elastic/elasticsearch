@@ -27,8 +27,9 @@ public class GeometryDocValueWriter {
                                  CoordinateEncoder coordinateEncoder,
                                  CentroidCalculator centroidCalculator) throws IOException {
         final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
-        out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
+        // normalization may be required due to floating point precision errors
+        out.writeInt(coordinateEncoder.encodeX(coordinateEncoder.normalizeX(centroidCalculator.getX())));
+        out.writeInt(coordinateEncoder.encodeY(coordinateEncoder.normalizeY(centroidCalculator.getY())));
         centroidCalculator.getDimensionalShapeType().writeTo(out);
         out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
         TriangleTreeWriter.writeTo(out, fields);

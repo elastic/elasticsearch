@@ -145,7 +145,8 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                 // do not include geometry
             }
             // find dimensional-shape-type of geometry
-            CentroidCalculator centroidCalculator = new CentroidCalculator(geometry);
+            CentroidCalculator centroidCalculator = new CentroidCalculator();
+            centroidCalculator.add(geometry);
             DimensionalShapeType geometryShapeType = centroidCalculator.getDimensionalShapeType();
             targetShapeType = targetShapeType.compareTo(geometryShapeType) >= 0 ? targetShapeType : geometryShapeType;
         }
@@ -156,7 +157,8 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             CompensatedSum compensatedSumWeight = new CompensatedSum(0, 0);
             for (Geometry geometry : geometries) {
                 Document document = new Document();
-                CentroidCalculator calculator = new CentroidCalculator(geometry);
+                CentroidCalculator calculator = new CentroidCalculator();
+                calculator.add(geometry);
                 document.add(GeoTestUtils.binaryGeoShapeDocValuesField("field", geometry));
                 w.addDocument(document);
                 if (targetShapeType.compareTo(calculator.getDimensionalShapeType()) == 0) {

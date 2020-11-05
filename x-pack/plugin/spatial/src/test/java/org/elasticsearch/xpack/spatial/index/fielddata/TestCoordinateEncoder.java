@@ -32,4 +32,14 @@ public class TestCoordinateEncoder implements CoordinateEncoder {
     public double decodeY(int y) {
         return y;
     }
+
+    @Override
+    public double normalizeX(double x) {
+        return x;
+    }
+
+    @Override
+    public double normalizeY(double y) {
+        return y;
+    }
 }

@@ -8,7 +8,7 @@ tasks.register("buildIronBankDockerBuildContext", Tar) {
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
   archiveBaseName = "elasticsearch-ironbank"
-  with dockerBuildContext(Architecture.X64, false, DockerBase.IRON_BANK, false)
+  // We always treat Iron Bank builds as local, because that is how they
+  // are built
+  with dockerBuildContext(Architecture.X64, false, DockerBase.IRON_BANK, true)
 }
-
-tasks.named("assemble").configure {dependsOn "buildIronBankDockerBuildContext"}

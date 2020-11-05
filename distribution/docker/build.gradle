@@ -32,7 +32,7 @@ dependencies {
 
 ext.expansions = { Architecture architecture, boolean oss, DockerBase base, boolean local ->
   String classifier
-  if (local || base == DockerBase.IRON_BANK) {
+  if (local) {
     if (architecture == Architecture.AARCH64) {
       classifier = "linux-aarch64"
     } else if (architecture == Architecture.X64) {
@@ -63,7 +63,7 @@ ARG BASE_TAG=8.2
    * follow in the Dockerfile don't have to know about the runtime
    * architecture. */
   String sourceElasticsearch
-  if (local || base == DockerBase.IRON_BANK) {
+  if (local) {
     sourceElasticsearch = "COPY $elasticsearch /opt/elasticsearch.tar.gz"
   } else {
     sourceElasticsearch = """
@@ -84,7 +84,7 @@ RUN curl --retry 8 -S -L \\
     'package_manager'     : base == DockerBase.UBI ? 'microdnf' : 'yum',
     'source_elasticsearch': sourceElasticsearch,
     'docker_base'         : base.name().toLowerCase(),
-    'version'             : VersionProperties.elasticsearch,
+    'version'             : VersionProperties.elasticsearch
   ]
 }
 
@@ -103,7 +103,7 @@ private static String buildPath(Architecture architecture, boolean oss, DockerBa
     (architecture == Architecture.AARCH64 ? 'aarch64-' : '') +
     (oss ? 'oss-' : '') +
     (base == DockerBase.UBI ? 'ubi-' : '') +
-    (base == DockerBase.UBI ? 'ubi-' : base == DockerBase.IRON_BANK ? 'ironbank-' : '') +
+    (base == DockerBase.UBI ? 'ubi-' : (base == DockerBase.IRON_BANK ? 'ironbank-' : '')) +
     'docker'
 }
 
@@ -111,7 +111,7 @@ private static String taskName(String prefix, Architecture architecture, boolean
   return prefix +
     (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
     (oss ? 'Oss' : '') +
-    (base == DockerBase.UBI ? 'Ubi' : base == DockerBase.IRON_BANK ? 'IronBank' : '') +
+    (base == DockerBase.UBI ? 'Ubi' : (base == DockerBase.IRON_BANK ? 'IronBank' : '')) +
     suffix
 }
 

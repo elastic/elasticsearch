@@ -708,7 +708,7 @@ public enum RangeType {
 
     public final Mapper.TypeParser parser() {
         return new FieldMapper.TypeParser((n, c) ->
-            new RangeFieldMapper.Builder(n, this, FieldMapper.COERCE_SETTING.get(c.getSettings()), c.indexVersionCreated()));
+            new RangeFieldMapper.Builder(n, this, RangeFieldMapper.COERCE_SETTING.get(c.getSettings()), c.indexVersionCreated()));
     }
 
     public final String name;

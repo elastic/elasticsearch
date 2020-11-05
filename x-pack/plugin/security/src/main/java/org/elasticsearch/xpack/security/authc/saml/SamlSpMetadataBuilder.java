@@ -97,30 +97,6 @@ public class SamlSpMetadataBuilder {
     }
 
     /**
-     * @param samlRealm   SamlRealm for which SP Metadata is built
-     */
-    public SamlSpMetadataBuilder(SamlRealm samlRealm) {
-        final SpConfiguration spConfig = samlRealm.getServiceProvider();
-        this.locale = Locale.getDefault();
-        this.entityId = spConfig.getEntityId();
-        this.attributeNames = null;
-        this.contacts = null;
-        this.serviceName = "Elasticsearch";
-        this.nameIdFormat = null;
-        this.authnRequestsSigned = Boolean.FALSE;
-        this.assertionConsumerServiceUrl = spConfig.getAscUrl();
-        this.singleLogoutServiceUrl = spConfig.getLogoutUrl();
-        if (spConfig.getEncryptionCredentials() != null) {
-            this.encryptionCertificates.addAll(spConfig.getEncryptionCredentials()
-                .stream().map(credential -> credential.getEntityCertificate()).collect(Collectors.toList()));
-        }
-        if(spConfig.getSigningConfiguration() != null && spConfig.getSigningConfiguration().getCredential() != null) {
-            this.signingCertificate = spConfig.getSigningConfiguration().getCredential().getEntityCertificate();
-        }
-        this.authnRequestsSigned = spConfig.getSigningConfiguration().shouldSign(AuthnRequest.DEFAULT_ELEMENT_LOCAL_NAME);
-    }
-
-    /**
      * The format that the service provider expects for incoming NameID element.
      */
     public SamlSpMetadataBuilder nameIdFormat(String nameIdFormat) {

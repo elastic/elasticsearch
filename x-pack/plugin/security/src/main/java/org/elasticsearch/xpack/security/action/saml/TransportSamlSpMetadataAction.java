@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlSpMetadataBuilder;
 import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
+import org.elasticsearch.xpack.security.authc.saml.SpConfiguration;
+import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorMarshaller;
 import org.w3c.dom.Element;
@@ -29,6 +31,7 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlRealms;
 
@@ -63,7 +66,13 @@ public class TransportSamlSpMetadataAction
     private void prepareMetadata(SamlRealm realm, ActionListener<SamlSpMetadataResponse> listener) {
         try {
             final EntityDescriptorMarshaller marshaller = new EntityDescriptorMarshaller();
-            final SamlSpMetadataBuilder builder = new SamlSpMetadataBuilder(realm);
+            final SpConfiguration spConfig = realm.getServiceProvider();
+            final SamlSpMetadataBuilder builder = new SamlSpMetadataBuilder(Locale.getDefault(), spConfig.getEntityId())
+                .assertionConsumerServiceUrl(spConfig.getAscUrl())
+                .singleLogoutServiceUrl(spConfig.getLogoutUrl())
+                .encryptionCredentials(spConfig.getEncryptionCredentials())
+                .signingCredential(spConfig.getSigningConfiguration().getCredential())
+                .authnRequestsSigned(spConfig.getSigningConfiguration().shouldSign(AuthnRequest.DEFAULT_ELEMENT_LOCAL_NAME));
             final EntityDescriptor descriptor = builder.build();
             final Element element = marshaller.marshall(descriptor);
             final StringWriter writer = new StringWriter();

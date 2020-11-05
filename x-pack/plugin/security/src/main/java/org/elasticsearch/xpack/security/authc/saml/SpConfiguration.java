@@ -41,23 +41,23 @@ public class SpConfiguration {
     /**
      * The SAML identifier (as a URI) for the Sp
      */
-    String getEntityId() {
+    public String getEntityId() {
         return entityId;
     }
 
-    String getAscUrl() {
+    public String getAscUrl() {
         return ascUrl;
     }
 
-    String getLogoutUrl() {
+    public String getLogoutUrl() {
         return logoutUrl;
     }
 
-    List<X509Credential> getEncryptionCredentials() {
+    public List<X509Credential> getEncryptionCredentials() {
         return encryptionCredentials;
     }
 
-    SigningConfiguration getSigningConfiguration() {
+    public SigningConfiguration getSigningConfiguration() {
         return signingConfiguration;
     }
 

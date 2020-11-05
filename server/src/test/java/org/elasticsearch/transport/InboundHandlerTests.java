@@ -74,9 +74,9 @@ public class InboundHandlerTests extends ESTestCase {
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {});
+        TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
         OutboundHandler outboundHandler = new OutboundHandler("node", version, new StatsTracker(), threadPool,
-                BigArrays.NON_RECYCLING_INSTANCE);
-        TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, outboundHandler::sendBytes);
+            BigArrays.NON_RECYCLING_INSTANCE);
         requestHandlers = new Transport.RequestHandlers();
         responseHandlers = new Transport.ResponseHandlers();
         handler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, handshaker, keepAlive, requestHandlers,

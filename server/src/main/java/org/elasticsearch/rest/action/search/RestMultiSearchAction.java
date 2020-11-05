@@ -80,7 +80,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex);
+        MultiSearchRequest multiSearchRequest = parseRequest(request,  client.getNamedWriteableRegistry(), allowExplicitIndex);
 
         // Emit a single deprecation message if any search request contains types.
         for (SearchRequest searchRequest : multiSearchRequest.requests()) {
@@ -98,7 +98,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
     /**
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchRequest}
      */
-    public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
+    public static MultiSearchRequest parseRequest(RestRequest restRequest,
+                                                  NamedWriteableRegistry namedWriteableRegistry,
+                                                  boolean allowExplicitIndex) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
         multiRequest.indicesOptions(indicesOptions);
@@ -123,6 +125,13 @@ public class RestMultiSearchAction extends BaseRestHandler {
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
             RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
+            if (searchRequest.pointInTimeBuilder() != null) {
+                RestSearchAction.preparePointInTime(searchRequest, restRequest, namedWriteableRegistry);
+            } else {
+                searchRequest.setCcsMinimizeRoundtrips(
+                    restRequest.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
+                );
+            }
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();

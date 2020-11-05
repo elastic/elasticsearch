@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -59,9 +58,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -553,19 +550,19 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
-            Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
             DateFieldMapper dateFieldMapper
                 = new DateFieldMapper.Builder("@timestamp", DateFieldMapper.Resolution.MILLISECONDS, null, false, Version.CURRENT)
-                .build(builderContext);
-            MetadataFieldMapper mockedTimestampField = mock(MetadataFieldMapper.class);
-            when(mockedTimestampField.name()).thenReturn("_data_stream_timestamp");
+                .build(new ContentPath());
             MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);
             when(mockedTimestampFieldType.name()).thenReturn("_data_stream_timestamp");
-            when(mockedTimestampField.fieldType()).thenReturn(mockedTimestampFieldType);
-            when(mockedTimestampField.copyTo()).thenReturn(FieldMapper.CopyTo.empty());
-            when(mockedTimestampField.multiFields()).thenReturn(FieldMapper.MultiFields.empty());
+            MetadataFieldMapper mockedTimestampField = new MetadataFieldMapper(mockedTimestampFieldType) {
+                @Override
+                protected String contentType() {
+                    return null;
+                }
+            };
             MappingLookup mappingLookup = new MappingLookup(Arrays.asList(mockedTimestampField, dateFieldMapper),
-                Collections.emptyList(), Collections.emptyList(), 0, new StandardAnalyzer());
+                Collections.emptyList(), Collections.emptyList(), 0);
 
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);

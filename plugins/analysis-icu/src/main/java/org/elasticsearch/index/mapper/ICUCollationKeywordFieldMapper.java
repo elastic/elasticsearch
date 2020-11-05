@@ -63,7 +63,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         public CollationFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
                                   Collator collator, String nullValue, int ignoreAbove, Map<String, String> meta) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.collator = collator;
             this.nullValue = nullValue;
             this.ignoreAbove = ignoreAbove;
@@ -83,12 +82,12 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), mapperService, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
@@ -282,14 +281,14 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ICUCollationKeywordFieldMapper build(BuilderContext context) {
+        public ICUCollationKeywordFieldMapper build(ContentPath contentPath) {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
-            CollationFieldType ft = new CollationFieldType(buildFullName(context), indexed.getValue(),
+            CollationFieldType ft = new CollationFieldType(buildFullName(contentPath), indexed.getValue(),
                 stored.getValue(), hasDocValues.getValue(), collator, nullValue.getValue(), ignoreAbove.getValue(),
                 meta.getValue());
             return new ICUCollationKeywordFieldMapper(name, buildFieldType(), ft,
-                multiFieldsBuilder.build(this, context), copyTo.build(), collator, this);
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), collator, this);
         }
     }
 
@@ -419,7 +418,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                                              MappedFieldType mappedFieldType,
                                              MultiFields multiFields, CopyTo copyTo,
                                              Collator collator, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         assert collator.isFrozen();
         this.fieldType = fieldType;
         this.params = builder.collatorParams();

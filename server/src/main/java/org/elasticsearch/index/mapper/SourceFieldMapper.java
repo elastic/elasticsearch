@@ -91,7 +91,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public SourceFieldMapper build(BuilderContext context) {
+        public SourceFieldMapper build(ContentPath contentPath) {
             return new SourceFieldMapper(enabled.getValue(),
                 includes.getValue().toArray(new String[0]),
                 excludes.getValue().toArray(new String[0]));
@@ -112,7 +112,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 

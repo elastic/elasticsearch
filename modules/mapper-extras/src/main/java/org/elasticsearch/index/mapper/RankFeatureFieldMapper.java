@@ -75,10 +75,10 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
-        public RankFeatureFieldMapper build(BuilderContext context) {
+        public RankFeatureFieldMapper build(ContentPath contentPath) {
             return new RankFeatureFieldMapper(name,
-                new RankFeatureFieldType(buildFullName(context), meta.getValue(), positiveScoreImpact.getValue()),
-                multiFieldsBuilder.build(this, context), copyTo.build(), positiveScoreImpact.getValue());
+                new RankFeatureFieldType(buildFullName(contentPath), meta.getValue(), positiveScoreImpact.getValue()),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), positiveScoreImpact.getValue());
         }
     }
 
@@ -91,7 +91,6 @@ public class RankFeatureFieldMapper extends FieldMapper {
         public RankFeatureFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
             super(name, true, false, false, TextSearchInfo.NONE, meta);
             this.positiveScoreImpact = positiveScoreImpact;
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -114,11 +113,11 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService) {
+            return new SourceValueFetcher(name(), context) {
                 @Override
                 protected Float parseSourceValue(Object value) {
                     return objectToFloat(value);
@@ -136,7 +135,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     private RankFeatureFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                    MultiFields multiFields, CopyTo copyTo, boolean positiveScoreImpact) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         this.positiveScoreImpact = positiveScoreImpact;
     }
 

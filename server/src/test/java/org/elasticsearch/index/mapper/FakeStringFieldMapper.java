@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -53,11 +54,11 @@ public class FakeStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public FakeStringFieldMapper build(BuilderContext context) {
+        public FakeStringFieldMapper build(ContentPath contentPath) {
             return new FakeStringFieldMapper(
                 new FakeStringFieldType(name, true,
                     new TextSearchInfo(FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)),
-                multiFieldsBuilder.build(this, context), copyTo.build());
+                multiFieldsBuilder.build(this, contentPath), copyTo.build());
         }
     }
 
@@ -67,7 +68,6 @@ public class FakeStringFieldMapper extends FieldMapper {
 
         private FakeStringFieldType(String name, boolean stored, TextSearchInfo textSearchInfo) {
             super(name, true, stored, true, textSearchInfo, Collections.emptyMap());
-            setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
         }
 
         @Override
@@ -76,14 +76,14 @@ public class FakeStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.toString(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.toString(name(), context, format);
         }
     }
 
     protected FakeStringFieldMapper(MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(mappedFieldType.name(), mappedFieldType, multiFields, copyTo);
+        super(mappedFieldType.name(), mappedFieldType, Lucene.STANDARD_ANALYZER, multiFields, copyTo);
     }
 
     @Override

@@ -142,8 +142,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 EsQueryExec exec = (EsQueryExec) project.child();
                 QueryContainer queryC = exec.queryContainer();
 
-                Map<Attribute, Expression> aliases = new LinkedHashMap<>(queryC.aliases());
-                Map<Attribute, Pipe> processors = new LinkedHashMap<>(queryC.scalarFunctions());
+                AttributeMap.Builder<Expression> aliases = AttributeMap.<Expression>builder().putAll(queryC.aliases());
+                AttributeMap.Builder<Pipe> processors = AttributeMap.<Pipe>builder().putAll(queryC.scalarFunctions());
 
                 for (NamedExpression pj : project.projections()) {
                     if (pj instanceof Alias) {
@@ -161,9 +161,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 }
 
                 QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.fields(),
-                        new AttributeMap<>(aliases),
+                        aliases.build(),
                         queryC.pseudoFunctions(),
-                        new AttributeMap<>(processors),
+                        processors.build(),
                         queryC.sort(),
                         queryC.limit(),
                         queryC.shouldTrackHits(),

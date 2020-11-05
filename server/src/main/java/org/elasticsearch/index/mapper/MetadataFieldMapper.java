@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 import java.util.Map;
@@ -127,11 +128,15 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
 
         @Override
-        public abstract MetadataFieldMapper build(BuilderContext context);
+        public abstract MetadataFieldMapper build(ContentPath contentPath);
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
         super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    }
+
+    protected MetadataFieldMapper(MappedFieldType mappedFieldType, NamedAnalyzer indexAnalyzer) {
+        super(mappedFieldType.name(), mappedFieldType, indexAnalyzer, MultiFields.empty(), CopyTo.empty());
     }
 
     @Override

@@ -179,7 +179,7 @@ public final class Verifier {
 
         if (failures.isEmpty()) {
             Set<Failure> localFailures = new LinkedHashSet<>();
-            final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
+            AttributeMap.Builder<Expression> collectRefs = AttributeMap.builder();
 
             checkFullTextSearchInSelect(plan, localFailures);
 
@@ -193,7 +193,7 @@ public final class Verifier {
                 }
             });
 
-            AttributeMap<Expression> attributeRefs = new AttributeMap<>(collectRefs);
+            AttributeMap<Expression> attributeRefs = collectRefs.build();
 
             // for filtering out duplicated errors
             final Set<LogicalPlan> groupingFailures = new LinkedHashSet<>();

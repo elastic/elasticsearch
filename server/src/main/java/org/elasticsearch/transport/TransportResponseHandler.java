@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -31,7 +32,9 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
 
     void handleException(TransportException exp);
 
-    String executor();
+    default String executor() {
+        return ThreadPool.Names.SAME;
+    }
 
     default <Q extends TransportResponse> TransportResponseHandler<Q> wrap(Function<Q, T> converter, Writeable.Reader<Q> reader) {
         final TransportResponseHandler<T> self = this;
@@ -56,5 +59,15 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
                 return reader.read(in);
             }
         };
+    }
+
+    /**
+     * Implementations of {@link TransportResponseHandler} that handles the empty response {@link TransportResponse.Empty}.
+     */
+    abstract class Empty implements TransportResponseHandler<TransportResponse.Empty> {
+        @Override
+        public final TransportResponse.Empty read(StreamInput in) {
+            return TransportResponse.Empty.INSTANCE;
+        }
     }
 }

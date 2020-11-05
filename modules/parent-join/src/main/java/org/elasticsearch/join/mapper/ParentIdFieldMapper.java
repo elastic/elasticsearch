@@ -28,11 +28,11 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -60,7 +60,6 @@ public final class ParentIdFieldMapper extends FieldMapper {
     public static final class ParentIdFieldType extends StringFieldType {
         public ParentIdFieldType(String name, boolean eagerGlobalOrdinals) {
             super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
         }
 
@@ -76,7 +75,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
         }
 
@@ -91,7 +90,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     protected ParentIdFieldMapper(String name, boolean eagerGlobalOrdinals) {
-        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), MultiFields.empty(), CopyTo.empty());
+        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
     }
 
     @Override

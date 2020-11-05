@@ -33,7 +33,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -111,15 +110,13 @@ public class UnifiedHighlighter implements Highlighter {
         Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
-        int maxAnalyzedOffset = fieldContext.context.getIndexSettings().getHighlightMaxAnalyzedOffset();
+        int maxAnalyzedOffset = fieldContext.context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
         int keywordIgnoreAbove = Integer.MAX_VALUE;
         if (fieldContext.fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper mapper = (KeywordFieldMapper) fieldContext.context.mapperService().documentMapper()
-                .mappers().getMapper(fieldContext.fieldName);
-            keywordIgnoreAbove = mapper.ignoreAbove();
+            keywordIgnoreAbove = ((KeywordFieldMapper.KeywordFieldType)fieldContext.fieldType).ignoreAbove();
         }
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
-        Analyzer analyzer = getAnalyzer(fieldContext.context.mapperService().documentMapper());
+        Analyzer analyzer = wrapAnalyzer(fieldContext.context.getQueryShardContext().getFieldNameIndexAnalyzer());
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
@@ -164,9 +161,8 @@ public class UnifiedHighlighter implements Highlighter {
             field.fieldOptions().postTags()[0], encoder);
     }
 
-
-    protected Analyzer getAnalyzer(DocumentMapper docMapper) {
-        return docMapper.mappers().indexAnalyzer();
+    protected Analyzer wrapAnalyzer(Analyzer analyzer) {
+        return analyzer;
     }
 
     protected List<Object> loadFieldValues(

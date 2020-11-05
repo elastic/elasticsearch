@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -132,7 +133,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     public void testBuildThenParse() throws Exception {
         IndexService indexService = createIndex("test");
         Supplier<NamedAnalyzer> a = () -> Lucene.STANDARD_ANALYZER;
-        DocumentMapper builderDocMapper = new DocumentMapper.Builder(new RootObjectMapper.Builder("person").add(
+        DocumentMapper builderDocMapper = new DocumentMapper.Builder(new RootObjectMapper.Builder("person", Version.CURRENT).add(
                 new TextFieldMapper.Builder("name", a).store(true)
                         .addMultiField(new TextFieldMapper.Builder("indexed", a).index(true))
                         .addMultiField(new TextFieldMapper.Builder("not_indexed", a).index(false).store(true))

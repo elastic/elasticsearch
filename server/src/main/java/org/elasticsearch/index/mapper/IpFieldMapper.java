@@ -109,11 +109,11 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IpFieldMapper build(BuilderContext context) {
+        public IpFieldMapper build(ContentPath contentPath) {
             return new IpFieldMapper(name,
-                new IpFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+                new IpFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
                     hasDocValues.getValue(), parseNullValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
 
     }
@@ -154,11 +154,11 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     InetAddress address;
@@ -434,4 +434,5 @@ public class IpFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
+
 }

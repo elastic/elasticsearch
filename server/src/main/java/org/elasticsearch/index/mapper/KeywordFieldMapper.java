@@ -32,6 +32,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -140,7 +141,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 indexOptions, hasNorms, similarity, normalizer, splitQueriesOnWhitespace, boost, meta);
         }
 
-        private KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
+        private KeywordFieldType buildFieldType(ContentPath contentPath, FieldType fieldType) {
             NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
             String normalizerName = this.normalizer.getValue();
@@ -159,17 +160,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
-            return new KeywordFieldType(buildFullName(context), fieldType, normalizer, searchAnalyzer, this);
+            return new KeywordFieldType(buildFullName(contentPath), fieldType, normalizer, searchAnalyzer, this);
         }
 
         @Override
-        public KeywordFieldMapper build(BuilderContext context) {
+        public KeywordFieldMapper build(ContentPath contentPath) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
             fieldtype.setStored(this.stored.getValue());
-            return new KeywordFieldMapper(name, fieldtype, buildFieldType(context, fieldtype),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new KeywordFieldMapper(name, fieldtype, buildFieldType(contentPath, fieldtype),
+                    multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -180,6 +181,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final int ignoreAbove;
         private final String nullValue;
+        private final NamedAnalyzer normalizer;
 
         public KeywordFieldType(String name, FieldType fieldType,
                                 NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, Builder builder) {
@@ -190,15 +192,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                 new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, searchAnalyzer),
                 builder.meta.getValue());
             setEagerGlobalOrdinals(builder.eagerGlobalOrdinals.getValue());
-            setIndexAnalyzer(normalizer);
             setBoost(builder.boost.getValue());
+            this.normalizer = normalizer;
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
             super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
         }
@@ -212,12 +214,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                 false, false,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Collections.emptyMap());
+            this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
             super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
+            this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
         }
@@ -228,7 +232,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         NamedAnalyzer normalizer() {
-            return indexAnalyzer();
+            return normalizer;
         }
 
         @Override
@@ -238,12 +242,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), mapperService, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
@@ -299,6 +303,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         public CollapseType collapseType() {
             return CollapseType.KEYWORD;
         }
+
+        /** Values that have more chars than the return value of this method will
+         *  be skipped at parsing time. */
+        public int ignoreAbove() {
+            return ignoreAbove;
+        }
     }
 
     private final boolean indexed;
@@ -314,9 +324,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
 
-    protected KeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+    protected KeywordFieldMapper(String simpleName, FieldType fieldType, KeywordFieldType mappedFieldType,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, mappedFieldType.normalizer, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -330,12 +340,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
 
         this.indexAnalyzers = builder.indexAnalyzers;
-    }
-
-    /** Values that have more chars than the return value of this method will
-     *  be skipped at parsing time. */
-    public int ignoreAbove() {
-        return ignoreAbove;
     }
 
     @Override

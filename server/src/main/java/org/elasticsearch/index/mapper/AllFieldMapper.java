@@ -68,7 +68,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public AllFieldMapper build(BuilderContext context) {
+        public AllFieldMapper build(ContentPath contentPath) {
             if (enabled.getValue().value()) {
                 throw new IllegalArgumentException("[_all] is disabled in this version.");
             }
@@ -87,7 +87,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException();
         }
 

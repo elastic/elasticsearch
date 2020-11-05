@@ -16,9 +16,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -67,10 +67,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SparseVectorFieldMapper build(BuilderContext context) {
+        public SparseVectorFieldMapper build(ContentPath contentPath) {
             return new SparseVectorFieldMapper(
-                    name, new SparseVectorFieldType(buildFullName(context), meta.getValue()),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), indexCreatedVersion);
+                    name, new SparseVectorFieldType(buildFullName(contentPath), meta.getValue()),
+                    multiFieldsBuilder.build(this, contentPath), copyTo.build(), indexCreatedVersion);
         }
     }
 
@@ -97,11 +97,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), mapperService, false) {
+            return new SourceValueFetcher(name(), context, false) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value;

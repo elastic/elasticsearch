@@ -221,8 +221,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract MapperService mapperService();
 
-    public abstract SimilarityService similarityService();
-
     public abstract BigArrays bigArrays();
 
     public abstract BitsetFilterCache bitsetFilterCache();
@@ -275,8 +273,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ParsedQuery parsedPostFilter();
 
-    public abstract Query aliasFilter();
-
     public abstract SearchContext parsedQuery(ParsedQuery query);
 
     public abstract ParsedQuery parsedQuery();
@@ -295,13 +291,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchContext size(int size);
 
     public abstract boolean hasStoredFields();
-
-    public abstract boolean hasStoredFieldsContext();
-
-    /**
-     * A shortcut function to see whether there is a storedFieldsContext and it says the fields are requested.
-     */
-    public abstract boolean storedFieldsRequested();
 
     public abstract StoredFieldsContext storedFieldsContext();
 

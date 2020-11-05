@@ -470,11 +470,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SimilarityService similarityService() {
-        return indexService.similarityService();
-    }
-
-    @Override
     public BigArrays bigArrays() {
         return bigArrays;
     }
@@ -592,11 +587,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public Query aliasFilter() {
-        return aliasFilter;
-    }
-
-    @Override
     public SearchContext parsedQuery(ParsedQuery query) {
         this.originalQuery = query;
         this.query = query.query();
@@ -644,11 +634,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasStoredFieldsContext() {
-        return storedFields != null;
-    }
-
-    @Override
     public StoredFieldsContext storedFieldsContext() {
         return storedFields;
     }
@@ -657,11 +642,6 @@ final class DefaultSearchContext extends SearchContext {
     public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
         this.storedFields = storedFieldsContext;
         return this;
-    }
-
-    @Override
-    public boolean storedFieldsRequested() {
-        return storedFields == null || storedFields.fetchFields();
     }
 
     @Override

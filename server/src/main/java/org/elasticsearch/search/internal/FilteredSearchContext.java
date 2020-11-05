@@ -67,16 +67,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasStoredFieldsContext() {
-        return in.hasStoredFieldsContext();
-    }
-
-    @Override
-    public boolean storedFieldsRequested() {
-        return in.storedFieldsRequested();
-    }
-
-    @Override
     public StoredFieldsContext storedFieldsContext() {
         return in.storedFieldsContext();
     }
@@ -227,11 +217,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SimilarityService similarityService() {
-        return in.similarityService();
-    }
-
-    @Override
     public BigArrays bigArrays() {
         return in.bigArrays();
     }
@@ -324,11 +309,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public ParsedQuery parsedPostFilter() {
         return in.parsedPostFilter();
-    }
-
-    @Override
-    public Query aliasFilter() {
-        return in.aliasFilter();
     }
 
     @Override

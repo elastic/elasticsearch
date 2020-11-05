@@ -287,11 +287,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SimilarityService similarityService() {
-        return null;
-    }
-
-    @Override
     public BigArrays bigArrays() {
         return bigArrays;
     }
@@ -401,11 +396,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Query aliasFilter() {
-        return null;
-    }
-
-    @Override
     public SearchContext parsedQuery(ParsedQuery query) {
         this.originalQuery = query;
         this.query = query.query();
@@ -450,16 +440,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public boolean hasStoredFields() {
-        return false;
-    }
-
-    @Override
-    public boolean hasStoredFieldsContext() {
-        return false;
-    }
-
-    @Override
-    public boolean storedFieldsRequested() {
         return false;
     }
 

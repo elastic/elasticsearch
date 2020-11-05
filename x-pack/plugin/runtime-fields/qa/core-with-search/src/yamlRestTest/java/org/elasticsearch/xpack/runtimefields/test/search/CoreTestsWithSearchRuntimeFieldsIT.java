@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.runtimefields.test.search;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -119,21 +118,18 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
 
                 private Map<?, ?> runtimeMappings(String index) {
                     if (index == null) {
-                        return mergeMappings(index, new String[] { "*" });
+                        return mergeMappings(new String[] { "*" });
                     }
                     String[] patterns = Arrays.stream(index.split(",")).map(m -> m.equals("_all") ? "*" : m).toArray(String[]::new);
                     if (patterns.length == 0 && Regex.isSimpleMatchPattern(patterns[0])) {
                         return runtimeMappings.get(patterns[0]);
                     }
-                    return mergeMappings(index, patterns);
+                    return mergeMappings(patterns);
                 }
 
-                private Map<?, ?> mergeMappings(String index, String[] patterns) {
+                private Map<?, ?> mergeMappings(String[] patterns) {
                     Map<String, Map<String, Object>> merged = new HashMap<>();
                     for (Map.Entry<String, Map<String, Map<String, Object>>> indexEntry : runtimeMappings.entrySet()) {
-                        if (index != null && index.equals("date*")) {
-                            LogManager.getLogger().error("ADSFASFDDAF {} {} {}", patterns, indexEntry.getKey(), Regex.simpleMatch(patterns, indexEntry.getKey()));
-                        }
                         if (false == Regex.simpleMatch(patterns, indexEntry.getKey())) {
                             continue;
                         }
@@ -148,15 +144,12 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         }
                     }
                     for (Map.Entry<String, Set<String>> indexEntry : mappedFields.entrySet()) {
-                        if (index != null && index.equals("date*")) {
-                            LogManager.getLogger().error("ADSFASFDDAF {} {} {}", patterns, indexEntry.getKey(), Regex.simpleMatch(patterns, indexEntry.getKey()));
-                        }
                         if (false == Regex.simpleMatch(patterns, indexEntry.getKey())) {
                             continue;
                         }
-                        for (String mappedField :indexEntry.getValue()) {
+                        for (String mappedField : indexEntry.getValue()) {
                             if (merged.containsKey(mappedField)) {
-                                // We have a runtime mappings for a field *and* regular mapping. We can't make this test work so skip it. 
+                                // We have a runtime mappings for a field *and* regular mapping. We can't make this test work so skip it.
                                 return null;
                             }
                         }

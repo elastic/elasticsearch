@@ -373,7 +373,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
         final ComposableIndexTemplate template = new ComposableIndexTemplate(Arrays.asList("foo-*", "bar-*"),
             new Template(null, null, aliases),
-            null, null, null, null, null);
+            null, null, null, null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("test-template", template).build();
@@ -390,7 +390,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
         final ComponentTemplate ct = new ComponentTemplate(new Template(null, null, aliases), null, null);
         final ComposableIndexTemplate template = new ComposableIndexTemplate(Arrays.asList("foo-*", "bar-*"), null,
-            Collections.singletonList("ct"), null, null, null, null);
+            Collections.singletonList("ct"), null, null, null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("ct", ct)
@@ -426,7 +426,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
         final ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("*"),
             new Template(null, null, aliases),
-            null, null, null, null, null);
+            null, null, null, null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("test-template", template).build();
@@ -447,7 +447,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
         final ComponentTemplate ct = new ComponentTemplate(new Template(null, null, aliases), null, null);
         final ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("*"), null,
-            Collections.singletonList("ct"), null, null, null, null);
+            Collections.singletonList("ct"), null, null, null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("ct", ct)
@@ -539,7 +539,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
     public void testRolloverClusterStateForDataStream() throws Exception {
         final DataStream dataStream = DataStreamTestHelper.randomInstance();
         ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList(dataStream.getName() + "*"),
-            null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate());
+            null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(), null);
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
         for (Index index : dataStream.getIndices()) {
@@ -638,7 +638,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             sourceIndexName = dataStream.getIndices().get(dataStream.getIndices().size() - 1).getName();
             defaultRolloverIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
             ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList(dataStream.getName() + "*"),
-                null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate());
+                null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(), null);
             builder.put("template", template);
             for (Index index : dataStream.getIndices()) {
                 builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));

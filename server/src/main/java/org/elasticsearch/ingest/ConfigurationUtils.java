@@ -334,7 +334,11 @@ public final class ConfigurationUtils {
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     try {
-                        processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
+                        if (entry.getValue() == null) {
+                            throw newConfigurationException(entry.getKey(), null, null, "processor config cannot be [null]");
+                        } else {
+                            processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
+                        }
                     } catch (Exception e) {
                         exception = ExceptionsHelper.useOrSuppress(exception, e);
                     }

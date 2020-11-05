@@ -270,6 +270,18 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.getObjectMapper(name);
     }
 
+    public boolean isMetadataField(String field) {
+        return mapperService.isMetadataField(field);
+    }
+
+    public Set<String> sourcePath(String fullName) {
+        return mapperService.sourcePath(fullName);
+    }
+
+    public boolean isSourceEnabled() {
+        return mapperService.documentMapper().sourceMapper().enabled();
+    }
+
     /**
      * Given a type (eg. long, string, ...), returns an anonymous field type that can be used for search operations.
      * Generally used to handle unmapped fields in the context of sorting.
@@ -319,6 +331,14 @@ public class QueryShardContext extends QueryRewriteContext {
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
+    }
+
+    /**
+     * Does the index analyzer for this field have token filters that may produce
+     * backwards offsets in term vectors
+     */
+    public boolean containsBrokenAnalysis(String field) {
+        return mapperService.containsBrokenAnalysis(field);
     }
 
     private SearchLookup lookup = null;

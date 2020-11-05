@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FeatureField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -38,11 +37,11 @@ import java.util.function.Supplier;
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField} as a sparse
  * vector of features.
  */
-public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
+public class RankFeaturesFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "rank_features";
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -69,7 +68,6 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
 
         public RankFeaturesFieldType(String name, Map<String, String> meta) {
             super(name, false, false, false, TextSearchInfo.NONE, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -88,8 +86,8 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         @Override
@@ -100,18 +98,12 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
 
     private RankFeaturesFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
-        assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
-    }
-
-    @Override
-    protected RankFeaturesFieldMapper clone() {
-        return (RankFeaturesFieldMapper) super.clone();
     }
 
     @Override

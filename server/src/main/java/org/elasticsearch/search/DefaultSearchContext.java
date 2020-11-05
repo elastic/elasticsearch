@@ -30,7 +30,6 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -81,7 +80,6 @@ import java.util.function.LongSupplier;
 final class DefaultSearchContext extends SearchContext {
 
     private final ReaderContext readerContext;
-    private final Engine.Searcher engineSearcher;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
@@ -168,20 +166,18 @@ final class DefaultSearchContext extends SearchContext {
         this.indexService = readerContext.indexService();
         this.indexShard = readerContext.indexShard();
         this.clusterService = clusterService;
-        this.engineSearcher = readerContext.acquireSearcher("search");
+
+        Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
         this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(), lowLevelCancellation);
+        releasables.addAll(List.of(engineSearcher, searcher));
+
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), this.searcher,
             request::nowInMillis, shardTarget.getClusterAlias());
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
-    }
-
-    @Override
-    public void doClose() {
-        Releasables.close(engineSearcher, searcher);
     }
 
     /**

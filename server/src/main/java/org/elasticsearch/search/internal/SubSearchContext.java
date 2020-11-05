@@ -73,10 +73,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    protected void doClose() {
-    }
-
-    @Override
     public void preProcess(boolean rewrite) {
     }
 

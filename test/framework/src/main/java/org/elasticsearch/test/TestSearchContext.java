@@ -520,10 +520,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void doClose() {
-    }
-
-    @Override
     public long getRelativeTimeInMillis() {
         return 0L;
     }

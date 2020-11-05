@@ -76,11 +76,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    protected void doClose() {
-        in.doClose();
-    }
-
-    @Override
     public void preProcess(boolean rewrite) {
         in.preProcess(rewrite);
     }

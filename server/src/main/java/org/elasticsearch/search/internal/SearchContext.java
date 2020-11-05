@@ -74,7 +74,7 @@ public abstract class SearchContext implements Releasable {
     public static final int TRACK_TOTAL_HITS_DISABLED = -1;
     public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
-    private final List<Releasable> releasables = new CopyOnWriteArrayList<>();
+    protected final List<Releasable> releasables = new CopyOnWriteArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
 
@@ -89,15 +89,9 @@ public abstract class SearchContext implements Releasable {
     @Override
     public final void close() {
         if (closed.compareAndSet(false, true)) {
-            try {
-                Releasables.close(releasables);
-            } finally {
-                doClose();
-            }
+            Releasables.close(releasables);
         }
     }
-
-    protected abstract void doClose();
 
     /**
      * Should be called before executing the main query and after all other parameters have been set.

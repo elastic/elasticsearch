@@ -385,7 +385,7 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     private static boolean isAggregatable(DataType type) {
-        return type.isNumeric() || type == KEYWORD || type == DATETIME || type == CONSTANT_KEYWORD;
+        return type.isNumeric() || type == KEYWORD || type == DATETIME;
     }
 
     private static class UpdateableFieldCapabilities extends FieldCapabilities {

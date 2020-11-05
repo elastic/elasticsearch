@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -45,37 +46,73 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
         // v7.7.0 contains a Watch history template (version 11) that can't be used unless all nodes in the cluster are >=7.7.0, so
         // in a mixed cluster with some nodes <7.7.0 it will install template version 10, but if all nodes are <=7.7.0 template v11
         // is used.
+        final String expectedFinalTemplate = templatePrefix + "13";
         // In 7.10 watcher templates were converted to composable index templates, so we only
         // check legacy templates if we upgraded from a version that had legacy templates.
-        if (UPGRADE_FROM_VERSION.before(Version.V_7_10_0)) {
-            final String expectedMixedClusterTemplate = templatePrefix + (UPGRADE_FROM_VERSION.before(Version.V_7_7_0) ? "10" : "11");
+        // In 7.11 watcher templates were updated to add `allow_auto_create`
+        if (UPGRADE_FROM_VERSION.before(Version.V_7_11_0)) {
+            String expectedMixedClusterTemplate = templatePrefix;
+            if (UPGRADE_FROM_VERSION.before(Version.V_7_7_0)) {
+                expectedMixedClusterTemplate += "10";
+            } else if (UPGRADE_FROM_VERSION.before(Version.V_7_10_0)) {
+                expectedMixedClusterTemplate += "11";
+            } else {
+                expectedMixedClusterTemplate += "12";
+            }
+
             if (ClusterType.MIXED == CLUSTER_TYPE) {
-                final Request request = new Request("HEAD", "/_template/" + expectedMixedClusterTemplate);
-                request.addParameter("include_type_name", "false");
-                RequestOptions.Builder builder = request.getOptions().toBuilder();
-                builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
-                request.setOptions(builder);
-                Response response = client().performRequest(request);
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
+                assertTemplateExists(expectedMixedClusterTemplate);
             } else if (ClusterType.UPGRADED == CLUSTER_TYPE) {
-                final String expectedFinalTemplate = templatePrefix + "13";
-
-                Response response = client().performRequest(new Request("GET", "/_index_template"));
-                assertOK(response);
-
-                checkTemplateExists(response, expectedFinalTemplate);
+                assertIndexTemplateExists(expectedFinalTemplate);
             }
         } else {
-            final String expectedFinalTemplate = templatePrefix + "13";
-            Response response = client().performRequest(new Request("GET", "/_index_template"));
-            assertOK(response);
-
-            checkTemplateExists(response, expectedFinalTemplate);
+            assertIndexTemplateExists(expectedFinalTemplate);
         }
     }
 
+    /**
+     * Checks that the specified template exists.
+     * <p>
+     * The implementation fetches all templates so that if the template <strong>doesn't</strong> exist,
+     * then the error messages can state which templates <strong>do</strong> exist, for debugging
+     * purposes.
+     */
+    private void assertTemplateExists(String expectedTemplate) throws IOException {
+        final Request request = new Request("GET", "/_template");
+        request.addParameter("include_type_name", "false");
+        RequestOptions.Builder builder = request.getOptions().toBuilder();
+        builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
+        request.setOptions(builder);
+        Response response = client().performRequest(request);
+        assertOK(response);
+
+        final Map<String, Object> responseMap = XContentHelper.convertToMap(
+            JsonXContent.jsonXContent,
+            response.getEntity().getContent(),
+            true
+        );
+
+        final Set<String> templateNames = responseMap.keySet();
+
+        assertThat(
+            "For version " + UPGRADE_FROM_VERSION + ", template " + expectedTemplate + " not found in: " + templateNames,
+            templateNames,
+            hasItem(expectedTemplate)
+        );
+    }
+
+    /**
+     * Checks that the specified index template exists.
+     * <p>
+     * The implementation fetches all templates so that if the template <strong>doesn't</strong> exist,
+     * then the error messages can state which templates <strong>do</strong> exist, for debugging
+     * purposes.
+     */
     @SuppressWarnings("unchecked")
-    private void checkTemplateExists(Response response, String expectedFinalTemplate) throws IOException {
+    private void assertIndexTemplateExists(String expectedTemplate) throws IOException {
+        final Response response = client().performRequest(new Request("GET", "/_index_template"));
+        assertOK(response);
+
         final Map<String, Object> responseMap = XContentHelper.convertToMap(
             JsonXContent.jsonXContent,
             response.getEntity().getContent(),
@@ -87,9 +124,9 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
         final List<String> templateNames = templates.stream().map(each -> (String) each.get("name")).collect(Collectors.toList());
 
         assertThat(
-            "Template " + expectedFinalTemplate + " not found in: " + templateNames,
+            "For version " + UPGRADE_FROM_VERSION + ", template " + expectedTemplate + " not found in: " + templateNames,
             templateNames,
-            hasItem(expectedFinalTemplate)
+            hasItem(expectedTemplate)
         );
     }
 

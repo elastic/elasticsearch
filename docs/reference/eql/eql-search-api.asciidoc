@@ -247,13 +247,7 @@ this value.
 (Optional, string)
 Field used to sort hits with the same
 <<eql-search-api-timestamp-field,timestamp>> in ascending, lexicographic order.
-If you specify a tiebreaker field for a sequence query, all documents in the
-searched data streams or indices must contain the field. For basic queries, {es}
-uses <<sort-search-results,`_doc` order>> if no tiebreaker field is specified or
-events also share the same tiebreaker value.
-+
-If you use the {ecs-ref}[Elastic Common Schema (ECS)], we recommend using
-`event.sequence` as the tiebreaker field.
+See <<eql-search-specify-a-sort-tiebreaker>>.
 
 [[eql-search-api-timestamp-field]]
 `timestamp_field`::
@@ -311,7 +305,7 @@ This search ID is only provided if one of the following conditions is met:
 * A search request does not return complete results during the
   <<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
   parameter's timeout period, becoming an <<eql-search-async,async search>>.
-  
+
 * The search request's <<eql-search-api-keep-on-completion,`keep_on_completion`>>
   parameter is `true`.
 

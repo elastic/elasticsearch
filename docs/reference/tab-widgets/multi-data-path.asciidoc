@@ -1,0 +1,22 @@
+// tag::unix[]
+[source,yaml]
+----
+path:
+  data:
+    - /mnt/elasticsearch_1
+    - /mnt/elasticsearch_2
+    - /mnt/elasticsearch_3
+----
+// end::unix[]
+
+
+// tag::win[]
+[source,yaml]
+----
+path:
+  data:
+    - "C:\\Elastic\\Elasticsearch_1"
+    - "C:\\Elastic\\Elasticsearch_2"
+    - "C:\\Elastic\\Elasticsearch_3"
+----
+// end::win[]

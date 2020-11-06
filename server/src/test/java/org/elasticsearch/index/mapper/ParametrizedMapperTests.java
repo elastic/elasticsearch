@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -137,9 +136,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        public FieldMapper build(Mapper.BuilderContext context) {
-            return new TestMapper(name(), buildFullName(context),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+        public FieldMapper build(ContentPath contentPath) {
+            return new TestMapper(name(), buildFullName(contentPath),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -219,7 +218,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         });
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
-            .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));
+            .build(new ContentPath());
     }
 
     private static TestMapper fromMapping(String mapping) {

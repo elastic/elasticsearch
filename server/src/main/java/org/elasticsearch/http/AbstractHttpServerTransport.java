@@ -345,7 +345,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             RestRequest innerRestRequest;
             try {
                 innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
-            } catch (final RestRequest.ContentTypeHeaderException e) {
+            } catch (final RestRequest.MediaTypeHeaderException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
             } catch (final RestRequest.BadParameterException e) {

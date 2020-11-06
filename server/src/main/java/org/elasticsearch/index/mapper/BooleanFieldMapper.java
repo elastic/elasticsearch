@@ -95,10 +95,10 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BooleanFieldMapper build(BuilderContext context) {
-            MappedFieldType ft = new BooleanFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+        public BooleanFieldMapper build(ContentPath contentPath) {
+            MappedFieldType ft = new BooleanFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
                 docValues.getValue(), nullValue.getValue(), meta.getValue());
-            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 

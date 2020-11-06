@@ -87,10 +87,8 @@ public abstract class AbstractPointFieldDataTestCase extends AbstractFieldDataIm
     @Override
     public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
-        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         if (type.equals("point")) {
-            // .docValues(docValues)?
-            fieldType = new PointFieldMapper.Builder(fieldName, randomBoolean()).build(context).fieldType();
+            fieldType = new PointFieldMapper.Builder(fieldName, randomBoolean()).build(new ContentPath(1)).fieldType();
         } else {
             throw new UnsupportedOperationException(type);
         }

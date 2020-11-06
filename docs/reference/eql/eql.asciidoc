@@ -399,8 +399,8 @@ be part of the same sequence and may not be returned in a consistent sort order.
 To specify a tiebreaker field, use the `tiebreaker_field` parameter. If you
 specify a tiebreaker field for a sequence query, all events in the searched data
 streams or indices must contain a tiebreaker field value. For basic queries,
-{es} orders events with no tiebreaker value after events with a tiebreaker
-value.
+{es} orders matching events with no tiebreaker value after events with a
+tiebreaker value.
 
 If you use the {ecs-ref}[ECS], we recommend using `event.sequence` as the
 tiebreaker field.

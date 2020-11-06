@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 
 public class Latest implements Function {
 
@@ -76,6 +77,8 @@ public class Latest implements Function {
         TopHitsAggregationBuilder topHitsAgg =
             AggregationBuilders.topHits(TOP_HITS_AGGREGATION_NAME)
                 .size(1)  // we are only interested in the top-1
+                .fetchField("*")  // use Fields API rather than source in order to get runtime fields
+                .fetchSource(false)  // since we use Fields API, we don't need to fetch source
                 .sorts(config.getSorts());  // we copy the sort config directly from the function config
         return AggregationBuilders.composite(COMPOSITE_AGGREGATION_NAME, sources).subAggregation(topHitsAgg);
     }
@@ -107,7 +110,9 @@ public class Latest implements Function {
             throw new ElasticsearchException(
                 "Unexpected number of hits in the top_hits aggregation result. Wanted: 1, was: {}", topHits.getHits().getHits().length);
         }
-        Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMap();
+        Map<String, Object> document =
+            topHits.getHits().getHits()[0].getFields().entrySet().stream()
+                .collect(toMap(e -> e.getKey(), e -> e.getValue().getValue()));
 
         // generator to create unique but deterministic document ids, so we
         // - do not create duplicates if we re-run after failure

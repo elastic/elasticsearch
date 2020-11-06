@@ -39,9 +39,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -312,10 +310,11 @@ final class DefaultSearchContext extends SearchContext {
 
     private Query createTypeFilter(String[] types) {
         if (types != null && types.length >= 1) {
-            if (mapperService().documentMapper() == null) {
+            QueryShardContext queryShardContext = getQueryShardContext();
+            if (queryShardContext.getType() == null) {
                 return null;
             }
-            TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType(mapperService().documentMapper().type());
+            TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType(queryShardContext.getType());
             return ft.typeFilter(types);
         }
         return null;
@@ -771,16 +770,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         return fetchResult;
-    }
-
-    @Override
-    public MappedFieldType fieldType(String name) {
-        return queryShardContext.getFieldType(name);
-    }
-
-    @Override
-    public ObjectMapper getObjectMapper(String name) {
-        return queryShardContext.getObjectMapper(name);
     }
 
     @Override

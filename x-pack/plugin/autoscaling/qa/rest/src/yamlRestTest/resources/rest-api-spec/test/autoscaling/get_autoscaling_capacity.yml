@@ -11,12 +11,12 @@
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy
         body:
-          policy:
-            deciders:
-              fixed:
-                storage: 1337b
-                memory: 7331b
-                nodes: 10
+          roles : []
+          deciders:
+            fixed:
+              storage: 1337b
+              memory: 7331b
+              nodes: 10
 
   - match: { "acknowledged": true }
 

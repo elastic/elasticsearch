@@ -3,6 +3,9 @@ Contributing to elasticsearch
 
 Elasticsearch is an open source project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
 
+If you want to be rewarded for your contributions, sign up for the [Elastic Contributor Program](https://www.elastic.co/community/contributor). Each time you
+make a valid contribution, you’ll earn points that increase your chances of winning prizes and being recognized as a top contributor.
+
 Bug reports
 -----------
 

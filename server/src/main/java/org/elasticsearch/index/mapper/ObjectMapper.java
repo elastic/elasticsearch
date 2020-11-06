@@ -24,11 +24,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -144,9 +143,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         protected Dynamic dynamic = Defaults.DYNAMIC;
 
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
+        protected final Version indexCreatedVersion;
 
-        public Builder(String name) {
+        public Builder(String name, Version indexCreatedVersion) {
             super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         public Builder enabled(boolean enabled) {
@@ -170,36 +171,34 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         @Override
-        public ObjectMapper build(BuilderContext context) {
-            context.path().add(name);
+        public ObjectMapper build(ContentPath contentPath) {
+            contentPath.add(name);
 
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
-                Mapper mapper = builder.build(context);
+                Mapper mapper = builder.build(contentPath);
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
                     mapper = existing.merge(mapper);
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }
-            context.path().remove();
+            contentPath.remove();
 
-            ObjectMapper objectMapper = createMapper(name, context.path().pathAsText(name), enabled, nested, dynamic,
-                mappers, context.indexSettings());
-
-            return objectMapper;
+            return createMapper(name, contentPath.pathAsText(name), enabled, nested, dynamic,
+                mappers, indexCreatedVersion);
         }
 
         protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
-                Map<String, Mapper> mappers, @Nullable Settings settings) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, mappers, settings);
+                Map<String, Mapper> mappers, Version indexCreatedVersion) {
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, mappers, indexCreatedVersion);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ObjectMapper.Builder builder = new Builder(name);
+            ObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
             parseNested(name, node, builder, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -316,7 +315,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                     Mapper.Builder fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                        ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i]);
+                        ObjectMapper.Builder intermediate
+                            = new ObjectMapper.Builder(fieldNameParts[i], parserContext.indexVersionCreated());
                         intermediate.add(fieldBuilder);
                         fieldBuilder = intermediate;
                     }
@@ -355,9 +355,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     ObjectMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
-            Map<String, Mapper> mappers, Settings settings) {
+            Map<String, Mapper> mappers, Version indexCreatedVersion) {
         super(name);
-        assert settings != null;
         if (name.isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
         }

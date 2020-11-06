@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 
@@ -64,8 +65,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     }
 
     @Override
-    protected void taskOperation(ForecastJobAction.Request request, TransportOpenJobAction.JobTask task,
-                                 ActionListener<ForecastJobAction.Response> listener) {
+    protected void taskOperation(ForecastJobAction.Request request, JobTask task, ActionListener<ForecastJobAction.Response> listener) {
         jobManager.getJob(task.getJobId(), ActionListener.wrap(
                 job -> {
                     validate(job, request);

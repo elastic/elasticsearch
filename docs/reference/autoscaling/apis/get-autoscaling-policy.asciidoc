@@ -15,10 +15,9 @@ Get autoscaling policy.
 --------------------------------------------------
 PUT /_autoscaling/policy/my_autoscaling_policy
 {
-  "policy": {
-    "deciders": {
-      "fixed": {
-      }
+  "roles" : [],
+  "deciders": {
+    "fixed": {
     }
   }
 }
@@ -70,9 +69,9 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-  "policy": {
-     "deciders": <deciders>
-  }
+   "roles": <roles>,
+   "deciders": <deciders>
 }
 --------------------------------------------------
-// TEST[s/<deciders>/$body.policy.deciders/]
+// TEST[s/<roles>/$body.roles/]
+// TEST[s/<deciders>/$body.deciders/]

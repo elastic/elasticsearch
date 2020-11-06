@@ -65,7 +65,7 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
     public void testAddingGlobalTemplateWithHiddenIndexSettingIsIllegal() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
         ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(Collections.singletonList("*"),
-            template, null, null, null, null, null);
+            template, null, null, null, null, null, null);
 
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);

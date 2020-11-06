@@ -29,9 +29,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
@@ -180,12 +177,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
         MappedFieldType mapper = new ScaledFloatFieldMapper.Builder("field", false, false)
             .scalingFactor(100)
-            .build(context)
+            .build(new ContentPath())
             .fieldType();
         assertEquals(Collections.singletonList(3.14), fetchSourceValue(mapper, 3.1415926));
         assertEquals(Collections.singletonList(3.14), fetchSourceValue(mapper, "3.1415"));
@@ -194,7 +188,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false)
             .scalingFactor(100)
             .nullValue(2.71)
-            .build(context)
+            .build(new ContentPath())
             .fieldType();
         assertEquals(Collections.singletonList(2.71), fetchSourceValue(nullValueMapper, ""));
     }

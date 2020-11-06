@@ -35,7 +35,10 @@ import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.datastreams.action.DataStreamsActionUtil.getDataStreamNames;
 
 public class DeleteDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<DeleteDataStreamAction.Request> {
 
@@ -100,9 +103,8 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
         ClusterState currentState,
         DeleteDataStreamAction.Request request
     ) {
-        Set<String> dataStreams = new HashSet<>(
-            indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.getNames())
-        );
+        List<String> names = getDataStreamNames(indexNameExpressionResolver, currentState, request.getNames(), request.indicesOptions());
+        Set<String> dataStreams = new HashSet<>(names);
         Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(currentState, dataStreams);
 
         if (dataStreams.isEmpty()) {

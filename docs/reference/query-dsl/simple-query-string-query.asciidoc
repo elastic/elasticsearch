@@ -76,7 +76,7 @@ AND of AND Hungary`.
 --
 
 `analyze_wildcard`::
-(Optional, boolean) If `true`, the query attempts to analyze wildcard terms in
+(Optional, Boolean) If `true`, the query attempts to analyze wildcard terms in
 the query string. Defaults to `false`.
 
 `analyzer`::
@@ -86,7 +86,7 @@ query string into tokens. Defaults to the
 `default_field`. If no analyzer is mapped, the index's default analyzer is used.
 
 `auto_generate_synonyms_phrase_query`::
-(Optional, boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
+(Optional, Boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
 queries are automatically created for multi-term synonyms. Defaults to `true`.
 See <<simple-query-string-synonyms>> for an example.
 
@@ -104,11 +104,11 @@ matching. Defaults to `50`.
 matching. Defaults to `0`.
 
 `fuzzy_transpositions`::
-(Optional, boolean) If `true`, edits for fuzzy matching include
+(Optional, Boolean) If `true`, edits for fuzzy matching include
 transpositions of two adjacent characters (ab → ba). Defaults to `true`.
 
 `lenient`::
-(Optional, boolean) If `true`, format-based errors, such as providing a text
+(Optional, Boolean) If `true`, format-based errors, such as providing a text
 value for a <<number,numeric>> field, are ignored. Defaults to `false`.
 
 `minimum_should_match`::

@@ -47,7 +47,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-def
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 
 `from`::
@@ -59,7 +59,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 
 `verbose`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=verbose]
 
 [role="child_attributes"]
@@ -223,7 +223,7 @@ heuristics.
 [%collapsible%open]
 =======
 `compute_feature_influence`::::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
 
 `feature_influence_threshold`::::
@@ -243,7 +243,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=n-neighbors]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
 
 `standardization_enabled`::::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 =======
 //End parameters

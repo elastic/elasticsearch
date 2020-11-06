@@ -59,12 +59,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("test",
-                new AckedClusterStateUpdateTask<Void>(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
-            @Override
-            protected Void newResponse(boolean acknowledged) {
-                return null;
-            }
-
+                new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return true;
@@ -123,12 +118,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("test",
-                new AckedClusterStateUpdateTask<Void>(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
-            @Override
-            protected Void newResponse(boolean acknowledged) {
-                return null;
-            }
-
+                new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
             @Override
             public void onAllNodesAcked(@Nullable Exception e) {
                 allNodesAcked.set(true);
@@ -182,12 +172,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
 
         clusterService.submitStateUpdateTask(
-                "test", new AckedClusterStateUpdateTask<Void>(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
-            @Override
-            protected Void newResponse(boolean acknowledged) {
-                return null;
-            }
-
+                "test", new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return false;
@@ -243,12 +228,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("test",
-                new AckedClusterStateUpdateTask<Void>(MasterServiceTests.ackedRequest(TimeValue.ZERO, TEN_SECONDS), null) {
-            @Override
-            protected Void newResponse(boolean acknowledged) {
-                return null;
-            }
-
+                new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TimeValue.ZERO, TEN_SECONDS), null) {
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return false;

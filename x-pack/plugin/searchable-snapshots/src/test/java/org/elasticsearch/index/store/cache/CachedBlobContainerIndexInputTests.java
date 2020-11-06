@@ -7,15 +7,8 @@ package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
-import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -23,17 +16,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
-import org.elasticsearch.index.store.SearchableSnapshotDirectoryTests;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.store.cache.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.EOFException;
@@ -46,9 +34,9 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
-import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.index.store.cache.TestUtils.singleSplitBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
@@ -58,11 +46,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
+public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
     public void testRandomReads() throws Exception {
-        final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
-        try (CacheService cacheService = createCacheService(random())) {
+        try (CacheService cacheService = randomCacheService()) {
             cacheService.start();
 
             SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
@@ -152,15 +139,23 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         ((CountingBlobContainer) blobContainer).totalBytes.sum(),
                         equalTo((long) input.length)
                     );
+                    // busy assert that closing of all streams happened because they are closed on background fetcher threads
+                    assertBusy(
+                        () -> assertEquals(
+                            "All open streams should have been closed",
+                            0,
+                            ((CountingBlobContainer) blobContainer).openStreams.get()
+                        )
+                    );
                 }
             }
         } finally {
-            SearchableSnapshotDirectoryTests.terminateSafely(threadPool);
+            assertThreadPoolNotBusy(threadPool);
         }
     }
 
     public void testThrowsEOFException() throws Exception {
-        try (CacheService cacheService = createCacheService(random())) {
+        try (CacheService cacheService = randomCacheService()) {
             cacheService.start();
 
             SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
@@ -183,7 +178,6 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             );
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
-            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
             final Path shardDir;
             try {
                 shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
@@ -223,7 +217,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     }
                 }
             } finally {
-                SearchableSnapshotDirectoryTests.terminateSafely(threadPool);
+                assertThreadPoolNotBusy(threadPool);
             }
         }
     }
@@ -243,23 +237,6 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
         return containsEOFException(throwable.getCause(), seenThrowables);
     }
 
-    private SearchableSnapshotRecoveryState createRecoveryState() {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), 0),
-            randomAlphaOfLength(10),
-            true,
-            ShardRoutingState.INITIALIZING,
-            new RecoverySource.SnapshotRecoverySource(
-                UUIDs.randomBase64UUID(),
-                new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
-                Version.CURRENT,
-                new IndexId("some_index", UUIDs.randomBase64UUID(random()))
-            )
-        );
-        DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
-        return new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
-    }
-
     /**
      * BlobContainer that counts the number of {@link java.io.InputStream} it opens, as well as the
      * total number of bytes read from them.
@@ -268,6 +245,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
         private final LongAdder totalBytes = new LongAdder();
         private final LongAdder totalOpens = new LongAdder();
+
+        private final AtomicInteger openStreams = new AtomicInteger(0);
 
         private final int rangeSize;
 
@@ -301,7 +280,6 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
         private final CountingBlobContainer container;
 
-        private long bytesRead = 0L;
         private long position = 0L;
         private long start = Long.MAX_VALUE;
         private long end = Long.MIN_VALUE;
@@ -310,6 +288,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             super(input);
             this.container = Objects.requireNonNull(container);
             this.container.totalOpens.increment();
+            this.container.openStreams.incrementAndGet();
         }
 
         @Override
@@ -322,7 +301,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             if (result == -1) {
                 return result;
             }
-            bytesRead += 1L;
+            this.container.totalBytes.increment();
             position += 1L;
 
             if (position > end) {
@@ -338,7 +317,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             }
 
             final int result = in.read(b, offset, len);
-            bytesRead += len;
+            this.container.totalBytes.add(len);
             position += len;
 
             if (position > end) {
@@ -349,8 +328,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
         @Override
         public void close() throws IOException {
-            in.close();
-            this.container.totalBytes.add(bytesRead);
+            super.close();
+            this.container.openStreams.decrementAndGet();
         }
     }
 }

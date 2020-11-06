@@ -16,9 +16,9 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -57,7 +57,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         return ((PointFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
@@ -97,12 +97,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         }
 
         @Override
-        public ParametrizedFieldMapper build(BuilderContext context) {
+        public FieldMapper build(ContentPath contentPath) {
             CartesianPointParser parser
                 = new CartesianPointParser(name, nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
             PointFieldType ft
-                = new PointFieldType(buildFullName(context), indexed.get(), stored.get(), hasDocValues.get(), parser, meta.get());
-            return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
+                = new PointFieldType(buildFullName(contentPath), indexed.get(), stored.get(), hasDocValues.get(), parser, meta.get());
+            return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
                 copyTo.build(), new PointIndexer(ft), parser, this);
         }
 
@@ -151,7 +151,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
     }
 

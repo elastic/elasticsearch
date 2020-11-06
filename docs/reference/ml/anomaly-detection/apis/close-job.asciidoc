@@ -67,11 +67,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildca
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 `force`::
-  (Optional, boolean) Use to close a failed job, or to forcefully close a job
+  (Optional, Boolean) Use to close a failed job, or to forcefully close a job
   which has not responded to its initial close request.
 
 `timeout`::

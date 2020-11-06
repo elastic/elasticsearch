@@ -27,9 +27,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -447,16 +445,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public FetchPhase fetchPhase() {
         return in.fetchPhase();
-    }
-
-    @Override
-    public MappedFieldType fieldType(String name) {
-        return in.fieldType(name);
-    }
-
-    @Override
-    public ObjectMapper getObjectMapper(String name) {
-        return in.getObjectMapper(name);
     }
 
     @Override

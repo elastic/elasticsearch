@@ -63,7 +63,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-def
 == {api-request-body-title}
 
 `allow_lazy_start`::
-(Optional, boolean)
+(Optional, Boolean)
 Specifies whether this job can start when there is insufficient {ml} node
 capacity for it to be immediately assigned to a node. The default is `false`; if
 a {ml} node with capacity to run the job cannot immediately be found, the API
@@ -177,7 +177,7 @@ The configuration information necessary to perform
 [%collapsible%open]
 =====
 `compute_feature_influence`::::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
 
 `feature_influence_threshold`::::
@@ -197,7 +197,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=n-neighbors]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
 
 `standardization_enabled`::::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 //End outlier_detection
 =====

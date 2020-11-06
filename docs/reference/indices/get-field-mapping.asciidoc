@@ -52,7 +52,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `include_defaults`::
-(Optional, boolean) If `true`, the response includes default mapping values.
+(Optional, Boolean) If `true`, the response includes default mapping values.
 Defaults to `false`.
 
 

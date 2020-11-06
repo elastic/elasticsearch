@@ -626,7 +626,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     // This method should be called inside an assertBusy, it has no retry logic of its own
     @SuppressWarnings("unchecked")
     private void assertHistoryIsPresent(String policyName, boolean success, String repository, String operation) throws IOException {
-        final Request historySearchRequest = new Request("GET", "slm-history*/_search");
+        final Request historySearchRequest = new Request("GET", ".slm-history*/_search");
         historySearchRequest.setJsonEntity("{\n" +
             "  \"query\": {\n" +
             "    \"bool\": {\n" +

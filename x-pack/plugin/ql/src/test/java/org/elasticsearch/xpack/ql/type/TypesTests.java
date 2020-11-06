@@ -14,7 +14,6 @@ import java.io.InputStream;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
@@ -139,7 +138,6 @@ public class TypesTests extends ESTestCase {
         assertThat(fields.size(), is(4));
         assertThat(fields.get("raw").getDataType(), is(KEYWORD));
         assertThat(fields.get("english").getDataType(), is(TEXT));
-        assertThat(fields.get("constant").getDataType(), is(CONSTANT_KEYWORD));
         assertThat(fields.get("wildcard").getDataType(), is(KEYWORD));
     }
 
@@ -154,7 +152,6 @@ public class TypesTests extends ESTestCase {
         assertThat(fields.size(), is(4));
         assertThat(fields.get("raw").getDataType(), is(KEYWORD));
         assertThat(fields.get("english").getDataType(), is(TEXT));
-        assertThat(fields.get("constant").getDataType(), is(CONSTANT_KEYWORD));
         assertThat(fields.get("wildcard").getDataType(), is(KEYWORD));
     }
 
@@ -182,7 +179,7 @@ public class TypesTests extends ESTestCase {
         Map<String, EsField> mapping = loadMapping("mapping-constant-keyword.json");
         assertThat(mapping.size(), is(1));
         EsField dt = mapping.get("full_name");
-        assertThat(dt.getDataType().typeName(), is("constant_keyword"));
+        assertThat(dt.getDataType().typeName(), is("keyword"));
     }
 
     public void testWildcardField() {

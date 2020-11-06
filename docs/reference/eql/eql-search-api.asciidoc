@@ -57,7 +57,7 @@ To search all data streams and indices in a cluster, use
 ==== {api-query-parms-title}
 
 `allow_no_indices`::
-(Optional, boolean)
+(Optional, Boolean)
 +
 NOTE: This parameter's behavior differs from the `allow_no_indices` parameter
 used in other <<multi-index,multi-target APIs>>.
@@ -81,7 +81,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `open`.
 
 `ignore_unavailable`::
-(Optional, boolean) If `true`, missing or closed indices are not included in the
+(Optional, Boolean) If `true`, missing or closed indices are not included in the
 response. Defaults to `true`.
 
 `keep_alive`::
@@ -110,7 +110,7 @@ If both parameters are specified, only the query parameter is used.
 `keep_on_completion`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the search and its results are stored on the cluster.
 
 If `false`, the search and its results are stored on the cluster only if the
@@ -209,7 +209,7 @@ If both parameters are specified, only the query parameter is used.
 `keep_on_completion`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the search and its results are stored on the cluster.
 
 If `false`, the search and its results are stored on the cluster only if the
@@ -320,13 +320,13 @@ API>> to get the current status and available results for the search.
 --
 
 `is_partial`::
-(boolean)
+(Boolean)
 If `true`, the response does not contain complete search results.
 
 `is_running`::
 +
 --
-(boolean)
+(Boolean)
 If `true`, the search request is still executing.
 
 [IMPORTANT]
@@ -366,7 +366,7 @@ Took time does *not* include:
 --
 
 `timed_out`::
-(boolean)
+(Boolean)
 If `true`, the request timed out before completion.
 
 `hits`::

@@ -536,7 +536,7 @@ For more information, see <<modules-scripting>>.
 
 `timed_out`::
 
-{boolean) This flag is set to `true` if any of the requests executed during the
+{Boolean) This flag is set to `true` if any of the requests executed during the
 reindex timed out.
 
 `total`::

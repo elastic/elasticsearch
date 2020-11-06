@@ -1,4 +1,6 @@
 // tag::unix[]
+Unix-style paths are supported:
+
 [source,yaml]
 ----
 path:

@@ -394,9 +394,7 @@ public class ArchiveTests extends PackagingTestCase {
 
         // (@rory) this is for debugging
         Platforms.onLinux(() -> {
-            logger.warn(sh.run("df").stdout);
-            logger.warn(sh.run("ls -ld /tmp").stdout);
-            logger.warn(sh.run("ls -l /tmp").stdout);
+            logger.warn(sh.run("ps ax | grep elasticsearch").stdout);
         });
 
         Result result = sh.run("echo y | " + installation.executables().nodeTool + " unsafe-bootstrap");

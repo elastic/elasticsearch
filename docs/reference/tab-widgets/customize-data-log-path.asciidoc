@@ -1,4 +1,5 @@
 // tag::unix[]
+macOS and Linux, including Debian and RPM, support Unix-style paths:
 
 [source,yaml]
 ----

@@ -1,5 +1,5 @@
 // tag::unix[]
-Unix-style paths are supported:
+Linux and macOS installations support Unix-style paths:
 
 [source,yaml]
 ----
@@ -49,8 +49,8 @@ relative path, `my_fs_backup_location`, resolves to
 
 
 // tag::win[]
-Both traditional DOS and Microsoft UNC paths are supported. The following
-example uses traditional DOS paths with escaped backslashes:
+Windows installations support both traditional DOS and Microsoft UNC paths. The
+following example uses traditional DOS paths with escaped backslashes:
 
 [source,yaml]
 ----

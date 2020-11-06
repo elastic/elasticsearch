@@ -1,5 +1,5 @@
 // tag::unix[]
-macOS and Linux, including Debian and RPM, support Unix-style paths:
+Linux and macOS installations support Unix-style paths:
 
 [source,yaml]
 ----
@@ -11,10 +11,8 @@ path:
 
 
 // tag::win[]
-If running {es} directly on Windows, both traditional DOS and Microsoft UNC
-paths are supported.
-
-The following example uses traditional DOS paths with escaped backslashes:
+Windows installations support both traditional DOS and Microsoft UNC paths. The
+following example uses traditional DOS paths with escaped backslashes:
 
 [source,yaml]
 ----

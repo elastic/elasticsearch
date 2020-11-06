@@ -67,8 +67,8 @@ each index:
         "number_of_replicas": "1",
         "uuid": "c89-MHh8RwKwS1r7Turg2g",
         "version": {
-          "created_string": "6.0.0",           <1>
-          "created": "6000099"
+          "created_string": "5.5.0",           <1>
+          "created": "5050099"
         }
       }
     }
@@ -79,10 +79,10 @@ each index:
 // TESTRESPONSE[s/"creation_date_string": "2099-01-01T00:00:00.000Z"/"creation_date_string": $body.my-index-000001.settings.index.creation_date_string/]
 // TESTRESPONSE[s/"creation_date": "4070908800"/"creation_date": $body.my-index-000001.settings.index.creation_date/]
 // TESTRESPONSE[s/"uuid": "c89-MHh8RwKwS1r7Turg2g"/"uuid": $body.my-index-000001.settings.index.uuid/]
-// TESTRESPONSE[s/"created_string": "6.0.0"/"created_string": $body.my-index-000001.settings.index.version.created_string/]
-// TESTRESPONSE[s/"created": "6000099"/"created": $body.my-index-000001.settings.index.version.created/]
+// TESTRESPONSE[s/"created_string": "5.5.0"/"created_string": $body.my-index-000001.settings.index.version.created_string/]
+// TESTRESPONSE[s/"created": "5050099"/"created": $body.my-index-000001.settings.index.version.created/]
 
-<1> This index was created in {es} 6.0.0.
+<1> This index was created in {es} 5.5.0.
 ====
 --
 

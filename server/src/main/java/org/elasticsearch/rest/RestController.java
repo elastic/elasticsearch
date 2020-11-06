@@ -176,8 +176,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         assert Version.minimumRestCompatibilityVersion() == version || Version.CURRENT == version
             : "REST API compatibility is only supported for version " + Version.minimumRestCompatibilityVersion().major;
 
-        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, version, method),
-            (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, version, method));
+        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
+            (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
     }
 
     /**

@@ -142,7 +142,7 @@ public class RestControllerTests extends ESTestCase {
                         assertEquals("true", threadContext.getHeader("header.1"));
                         assertEquals("true", threadContext.getHeader("header.2"));
                         assertNull(threadContext.getHeader("header.3"));
-                    }, Version.CURRENT, RestRequest.Method.GET);
+                    }, RestRequest.Method.GET);
                 }
             });
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);

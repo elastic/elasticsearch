@@ -24,8 +24,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 
 /**
- * An interface used to specify a function that returns a compatible API version
- * Intended to be used in a code base instead of a plugin.
+ * An interface used to specify a function that returns a compatible API version.
+ * This function abstracts how the version calculation is provided (for instance from plugin).
  */
 @FunctionalInterface
 public interface CompatibleVersion {

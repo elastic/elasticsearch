@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -85,10 +84,6 @@ public class DataTier {
             );
         }
 
-        @Override
-        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
-            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
-        }
     };
 
     public static DiscoveryNodeRole DATA_HOT_NODE_ROLE = new DiscoveryNodeRole("data_hot", "h", true) {
@@ -110,10 +105,6 @@ public class DataTier {
             );
         }
 
-        @Override
-        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
-            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
-        }
     };
 
     public static DiscoveryNodeRole DATA_WARM_NODE_ROLE = new DiscoveryNodeRole("data_warm", "w", true) {
@@ -135,10 +126,6 @@ public class DataTier {
             );
         }
 
-        @Override
-        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
-            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
-        }
     };
 
     public static DiscoveryNodeRole DATA_COLD_NODE_ROLE = new DiscoveryNodeRole("data_cold", "c", true) {
@@ -160,10 +147,6 @@ public class DataTier {
             );
         }
 
-        @Override
-        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
-            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
-        }
     };
 
     public static boolean isContentNode(DiscoveryNode discoveryNode) {

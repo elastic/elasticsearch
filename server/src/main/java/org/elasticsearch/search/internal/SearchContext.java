@@ -30,9 +30,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -364,13 +362,6 @@ public abstract class SearchContext implements Releasable {
         return request().source() != null
             && request().source().isSuggestOnly();
     }
-
-    /**
-     * Given the full name of a field, returns its {@link MappedFieldType}.
-     */
-    public abstract MappedFieldType fieldType(String name);
-
-    public abstract ObjectMapper getObjectMapper(String name);
 
     /**
      * Returns time in milliseconds that can be used for relative time calculations.

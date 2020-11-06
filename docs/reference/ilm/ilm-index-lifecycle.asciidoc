@@ -78,6 +78,7 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
   - <<ilm-set-priority,Set Priority>>
   - <<ilm-unfollow,Unfollow>>
   - <<ilm-rollover,Rollover>>
+  - <<ilm-readonly,Read-Only>>
   - <<ilm-shrink,Shrink>>
   - <<ilm-forcemerge,Force Merge>>
 * Warm

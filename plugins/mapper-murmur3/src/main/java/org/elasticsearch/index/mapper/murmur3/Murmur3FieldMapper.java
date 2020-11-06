@@ -29,6 +29,7 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -74,11 +75,11 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public Murmur3FieldMapper build(BuilderContext context) {
+        public Murmur3FieldMapper build(ContentPath contentPath) {
             return new Murmur3FieldMapper(
                 name,
-                new Murmur3FieldType(buildFullName(context), stored.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
+                new Murmur3FieldType(buildFullName(contentPath), stored.getValue(), meta.getValue()),
+                multiFieldsBuilder.build(this, contentPath),
                 copyTo.build());
         }
     }

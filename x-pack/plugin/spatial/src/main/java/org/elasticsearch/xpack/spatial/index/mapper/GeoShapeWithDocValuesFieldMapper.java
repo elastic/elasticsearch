@@ -17,6 +17,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.GeoShapeParser;
@@ -95,21 +96,21 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public GeoShapeWithDocValuesFieldMapper build(BuilderContext context) {
+        public GeoShapeWithDocValuesFieldMapper build(ContentPath contentPath) {
             GeometryParser geometryParser = new GeometryParser(
                 orientation.get().value().getAsBoolean(),
                 coerce.get().value(),
                 ignoreZValue.get().value());
             GeoShapeParser parser = new GeoShapeParser(geometryParser);
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(
-                buildFullName(context),
+                buildFullName(contentPath),
                 indexed.get(),
                 hasDocValues.get(),
                 orientation.get().value(),
                 parser,
                 meta.get());
             return new GeoShapeWithDocValuesFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, context), copyTo.build(),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(),
                 new GeoShapeIndexer(orientation.get().value().getAsBoolean(), ft.name()), parser, this);
         }
 

@@ -67,10 +67,10 @@ public class ParsedMediaType {
      * @throws IllegalArgumentException if the header is malformed
      */
     public static ParsedMediaType parseMediaType(String headerValue) {
-        if (isMediaRange(headerValue) || "*/*".equals(headerValue)) {
-            return null;
-        }
         if (headerValue != null) {
+            if (isMediaRange(headerValue) || "*/*".equals(headerValue)) {
+                return null;
+            }
             final String[] elements = headerValue.toLowerCase(Locale.ROOT).split("[\\s\\t]*;");
 
             final String[] splitMediaType = elements[0].split("/");

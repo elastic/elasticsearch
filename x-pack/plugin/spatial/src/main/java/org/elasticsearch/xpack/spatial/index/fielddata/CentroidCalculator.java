@@ -46,7 +46,6 @@ public class CentroidCalculator {
      * @return the x-coordinate centroid
      */
     public double getX() {
-        // normalization required due to floating point precision errors
         return visitor.compSumX.value() / visitor.compSumWeight.value();
     }
 
@@ -54,7 +53,6 @@ public class CentroidCalculator {
      * @return the y-coordinate centroid
      */
     public double getY() {
-        // normalization required due to floating point precision errors
         return visitor.compSumY.value() / visitor.compSumWeight.value();
     }
 

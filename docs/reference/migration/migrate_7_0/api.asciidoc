@@ -54,13 +54,6 @@ each index:
     "settings": {
       "index": {
         "creation_date_string": "2099-01-01T00:00:00.000Z",
-        "routing": {
-          "allocation": {
-            "include": {
-              "_tier_preference": "data_content"
-            }
-          }
-        },
         "number_of_shards": "1",
         "provided_name": "my-index-000001",
         "creation_date": "4070908800",

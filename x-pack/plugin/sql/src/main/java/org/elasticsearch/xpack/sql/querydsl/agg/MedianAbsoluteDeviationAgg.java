@@ -22,3 +22,4 @@ public class MedianAbsoluteDeviationAgg extends DefaultAggSourceLeafAgg {
         return AggregationBuilders::medianAbsoluteDeviation;
     }
 }
+

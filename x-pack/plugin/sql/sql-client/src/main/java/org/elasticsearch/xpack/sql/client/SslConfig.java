@@ -67,7 +67,7 @@ public class SslConfig {
         boolean isSchemaPresent = baseURI.getScheme() != null;
         boolean isSSLPropertyPresent = settings.getProperty(SSL) != null;
         boolean isHttpsScheme = "https".equals(baseURI.getScheme());
-        
+
         if (!isSSLPropertyPresent && !isSchemaPresent) {
             enabled = StringUtils.parseBoolean(SSL_DEFAULT);
         } else {
@@ -179,3 +179,4 @@ public class SslConfig {
         return getClass().hashCode();
     }
 }
+

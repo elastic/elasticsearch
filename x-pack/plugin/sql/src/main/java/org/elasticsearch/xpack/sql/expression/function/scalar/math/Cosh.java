@@ -34,3 +34,4 @@ public class Cosh extends MathFunction {
         return MathOperation.COSH;
     }
 }
+

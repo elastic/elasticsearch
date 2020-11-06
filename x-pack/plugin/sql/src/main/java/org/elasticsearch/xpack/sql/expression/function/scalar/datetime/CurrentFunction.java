@@ -48,3 +48,4 @@ abstract class CurrentFunction<T extends Temporal> extends SqlConfigurationFunct
         return Objects.equals(current, other.current);
     }
 }
+

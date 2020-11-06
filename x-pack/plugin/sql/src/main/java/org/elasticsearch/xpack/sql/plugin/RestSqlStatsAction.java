@@ -35,3 +35,4 @@ public class RestSqlStatsAction extends BaseRestHandler {
     }
 
 }
+

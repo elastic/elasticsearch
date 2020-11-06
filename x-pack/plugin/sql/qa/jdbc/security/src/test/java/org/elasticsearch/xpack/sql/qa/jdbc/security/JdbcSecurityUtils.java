@@ -50,3 +50,4 @@ final class JdbcSecurityUtils {
         properties.put("ssl.truststore.pass", "keypass");
     }
 }
+

@@ -44,3 +44,4 @@ public class Least extends ArbitraryConditionalFunction {
         return LEAST.apply(values);
     }
 }
+

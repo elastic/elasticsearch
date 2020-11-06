@@ -14,3 +14,4 @@ public class EqlSpecIT extends EqlSpecTestCase {
         super(query, name, eventIds);
     }
 }
+

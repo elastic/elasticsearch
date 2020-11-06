@@ -26,3 +26,4 @@ public class SubstringFunctionProcessorTests extends ESTestCase {
         assertEquals("A number is required; received [abc]", siae.getMessage());
     }
 }
+

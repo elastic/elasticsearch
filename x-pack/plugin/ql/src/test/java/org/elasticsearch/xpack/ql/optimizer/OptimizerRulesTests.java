@@ -1384,3 +1384,4 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals("abc", eq.right().fold());
     }
 }
+

@@ -71,3 +71,4 @@ public class EqlStatsRequest extends BaseNodesRequest<EqlStatsRequest> {
         }
     }
 }
+

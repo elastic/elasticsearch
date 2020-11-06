@@ -708,3 +708,4 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         }
     }
 }
+

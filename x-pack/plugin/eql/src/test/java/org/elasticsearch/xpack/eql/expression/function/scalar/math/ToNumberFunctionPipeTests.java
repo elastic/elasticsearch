@@ -27,11 +27,11 @@ public class ToNumberFunctionPipeTests extends AbstractNodeTestCase<ToNumberFunc
     protected ToNumberFunctionPipe randomInstance() {
         return randomToNumberFunctionPipe();
     }
-    
+
     private Expression randomToNumberFunctionExpression() {
         return randomToNumberFunctionPipe().expression();
     }
-    
+
     public static ToNumberFunctionPipe randomToNumberFunctionPipe() {
         return (ToNumberFunctionPipe) (new ToNumber(
                 randomSource(),
@@ -52,7 +52,7 @@ public class ToNumberFunctionPipeTests extends AbstractNodeTestCase<ToNumberFunc
                 b1.value(),
                 b1.base());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+
         ToNumberFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new ToNumberFunctionPipe(
@@ -70,19 +70,19 @@ public class ToNumberFunctionPipeTests extends AbstractNodeTestCase<ToNumberFunc
         Pipe newValue = randomValueOtherThan(b.value(), () -> pipe(randomStringLiteral()));
         Pipe newBase = b.base() == null ? null : randomValueOtherThan(b.base(), () -> pipe(randomIntLiteral()));
         ToNumberFunctionPipe newB = new ToNumberFunctionPipe(b.source(), b.expression(), b.value(), b.base());
-        
+
         ToNumberFunctionPipe transformed = newB.replaceChildren(newValue, b.base());
         assertEquals(transformed.value(), newValue);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.base(), b.base());
-        
+
         transformed = newB.replaceChildren(b.value(), newBase);
         assertEquals(transformed.value(), b.value());
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.base(), newBase);
-        
+
         transformed = newB.replaceChildren(newValue, newBase);
         assertEquals(transformed.value(), newValue);
         assertEquals(transformed.source(), b.source());
@@ -105,7 +105,7 @@ public class ToNumberFunctionPipeTests extends AbstractNodeTestCase<ToNumberFunc
                 f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.value(), () -> randomStringLiteral()))),
                 f.base() == null ? null : randomValueOtherThan(f.base(), () -> pipe(randomIntLiteral()))));
-        
+
         return randomFrom(randoms).apply(instance);
     }
 
@@ -117,3 +117,4 @@ public class ToNumberFunctionPipeTests extends AbstractNodeTestCase<ToNumberFunc
                 instance.base());
     }
 }
+

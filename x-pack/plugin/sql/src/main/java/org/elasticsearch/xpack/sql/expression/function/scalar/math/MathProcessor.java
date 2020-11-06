@@ -20,7 +20,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class MathProcessor implements Processor {
-    
+
     public enum MathOperation {
         ABS((Object l) -> {
             if (l instanceof Double) {
@@ -134,7 +134,7 @@ public class MathProcessor implements Processor {
             return apply.apply(l);
         }
     }
-    
+
     public static final String NAME = "m";
 
     private final MathOperation processor;
@@ -189,3 +189,4 @@ public class MathProcessor implements Processor {
         return processor.toString();
     }
 }
+

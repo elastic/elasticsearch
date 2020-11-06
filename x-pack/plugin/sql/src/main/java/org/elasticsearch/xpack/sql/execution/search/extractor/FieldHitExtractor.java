@@ -89,7 +89,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         return list.get(0) instanceof Number;
     }
 
-    
+
     @Override
     protected boolean isFromDocValuesOnly(DataType dataType) {
         return SqlDataTypes.isFromDocValuesOnly(dataType);
@@ -133,3 +133,4 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         return null;
     }
 }
+

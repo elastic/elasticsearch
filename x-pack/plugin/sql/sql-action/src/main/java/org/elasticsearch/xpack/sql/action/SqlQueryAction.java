@@ -16,3 +16,4 @@ public class SqlQueryAction extends ActionType<SqlQueryResponse> {
         super(NAME, SqlQueryResponse::new);
     }
 }
+

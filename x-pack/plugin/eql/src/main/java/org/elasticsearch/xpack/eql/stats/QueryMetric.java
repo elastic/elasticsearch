@@ -10,9 +10,10 @@ import java.util.Locale;
 
 public enum QueryMetric {
     ALL;
-    
+
     @Override
     public String toString() {
         return this.name().toLowerCase(Locale.ROOT);
     }
 }
+

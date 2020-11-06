@@ -62,3 +62,4 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
         terminal.print(str);
     }
 }
+

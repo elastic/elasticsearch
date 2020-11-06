@@ -37,3 +37,4 @@ public class And extends BinaryLogic implements Negatable<BinaryLogic> {
         return new Or(source(), new Not(source(), left()), new Not(source(), right()));
     }
 }
+

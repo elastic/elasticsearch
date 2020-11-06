@@ -55,3 +55,4 @@ class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiV
         return values.keySet();
     }
 }
+

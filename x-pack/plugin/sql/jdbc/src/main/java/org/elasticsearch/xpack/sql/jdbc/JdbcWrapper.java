@@ -24,3 +24,4 @@ interface JdbcWrapper extends Wrapper {
         throw new SQLException();
     }
 }
+

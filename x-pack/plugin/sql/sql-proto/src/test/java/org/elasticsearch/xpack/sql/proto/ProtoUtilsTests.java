@@ -57,3 +57,4 @@ public class ProtoUtilsTests extends ESTestCase {
     }
 
 }
+

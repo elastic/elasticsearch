@@ -63,3 +63,4 @@ public class SqlTranslateResponse extends ActionResponse implements ToXContentOb
         return source.toXContent(builder, params);
     }
 }
+

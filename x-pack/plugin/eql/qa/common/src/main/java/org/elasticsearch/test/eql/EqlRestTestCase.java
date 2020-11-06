@@ -116,3 +116,4 @@ public abstract class EqlRestTestCase extends ESRestTestCase {
         assertThat(bulkResponse, not(containsString("\"errors\": true")));
     }
 }
+

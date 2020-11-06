@@ -88,3 +88,4 @@ public class ScriptTemplate {
         return bindTemplate();
     }
 }
+

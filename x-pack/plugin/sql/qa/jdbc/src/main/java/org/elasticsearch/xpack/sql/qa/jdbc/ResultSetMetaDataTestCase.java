@@ -63,3 +63,4 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
         }
     }
 }
+

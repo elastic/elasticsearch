@@ -60,3 +60,4 @@ public class UnaryPipeTests extends ESTestCase {
         return new UnaryPipe(Source.EMPTY, null, child, null);
     }
 }
+

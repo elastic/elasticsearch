@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
  * Post processor of the user query once it got analyzed and verified.
  * The purpose of this class is to add implicit blocks to the query based on the user request
  * that help with the query execution not its semantics.
- * 
+ *
  * This could have been done in the optimizer however due to its wrapping nature (which is clunky to do with rules)
  * and since the optimized is not parameterized, making this a separate step (similar to the pre-analyzer) is more natural.
  */
@@ -42,7 +42,7 @@ public class PostAnalyzer {
             // implicit sequence fetch size
 
             // implicit project + fetch size (if needed)
-            
+
             Holder<Boolean> hasJoin = new Holder<>(Boolean.FALSE);
 
             Source projectCtx = synthetic("<implicit-project>");
@@ -55,7 +55,7 @@ public class PostAnalyzer {
                 LogicalPlan fetchSize = new LimitWithOffset(synthetic("<fetch-size>"),
                         new Literal(synthetic("<fetch-value>"), configuration.fetchSize(), DataTypes.INTEGER),
                         p);
-                
+
                 return new KeyedFilter(k.source(), fetchSize, k.keys(), k.timestamp(), k.tiebreaker());
             }, KeyedFilter.class);
 
@@ -72,3 +72,4 @@ public class PostAnalyzer {
     }
 
 }
+

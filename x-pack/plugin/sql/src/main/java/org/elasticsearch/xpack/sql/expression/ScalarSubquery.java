@@ -42,3 +42,4 @@ public class ScalarSubquery extends SubQueryExpression {
         return Nullability.TRUE;
     }
 }
+

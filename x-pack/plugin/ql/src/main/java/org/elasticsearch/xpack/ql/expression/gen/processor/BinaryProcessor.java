@@ -67,3 +67,4 @@ public abstract class BinaryProcessor implements Processor {
 
     protected abstract Object doProcess(Object left, Object right);
 }
+

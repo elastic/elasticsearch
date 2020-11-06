@@ -124,7 +124,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     public boolean analyzed() {
         return analyzed;
     }
-    
+
     public boolean sameAs(Count count) {
         if (this.resolutionType == ResolutionType.DISTINCT && count.distinct()
                 || this.resolutionType == ResolutionType.STANDARD && count.distinct() == false) {
@@ -286,3 +286,4 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         protected abstract String type();
     }
 }
+

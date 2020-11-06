@@ -33,3 +33,4 @@ public class NullabilityTests extends ESTestCase {
         assertEquals(UNKNOWN, Nullability.and(TRUE, UNKNOWN));
     }
 }
+

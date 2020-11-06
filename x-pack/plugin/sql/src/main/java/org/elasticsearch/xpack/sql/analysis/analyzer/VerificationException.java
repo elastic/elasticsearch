@@ -22,3 +22,4 @@ public class VerificationException extends SqlClientException {
         return RestStatus.BAD_REQUEST;
     }
 }
+

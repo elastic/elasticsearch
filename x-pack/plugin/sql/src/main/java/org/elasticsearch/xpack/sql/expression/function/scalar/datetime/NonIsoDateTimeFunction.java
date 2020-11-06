@@ -36,9 +36,9 @@ abstract class NonIsoDateTimeFunction extends BaseDateTimeFunction {
         ScriptTemplate script = super.asScript();
         String template = formatTemplate("{sql}." + StringUtils.underscoreToLowerCamelCase(extractor.name())
             + "(" + script.template() + ", {})");
-        
+
         ParamsBuilder params = paramsBuilder().script(script.params()).variable(zoneId().getId());
-        
+
         return new ScriptTemplate(template, params.build(), dataType());
     }
 
@@ -52,3 +52,4 @@ abstract class NonIsoDateTimeFunction extends BaseDateTimeFunction {
         return DataTypes.INTEGER;
     }
 }
+

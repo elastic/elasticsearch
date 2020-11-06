@@ -8,3 +8,4 @@ package org.elasticsearch.xpack.sql.qa.jdbc.multi_node;
 import org.elasticsearch.xpack.sql.qa.jdbc.PreparedStatementTestCase;
 
 public class JdbcPreparedStatementIT extends PreparedStatementTestCase {}
+

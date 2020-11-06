@@ -93,3 +93,4 @@ public class SqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSu
         return null;
     }
 }
+

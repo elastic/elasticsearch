@@ -95,3 +95,4 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertEquals("", readLine());
     }
 }
+

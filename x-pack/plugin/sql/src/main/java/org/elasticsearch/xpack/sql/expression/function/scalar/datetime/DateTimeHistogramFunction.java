@@ -27,8 +27,9 @@ public abstract class DateTimeHistogramFunction extends DateTimeFunction {
     public long fixedInterval() {
         return -1;
     }
-    
+
     public String calendarInterval() {
         return null;
     }
 }
+

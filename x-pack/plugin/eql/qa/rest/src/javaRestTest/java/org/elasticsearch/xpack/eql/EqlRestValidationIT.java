@@ -25,3 +25,4 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
             + "\"reason\":\"no such index [null]\"");
     }
 }
+

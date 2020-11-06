@@ -121,3 +121,4 @@ public class ServerQueryCliCommandTests extends ESTestCase {
         return new SqlQueryResponse(cursor, columns, rows);
     }
 }
+

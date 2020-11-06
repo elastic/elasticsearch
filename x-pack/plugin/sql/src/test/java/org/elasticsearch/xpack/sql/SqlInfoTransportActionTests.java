@@ -110,3 +110,4 @@ public class SqlInfoTransportActionTests extends ESTestCase {
         assertThat(spam, is(1L));
     }
 }
+

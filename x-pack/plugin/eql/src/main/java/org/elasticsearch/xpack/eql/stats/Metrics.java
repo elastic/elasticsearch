@@ -90,7 +90,7 @@ public class Metrics {
             for (OperationType type : OperationType.values()) {
                 long metricCounter = entry.getValue().get(type).count();
                 String operationTypeName = type.toString();
-                
+
                 counters.inc(QPREFIX + metricName + "." + operationTypeName, metricCounter);
                 counters.inc(QPREFIX + "_all." + operationTypeName, metricCounter);
             }
@@ -104,3 +104,4 @@ public class Metrics {
         return counters;
     }
 }
+

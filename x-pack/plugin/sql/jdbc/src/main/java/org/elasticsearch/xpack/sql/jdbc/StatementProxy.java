@@ -35,3 +35,4 @@ final class StatementProxy extends DebuggingInvoker {
         return result;
     }
 }
+

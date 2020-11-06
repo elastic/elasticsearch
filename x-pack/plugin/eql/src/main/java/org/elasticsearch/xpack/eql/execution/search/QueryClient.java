@@ -23,3 +23,4 @@ public interface QueryClient {
 
     void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener);
 }
+

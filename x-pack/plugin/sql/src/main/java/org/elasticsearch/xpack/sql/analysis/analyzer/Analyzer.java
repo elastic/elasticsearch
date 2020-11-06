@@ -1331,3 +1331,4 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         protected abstract LogicalPlan doRule(LogicalPlan plan);
     }
 }
+

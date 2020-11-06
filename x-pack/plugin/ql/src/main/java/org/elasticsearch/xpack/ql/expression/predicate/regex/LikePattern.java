@@ -100,3 +100,4 @@ public class LikePattern extends AbstractStringPattern {
                 && escape == other.escape;
     }
 }
+

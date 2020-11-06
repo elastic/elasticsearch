@@ -17,3 +17,4 @@ public class OrAggFilter extends AggFilter {
         super(name, Scripts.or(left.scriptTemplate(), right.scriptTemplate()));
     }
 }
+

@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.string.Inse
 public class Insert extends ScalarFunction {
 
     private final Expression input, start, length, replacement;
-    
+
     public Insert(Source source, Expression input, Expression start, Expression length, Expression replacement) {
         super(source, Arrays.asList(input, start, length, replacement));
         this.input = input;
@@ -43,7 +43,7 @@ public class Insert extends ScalarFunction {
         this.length = length;
         this.replacement = replacement;
     }
-    
+
     @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {
@@ -59,12 +59,12 @@ public class Insert extends ScalarFunction {
         if (startResolution.unresolved()) {
             return startResolution;
         }
-        
+
         TypeResolution lengthResolution = isNumeric(length, sourceText(), ParamOrdinal.THIRD);
         if (lengthResolution.unresolved()) {
             return lengthResolution;
         }
-        
+
         return isStringAndExact(replacement, sourceText(), ParamOrdinal.FOURTH);
     }
 
@@ -94,7 +94,7 @@ public class Insert extends ScalarFunction {
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Insert::new, input, start, length, replacement);
     }
-    
+
     @Override
     public ScriptTemplate asScript() {
         ScriptTemplate inputScript = asScript(input);
@@ -119,7 +119,7 @@ public class Insert extends ScalarFunction {
                     .script(lengthScript.params()).script(replacementScript.params())
                     .build(), dataType());
     }
-    
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
@@ -141,3 +141,4 @@ public class Insert extends ScalarFunction {
         return new Insert(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 }
+

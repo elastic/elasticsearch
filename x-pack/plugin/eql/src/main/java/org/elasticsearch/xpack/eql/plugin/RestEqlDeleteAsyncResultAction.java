@@ -33,3 +33,4 @@ public class RestEqlDeleteAsyncResultAction extends BaseRestHandler {
         return channel -> client.execute(DeleteAsyncResultAction.INSTANCE, delete, new RestToXContentListener<>(channel));
     }
 }
+

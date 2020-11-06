@@ -44,3 +44,4 @@ public class ServerInfoCliCommandTests extends ESTestCase {
     }
 
 }
+

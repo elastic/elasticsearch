@@ -179,7 +179,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(DateAdd.class, DateAdd::new, "DATEADD", "DATE_ADD", "TIMESTAMPADD", "TIMESTAMP_ADD"),
                 def(DateDiff.class, DateDiff::new, "DATEDIFF", "DATE_DIFF", "TIMESTAMPDIFF", "TIMESTAMP_DIFF"),
                 def(DateParse.class, DateParse::new, "DATE_PARSE"),
-                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"), 
+                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
                 def(DateTimeFormat.class, DateTimeFormat::new, "DATETIME_FORMAT"),
                 def(DateTimeParse.class, DateTimeParse::new, "DATETIME_PARSE"),
                 def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),
@@ -282,3 +282,4 @@ public class SqlFunctionRegistry extends FunctionRegistry {
     }
 
 }
+

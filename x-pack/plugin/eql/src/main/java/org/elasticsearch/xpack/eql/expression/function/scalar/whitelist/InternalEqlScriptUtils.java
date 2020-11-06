@@ -79,3 +79,4 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
         return (String) SubstringFunctionProcessor.doProcess(s, start, end);
     }
 }
+

@@ -35,3 +35,4 @@ public abstract class TypedAttribute extends Attribute {
         return super.equals(obj) && Objects.equals(dataType, ((TypedAttribute) obj).dataType);
     }
 }
+

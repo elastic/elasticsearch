@@ -196,3 +196,4 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
 
     protected abstract String tiebreaker();
 }
+

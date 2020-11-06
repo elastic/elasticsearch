@@ -35,3 +35,4 @@ public class SecondOfMinute extends TimeFunction {
         return "s";
     }
 }
+

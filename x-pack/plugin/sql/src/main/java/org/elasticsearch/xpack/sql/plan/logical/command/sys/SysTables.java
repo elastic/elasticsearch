@@ -177,3 +177,4 @@ public class SysTables extends Command {
                 && Objects.equals(types, other.types);
     }
 }
+

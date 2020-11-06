@@ -259,3 +259,4 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         return new Limit(source, new Literal(source, Integer.parseInt(limit.getText()), DataTypes.INTEGER), plan);
     }
 }
+

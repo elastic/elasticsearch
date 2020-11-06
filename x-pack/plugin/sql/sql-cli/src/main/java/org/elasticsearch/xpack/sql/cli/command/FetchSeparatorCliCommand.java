@@ -26,3 +26,4 @@ public class FetchSeparatorCliCommand extends AbstractCliCommand {
         return true;
     }
 }
+

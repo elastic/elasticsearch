@@ -94,3 +94,4 @@ public class LikeEscapingParsingTests extends ESTestCase {
     }
 
 }
+

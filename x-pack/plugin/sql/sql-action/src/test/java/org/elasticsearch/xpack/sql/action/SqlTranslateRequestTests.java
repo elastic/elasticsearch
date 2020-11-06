@@ -83,3 +83,4 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
         return newRequest;
     }
 }
+

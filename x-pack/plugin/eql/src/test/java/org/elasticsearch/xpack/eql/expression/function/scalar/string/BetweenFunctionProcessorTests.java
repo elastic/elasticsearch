@@ -35,3 +35,4 @@ public class BetweenFunctionProcessorTests extends ESTestCase {
         }
     }
 }
+

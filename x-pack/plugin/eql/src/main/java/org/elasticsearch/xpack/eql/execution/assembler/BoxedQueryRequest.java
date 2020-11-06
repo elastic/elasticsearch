@@ -87,3 +87,4 @@ public class BoxedQueryRequest implements QueryRequest {
         return o != null ? o.toString() : "<none>";
     }
 }
+

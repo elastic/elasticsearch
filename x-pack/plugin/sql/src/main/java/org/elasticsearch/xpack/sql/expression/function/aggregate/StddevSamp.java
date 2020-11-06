@@ -35,3 +35,4 @@ public class StddevSamp extends NumericAggregate implements ExtendedStatsEnclose
         return NodeInfo.create(this, StddevSamp::new, field());
     }
 }
+

@@ -172,3 +172,4 @@ public class QuerierTests extends ESTestCase {
         assertEquals(expected.subList(0, queueSize), results);
     }
 }
+

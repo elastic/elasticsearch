@@ -49,3 +49,4 @@ class TestBucket implements Bucket {
         return aggs;
     }
 }
+

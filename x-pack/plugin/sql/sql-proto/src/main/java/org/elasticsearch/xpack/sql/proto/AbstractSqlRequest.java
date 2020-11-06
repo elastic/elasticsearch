@@ -29,7 +29,7 @@ public abstract class AbstractSqlRequest implements ToXContentFragment {
     public Mode mode() {
         return requestInfo.mode();
     }
-    
+
     public String clientId() {
         return requestInfo.clientId();
     }
@@ -52,3 +52,4 @@ public abstract class AbstractSqlRequest implements ToXContentFragment {
     }
 
 }
+

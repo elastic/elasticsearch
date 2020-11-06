@@ -60,3 +60,4 @@ public class TransportEqlStatsAction extends TransportNodesAction<EqlStatsReques
         return statsResponse;
     }
 }
+

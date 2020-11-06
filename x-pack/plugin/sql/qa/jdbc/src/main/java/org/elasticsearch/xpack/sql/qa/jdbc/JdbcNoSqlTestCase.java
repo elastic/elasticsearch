@@ -20,3 +20,4 @@ public abstract class JdbcNoSqlTestCase extends JdbcIntegrationTestCase {
         }
     }
 }
+

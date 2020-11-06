@@ -8,3 +8,4 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 public abstract class MultiFieldAgg {
 
 }
+

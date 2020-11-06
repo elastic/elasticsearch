@@ -166,3 +166,4 @@ public class Cli extends LoggingAwareCommand {
         }
     }
 }
+

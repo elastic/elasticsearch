@@ -80,3 +80,4 @@ public class EqlRequestParserTests extends ESTestCase {
         return xContentType.xContent().createParser(registry, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content);
     }
 }
+

@@ -35,3 +35,4 @@ public class ACos extends MathFunction {
         return MathOperation.ACOS;
     }
 }
+

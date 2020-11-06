@@ -107,3 +107,4 @@ public class ConcatFunctionPipe extends Pipe {
         return Objects.equals(values(), ((ConcatFunctionPipe) obj).values());
     }
 }
+

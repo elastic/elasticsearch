@@ -80,3 +80,4 @@ public class EndsWithFunctionProcessorTests extends ESTestCase {
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
     }
 }
+

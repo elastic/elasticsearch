@@ -45,7 +45,7 @@ public class Schema implements Iterable<Schema.Entry> {
     }
 
     public static final Schema EMPTY = new Schema(emptyList(), emptyList());
-    
+
     private final List<String> names;
     private final List<DataType> types;
 
@@ -84,7 +84,7 @@ public class Schema implements Iterable<Schema.Entry> {
         return new Iterator<>() {
             private final int size = size();
             private int pos = -1;
-            
+
             @Override
             public boolean hasNext() {
                 return pos < size - 1;
@@ -125,3 +125,4 @@ public class Schema implements Iterable<Schema.Entry> {
         return sb.toString();
     }
 }
+

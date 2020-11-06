@@ -244,3 +244,4 @@ public class SysColumns extends Command {
                 && Objects.equals(columnPattern, other.columnPattern);
     }
 }
+

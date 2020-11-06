@@ -538,3 +538,4 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         throw new SQLFeatureNotSupportedException("Batching not supported");
     }
 }
+

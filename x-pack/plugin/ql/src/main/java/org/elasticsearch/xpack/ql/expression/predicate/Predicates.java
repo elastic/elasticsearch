@@ -57,9 +57,9 @@ public abstract class Predicates {
      *  /   \   /   \
      * A     B C     D
      * </pre>
-     * 
+     *
      * using the given combiner.
-     * 
+     *
      * While a bit longer, this method creates a balanced tree as oppose to a plain
      * recursive approach which creates an unbalanced one (either to the left or right).
      */
@@ -113,3 +113,4 @@ public abstract class Predicates {
         return diff.isEmpty() ? emptyList() : diff;
     }
 }
+

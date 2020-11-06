@@ -45,7 +45,7 @@ public final class Scripts {
 
     /**
      * Expands common tokens inside the script:
-     * 
+     *
      * <pre>
      * {sql} -&gt; InternalSqlScriptUtils
      * doc[{}].value -&gt; InternalSqlScriptUtils.docValue(doc, {})
@@ -81,7 +81,7 @@ public final class Scripts {
     public static ScriptTemplate or(ScriptTemplate left, ScriptTemplate right) {
         return binaryMethod("{ql}", "or", left, right, DataTypes.BOOLEAN);
     }
-    
+
     public static ScriptTemplate binaryMethod(String prefix, String methodName, ScriptTemplate leftScript, ScriptTemplate rightScript,
             DataType dataType) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("%s.%s(%s,%s)"),
@@ -96,3 +96,4 @@ public final class Scripts {
                 dataType);
     }
 }
+

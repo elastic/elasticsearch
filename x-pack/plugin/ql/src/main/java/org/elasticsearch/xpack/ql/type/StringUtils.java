@@ -29,7 +29,7 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 final class StringUtils {
 
     public static final String EMPTY = "";
-    
+
     public static final DateTimeFormatter ISO_DATE_WITH_MILLIS = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
             .append(ISO_LOCAL_DATE)
@@ -77,7 +77,7 @@ final class StringUtils {
         if (value == null) {
             return "null";
         }
-        
+
         if (value instanceof ZonedDateTime) {
             return ((ZonedDateTime) value).format(ISO_DATE_WITH_MILLIS);
         }
@@ -143,3 +143,4 @@ final class StringUtils {
         return timeUnit < 10 ? "0" + timeUnit : Long.toString(timeUnit);
     }
 }
+

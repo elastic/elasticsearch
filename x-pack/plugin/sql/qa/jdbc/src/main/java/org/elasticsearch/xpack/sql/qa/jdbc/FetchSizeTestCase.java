@@ -280,3 +280,4 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 }
+

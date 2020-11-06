@@ -181,3 +181,4 @@ public class In extends ScalarFunction {
             && Objects.equals(list, other.list);
     }
 }
+

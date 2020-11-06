@@ -55,3 +55,4 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
         return Comparisons.compare(left, right);
     }
 }
+

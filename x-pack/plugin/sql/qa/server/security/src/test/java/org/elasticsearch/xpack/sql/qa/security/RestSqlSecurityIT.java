@@ -342,3 +342,4 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
 
     }
 }
+

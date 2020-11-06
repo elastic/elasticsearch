@@ -11,3 +11,4 @@ import org.elasticsearch.xpack.sql.qa.jdbc.SysColumnsTestCase;
 public class SysColumnsIT extends SysColumnsTestCase {
 
 }
+

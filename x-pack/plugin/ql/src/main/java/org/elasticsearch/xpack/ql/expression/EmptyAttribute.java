@@ -66,3 +66,4 @@ public class EmptyAttribute extends Attribute {
         return true;
     }
 }
+

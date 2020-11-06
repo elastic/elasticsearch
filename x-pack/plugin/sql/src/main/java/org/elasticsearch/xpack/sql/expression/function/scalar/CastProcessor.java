@@ -70,3 +70,4 @@ public class CastProcessor implements Processor {
         return conversion.getClass().getSimpleName();
     }
 }
+

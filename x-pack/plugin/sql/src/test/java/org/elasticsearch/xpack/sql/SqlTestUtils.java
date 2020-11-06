@@ -123,3 +123,4 @@ public final class SqlTestUtils {
         return sb.toString();
     }
 }
+

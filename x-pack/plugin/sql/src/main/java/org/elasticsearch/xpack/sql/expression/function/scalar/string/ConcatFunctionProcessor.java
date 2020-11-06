@@ -22,7 +22,7 @@ public class ConcatFunctionProcessor extends BinaryProcessor {
     public ConcatFunctionProcessor(Processor source1, Processor source2) {
         super(source1, source2);
     }
-    
+
     public ConcatFunctionProcessor(StreamInput in) throws IOException {
         super(in);
     }
@@ -68,22 +68,22 @@ public class ConcatFunctionProcessor extends BinaryProcessor {
     public String getWriteableName() {
         return NAME;
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         ConcatFunctionProcessor other = (ConcatFunctionProcessor) obj;
         return Objects.equals(left(), other.left())
                 && Objects.equals(right(), other.right());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(left(), right());
@@ -93,3 +93,4 @@ public class ConcatFunctionProcessor extends BinaryProcessor {
     protected void doWrite(StreamOutput out) throws IOException {
     }
 }
+

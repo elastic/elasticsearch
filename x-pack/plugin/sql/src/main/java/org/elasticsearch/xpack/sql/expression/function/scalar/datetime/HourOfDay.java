@@ -35,3 +35,4 @@ public class HourOfDay extends TimeFunction {
         return "hour";
     }
 }
+

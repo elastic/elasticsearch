@@ -112,3 +112,4 @@ public abstract class EqlRestValidationTestCase extends ESRestTestCase {
         }
     }
 }
+

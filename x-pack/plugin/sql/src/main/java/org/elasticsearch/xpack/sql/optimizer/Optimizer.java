@@ -1206,3 +1206,4 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 }
+

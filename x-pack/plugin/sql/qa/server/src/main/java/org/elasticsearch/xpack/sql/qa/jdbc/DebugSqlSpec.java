@@ -25,3 +25,4 @@ public abstract class DebugSqlSpec extends SqlSpecTestCase {
         return true;
     }
 }
+

@@ -138,3 +138,4 @@ public class IndexOf extends CaseSensitiveScalarFunction implements OptionalArgu
     }
 
 }
+

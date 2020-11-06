@@ -44,7 +44,7 @@ public class SqlSession implements Session {
     private final Optimizer optimizer;
     private final Planner planner;
     private final PlanExecutor planExecutor;
-    
+
     private final SqlConfiguration configuration;
 
     public SqlSession(SqlConfiguration configuration, Client client, FunctionRegistry functionRegistry,
@@ -86,7 +86,7 @@ public class SqlSession implements Session {
     public Optimizer optimizer() {
         return optimizer;
     }
-    
+
     public Verifier verifier() {
         return verifier;
     }
@@ -176,3 +176,4 @@ public class SqlSession implements Session {
         return configuration;
     }
 }
+

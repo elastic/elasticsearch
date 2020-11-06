@@ -16,7 +16,7 @@ import java.time.ZoneId;
  * Extract the day of the week from a datetime in non-ISO format. 1 is Sunday, 2 is Monday, etc.
  */
 public class DayOfWeek extends NonIsoDateTimeFunction {
-    
+
     public DayOfWeek(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId, NonIsoDateTimeExtractor.DAY_OF_WEEK);
     }
@@ -31,3 +31,4 @@ public class DayOfWeek extends NonIsoDateTimeFunction {
         return new DayOfWeek(source(), newChild, zoneId());
     }
 }
+

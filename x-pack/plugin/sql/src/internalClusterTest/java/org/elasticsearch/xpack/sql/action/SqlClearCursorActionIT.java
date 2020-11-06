@@ -90,3 +90,4 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
                 .getIndex("test").getTotal().getSearch().getOpenContexts();
     }
 }
+

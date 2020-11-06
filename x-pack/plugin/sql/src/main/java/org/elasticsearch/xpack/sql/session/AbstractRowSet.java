@@ -78,3 +78,4 @@ public abstract class AbstractRowSet implements RowSet {
         return sb.toString();
     }
 }
+

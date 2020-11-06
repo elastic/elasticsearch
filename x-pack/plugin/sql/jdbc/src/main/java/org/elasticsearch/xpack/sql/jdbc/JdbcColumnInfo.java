@@ -91,3 +91,4 @@ class JdbcColumnInfo {
         return Objects.hash(name, type, table, catalog, schema, label, displaySize);
     }
 }
+

@@ -21,3 +21,4 @@ public class MinAgg extends DefaultAggSourceLeafAgg {
         return AggregationBuilders::min;
     }
 }
+

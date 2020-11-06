@@ -116,3 +116,4 @@ public class EqlInfoTransportActionTests extends ESTestCase {
         assertThat(spam, is(1L));
     }
 }
+

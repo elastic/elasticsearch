@@ -82,3 +82,4 @@ public class LocalRelation extends LogicalPlan implements Executable {
         return nodeName() + NodeUtils.limitedToString(output());
     }
 }
+

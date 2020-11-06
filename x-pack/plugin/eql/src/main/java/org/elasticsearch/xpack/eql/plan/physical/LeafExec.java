@@ -21,3 +21,4 @@ public abstract class LeafExec extends PhysicalPlan {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 }
+

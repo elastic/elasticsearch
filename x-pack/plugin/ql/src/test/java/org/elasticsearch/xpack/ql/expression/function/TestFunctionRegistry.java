@@ -12,3 +12,4 @@ public class TestFunctionRegistry extends FunctionRegistry {
         super(definitions);
     }
 }
+

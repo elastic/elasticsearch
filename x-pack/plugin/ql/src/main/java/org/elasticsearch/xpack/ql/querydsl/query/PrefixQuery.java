@@ -60,3 +60,4 @@ public class PrefixQuery extends LeafQuery {
         return field + ":" + query;
     }
 }
+

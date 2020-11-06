@@ -30,3 +30,4 @@ public class ATan2 extends BinaryNumericFunction {
         return new ATan2(source(), newLeft, newRight);
     }
 }
+

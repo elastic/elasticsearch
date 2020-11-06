@@ -120,3 +120,4 @@ public class SysTypesTests extends ESTestCase {
         return new SqlSession(SqlTestUtils.TEST_CFG, null, null, null, null, null, null, null, null);
     }
 }
+

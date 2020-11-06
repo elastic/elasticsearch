@@ -30,11 +30,11 @@ public class SubstringFunctionPipeTests
     protected SubstringFunctionPipe randomInstance() {
         return randomSubstringFunctionPipe();
     }
-    
+
     private Expression randomSubstringFunctionExpression() {
         return randomSubstringFunctionPipe().expression();
     }
-    
+
     public static SubstringFunctionPipe randomSubstringFunctionPipe() {
         return (SubstringFunctionPipe) (new Substring(randomSource(),
                             randomStringLiteral(),
@@ -56,7 +56,7 @@ public class SubstringFunctionPipeTests
                 b1.start(),
                 b1.length());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+
         SubstringFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new SubstringFunctionPipe(
@@ -77,7 +77,7 @@ public class SubstringFunctionPipeTests
         Pipe newLength = randomValueOtherThan(b.length(), () -> pipe(randomIntLiteral()));
         SubstringFunctionPipe newB = new SubstringFunctionPipe(b.source(), b.expression(), b.input(), b.start(), b.length());
         SubstringFunctionPipe transformed = null;
-        
+
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
@@ -97,7 +97,7 @@ public class SubstringFunctionPipeTests
     @Override
     protected SubstringFunctionPipe mutate(SubstringFunctionPipe instance) {
         List<Function<SubstringFunctionPipe, SubstringFunctionPipe>> randoms = new ArrayList<>();
-        
+
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
                 randoms.add(f -> new SubstringFunctionPipe(
@@ -108,7 +108,7 @@ public class SubstringFunctionPipeTests
                         comb.get(2) ? randomValueOtherThan(f.length(), () -> pipe(randomIntLiteral())): f.length()));
             }
         }
-        
+
         return randomFrom(randoms).apply(instance);
     }
 
@@ -121,3 +121,4 @@ public class SubstringFunctionPipeTests
                 instance.length());
     }
 }
+

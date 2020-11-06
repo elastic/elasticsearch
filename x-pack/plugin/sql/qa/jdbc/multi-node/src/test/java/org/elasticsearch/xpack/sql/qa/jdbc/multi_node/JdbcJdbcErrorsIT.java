@@ -8,3 +8,4 @@ package org.elasticsearch.xpack.sql.qa.jdbc.multi_node;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcErrorsTestCase;
 
 public class JdbcJdbcErrorsIT extends JdbcErrorsTestCase {}
+

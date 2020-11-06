@@ -44,3 +44,4 @@ public class HitExtractorInput extends LeafInput<HitExtractor> {
         // No fields to collect
     }
 }
+

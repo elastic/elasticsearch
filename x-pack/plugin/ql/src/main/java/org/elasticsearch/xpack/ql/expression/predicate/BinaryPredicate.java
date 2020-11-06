@@ -74,3 +74,4 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
         return left().nodeString() + " " + symbol() + " " + right().nodeString();
     }
 }
+

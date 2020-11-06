@@ -34,3 +34,4 @@ public class Sin extends MathFunction {
         return MathOperation.SIN;
     }
 }
+

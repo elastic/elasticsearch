@@ -75,3 +75,4 @@ public class GeoDistanceQuery extends LeafQuery {
         return field + ":" + "(" + distance + "," + "(" + lat + ", " +  lon + "))";
     }
 }
+

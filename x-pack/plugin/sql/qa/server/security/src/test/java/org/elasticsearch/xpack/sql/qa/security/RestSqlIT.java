@@ -54,3 +54,4 @@ public class RestSqlIT extends RestSqlTestCase {
         return RestSqlIT.SSL_ENABLED ? "https" : "http";
     }
 }
+

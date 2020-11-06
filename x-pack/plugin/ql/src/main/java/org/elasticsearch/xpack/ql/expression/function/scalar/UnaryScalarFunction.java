@@ -67,3 +67,4 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
         return asScript(field);
     }
 }
+

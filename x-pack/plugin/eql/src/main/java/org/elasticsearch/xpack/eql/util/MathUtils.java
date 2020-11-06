@@ -19,3 +19,4 @@ public class MathUtils {
         return number < 0 ? -number : number;
     }
 }
+

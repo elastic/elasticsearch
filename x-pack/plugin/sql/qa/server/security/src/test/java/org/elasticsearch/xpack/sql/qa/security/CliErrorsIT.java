@@ -25,3 +25,4 @@ public class CliErrorsIT extends ErrorsTestCase {
         return CliSecurityIT.adminSecurityConfig();
     }
 }
+

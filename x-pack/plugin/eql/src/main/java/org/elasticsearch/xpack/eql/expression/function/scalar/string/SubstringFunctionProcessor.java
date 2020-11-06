@@ -63,46 +63,47 @@ public class SubstringFunctionProcessor implements Processor {
         String str = input.toString();
         int startIndex = ((Number) start).intValue();
         int endIndex = end == null ? str.length() : ((Number) end).intValue();
-                
+
         return StringUtils.substringSlice(str, startIndex, endIndex);
     }
-    
+
     protected Processor input() {
         return input;
     }
-    
+
     protected Processor start() {
         return start;
     }
-    
+
     protected Processor end() {
         return end;
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         SubstringFunctionProcessor other = (SubstringFunctionProcessor) obj;
         return Objects.equals(input(), other.input())
                 && Objects.equals(start(), other.start())
                 && Objects.equals(end(), other.end());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(input(), start(), end());
     }
-    
+
 
     @Override
     public String getWriteableName() {
         return NAME;
     }
 }
+

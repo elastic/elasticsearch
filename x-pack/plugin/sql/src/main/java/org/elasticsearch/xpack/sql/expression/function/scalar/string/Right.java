@@ -35,3 +35,4 @@ public class Right extends BinaryStringNumericFunction {
     }
 
 }
+

@@ -31,7 +31,7 @@ public class SequenceMatcher {
         long until = 0;
         long rejectionMaxspan = 0;
         long rejectionUntil = 0;
-        
+
         @Override
         public String toString() {
             return LoggerMessageFormat.format(null, "Stats: Seen [{}]/Ignored [{}]/Until [{}]/Rejected {Maxspan [{}]/Until [{}]}",
@@ -144,7 +144,7 @@ public class SequenceMatcher {
      */
     private void match(int stage, SequenceKey key, Ordinal ordinal, HitReference hit) {
         stats.seen++;
-        
+
         int previousStage = stage - 1;
         // check key presence to avoid creating a collection
         SequenceGroup group = keyToSequences.groupIfPresent(previousStage, key);
@@ -165,7 +165,7 @@ public class SequenceMatcher {
             keyToSequences.remove(previousStage, group);
             stageToKeys.remove(previousStage, key);
         }
-        
+
         //
         // Conditional checks
         //
@@ -188,7 +188,7 @@ public class SequenceMatcher {
                 }
             }
         }
-        
+
         sequence.putMatch(stage, ordinal, hit);
 
         // bump the stages

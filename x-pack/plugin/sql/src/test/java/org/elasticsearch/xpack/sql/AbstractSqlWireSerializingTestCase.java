@@ -47,3 +47,4 @@ public abstract class AbstractSqlWireSerializingTestCase<T extends Writeable> ex
         return new NamedWriteableRegistry(Cursors.getNamedWriteables());
     }
 }
+

@@ -174,7 +174,7 @@ public class Verifier {
                         if (s.maxSpan().duration() > 0) {
                             b.set(SEQUENCE_MAXSPAN.ordinal());
                         }
-                        
+
                         int queriesCount = s.queries().size();
                         switch (queriesCount) {
                             case 2:  b.set(SEQUENCE_QUERIES_TWO.ordinal());

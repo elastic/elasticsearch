@@ -221,3 +221,4 @@ public class AttributeMapTests extends ESTestCase {
         assertThat(m, is(copy));
     }
 }
+

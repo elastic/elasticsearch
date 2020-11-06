@@ -23,15 +23,16 @@ final class StringFunctionUtils {
         if (!hasLength(s)) {
             return s;
         }
-        
+
         if (start < 0) {
             start = 0;
         }
-        
+
         if (start + 1 > s.length() || length < 0) {
             return "";
         }
-        
+
         return (start + length > s.length()) ? s.substring(start) : s.substring(start, start + length);
     }
 }
+

@@ -21,3 +21,4 @@ public class MaxAgg extends DefaultAggSourceLeafAgg {
         return AggregationBuilders::max;
     }
 }
+

@@ -134,3 +134,4 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
         return validDataTypes;
     }
 }
+

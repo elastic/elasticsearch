@@ -185,3 +185,4 @@ public class DataLoader {
         return xContent.createParser(contentRegistry, LoggingDeprecationHandler.INSTANCE, data);
     }
 }
+

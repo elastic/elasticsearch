@@ -66,7 +66,7 @@ public final class Intervals {
             Duration d = (Duration) interval;
             millis = d.toMillis();
         }
-        
+
         return millis;
     }
 
@@ -277,7 +277,7 @@ public final class Intervals {
             int unitIndex = 0;
             int startToken = 0;
             int endToken = 0;
-            
+
             long[] values = new long[units.size()];
 
             boolean negate = false;
@@ -304,7 +304,7 @@ public final class Intervals {
                     throw new ParsingException(source, invalidIntervalMessage(string) + ": incorrect format, expecting {}",
                             Strings.collectionToDelimitedString(tokens, ""));
                 }
-                
+
                 // char token
                 if (token.ch != 0) {
                     char found = string.charAt(startToken);
@@ -319,7 +319,7 @@ public final class Intervals {
                     // go through the group the digits
                     for (; endToken < string.length() && Character.isDigit(string.charAt(endToken)); endToken++) {
                     }
-                    
+
                     if (endToken == startToken) {
                         throw new ParsingException(source,
                                 invalidIntervalMessage(string) + ": expected digit (at [{}]) but found [{}]",
@@ -402,12 +402,12 @@ public final class Intervals {
         int MAX_MINUTE = 59;
         int MAX_SECOND = 59;
         int MAX_MILLI = 999;
-        
+
         char DOT = '.';
         char SPACE = ' ';
         char MINUS = '-';
         char COLON = ':';
-        
+
         PARSERS.put(INTERVAL_YEAR, new ParserBuilder(INTERVAL_YEAR).unit(TimeUnit.YEAR).build());
         PARSERS.put(INTERVAL_MONTH, new ParserBuilder(INTERVAL_MONTH).unit(TimeUnit.MONTH).build());
         PARSERS.put(INTERVAL_DAY, new ParserBuilder(INTERVAL_DAY).unit(TimeUnit.DAY).build());
@@ -467,7 +467,7 @@ public final class Intervals {
                 .optional()
                 .separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI)
                 .build());
-        
+
         PARSERS.put(INTERVAL_MINUTE_TO_SECOND, new ParserBuilder(INTERVAL_MINUTE_TO_SECOND)
                 .unit(TimeUnit.MINUTE)
                 .separator(COLON)
@@ -481,3 +481,4 @@ public final class Intervals {
         return PARSERS.get(intervalType).parse(source, value);
     }
 }
+

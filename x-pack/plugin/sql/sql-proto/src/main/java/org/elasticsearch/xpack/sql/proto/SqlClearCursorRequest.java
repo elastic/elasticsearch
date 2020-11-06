@@ -53,3 +53,4 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
         return builder;
     }
 }
+

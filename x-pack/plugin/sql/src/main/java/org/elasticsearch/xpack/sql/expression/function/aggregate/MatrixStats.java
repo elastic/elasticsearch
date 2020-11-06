@@ -30,3 +30,4 @@ public class MatrixStats extends CompoundNumericAggregate {
         return new MatrixStats(source(), newChildren.get(0));
     }
 }
+

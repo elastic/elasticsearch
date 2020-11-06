@@ -34,3 +34,4 @@ public class Sinh extends MathFunction {
         return MathOperation.SINH;
     }
 }
+

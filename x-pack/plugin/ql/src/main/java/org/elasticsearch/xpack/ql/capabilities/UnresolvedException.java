@@ -16,3 +16,4 @@ public class UnresolvedException extends QlServerException {
         super("Invalid call to {} on an unresolved object {}", action, target);
     }
 }
+

@@ -40,3 +40,4 @@ public class CurrentTime extends CurrentFunction<OffsetTime> {
     }
 
 }
+

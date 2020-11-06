@@ -36,3 +36,4 @@ public abstract class AbstractCliCommand implements CliCommand {
      */
     protected abstract boolean doHandle(CliTerminal terminal, CliSession cliSession, Matcher m, String line);
 }
+

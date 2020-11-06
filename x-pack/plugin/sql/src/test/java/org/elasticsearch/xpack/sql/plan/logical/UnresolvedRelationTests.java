@@ -50,3 +50,4 @@ public class UnresolvedRelationTests extends ESTestCase {
             r -> randomFrom(mutators).apply(r));
     }
 }
+

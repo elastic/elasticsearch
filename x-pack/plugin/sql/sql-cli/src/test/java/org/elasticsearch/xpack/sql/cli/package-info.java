@@ -8,3 +8,4 @@
  * Unit tests for the Elasticsearch CLI client.
  */
 package org.elasticsearch.xpack.sql.cli;
+

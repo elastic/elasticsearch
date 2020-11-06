@@ -124,3 +124,4 @@ public class InsertFunctionProcessor implements Processor {
         return NAME;
     }
 }
+

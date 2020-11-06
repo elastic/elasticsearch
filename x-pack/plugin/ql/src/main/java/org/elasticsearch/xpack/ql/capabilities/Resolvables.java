@@ -16,3 +16,4 @@ public abstract class Resolvables {
         return true;
     }
 }
+

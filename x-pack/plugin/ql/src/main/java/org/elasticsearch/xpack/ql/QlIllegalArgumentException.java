@@ -30,3 +30,4 @@ public class QlIllegalArgumentException extends QlServerException {
         super(cause);
     }
 }
+

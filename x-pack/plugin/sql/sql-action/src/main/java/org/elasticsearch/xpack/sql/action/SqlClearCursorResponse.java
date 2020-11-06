@@ -79,3 +79,4 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
     }
 
 }
+

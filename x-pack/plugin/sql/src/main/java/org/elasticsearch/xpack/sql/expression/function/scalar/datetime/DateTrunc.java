@@ -306,3 +306,4 @@ public class DateTrunc extends BinaryDateTimeDatePartFunction {
         return Part.VALID_VALUES;
     }
 }
+

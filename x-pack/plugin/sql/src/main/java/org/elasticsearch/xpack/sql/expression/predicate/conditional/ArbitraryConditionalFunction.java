@@ -55,3 +55,4 @@ public abstract class ArbitraryConditionalFunction extends ConditionalFunction {
         return new ScriptTemplate(formatTemplate(template.toString()), params.build(), dataType());
     }
 }
+

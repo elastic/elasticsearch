@@ -99,3 +99,4 @@ public class StringContainsFunctionProcessor implements Processor {
         return NAME;
     }
 }
+

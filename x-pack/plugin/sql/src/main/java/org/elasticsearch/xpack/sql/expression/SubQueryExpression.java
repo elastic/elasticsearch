@@ -72,3 +72,4 @@ public abstract class SubQueryExpression extends Expression {
         return Objects.equals(query(), other.query());
     }
 }
+

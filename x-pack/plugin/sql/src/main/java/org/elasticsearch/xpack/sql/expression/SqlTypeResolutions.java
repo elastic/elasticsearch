@@ -43,3 +43,4 @@ public final class SqlTypeResolutions {
         return isType(e, SqlDataTypes::isGeo, operationName, paramOrd, "geo_point", "geo_shape");
     }
 }
+

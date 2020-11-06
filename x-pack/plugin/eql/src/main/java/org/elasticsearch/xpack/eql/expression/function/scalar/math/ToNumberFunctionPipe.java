@@ -73,11 +73,11 @@ public class ToNumberFunctionPipe extends Pipe {
         return new ToNumberFunctionProcessor(value.asProcessor(), base.asProcessor());
     }
 
-    
+
     public Pipe value() {
         return value;
     }
-    
+
     public Pipe base() {
         return base;
     }
@@ -101,3 +101,4 @@ public class ToNumberFunctionPipe extends Pipe {
         return Objects.equals(value(), other.value()) && Objects.equals(base(), other.base());
     }
 }
+

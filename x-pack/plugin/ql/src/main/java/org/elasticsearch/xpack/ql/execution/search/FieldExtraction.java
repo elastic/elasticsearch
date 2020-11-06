@@ -25,3 +25,4 @@ public interface FieldExtraction {
      */
     boolean supportedByAggsOnlyQuery();
 }
+

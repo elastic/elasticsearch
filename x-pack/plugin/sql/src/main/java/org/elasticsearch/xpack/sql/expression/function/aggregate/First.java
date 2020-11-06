@@ -33,3 +33,4 @@ public class First extends TopHits {
         return new First(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null);
     }
 }
+

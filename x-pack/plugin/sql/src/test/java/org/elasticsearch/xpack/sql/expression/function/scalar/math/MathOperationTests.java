@@ -36,3 +36,4 @@ public class MathOperationTests extends ESTestCase {
         assertEquals(42d, MathOperation.ABS.apply(-42d));
     }
 }
+

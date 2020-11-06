@@ -56,3 +56,4 @@ public class MetricAggRef extends AggRef {
         return Aggs.ROOT_GROUP_NAME + ">" + name + "." + property + i;
     }
 }
+

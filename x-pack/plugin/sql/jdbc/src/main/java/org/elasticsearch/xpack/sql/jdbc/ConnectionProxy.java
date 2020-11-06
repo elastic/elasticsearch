@@ -26,3 +26,4 @@ final class ConnectionProxy extends DebuggingInvoker {
         return result;
     }
 }
+

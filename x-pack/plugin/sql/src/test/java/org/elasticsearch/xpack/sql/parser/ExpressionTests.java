@@ -553,3 +553,4 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:9: Pattern must not be [null]", e.getMessage());
     }
 }
+

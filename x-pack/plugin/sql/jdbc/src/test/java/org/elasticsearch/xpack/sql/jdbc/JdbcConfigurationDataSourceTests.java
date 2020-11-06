@@ -18,28 +18,29 @@ import java.util.Properties;
 import java.util.stream.Collectors;
 
 public class JdbcConfigurationDataSourceTests extends WebServerTestCase {
-    
+
     public void testDataSourceConfigurationWithSSLInURL() throws SQLException, URISyntaxException, IOException {
         webServer().enqueue(new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json").setBody(
                 XContentHelper.toXContent(createCurrentVersionMainResponse(), XContentType.JSON, false).utf8ToString()));
-        
+
         Map<String, String> urlPropMap = JdbcConfigurationTests.sslProperties();
         Properties allProps = new Properties();
         allProps.putAll(urlPropMap);
         String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
-        
+
         EsDataSource dataSource = new EsDataSource();
         String address = "jdbc:es://" + webServerAddress() + "/?" + sslUrlProps;
         dataSource.setUrl(address);
         JdbcConnection connection = null;
-        
+
         try {
             connection = (JdbcConnection) dataSource.getConnection();
         } catch (SQLException sqle) {
             fail("Connection creation should have been successful. Error: " + sqle);
         }
-        
+
         assertEquals(address, connection.getURL());
         JdbcConfigurationTests.assertSslConfig(allProps, connection.cfg.sslConfig());
     }
 }
+

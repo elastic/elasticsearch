@@ -75,3 +75,4 @@ public abstract class GeoCsvSpecTestCase extends SpecBaseIntegrationTestCase {
     }
 
 }
+

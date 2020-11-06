@@ -301,3 +301,4 @@ public class FieldAttributeTests extends ESTestCase {
     }
 
 }
+

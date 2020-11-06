@@ -75,3 +75,4 @@ public class NullIfProcessor implements Processor {
         return Objects.hash(leftProcessor, rightProcessor);
     }
 }
+

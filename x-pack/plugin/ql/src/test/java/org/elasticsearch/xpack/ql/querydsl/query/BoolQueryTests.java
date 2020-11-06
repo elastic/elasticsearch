@@ -112,3 +112,4 @@ public class BoolQueryTests extends ESTestCase {
                     new ExistsQuery(new Source(1, 7, StringUtils.EMPTY), "f2")).toString());
     }
 }
+

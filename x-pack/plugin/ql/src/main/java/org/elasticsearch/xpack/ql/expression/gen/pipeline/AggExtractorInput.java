@@ -49,3 +49,4 @@ public class AggExtractorInput extends LeafInput<BucketExtractor> {
         // Nothing to collect
     }
 }
+

@@ -81,3 +81,4 @@ public abstract class AggregateFunction extends Function {
         return false;
     }
 }
+

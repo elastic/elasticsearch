@@ -108,3 +108,4 @@ public class LocateFunctionProcessor implements Processor {
         return NAME;
     }
 }
+

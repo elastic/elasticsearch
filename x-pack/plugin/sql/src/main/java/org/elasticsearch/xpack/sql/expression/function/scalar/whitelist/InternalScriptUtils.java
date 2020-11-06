@@ -9,3 +9,4 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 public final class InternalScriptUtils extends InternalSqlScriptUtils {
 
 }
+

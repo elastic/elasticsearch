@@ -433,3 +433,4 @@ class JdbcConnection implements Connection, JdbcWrapper {
         return client.serverInfo().version.minor;
     }
 }
+

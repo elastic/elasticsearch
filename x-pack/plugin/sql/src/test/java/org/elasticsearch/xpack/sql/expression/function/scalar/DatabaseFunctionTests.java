@@ -38,7 +38,7 @@ public class DatabaseFunctionTests extends ESTestCase {
                 IndexResolution.valid(test),
                 new Verifier(new Metrics())
         );
-        
+
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT DATABASE()"), true);
         NamedExpression ne = result.projections().get(0);
         assertTrue(ne instanceof Alias);
@@ -46,3 +46,4 @@ public class DatabaseFunctionTests extends ESTestCase {
         assertEquals(clusterName, ((Database) ((Alias) ne).child()).fold());
     }
 }
+

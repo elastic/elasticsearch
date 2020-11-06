@@ -17,3 +17,4 @@ public interface SqlExecutable extends Executable {
         execute((SqlSession) session, listener);
     }
 }
+

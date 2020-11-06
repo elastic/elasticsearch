@@ -82,3 +82,4 @@ public abstract class UnaryGeoFunction extends UnaryScalarFunction {
         return Objects.hash(field());
     }
 }
+

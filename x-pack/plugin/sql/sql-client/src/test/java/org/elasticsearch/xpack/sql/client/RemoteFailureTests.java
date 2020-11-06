@@ -220,3 +220,4 @@ public class RemoteFailureTests extends ESTestCase {
         }
     }
 }
+

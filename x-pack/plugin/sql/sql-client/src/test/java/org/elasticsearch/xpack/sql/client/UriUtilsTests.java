@@ -306,3 +306,4 @@ public class UriUtilsTests extends ESTestCase {
             appendSegmentToPath(URI.create("https://server:9100/es_rest/"), "/_sql"));
     }
 }
+

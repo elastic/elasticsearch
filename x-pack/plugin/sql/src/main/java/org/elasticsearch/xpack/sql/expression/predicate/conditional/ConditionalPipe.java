@@ -55,3 +55,4 @@ public class ConditionalPipe extends MultiPipe {
         return false;
     }
 }
+

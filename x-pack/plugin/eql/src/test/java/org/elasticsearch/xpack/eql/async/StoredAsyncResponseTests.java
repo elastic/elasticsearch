@@ -76,3 +76,4 @@ public class StoredAsyncResponseTests extends AbstractWireSerializingTestCase<St
         return in -> new StoredAsyncResponse<>(TestResponse::new, in);
     }
 }
+

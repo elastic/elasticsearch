@@ -50,3 +50,4 @@ public class CheckNullProcessorTests extends AbstractWireSerializingTestCase<Che
         assertEquals(true, new CheckNullProcessor(CheckNullProcessor.CheckNullOperation.IS_NOT_NULL).process(1));
     }
 }
+

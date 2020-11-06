@@ -118,3 +118,4 @@ public class DateTimeProcessorTests extends AbstractSqlWireSerializingTestCase<D
         assertThat(e.getMessage(), startsWith("A [date], a [time] or a [datetime] is required; received "));
     }
 }
+

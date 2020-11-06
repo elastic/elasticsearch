@@ -12,12 +12,13 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 final class Transports {
 
     private Transports() {}
-    
+
     static String username(SecurityContext securityContext) {
         return securityContext != null && securityContext.getUser() != null ? securityContext.getUser().principal() : null;
     }
-    
+
     static String clusterName(ClusterService clusterService) {
         return clusterService.getClusterName().value();
     }
 }
+

@@ -50,3 +50,4 @@ public class ShowTablesTestCase extends JdbcIntegrationTestCase {
         }
     }
 }
+

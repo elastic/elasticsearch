@@ -139,3 +139,4 @@ public abstract class SourceGenerator {
         builder.trackTotalHits(query.shouldTrackHits());
     }
 }
+

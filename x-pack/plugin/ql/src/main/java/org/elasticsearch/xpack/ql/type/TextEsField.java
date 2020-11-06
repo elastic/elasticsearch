@@ -22,7 +22,7 @@ public class TextEsField extends EsField {
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
         this(name, properties, hasDocValues, false);
     }
-    
+
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues, boolean isAlias) {
         super(name, TEXT, properties, hasDocValues, isAlias);
     }
@@ -67,3 +67,4 @@ public class TextEsField extends EsField {
         }
     };
 }
+

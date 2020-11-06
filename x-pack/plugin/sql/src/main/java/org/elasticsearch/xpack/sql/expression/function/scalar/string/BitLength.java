@@ -42,3 +42,4 @@ public class BitLength extends UnaryStringFunction {
         return DataTypes.INTEGER;
     }
 }
+

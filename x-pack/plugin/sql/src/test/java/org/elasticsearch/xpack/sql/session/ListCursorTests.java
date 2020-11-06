@@ -61,3 +61,4 @@ public class ListCursorTests extends AbstractSqlWireSerializingTestCase<ListCurs
         return (ListCursor) CursorTests.decodeFromString(Cursors.encodeToString(instance, randomZone()));
     }
 }
+

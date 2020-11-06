@@ -109,3 +109,4 @@ public interface CliTerminal extends AutoCloseable {
     @Override
     void close() throws IOException;
 }
+

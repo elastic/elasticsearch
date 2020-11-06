@@ -128,3 +128,4 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
         assertEquals(START + "Bad request [[3;33;22mFound 1 problem", commandResult);
     }
 }
+

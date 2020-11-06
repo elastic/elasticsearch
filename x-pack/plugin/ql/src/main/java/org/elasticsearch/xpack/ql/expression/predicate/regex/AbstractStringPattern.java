@@ -32,3 +32,4 @@ abstract class AbstractStringPattern implements StringPattern {
         return Operations.getCommonPrefix(automaton()).equals(asString());
     }
 }
+

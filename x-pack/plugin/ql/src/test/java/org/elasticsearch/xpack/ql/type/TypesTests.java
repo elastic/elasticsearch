@@ -226,3 +226,4 @@ public class TypesTests extends ESTestCase {
         }
     }
 }
+

@@ -72,7 +72,7 @@ public class Limit {
         if (limit == 0) {
             return emptyList();
         }
-        
+
         if (limit < 0) {
             values = new ArrayList<>(values);
             Collections.reverse(values);

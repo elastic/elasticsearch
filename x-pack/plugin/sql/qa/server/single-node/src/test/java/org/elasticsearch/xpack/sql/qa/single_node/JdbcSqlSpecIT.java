@@ -12,3 +12,4 @@ public class JdbcSqlSpecIT extends SqlSpecTestCase {
         super(fileName, groupName, testName, lineNumber, query);
     }
 }
+

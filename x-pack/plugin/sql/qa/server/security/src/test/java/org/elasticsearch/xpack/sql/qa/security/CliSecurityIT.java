@@ -210,3 +210,4 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         super(new CliActions());
     }
 }
+

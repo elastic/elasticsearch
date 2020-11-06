@@ -128,3 +128,4 @@ public class Replace extends ScalarFunction {
         return new Replace(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }
+

@@ -24,3 +24,4 @@ public interface HitExtractor extends NamedWriteable {
     @Nullable
     String hitName();
 }
+

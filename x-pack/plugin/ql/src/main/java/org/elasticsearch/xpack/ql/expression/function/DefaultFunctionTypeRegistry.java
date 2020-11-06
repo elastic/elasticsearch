@@ -34,3 +34,4 @@ public class DefaultFunctionTypeRegistry implements FunctionTypeRegistry {
         return "UNKNOWN";
     }
 }
+

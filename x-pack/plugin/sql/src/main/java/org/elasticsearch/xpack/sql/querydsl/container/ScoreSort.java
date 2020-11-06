@@ -35,3 +35,4 @@ public class ScoreSort extends Sort {
                 && Objects.equals(missing(), other.missing());
     }
 }
+

@@ -18,7 +18,7 @@ import java.time.ZoneId;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser.DATE;
 
 public class DateParse extends BaseDateTimeParseFunction {
-    
+
     public DateParse(Source source, Expression datePart, Expression timestamp, ZoneId zoneId) {
         super(source, datePart, timestamp, zoneId);
     }
@@ -48,3 +48,4 @@ public class DateParse extends BaseDateTimeParseFunction {
         return "dateParse";
     }
 }
+

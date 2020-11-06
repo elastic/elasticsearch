@@ -8,3 +8,4 @@
  * Unit tests for the Elasticsearch JDBC client.
  */
 package org.elasticsearch.xpack.sql.jdbc;
+

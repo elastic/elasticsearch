@@ -70,3 +70,4 @@ public class BinaryLogicProcessorTests extends AbstractWireSerializingTestCase<B
         assertNull(new BinaryLogicProcessor(NULL, NULL, BinaryLogicProcessor.BinaryLogicOperation.AND).process(null));
     }
 }
+

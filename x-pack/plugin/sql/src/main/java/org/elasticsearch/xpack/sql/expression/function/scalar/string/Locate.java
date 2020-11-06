@@ -39,14 +39,14 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.string.Loca
 public class Locate extends ScalarFunction implements OptionalArgument {
 
     private final Expression pattern, input, start;
-    
+
     public Locate(Source source, Expression pattern, Expression input, Expression start) {
         super(source, start != null ? Arrays.asList(pattern, input, start) : Arrays.asList(pattern, input));
         this.pattern = pattern;
         this.input = input;
         this.start = start;
     }
-    
+
     @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {
@@ -57,7 +57,7 @@ public class Locate extends ScalarFunction implements OptionalArgument {
         if (patternResolution.unresolved()) {
             return patternResolution;
         }
-        
+
         TypeResolution sourceResolution = isStringAndExact(input, sourceText(), ParamOrdinal.SECOND);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
@@ -90,7 +90,7 @@ public class Locate extends ScalarFunction implements OptionalArgument {
     public Object fold() {
         return doProcess(pattern.fold(), input.fold(), (start == null ? null : start.fold()));
     }
-    
+
     @Override
     public ScriptTemplate asScript() {
         ScriptTemplate patternScript = asScript(pattern);
@@ -121,7 +121,7 @@ public class Locate extends ScalarFunction implements OptionalArgument {
                     .script(startScript.params())
                     .build(), dataType());
     }
-    
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
@@ -145,3 +145,4 @@ public class Locate extends ScalarFunction implements OptionalArgument {
         return new Locate(source(), newChildren.get(0), newChildren.get(1), start == null ? null : newChildren.get(2));
     }
 }
+

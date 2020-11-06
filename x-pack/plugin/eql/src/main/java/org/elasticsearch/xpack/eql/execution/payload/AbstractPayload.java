@@ -29,3 +29,4 @@ public abstract class AbstractPayload implements Payload {
         return timeTook;
     }
 }
+

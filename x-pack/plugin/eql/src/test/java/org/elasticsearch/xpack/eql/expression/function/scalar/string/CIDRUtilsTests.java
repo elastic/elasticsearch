@@ -50,3 +50,4 @@ public class CIDRUtilsTests extends ESTestCase {
         assertTrue(CIDRUtils.isInRange("127.0.0.1", "::1/64"));
     }
 }
+

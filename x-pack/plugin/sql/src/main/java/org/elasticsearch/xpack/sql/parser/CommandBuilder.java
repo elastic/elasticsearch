@@ -194,3 +194,4 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         return new SysTypes(source(ctx), Integer.valueOf(type));
     }
 }
+

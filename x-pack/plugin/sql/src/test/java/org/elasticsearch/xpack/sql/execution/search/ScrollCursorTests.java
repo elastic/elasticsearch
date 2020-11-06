@@ -72,3 +72,4 @@ public class ScrollCursorTests extends AbstractSqlWireSerializingTestCase<Scroll
         return (ScrollCursor) CursorTests.decodeFromString(Cursors.encodeToString(instance, randomZone()));
     }
 }
+

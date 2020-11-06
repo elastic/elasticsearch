@@ -36,3 +36,4 @@ public abstract class NumericAggregate extends AggregateFunction {
         return DataTypes.DOUBLE;
     }
 }
+

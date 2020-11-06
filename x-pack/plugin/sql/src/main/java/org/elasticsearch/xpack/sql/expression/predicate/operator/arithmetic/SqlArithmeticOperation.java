@@ -29,3 +29,4 @@ public abstract class SqlArithmeticOperation extends ArithmeticOperation {
         return dataType;
     }
 }
+

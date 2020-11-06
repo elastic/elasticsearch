@@ -139,3 +139,4 @@ public class NestedQueryTests extends ESTestCase {
         assertEquals("NestedQuery@1:2[a.b.{f=true=null}[MatchAll@1:2[]]]", q.toString());
     }
 }
+

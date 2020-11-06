@@ -59,3 +59,4 @@ public abstract class UnaryExec extends PhysicalPlan {
         return Objects.equals(child, other.child);
     }
 }
+

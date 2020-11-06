@@ -155,3 +155,4 @@ public class Debug extends Command {
         return Objects.equals(format, o.format) && Objects.equals(type, o.type) && Objects.equals(plan, o.plan);
     }
 }
+

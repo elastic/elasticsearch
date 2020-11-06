@@ -389,3 +389,4 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 }
+

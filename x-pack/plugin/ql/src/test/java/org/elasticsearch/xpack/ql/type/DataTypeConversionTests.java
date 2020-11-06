@@ -411,3 +411,4 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(new Literal(s, "10.0.0.1", KEYWORD))));
     }
 }
+

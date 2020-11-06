@@ -127,3 +127,4 @@ public class BetweenFunctionPipe extends Pipe {
                 && Objects.equals(caseSensitive(), other.caseSensitive());
     }
 }
+

@@ -43,3 +43,4 @@ class CaseInsensitiveStream extends ANTLRInputStream {
         return uppedChars[p + i - 1];
     }
 }
+

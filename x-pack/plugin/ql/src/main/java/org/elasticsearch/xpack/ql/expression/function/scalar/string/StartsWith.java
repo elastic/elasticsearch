@@ -96,7 +96,7 @@ public class StartsWith extends CaseSensitiveScalarFunction {
 
         return asScriptFrom(fieldScript, patternScript);
     }
-    
+
     protected ScriptTemplate asScriptFrom(ScriptTemplate fieldScript, ScriptTemplate patternScript) {
         ParamsBuilder params = paramsBuilder();
 
@@ -104,7 +104,7 @@ public class StartsWith extends CaseSensitiveScalarFunction {
         params.script(fieldScript.params())
               .script(patternScript.params())
               .variable(isCaseSensitive());
-        
+
         return new ScriptTemplate(template, params.build(), dataType());
     }
 
@@ -130,3 +130,4 @@ public class StartsWith extends CaseSensitiveScalarFunction {
     }
 
 }
+

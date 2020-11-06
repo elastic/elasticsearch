@@ -59,3 +59,4 @@ public class Min extends NumericAggregate implements EnclosedAgg {
         }
     }
 }
+

@@ -38,3 +38,4 @@ public abstract class TimeFunction extends DateTimeFunction {
         return new TimeProcessor(extractor(), zoneId());
     }
 }
+

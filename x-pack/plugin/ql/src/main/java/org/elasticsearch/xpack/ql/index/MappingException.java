@@ -23,3 +23,4 @@ public class MappingException extends QlClientException {
         return RestStatus.BAD_REQUEST;
     }
 }
+

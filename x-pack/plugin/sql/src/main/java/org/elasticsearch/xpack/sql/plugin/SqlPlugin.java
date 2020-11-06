@@ -125,3 +125,4 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                 infoAction);
     }
 }
+

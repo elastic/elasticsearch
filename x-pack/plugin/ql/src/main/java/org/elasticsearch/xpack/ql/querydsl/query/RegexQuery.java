@@ -60,3 +60,4 @@ public class RegexQuery extends LeafQuery {
         return field + "~ /" + regex + "/";
     }
 }
+

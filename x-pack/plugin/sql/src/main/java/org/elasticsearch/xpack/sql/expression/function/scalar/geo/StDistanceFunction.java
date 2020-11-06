@@ -25,3 +25,4 @@ class StDistanceFunction  implements PredicateBiFunction<Object, Object, Double>
         return StDistanceProcessor.process(s1, s2);
     }
 }
+

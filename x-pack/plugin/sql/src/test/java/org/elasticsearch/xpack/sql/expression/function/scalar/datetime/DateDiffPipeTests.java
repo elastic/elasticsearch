@@ -151,3 +151,4 @@ public class DateDiffPipeTests extends AbstractNodeTestCase<DateDiffPipe, Pipe> 
             instance.zoneId());
     }
 }
+

@@ -81,3 +81,4 @@ public class ConcatFunctionProcessor implements Processor {
         return NAME;
     }
 }
+

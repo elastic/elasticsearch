@@ -21,3 +21,4 @@ public class AvgAgg extends DefaultAggSourceLeafAgg {
         return AggregationBuilders::avg;
     }
 }
+

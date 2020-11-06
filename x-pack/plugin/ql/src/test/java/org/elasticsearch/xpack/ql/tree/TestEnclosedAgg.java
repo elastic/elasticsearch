@@ -43,3 +43,4 @@ public class TestEnclosedAgg extends AggregateFunction implements EnclosedAgg {
         return DataTypes.DOUBLE;
     }
 }
+

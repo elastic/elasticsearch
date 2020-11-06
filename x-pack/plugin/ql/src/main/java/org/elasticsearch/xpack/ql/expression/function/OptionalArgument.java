@@ -13,3 +13,4 @@ package org.elasticsearch.xpack.ql.expression.function;
 public interface OptionalArgument {
 
 }
+

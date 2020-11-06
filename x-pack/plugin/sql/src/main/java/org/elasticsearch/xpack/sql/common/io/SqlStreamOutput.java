@@ -39,3 +39,4 @@ public class SqlStreamOutput extends OutputStreamStreamOutput {
         return bytes.toString(StandardCharsets.ISO_8859_1);
     }
 }
+

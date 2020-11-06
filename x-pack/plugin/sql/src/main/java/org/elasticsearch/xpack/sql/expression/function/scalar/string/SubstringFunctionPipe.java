@@ -75,15 +75,15 @@ public class SubstringFunctionPipe extends Pipe {
     public SubstringFunctionProcessor asProcessor() {
         return new SubstringFunctionProcessor(input.asProcessor(), start.asProcessor(), length.asProcessor());
     }
-    
+
     public Pipe input() {
         return input;
     }
-    
+
     public Pipe start() {
         return start;
     }
-    
+
     public Pipe length() {
         return length;
     }
@@ -107,3 +107,4 @@ public class SubstringFunctionPipe extends Pipe {
         return Objects.equals(input, other.input) && Objects.equals(start, other.start) && Objects.equals(length, other.length);
     }
 }
+

@@ -124,3 +124,4 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
         return XPackPlugin.getSharedLicenseState();
     }
 }
+

@@ -12,3 +12,4 @@ import org.elasticsearch.plugins.Plugin;
 public class QlPlugin extends Plugin implements ExtensiblePlugin {
 
 }
+

@@ -124,7 +124,7 @@ public abstract class SourceGenerator {
                     sortBuilder = fieldSort(fa.name())
                             .missing(as.missing().position())
                             .unmappedType(fa.dataType().esType());
-                    
+
                     if (fa.isNested()) {
                         FieldSortBuilder fieldSort = fieldSort(fa.name())
                                 .missing(as.missing().position())
@@ -191,3 +191,4 @@ public abstract class SourceGenerator {
         }
     }
 }
+

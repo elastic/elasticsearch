@@ -11,3 +11,4 @@ import org.elasticsearch.xpack.sql.qa.CustomDateFormatTestCase;
 public class CustomDateFormatIT extends CustomDateFormatTestCase {
 
 }
+

@@ -31,3 +31,4 @@ public abstract class QlException extends ElasticsearchException {
         super(cause);
     }
 }
+

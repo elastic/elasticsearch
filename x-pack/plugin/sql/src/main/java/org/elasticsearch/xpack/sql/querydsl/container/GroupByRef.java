@@ -15,7 +15,7 @@ public class GroupByRef extends AggRef {
     public enum Property {
         VALUE, COUNT;
     }
-    
+
     private final String key;
     private final Property property;
     private final boolean isDateTimeBased;
@@ -43,3 +43,4 @@ public class GroupByRef extends AggRef {
         return "|" + key + (property == Property.COUNT ? ".count" : "") + "|";
     }
 }
+

@@ -63,3 +63,4 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
         return new IsNull(source(), field());
     }
 }
+

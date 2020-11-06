@@ -76,3 +76,4 @@ public class ConstantExtractor implements HitExtractor, BucketExtractor {
         return "^" + constant;
     }
 }
+

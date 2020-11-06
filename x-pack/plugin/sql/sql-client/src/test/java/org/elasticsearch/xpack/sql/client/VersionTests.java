@@ -127,3 +127,4 @@ public class VersionTests extends ESTestCase {
         assertEquals(versionString(parts), version.version);
     }
 }
+

@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.MODE;
 public class SqlClearCursorRequest extends AbstractSqlRequest {
 
     private static final ConstructingObjectParser<SqlClearCursorRequest, Void> PARSER =
-        // here the position in "objects" is the same as the fields parser declarations below 
+        // here the position in "objects" is the same as the fields parser declarations below
         new ConstructingObjectParser<>(SqlClearCursorAction.NAME, objects -> {
             RequestInfo requestInfo = new RequestInfo(Mode.fromString((String) objects[1]),
                     (String) objects[2]);
@@ -50,7 +50,7 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
 
     public SqlClearCursorRequest() {
     }
-    
+
     public SqlClearCursorRequest(RequestInfo requestInfo, String cursor) {
         super(requestInfo);
         this.cursor = cursor;
@@ -114,3 +114,4 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
         return PARSER.apply(parser, null);
     }
 }
+

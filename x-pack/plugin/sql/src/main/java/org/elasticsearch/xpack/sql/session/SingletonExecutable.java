@@ -50,3 +50,4 @@ public class SingletonExecutable implements Executable {
         return sb.toString();
     }
 }
+

@@ -32,3 +32,4 @@ public class JdbcSqlSpecIT extends SqlSpecTestCase {
         return sp;
     }
 }
+

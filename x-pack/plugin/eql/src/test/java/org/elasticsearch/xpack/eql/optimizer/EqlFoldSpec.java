@@ -75,3 +75,4 @@ public class EqlFoldSpec {
         return Objects.hash(this.expression);
     }
 }
+

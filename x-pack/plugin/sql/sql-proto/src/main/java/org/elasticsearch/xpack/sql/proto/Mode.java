@@ -14,7 +14,7 @@ import java.util.Locale;
 public enum Mode {
     CLI,
     PLAIN,
-    JDBC, 
+    JDBC,
     ODBC;
 
     public static Mode fromString(String mode) {
@@ -38,3 +38,4 @@ public enum Mode {
         return mode == JDBC || mode == ODBC || mode == CLI;
     }
 }
+

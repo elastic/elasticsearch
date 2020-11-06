@@ -145,3 +145,4 @@ public class PITAwareQueryClient extends BasicQueryClient {
         pitId = null;
     }
 }
+

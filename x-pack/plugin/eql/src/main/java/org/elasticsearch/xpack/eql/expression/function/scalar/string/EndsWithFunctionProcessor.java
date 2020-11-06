@@ -66,7 +66,7 @@ public class EndsWithFunctionProcessor implements Processor {
             return input.toString().toLowerCase(Locale.ROOT).endsWith(pattern.toString().toLowerCase(Locale.ROOT));
         }
     }
-    
+
     protected Processor input() {
         return input;
     }
@@ -84,25 +84,26 @@ public class EndsWithFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         EndsWithFunctionProcessor other = (EndsWithFunctionProcessor) obj;
         return Objects.equals(input(), other.input())
                 && Objects.equals(pattern(), other.pattern())
                 && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(input(), pattern(), isCaseSensitive());
     }
-    
+
 
     @Override
     public String getWriteableName() {
         return NAME;
     }
 }
+

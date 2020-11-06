@@ -24,7 +24,7 @@ public class EsField {
     public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable) {
         this(name, esDataType, properties, aggregatable, false);
     }
-    
+
     public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable, boolean isAlias) {
         this.name = name;
         this.esDataType = esDataType;
@@ -136,3 +136,4 @@ public class EsField {
         }
     }
 }
+

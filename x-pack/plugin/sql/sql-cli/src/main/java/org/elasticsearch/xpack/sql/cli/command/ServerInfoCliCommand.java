@@ -36,3 +36,4 @@ public class ServerInfoCliCommand extends AbstractServerCliCommand {
         return true;
     }
 }
+

@@ -53,7 +53,7 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
     }
 
     protected abstract StringOperation operation();
-    
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         //TODO change this to use _source instead of the exact form (aka field.keyword for text fields)
@@ -61,7 +61,7 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
                 paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }
-    
+
     @Override
     public String processScript(String template) {
         return formatTemplate(
@@ -84,3 +84,4 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
         return Objects.hash(field());
     }
 }
+

@@ -19,3 +19,4 @@ public class SqlTranslateAction extends ActionType<SqlTranslateResponse> {
         super(NAME, SqlTranslateResponse::new);
     }
 }
+

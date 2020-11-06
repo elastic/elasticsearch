@@ -57,3 +57,4 @@ public class ScriptQuery extends LeafQuery {
         return script.toString();
     }
 }
+

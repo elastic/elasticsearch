@@ -133,3 +133,4 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
         assertThat(query, not(containsString("\"_source\":{\"includes\":[],\"excludes\":[]")));
     }
 }
+

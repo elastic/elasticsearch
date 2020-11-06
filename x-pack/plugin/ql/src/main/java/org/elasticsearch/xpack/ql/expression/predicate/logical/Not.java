@@ -71,3 +71,4 @@ public class Not extends UnaryScalarFunction {
         return DataTypes.BOOLEAN;
     }
 }
+

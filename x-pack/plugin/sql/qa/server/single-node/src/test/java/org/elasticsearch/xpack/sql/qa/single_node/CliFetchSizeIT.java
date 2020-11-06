@@ -8,3 +8,4 @@ package org.elasticsearch.xpack.sql.qa.single_node;
 import org.elasticsearch.xpack.sql.qa.cli.FetchSizeTestCase;
 
 public class CliFetchSizeIT extends FetchSizeTestCase {}
+

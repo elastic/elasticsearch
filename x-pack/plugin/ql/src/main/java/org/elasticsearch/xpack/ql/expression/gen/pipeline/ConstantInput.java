@@ -43,3 +43,4 @@ public class ConstantInput extends LeafInput<Object> {
         // Nothing to collect
     }
 }
+

@@ -55,3 +55,4 @@ public abstract class EqlSpecTestCase extends BaseEqlSpecTestCase {
         super(TEST_INDEX, query, name, eventIds);
     }
 }
+

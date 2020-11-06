@@ -25,3 +25,4 @@ class InfoResponse {
         return cluster + "[" + version.toString() + "]";
     }
 }
+

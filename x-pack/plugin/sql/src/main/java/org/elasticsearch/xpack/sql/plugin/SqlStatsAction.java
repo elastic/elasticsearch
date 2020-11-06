@@ -17,3 +17,4 @@ public class SqlStatsAction extends ActionType<SqlStatsResponse> {
         super(NAME, SqlStatsResponse::new);
     }
 }
+

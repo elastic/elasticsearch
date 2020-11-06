@@ -694,3 +694,4 @@ public class SqlDataTypes {
         return displaySize(t);
     }
 }
+

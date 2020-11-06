@@ -28,3 +28,4 @@ public class JdbcDatabaseMetaDataIT extends DatabaseMetaDataTestCase {
         return properties;
     }
 }
+

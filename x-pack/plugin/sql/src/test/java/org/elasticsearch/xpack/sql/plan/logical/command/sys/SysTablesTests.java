@@ -372,3 +372,4 @@ public class SysTablesTests extends ESTestCase {
         tuple.v1().execute(tuple.v2(), wrap(p -> consumer.accept((SchemaRowSet) p.rowSet()), ex -> fail(ex.getMessage())));
     }
 }
+

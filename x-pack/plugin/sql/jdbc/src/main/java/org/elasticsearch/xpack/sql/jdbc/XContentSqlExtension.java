@@ -35,3 +35,4 @@ public class XContentSqlExtension implements XContentBuilderExtension {
         return Map.of(Date.class, d -> ((Date) d).getTime());
     }
 }
+

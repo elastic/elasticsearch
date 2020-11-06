@@ -8,3 +8,4 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 public interface StatsEnclosed {
 
 }
+

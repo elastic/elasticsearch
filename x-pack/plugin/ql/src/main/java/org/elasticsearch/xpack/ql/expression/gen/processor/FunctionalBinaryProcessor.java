@@ -38,7 +38,7 @@ public abstract class FunctionalBinaryProcessor<T, U, R, F extends BiFunction<T,
     protected Object doProcess(Object left, Object right) {
         return function.apply((T) left, (U) right);
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(left(), right(), function());
@@ -49,14 +49,15 @@ public abstract class FunctionalBinaryProcessor<T, U, R, F extends BiFunction<T,
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         FunctionalBinaryProcessor<?, ?, ?, ?> other = (FunctionalBinaryProcessor<?, ?, ?, ?>) obj;
         return Objects.equals(function(), other.function())
                 && Objects.equals(left(), other.left())
                 && Objects.equals(right(), other.right());
     }
 }
+

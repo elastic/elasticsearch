@@ -68,3 +68,4 @@ public class CaseProcessor implements Processor {
         return Objects.hash(processors);
     }
 }
+

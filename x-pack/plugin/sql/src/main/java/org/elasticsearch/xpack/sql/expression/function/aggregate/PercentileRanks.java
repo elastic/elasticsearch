@@ -37,3 +37,4 @@ public class PercentileRanks extends CompoundNumericAggregate {
         return values;
     }
 }
+

@@ -128,3 +128,4 @@ public class ClientVersion {
         return 2;
     }
 }
+

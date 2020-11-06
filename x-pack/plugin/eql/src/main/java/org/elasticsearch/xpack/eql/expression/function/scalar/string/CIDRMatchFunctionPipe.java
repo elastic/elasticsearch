@@ -130,3 +130,4 @@ public class CIDRMatchFunctionPipe extends Pipe {
         return Objects.equals(input(), other.input()) && Objects.equals(addresses(), other.addresses());
     }
 }
+

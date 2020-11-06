@@ -49,3 +49,4 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
         }
     }
 }
+

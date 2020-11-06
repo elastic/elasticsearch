@@ -38,3 +38,4 @@ public class SqlFunctionTypeRegistry extends DefaultFunctionTypeRegistry {
     }
 
 }
+

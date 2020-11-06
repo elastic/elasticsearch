@@ -44,3 +44,4 @@ public abstract class ConnectionTestCase extends JdbcIntegrationTestCase {
         }
     }
 }
+

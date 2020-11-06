@@ -34,3 +34,4 @@ public class Cbrt extends MathFunction {
         return MathOperation.CBRT;
     }
 }
+

@@ -70,3 +70,4 @@ public enum EsType implements SQLType {
         return type;
     }
 }
+

@@ -20,7 +20,7 @@ import java.util.List;
  * digits before the decimal point, starting at the decimal point.
  */
 public class Round extends BinaryOptionalNumericFunction implements OptionalArgument {
-    
+
     public Round(Source source, Expression left, Expression right) {
         super(source, left, right);
     }
@@ -34,9 +34,10 @@ public class Round extends BinaryOptionalNumericFunction implements OptionalArgu
     protected BinaryOptionalMathOperation operation() {
         return BinaryOptionalMathOperation.ROUND;
     }
-    
+
     @Override
     protected final Expression replacedChildrenInstance(List<Expression> newChildren) {
         return new Round(source(), newChildren.get(0), right() == null ? null : newChildren.get(1));
     }
 }
+

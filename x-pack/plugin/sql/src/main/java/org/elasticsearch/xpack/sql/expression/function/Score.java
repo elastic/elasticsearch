@@ -68,3 +68,4 @@ public class Score extends Function {
         throw new SqlIllegalArgumentException("Scoring cannot be scripted");
     }
 }
+

@@ -34,3 +34,4 @@ public class Sqrt extends MathFunction {
         return MathOperation.SQRT;
     }
 }
+

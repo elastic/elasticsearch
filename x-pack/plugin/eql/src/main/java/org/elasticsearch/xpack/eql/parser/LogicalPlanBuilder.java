@@ -277,18 +277,18 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         if (numberCtx instanceof IntegerLiteralContext) {
             Number number = (Number) visitIntegerLiteral((IntegerLiteralContext) numberCtx).fold();
             long value = number.longValue();
-            
+
             if (value <= 0) {
                 throw new ParsingException(source(numberCtx), "A positive maxspan value is required; found [{}]", value);
             }
-            
+
             String timeString = text(ctx.timeUnit().IDENTIFIER());
-            
+
             if (timeString == null) {
                 throw new ParsingException(source(ctx.timeUnit()), "No time unit specified, did you mean [s] as in [{}s]?", text(ctx
                         .timeUnit()));
             }
-            
+
             TimeUnit timeUnit = null;
             switch (timeString) {
                 case "ms":
@@ -325,7 +325,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         if (SUPPORTED_PIPES.contains(name) == false) {
             List<String> potentialMatches = StringUtils.findSimilar(name, SUPPORTED_PIPES);
-            
+
             String msg = "Unrecognized pipe [{}]";
             if (potentialMatches.isEmpty() == false) {
                 String matchString = potentialMatches.toString();
@@ -370,3 +370,4 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         return expression;
     }
 }
+

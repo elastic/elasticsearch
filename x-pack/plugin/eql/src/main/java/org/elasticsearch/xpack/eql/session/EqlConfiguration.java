@@ -80,3 +80,4 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         return taskId;
     }
 }
+

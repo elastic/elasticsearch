@@ -457,3 +457,4 @@ public class DateDiffProcessorTests extends AbstractSqlWireSerializingTestCase<D
             siae.getMessage());
     }
 }
+

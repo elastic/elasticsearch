@@ -115,7 +115,7 @@ public class Join extends LogicalPlan {
     public Attribute timestamp() {
         return timestamp;
     }
-    
+
     public Attribute tiebreaker() {
         return tiebreaker;
     }

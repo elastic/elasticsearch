@@ -31,3 +31,4 @@ public abstract class FunctionalEnumBinaryProcessor<T, U, R, F extends Enum<F> &
         out.writeEnum(function());
     }
 }
+

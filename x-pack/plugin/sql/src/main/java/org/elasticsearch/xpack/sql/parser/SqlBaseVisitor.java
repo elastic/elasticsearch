@@ -685,3 +685,4 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitNonReserved(SqlBaseParser.NonReservedContext ctx);
 }
+

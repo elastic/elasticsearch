@@ -23,3 +23,4 @@ public class ActionListeners {
         return ActionListener.wrap(r -> delegate.onResponse(fn.apply(r)), delegate::onFailure);
     }
 }
+

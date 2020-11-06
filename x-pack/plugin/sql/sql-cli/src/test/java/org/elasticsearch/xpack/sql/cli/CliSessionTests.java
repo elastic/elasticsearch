@@ -74,3 +74,4 @@ public class CliSessionTests extends ESTestCase {
         verifyNoMoreInteractions(httpClient);
     }
 }
+

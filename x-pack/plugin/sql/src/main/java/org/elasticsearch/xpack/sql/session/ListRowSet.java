@@ -66,3 +66,4 @@ public class ListRowSet extends AbstractRowSet implements SchemaRowSet {
         return columnCount;
     }
 }
+

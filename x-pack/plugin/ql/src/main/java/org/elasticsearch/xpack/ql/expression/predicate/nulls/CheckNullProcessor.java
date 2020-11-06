@@ -87,3 +87,4 @@ public class CheckNullProcessor implements Processor {
         return Objects.hash(operation);
     }
 }
+

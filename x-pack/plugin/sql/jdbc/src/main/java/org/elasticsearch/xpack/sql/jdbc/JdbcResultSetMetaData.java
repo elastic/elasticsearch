@@ -159,3 +159,4 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
         return format(Locale.ROOT, "%s(%s)", getClass().getSimpleName(), columns);
     }
 }
+

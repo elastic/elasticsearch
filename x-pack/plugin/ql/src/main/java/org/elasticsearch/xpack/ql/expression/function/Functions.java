@@ -19,3 +19,4 @@ public abstract class Functions {
         return e instanceof GroupingFunction;
     }
 }
+

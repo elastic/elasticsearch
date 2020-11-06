@@ -24,14 +24,14 @@ public class Quarter extends BaseDateTimeFunction {
     public Quarter(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId);
     }
-    
+
     @Override
     public ScriptTemplate asScript() {
         ScriptTemplate script = super.asScript();
         String template = formatTemplate("{sql}.quarter(" + script.template() + ", {})");
-        
+
         ParamsBuilder params = paramsBuilder().script(script.params()).variable(zoneId().getId());
-        
+
         return new ScriptTemplate(template, params.build(), dataType());
     }
 
@@ -55,3 +55,4 @@ public class Quarter extends BaseDateTimeFunction {
         return DataTypes.INTEGER;
     }
 }
+

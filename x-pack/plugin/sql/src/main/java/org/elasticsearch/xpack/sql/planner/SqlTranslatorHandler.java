@@ -61,3 +61,4 @@ public class SqlTranslatorHandler implements TranslatorHandler {
         return SqlDataTypeConverter.convert(value, dataType);
     }
 }
+

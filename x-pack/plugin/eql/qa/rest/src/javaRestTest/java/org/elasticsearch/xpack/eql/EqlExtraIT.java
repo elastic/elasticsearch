@@ -14,3 +14,4 @@ public class EqlExtraIT extends EqlExtraSpecTestCase {
         super(query, name, eventIds);
     }
 }
+

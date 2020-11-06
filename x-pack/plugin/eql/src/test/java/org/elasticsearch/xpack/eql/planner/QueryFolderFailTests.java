@@ -255,3 +255,4 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 "line 1:15: first argument of [wildcard(pid, \"*.exe\")] must be [string], found value [pid] type [long]", msg);
     }
 }
+

@@ -44,3 +44,4 @@ public class SqlSourceBuilderTests extends ESTestCase {
         assertThat(scriptFields.get("baz2").getIdOrCode(), equalTo("potato"));
     }
 }
+

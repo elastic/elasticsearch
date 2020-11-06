@@ -2339,3 +2339,4 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
     }
 }
+

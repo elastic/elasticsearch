@@ -35,3 +35,4 @@ public class EqlPluginTests extends ESTestCase {
         assertThat(plugin.getSettings(), hasItem(EqlPlugin.EQL_ENABLED_SETTING));
     }
 }
+

@@ -25,3 +25,4 @@ public abstract class NonExecutableInput<T> extends LeafInput<T> {
         throw new QlIllegalArgumentException("Unresolved input - needs resolving first");
     }
 }
+

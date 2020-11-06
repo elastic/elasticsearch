@@ -25,3 +25,4 @@ public class MatchAll extends LeafQuery {
         return "";
     }
 }
+

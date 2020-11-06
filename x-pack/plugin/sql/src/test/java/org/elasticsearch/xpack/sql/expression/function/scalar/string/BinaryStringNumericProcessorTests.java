@@ -152,3 +152,4 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
         assertEquals("A fixed point number is required for [count]; received [java.lang.Double]", siae.getMessage());
     }
 }
+

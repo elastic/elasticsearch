@@ -54,3 +54,4 @@ public class LimitExec extends UnaryExec implements Unexecutable {
                 && Objects.equals(child(), other.child());
     }
 }
+

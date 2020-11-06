@@ -65,3 +65,4 @@ public class IntervalDayTime extends Interval<Duration> {
         return "{sql}.intervalDayTime({},{})";
     }
 }
+

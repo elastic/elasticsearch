@@ -22,3 +22,4 @@ public interface SchemaRowSet extends RowSet {
         return schema().size();
     }
 }
+

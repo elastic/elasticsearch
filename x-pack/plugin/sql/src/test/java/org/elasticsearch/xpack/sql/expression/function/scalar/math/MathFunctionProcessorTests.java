@@ -55,7 +55,7 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
         assertNotNull(proc.process(null));
         assertNotNull(proc.process(randomLong()));
     }
-    
+
     public void testFloor() {
         MathProcessor proc = new MathProcessor(MathOperation.FLOOR);
         assertNull(proc.process(null));
@@ -64,7 +64,7 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
         assertEquals(3.0, proc.process(3.9));
         assertEquals(-13.0, proc.process(-12.1));
     }
-    
+
     public void testCeil() {
         MathProcessor proc = new MathProcessor(MathOperation.CEIL);
         assertNull(proc.process(null));
@@ -74,3 +74,4 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
         assertEquals(-12.0, proc.process(-12.1));
     }
 }
+

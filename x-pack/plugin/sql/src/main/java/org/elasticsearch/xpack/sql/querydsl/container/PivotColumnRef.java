@@ -49,3 +49,4 @@ public class PivotColumnRef extends AggRef {
         return value;
     }
 }
+

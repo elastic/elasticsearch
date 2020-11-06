@@ -25,3 +25,4 @@ public class CliFetchSizeIT extends FetchSizeTestCase {
         return CliSecurityIT.adminSecurityConfig();
     }
 }
+

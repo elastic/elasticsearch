@@ -32,3 +32,4 @@ public abstract class LeafExec extends PhysicalPlan {
 
     abstract void execute(SqlSession session, ActionListener<Page> listener);
 }
+

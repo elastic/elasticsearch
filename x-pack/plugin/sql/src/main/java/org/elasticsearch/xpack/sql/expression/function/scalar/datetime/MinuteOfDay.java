@@ -36,3 +36,4 @@ public class MinuteOfDay extends TimeFunction {
         throw new UnsupportedOperationException("is there a format for it?");
     }
 }
+

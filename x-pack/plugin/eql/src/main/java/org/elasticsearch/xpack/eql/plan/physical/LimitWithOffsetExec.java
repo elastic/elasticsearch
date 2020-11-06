@@ -54,3 +54,4 @@ public class LimitWithOffsetExec extends UnaryExec implements Unexecutable {
                 && Objects.equals(child(), other.child());
     }
 }
+

@@ -42,3 +42,4 @@ public class LTrim extends UnaryStringFunction {
     }
 
 }
+

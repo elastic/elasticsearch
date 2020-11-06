@@ -112,3 +112,4 @@ public class RangeQuery extends LeafQuery {
             + upper + (includeUpper ? "]" : ")") + "@" + zoneId.getId();
     }
 }
+

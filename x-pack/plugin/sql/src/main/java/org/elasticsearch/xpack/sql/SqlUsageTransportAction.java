@@ -63,3 +63,4 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         }, listener::onFailure));
     }
 }
+

@@ -86,3 +86,4 @@ public class StDistanceProcessor extends BinaryProcessor {
         return Objects.hash(left(), right());
     }
 }
+

@@ -17,3 +17,4 @@ class Completers {
             new ArgumentCompleter(new StringsCompleter("SHOW", "TABLE", "COLUMNS", "FUNCTIONS")));
 
 }
+

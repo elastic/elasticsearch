@@ -15,3 +15,4 @@ public interface CliCommand {
     boolean handle(CliTerminal terminal, CliSession cliSession, String line);
 
 }
+

@@ -61,3 +61,4 @@ public class Neg extends UnaryScalarFunction {
         return new UnaryArithmeticProcessor(UnaryArithmeticOperation.NEGATE);
     }
 }
+

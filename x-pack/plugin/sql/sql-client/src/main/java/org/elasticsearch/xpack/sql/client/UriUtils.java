@@ -283,11 +283,11 @@ public final class UriUtils {
         if (segment == null || segment.isEmpty() || "/".equals(segment)) {
             return uri;
         }
-        
+
         String path = uri.getPath();
         String concatenatedPath = "";
         String cleanSegment = segment.startsWith("/") ? segment.substring(1) : segment;
-        
+
         if (path == null || path.isEmpty()) {
             path = "/";
         }
@@ -305,3 +305,4 @@ public final class UriUtils {
         }
     }
 }
+

@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 /**
  * <a href="https://en.wikipedia.org/wiki/Modulo_operation">Modulo</a>
  * function ({@code a % b}).
- * 
+ *
  * Note this operator is also registered as a function (needed for ODBC/SQL) purposes.
  */
 public class Mod extends SqlArithmeticOperation {
@@ -31,3 +31,4 @@ public class Mod extends SqlArithmeticOperation {
         return new Mod(source(), newLeft, newRight);
     }
 }
+

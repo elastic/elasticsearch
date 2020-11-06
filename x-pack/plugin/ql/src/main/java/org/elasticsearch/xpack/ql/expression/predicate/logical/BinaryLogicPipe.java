@@ -52,3 +52,4 @@ public class BinaryLogicPipe extends BinaryPipe {
         return false;
     }
 }
+

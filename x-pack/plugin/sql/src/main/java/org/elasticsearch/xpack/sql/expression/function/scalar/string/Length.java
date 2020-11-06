@@ -42,3 +42,4 @@ public class Length extends UnaryStringFunction {
     }
 
 }
+

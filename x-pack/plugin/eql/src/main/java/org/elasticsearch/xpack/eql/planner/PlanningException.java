@@ -26,3 +26,4 @@ public class PlanningException extends EqlClientException {
         return RestStatus.BAD_REQUEST;
     }
 }
+

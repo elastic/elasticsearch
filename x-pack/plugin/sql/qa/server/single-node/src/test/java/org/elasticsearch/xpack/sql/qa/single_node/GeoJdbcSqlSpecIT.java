@@ -13,3 +13,4 @@ public class GeoJdbcSqlSpecIT extends GeoSqlSpecTestCase {
         super(fileName, groupName, testName, lineNumber, query);
     }
 }
+

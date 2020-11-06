@@ -81,3 +81,4 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
         return mask;
     }
 }
+

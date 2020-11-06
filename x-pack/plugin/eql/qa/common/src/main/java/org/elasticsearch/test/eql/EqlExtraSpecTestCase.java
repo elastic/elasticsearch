@@ -29,3 +29,4 @@ public abstract class EqlExtraSpecTestCase extends BaseEqlSpecTestCase {
         return "sequence";
     }
 }
+

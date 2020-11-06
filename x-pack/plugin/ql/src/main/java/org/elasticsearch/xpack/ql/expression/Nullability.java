@@ -36,3 +36,4 @@ public enum Nullability {
         return value != null ? value : FALSE;
     }
 }
+

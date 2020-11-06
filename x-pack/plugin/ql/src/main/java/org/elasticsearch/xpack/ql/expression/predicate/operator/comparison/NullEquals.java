@@ -42,3 +42,4 @@ public class NullEquals extends BinaryComparison {
         return Nullability.FALSE;
     }
 }
+

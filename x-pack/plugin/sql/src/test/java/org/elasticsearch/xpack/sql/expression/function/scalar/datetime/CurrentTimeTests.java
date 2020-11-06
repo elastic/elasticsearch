@@ -102,3 +102,4 @@ public class CurrentTimeTests extends AbstractNodeTestCase<CurrentTime, Expressi
         assertEquals("line 1:22: precision needs to be between [0-9], received [100]", e.getMessage());
     }
 }
+

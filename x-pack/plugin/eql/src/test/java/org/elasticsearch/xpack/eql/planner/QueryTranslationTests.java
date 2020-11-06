@@ -32,3 +32,4 @@ public class QueryTranslationTests extends AbstractQueryFolderTestCase {
         return plan.toString().replaceAll("\\s+", "");
     }
 }
+

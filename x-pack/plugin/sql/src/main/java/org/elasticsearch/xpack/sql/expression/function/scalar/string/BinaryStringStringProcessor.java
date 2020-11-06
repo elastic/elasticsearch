@@ -18,7 +18,7 @@ import java.util.function.BiFunction;
  * Processor class covering string manipulating functions that have two string parameters and a numeric result.
  */
 public class BinaryStringStringProcessor extends FunctionalEnumBinaryProcessor<String, String, Number, BinaryStringStringOperation> {
-    
+
     public enum BinaryStringStringOperation implements BiFunction<String, String, Number> {
         POSITION((sub,str) -> {
             int pos = str.indexOf(sub);
@@ -28,9 +28,9 @@ public class BinaryStringStringProcessor extends FunctionalEnumBinaryProcessor<S
         BinaryStringStringOperation(BiFunction<String, String, Number> op) {
             this.op = op;
         }
-        
+
         private final BiFunction<String, String, Number> op;
-        
+
         @Override
         public Number apply(String left, String right) {
             if (left == null || right == null) {
@@ -41,7 +41,7 @@ public class BinaryStringStringProcessor extends FunctionalEnumBinaryProcessor<S
     }
 
     public static final String NAME = "ss";
-    
+
     public BinaryStringStringProcessor(StreamInput in) throws IOException {
         super(in, i -> i.readEnum(BinaryStringStringOperation.class));
     }
@@ -67,3 +67,4 @@ public class BinaryStringStringProcessor extends FunctionalEnumBinaryProcessor<S
         return super.doProcess(left.toString(), right.toString());
     }
 }
+

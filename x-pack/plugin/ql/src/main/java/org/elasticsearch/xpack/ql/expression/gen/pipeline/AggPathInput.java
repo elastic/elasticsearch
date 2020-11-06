@@ -23,7 +23,7 @@ public class AggPathInput extends CommonNonExecutableInput<AggRef> {
     }
 
     /**
-     * 
+     *
      * Constructs a new <code>AggPathInput</code> instance.
      * The action is used for handling corner-case results such as date histogram which returns
      * a full date object for year which requires additional extraction.
@@ -72,3 +72,4 @@ public class AggPathInput extends CommonNonExecutableInput<AggRef> {
                 && Objects.equals(action, other.action);
     }
 }
+

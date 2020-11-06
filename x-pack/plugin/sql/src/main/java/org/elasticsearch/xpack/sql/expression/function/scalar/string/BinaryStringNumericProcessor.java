@@ -90,3 +90,4 @@ public class BinaryStringNumericProcessor extends FunctionalEnumBinaryProcessor<
         return super.doProcess(left.toString(), right);
     }
 }
+

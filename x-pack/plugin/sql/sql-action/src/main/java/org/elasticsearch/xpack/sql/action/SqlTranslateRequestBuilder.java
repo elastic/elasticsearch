@@ -44,3 +44,4 @@ public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslat
         return this;
     }
 }
+

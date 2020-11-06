@@ -25,3 +25,4 @@ class ResultSetProxy extends DebuggingInvoker {
         return result;
     }
 }
+

@@ -152,3 +152,4 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
         return o instanceof JodaCompatibleZonedDateTime ? ((JodaCompatibleZonedDateTime) o).getZonedDateTime() : o;
     }
 }
+

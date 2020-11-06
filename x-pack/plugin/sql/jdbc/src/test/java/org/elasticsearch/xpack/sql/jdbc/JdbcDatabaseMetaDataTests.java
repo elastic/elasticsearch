@@ -127,3 +127,4 @@ public class JdbcDatabaseMetaDataTests extends ESTestCase {
         }
     }
 }
+

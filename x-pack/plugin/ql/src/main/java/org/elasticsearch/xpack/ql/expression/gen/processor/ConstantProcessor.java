@@ -77,3 +77,4 @@ public class ConstantProcessor implements Processor {
         return "^" + constant;
     }
 }
+

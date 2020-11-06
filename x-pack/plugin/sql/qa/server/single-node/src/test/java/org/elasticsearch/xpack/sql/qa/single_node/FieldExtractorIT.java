@@ -11,3 +11,4 @@ import org.elasticsearch.xpack.sql.qa.FieldExtractorTestCase;
 public class FieldExtractorIT extends FieldExtractorTestCase {
 
 }
+

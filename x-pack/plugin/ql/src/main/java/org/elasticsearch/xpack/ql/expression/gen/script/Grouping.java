@@ -22,3 +22,4 @@ class Grouping extends Param<GroupingFunction> {
         return "g";
     }
 }
+

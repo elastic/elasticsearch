@@ -384,3 +384,4 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertEquals("Unknown parameter [" + wrongSetting + "]; did you mean [" + correctSetting + "]", ex.getMessage());
     }
 }
+

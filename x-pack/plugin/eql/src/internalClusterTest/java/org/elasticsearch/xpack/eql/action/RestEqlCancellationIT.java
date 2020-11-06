@@ -166,3 +166,4 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         return true;
     }
 }
+

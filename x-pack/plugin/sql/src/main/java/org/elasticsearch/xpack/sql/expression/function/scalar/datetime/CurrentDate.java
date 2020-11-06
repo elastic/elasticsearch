@@ -25,3 +25,4 @@ public class CurrentDate extends CurrentFunction<ZonedDateTime> {
         return NodeInfo.create(this, CurrentDate::new, configuration());
     }
 }
+

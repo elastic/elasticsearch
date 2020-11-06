@@ -29,3 +29,4 @@ public class GeoJdbcCsvSpecIT extends GeoCsvSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase);
     }
 }
+

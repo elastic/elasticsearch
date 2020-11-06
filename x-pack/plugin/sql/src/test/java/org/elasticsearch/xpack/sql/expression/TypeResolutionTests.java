@@ -43,3 +43,4 @@ public class TypeResolutionTests extends ESTestCase {
         return SqlTestUtils.literal(value);
     }
 }
+

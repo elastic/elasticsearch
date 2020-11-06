@@ -244,3 +244,4 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         builder.endObject();
     }
 }
+

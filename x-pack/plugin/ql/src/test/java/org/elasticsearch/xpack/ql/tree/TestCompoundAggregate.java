@@ -38,3 +38,4 @@ public class TestCompoundAggregate extends AggregateFunction implements Compound
         return DataTypes.DOUBLE;
     }
 }
+

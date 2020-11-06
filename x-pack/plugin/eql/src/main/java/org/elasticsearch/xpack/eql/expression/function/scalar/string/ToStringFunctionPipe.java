@@ -89,3 +89,4 @@ public class ToStringFunctionPipe extends Pipe {
         return Objects.equals(input(), ((ToStringFunctionPipe) obj).input());
     }
 }
+

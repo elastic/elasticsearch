@@ -35,7 +35,7 @@ public final class FunctionTestUtils {
     public static Literal randomStringLiteral() {
         return l(ESTestCase.randomRealisticUnicodeOfLength(10), KEYWORD);
     }
-    
+
     public static Literal randomIntLiteral() {
         return l(ESTestCase.randomInt(), INTEGER);
     }
@@ -89,3 +89,4 @@ public final class FunctionTestUtils {
         }
     }
 }
+

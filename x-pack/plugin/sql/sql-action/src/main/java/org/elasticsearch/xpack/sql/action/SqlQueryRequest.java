@@ -50,7 +50,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     private String cursor = "";
     /*
-     * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" or 
+     * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" or
      * binary parameter).
      * See {@code SqlTranslateRequest.toXContent}
      */
@@ -102,7 +102,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         this.cursor = cursor;
         return this;
     }
-    
+
     /**
      * Should format the values in a columnar fashion or not (default false).
      * Depending on the format used (csv, tsv, txt, json etc) this setting will be taken into
@@ -197,3 +197,4 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return request;
     }
 }
+

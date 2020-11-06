@@ -21,7 +21,7 @@ public class PercentilesAgg extends DefaultAggSourceLeafAgg {
         super(id, source);
         this.percents = percents;
     }
-    
+
     @Override
     AggregationBuilder toBuilder() {
         // TODO: look at keyed
@@ -34,3 +34,4 @@ public class PercentilesAgg extends DefaultAggSourceLeafAgg {
         return AggregationBuilders::percentiles;
     }
 }
+

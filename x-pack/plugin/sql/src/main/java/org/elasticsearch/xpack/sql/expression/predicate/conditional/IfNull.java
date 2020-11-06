@@ -36,3 +36,4 @@ public class IfNull extends Coalesce {
         return NodeInfo.create(this, IfNull::new, children().get(0), children().get(1));
     }
 }
+

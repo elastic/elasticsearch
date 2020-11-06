@@ -79,7 +79,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 @Override
                 public void onFailure(Exception e) {
                     Exception finalException = e;
-                    /* 
+                    /*
                      * In a scenario when Security is enabled and a wildcarded pattern gets resolved to no index, the original error
                      * message will not contain the initial pattern, but "*,-*". So, we'll throw a INFE from the PreAnalyzer that will
                      * contain as cause the VerificationException with "*,-*" pattern but we'll rewrite the INFE here with the initial
@@ -107,3 +107,4 @@ public class RestEqlSearchAction extends BaseRestHandler {
         return "eql_search";
     }
 }
+

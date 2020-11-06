@@ -146,3 +146,4 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         return expressions;
     }
 }
+

@@ -251,3 +251,4 @@ public class SequenceSpecTests extends ESTestCase {
         }
     }
 }
+

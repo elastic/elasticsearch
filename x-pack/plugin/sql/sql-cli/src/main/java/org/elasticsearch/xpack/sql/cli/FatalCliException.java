@@ -17,3 +17,4 @@ public class FatalCliException  extends RuntimeException {
         super(message);
     }
 }
+

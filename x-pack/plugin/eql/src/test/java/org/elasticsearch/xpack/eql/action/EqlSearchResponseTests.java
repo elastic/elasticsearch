@@ -175,3 +175,4 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         return EqlSearchResponse.fromXContent(parser);
     }
 }
+

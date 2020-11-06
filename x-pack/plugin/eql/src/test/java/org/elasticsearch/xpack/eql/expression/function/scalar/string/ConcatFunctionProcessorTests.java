@@ -38,3 +38,4 @@ public class ConcatFunctionProcessorTests extends ESTestCase {
         assertEquals(process("foo", "::", 1.0, "::", "baz"), "foo::1.0::baz");
     }
 }
+

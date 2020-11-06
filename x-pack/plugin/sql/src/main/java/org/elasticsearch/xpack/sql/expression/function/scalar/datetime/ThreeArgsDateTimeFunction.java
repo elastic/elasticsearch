@@ -119,3 +119,4 @@ public abstract class ThreeArgsDateTimeFunction extends ScalarFunction {
         return zoneId.equals(that.zoneId);
     }
 }
+

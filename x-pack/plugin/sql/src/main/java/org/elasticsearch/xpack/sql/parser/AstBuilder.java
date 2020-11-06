@@ -28,3 +28,4 @@ class AstBuilder extends CommandBuilder {
         return plan(ctx.statement());
     }
 }
+

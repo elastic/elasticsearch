@@ -77,7 +77,7 @@ public class IndexOfFunctionPipe extends Pipe {
     public IndexOfFunctionProcessor asProcessor() {
         return new IndexOfFunctionProcessor(input.asProcessor(), substring.asProcessor(), start.asProcessor(), isCaseSensitive);
     }
-    
+
     public Pipe input() {
         return input;
     }
@@ -116,3 +116,4 @@ public class IndexOfFunctionPipe extends Pipe {
                 && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
     }
 }
+

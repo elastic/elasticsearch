@@ -75,3 +75,4 @@ public class TermQuery extends LeafQuery {
         return term + ":" + value;
     }
 }
+

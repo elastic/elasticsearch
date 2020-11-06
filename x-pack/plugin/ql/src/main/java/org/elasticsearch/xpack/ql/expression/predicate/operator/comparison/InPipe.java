@@ -58,3 +58,4 @@ public class InPipe extends MultiPipe {
         return new InProcessor(processors);
     }
 }
+

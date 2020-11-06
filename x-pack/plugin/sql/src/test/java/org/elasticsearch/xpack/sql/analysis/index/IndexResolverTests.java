@@ -442,3 +442,4 @@ public class IndexResolverTests extends ESTestCase {
         return IndexResolver.separateMappings(SqlDataTypeRegistry.INSTANCE, javaRegex, indexNames, fieldCaps, null);
     }
 }
+

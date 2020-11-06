@@ -355,3 +355,4 @@ public class SqlParserTests extends ESTestCase {
         return joiner.toString();
     }
 }
+

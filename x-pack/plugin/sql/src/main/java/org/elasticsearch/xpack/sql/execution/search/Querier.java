@@ -141,7 +141,7 @@ public class Querier {
         client.search(search, l);
     }
 
-    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, 
+    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
             String... indices) {
         return client.prepareSearch(indices)
                 // always track total hits accurately
@@ -150,7 +150,7 @@ public class Querier {
                         includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
                 .request();
     }
-    
+
     protected static void logSearchResponse(SearchResponse response, Logger logger) {
         List<Aggregation> aggs = Collections.emptyList();
         if (response.getAggregations() != null) {
@@ -160,7 +160,7 @@ public class Querier {
         for (int i = 0; i < aggs.size(); i++) {
             aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
         }
-        
+
         logger.trace("Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
                 + "{} successful shards, {} total shards, took {}, timed out [{}]]",
                 response.getHits().getTotalHits().relation.toString(),
@@ -177,7 +177,7 @@ public class Querier {
 
     /**
      * Listener used for local sorting (typically due to aggregations used inside `ORDER BY`).
-     * 
+     *
      * This listener consumes the whole result set, sorts it in memory then sends the paginated
      * results back to the client.
      */
@@ -308,7 +308,7 @@ public class Querier {
             if (log.isTraceEnabled()) {
                 logSearchResponse(response, log);
             }
-            
+
             Aggregations aggs = response.getAggregations();
             if (aggs != null) {
                 Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
@@ -658,3 +658,4 @@ public class Querier {
         }
     }
 }
+

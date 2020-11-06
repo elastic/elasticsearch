@@ -39,3 +39,4 @@ public class GreaterThan extends BinaryComparison implements Negatable<BinaryCom
         return new LessThanOrEqual(source(), left(), right(), zoneId());
     }
 }
+

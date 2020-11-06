@@ -62,3 +62,4 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
         assertResults(expected, elasticResults);
     }
 }
+

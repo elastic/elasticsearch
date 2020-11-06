@@ -140,3 +140,4 @@ public class DatePart extends BinaryDateTimeDatePartFunction {
         return Part.VALID_VALUES;
     }
 }
+

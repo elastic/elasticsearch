@@ -52,3 +52,4 @@ public class SequenceKey {
         return CollectionUtils.isEmpty(keys) ? "NONE" : Arrays.toString(keys);
     }
 }
+

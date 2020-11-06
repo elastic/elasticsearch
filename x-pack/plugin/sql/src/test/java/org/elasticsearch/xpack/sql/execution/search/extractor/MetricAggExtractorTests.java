@@ -127,3 +127,4 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
         return extractor instanceof MetricAggExtractor ? ((MetricAggExtractor) extractor).zoneId() : null;
     }
 }
+

@@ -34,3 +34,4 @@ public class DateTruncPipe extends BinaryDateTimePipe {
         return new DateTruncProcessor(left, right, zoneId);
     }
 }
+

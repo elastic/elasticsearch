@@ -81,3 +81,4 @@ public class BinaryComparisonProcessor extends FunctionalEnumBinaryProcessor<Obj
         return super.process(input);
     }
 }
+

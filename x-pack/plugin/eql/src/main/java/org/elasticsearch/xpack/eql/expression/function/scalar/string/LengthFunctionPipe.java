@@ -66,7 +66,7 @@ public class LengthFunctionPipe extends Pipe {
     public LengthFunctionProcessor asProcessor() {
         return new LengthFunctionProcessor(input.asProcessor());
     }
-    
+
     public Pipe input() {
         return input;
     }
@@ -89,3 +89,4 @@ public class LengthFunctionPipe extends Pipe {
         return Objects.equals(input(), ((LengthFunctionPipe) obj).input());
     }
 }
+

@@ -1241,3 +1241,4 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
                 cursor.columns());
     }
 }
+

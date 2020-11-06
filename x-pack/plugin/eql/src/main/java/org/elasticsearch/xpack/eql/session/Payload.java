@@ -28,3 +28,4 @@ public interface Payload {
 
     List<?> values();
 }
+

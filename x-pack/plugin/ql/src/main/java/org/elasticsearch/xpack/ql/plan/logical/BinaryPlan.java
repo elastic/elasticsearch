@@ -49,3 +49,4 @@ public abstract class BinaryPlan extends LogicalPlan {
     }
 
 }
+

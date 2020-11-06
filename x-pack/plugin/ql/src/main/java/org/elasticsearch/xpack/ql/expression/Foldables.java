@@ -16,3 +16,4 @@ public abstract class Foldables {
         throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }
 }
+

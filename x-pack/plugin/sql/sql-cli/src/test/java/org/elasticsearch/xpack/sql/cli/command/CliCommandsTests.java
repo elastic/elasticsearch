@@ -32,3 +32,4 @@ public class CliCommandsTests extends ESTestCase {
         verifyNoMoreInteractions(httpClient);
     }
 }
+

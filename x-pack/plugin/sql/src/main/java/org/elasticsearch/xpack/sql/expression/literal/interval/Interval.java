@@ -19,7 +19,7 @@ import java.util.Objects;
 
 /**
  * Interval value.
- * 
+ *
  * As SQL defines two main types, YearMonth and DayToHour/Minute/Second, the interval has to be split accordingly
  * mainly to differentiate between a period (which is relative) for the former and duration (which is exact)
  * for the latter.
@@ -54,7 +54,7 @@ public abstract class Interval<I extends TemporalAmount> implements ConstantName
     public int hashCode() {
         return Objects.hash(interval, intervalType);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -90,3 +90,4 @@ public abstract class Interval<I extends TemporalAmount> implements ConstantName
         return dataType().toString();
     }
 }
+

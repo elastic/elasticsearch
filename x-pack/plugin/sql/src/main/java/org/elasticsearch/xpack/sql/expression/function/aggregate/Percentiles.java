@@ -37,3 +37,4 @@ public class Percentiles extends CompoundNumericAggregate {
         return percents;
     }
 }
+

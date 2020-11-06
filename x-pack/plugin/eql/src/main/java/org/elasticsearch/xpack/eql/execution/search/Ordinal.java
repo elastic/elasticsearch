@@ -101,3 +101,4 @@ public class Ordinal implements Comparable<Ordinal> {
         return tiebreaker != null ? new Object[] { timestamp, tiebreaker } : new Object[] { timestamp };
     }
 }
+

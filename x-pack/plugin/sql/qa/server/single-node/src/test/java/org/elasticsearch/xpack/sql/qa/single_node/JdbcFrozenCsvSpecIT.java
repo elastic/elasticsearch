@@ -39,3 +39,4 @@ public class JdbcFrozenCsvSpecIT extends CsvSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase);
     }
 }
+

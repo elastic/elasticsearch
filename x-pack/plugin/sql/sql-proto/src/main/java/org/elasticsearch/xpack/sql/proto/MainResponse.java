@@ -86,3 +86,4 @@ public class MainResponse {
         return Objects.hash(nodeName, version, clusterUuid, clusterName);
     }
 }
+

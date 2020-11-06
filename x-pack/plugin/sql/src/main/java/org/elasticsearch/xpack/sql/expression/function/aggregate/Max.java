@@ -56,3 +56,4 @@ public class Max extends NumericAggregate implements EnclosedAgg {
         }
     }
 }
+

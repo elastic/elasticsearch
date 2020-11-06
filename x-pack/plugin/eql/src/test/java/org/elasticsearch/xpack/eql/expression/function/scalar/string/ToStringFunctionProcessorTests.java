@@ -32,3 +32,4 @@ public class ToStringFunctionProcessorTests extends ESTestCase {
         }
     }
 }
+

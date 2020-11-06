@@ -18,3 +18,4 @@ public class TimestampFieldHitExtractor extends FieldHitExtractor {
         return Long.parseLong(values.toString());
     }
 }
+

@@ -629,3 +629,4 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         return value.get();
     }
 }
+

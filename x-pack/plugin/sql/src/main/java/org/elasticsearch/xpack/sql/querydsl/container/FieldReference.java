@@ -20,3 +20,4 @@ public abstract class FieldReference implements FieldExtraction {
         return false;
     }
 }
+

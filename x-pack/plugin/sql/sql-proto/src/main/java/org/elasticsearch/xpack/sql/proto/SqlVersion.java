@@ -147,3 +147,4 @@ public class SqlVersion implements Comparable<SqlVersion>{
         return V_7_7_0.compareTo(version) <= 0;
     }
 }
+

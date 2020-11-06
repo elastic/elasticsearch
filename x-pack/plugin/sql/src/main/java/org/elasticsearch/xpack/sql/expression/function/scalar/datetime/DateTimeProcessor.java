@@ -17,7 +17,7 @@ import java.time.temporal.WeekFields;
 import java.util.Objects;
 
 public class DateTimeProcessor extends BaseDateTimeProcessor {
-    
+
     public enum DateTimeExtractor {
         DAY_OF_MONTH(ChronoField.DAY_OF_MONTH),
         ISO_DAY_OF_WEEK(ChronoField.DAY_OF_WEEK),
@@ -52,7 +52,7 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
             return field;
         }
     }
-    
+
     public static final String NAME = "dt";
     private final DateTimeExtractor extractor;
 
@@ -105,3 +105,4 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
         return extractor.toString();
     }
 }
+

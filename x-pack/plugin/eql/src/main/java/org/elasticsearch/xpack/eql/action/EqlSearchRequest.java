@@ -376,3 +376,4 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return sb.toString();
     }
 }
+

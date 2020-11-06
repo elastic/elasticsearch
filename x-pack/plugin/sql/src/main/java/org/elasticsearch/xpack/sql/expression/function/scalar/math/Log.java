@@ -34,3 +34,4 @@ public class Log extends MathFunction {
         return MathOperation.LOG;
     }
 }
+

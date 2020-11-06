@@ -127,3 +127,4 @@ public class Join extends BinaryPlan {
                 && Objects.equals(right(), other.right());
     }
 }
+

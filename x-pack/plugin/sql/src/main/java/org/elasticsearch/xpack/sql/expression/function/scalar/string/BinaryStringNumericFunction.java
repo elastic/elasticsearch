@@ -42,3 +42,4 @@ public abstract class BinaryStringNumericFunction extends BinaryStringFunction<N
         return DataTypes.KEYWORD;
     }
 }
+

@@ -21,7 +21,7 @@ abstract class DateTimeArithmeticOperation extends SqlArithmeticOperation {
     DateTimeArithmeticOperation(Source source, Expression left, Expression right, BinaryArithmeticOperation operation) {
         super(source, left, right, operation);
     }
-    
+
     @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {
@@ -65,3 +65,4 @@ abstract class DateTimeArithmeticOperation extends SqlArithmeticOperation {
         return TypeResolution.TYPE_RESOLVED;
     }
 }
+

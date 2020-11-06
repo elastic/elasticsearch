@@ -104,3 +104,4 @@ public class InsertProcessorTests extends AbstractWireSerializingTestCase<Insert
         assertEquals("[length] out of the allowed range [0, 2147483647], received [2147483648]", siae.getMessage());
     }
 }
+

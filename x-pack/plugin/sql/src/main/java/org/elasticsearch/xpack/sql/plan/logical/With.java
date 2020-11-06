@@ -55,3 +55,4 @@ public class With extends UnaryPlan {
         return Objects.equals(subQueries, other.subQueries);
     }
 }
+

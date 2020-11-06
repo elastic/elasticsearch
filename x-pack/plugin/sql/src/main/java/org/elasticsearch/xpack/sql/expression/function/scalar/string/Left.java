@@ -35,3 +35,4 @@ public class Left extends BinaryStringNumericFunction {
     }
 
 }
+

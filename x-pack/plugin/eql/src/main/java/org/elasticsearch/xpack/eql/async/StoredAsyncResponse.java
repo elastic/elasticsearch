@@ -101,3 +101,4 @@ public class StoredAsyncResponse<R extends Writeable> extends ActionResponse
         return null;
     }
 }
+

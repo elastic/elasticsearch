@@ -32,3 +32,4 @@ public abstract class CaseSensitiveScalarFunction extends ConfigurationFunction 
         return super.equals(other) && Objects.equals(((CaseSensitiveScalarFunction) other).isCaseSensitive(), isCaseSensitive());
     }
 }
+

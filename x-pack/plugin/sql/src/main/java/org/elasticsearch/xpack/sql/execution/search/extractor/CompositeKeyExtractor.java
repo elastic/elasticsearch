@@ -114,11 +114,11 @@ public class CompositeKeyExtractor implements BucketExtractor {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         CompositeKeyExtractor other = (CompositeKeyExtractor) obj;
         return Objects.equals(key, other.key)
                 && Objects.equals(property, other.property)
@@ -131,3 +131,4 @@ public class CompositeKeyExtractor implements BucketExtractor {
         return "|" + key + "|";
     }
 }
+

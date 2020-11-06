@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.jdbc;
 import java.sql.SQLException;
 
 class JdbcSQLException extends SQLException {
-    
+
     JdbcSQLException(String message) {
         super(message);
     }
@@ -17,3 +17,4 @@ class JdbcSQLException extends SQLException {
         super(message, cause);
     }
 }
+

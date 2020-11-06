@@ -44,7 +44,7 @@ public class LengthFunctionPipeTests extends AbstractNodeTestCase<LengthFunction
             b1.input());
 
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+
         LengthFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new LengthFunctionPipe(
@@ -59,10 +59,10 @@ public class LengthFunctionPipeTests extends AbstractNodeTestCase<LengthFunction
     public void testReplaceChildren() {
         LengthFunctionPipe b = randomInstance();
         Pipe newInput = randomValueOtherThan(b.input(), () -> pipe(randomStringLiteral()));
-        
+
         LengthFunctionPipe newB = new LengthFunctionPipe(b.source(), b.expression(), b.input());
         LengthFunctionPipe transformed = newB.replaceChildren(newInput);
-        
+
         assertEquals(transformed.input(), newInput);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
@@ -80,3 +80,4 @@ public class LengthFunctionPipeTests extends AbstractNodeTestCase<LengthFunction
         return new LengthFunctionPipe(instance.source(), instance.expression(), instance.input());
     }
 }
+

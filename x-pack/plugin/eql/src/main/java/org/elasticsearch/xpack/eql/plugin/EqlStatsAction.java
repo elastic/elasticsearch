@@ -17,3 +17,4 @@ public class EqlStatsAction extends ActionType<EqlStatsResponse> {
         super(NAME, EqlStatsResponse::new);
     }
 }
+

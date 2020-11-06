@@ -68,3 +68,4 @@ public class Mul extends SqlArithmeticOperation {
         return new Mul(source(), newLeft, newRight);
     }
 }
+

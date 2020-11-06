@@ -87,3 +87,4 @@ public abstract class Function extends Expression {
 
     public abstract ScriptTemplate asScript();
 }
+

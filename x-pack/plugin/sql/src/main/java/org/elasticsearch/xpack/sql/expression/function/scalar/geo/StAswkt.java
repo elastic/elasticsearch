@@ -44,3 +44,4 @@ public class StAswkt extends UnaryGeoFunction {
     }
 
 }
+

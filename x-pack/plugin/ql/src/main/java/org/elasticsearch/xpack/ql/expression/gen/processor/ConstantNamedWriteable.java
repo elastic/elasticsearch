@@ -14,3 +14,4 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 public interface ConstantNamedWriteable extends NamedWriteable {
 
 }
+

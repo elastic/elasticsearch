@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 public class Length extends ScalarFunction {
 
     private final Expression input;
-    
+
     public Length(Source source, Expression input) {
         super(source, Arrays.asList(input));
         this.input = input;
@@ -46,7 +46,7 @@ public class Length extends ScalarFunction {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-        
+
         return isStringAndExact(input, sourceText(), ParamOrdinal.DEFAULT);
     }
 
@@ -104,3 +104,4 @@ public class Length extends ScalarFunction {
     }
 
 }
+

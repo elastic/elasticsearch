@@ -711,7 +711,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
                 .filter(SqlDataTypes::isInterval)
                 .collect(toList()));
     }
-    
+
     static ZonedDateTime dateTime(long millisSinceEpoch) {
         return DateUtils.asDateTime(millisSinceEpoch);
     }
@@ -724,3 +724,4 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         return DateUtils.asTimeOnly(millisSinceEpoch);
     }
 }
+

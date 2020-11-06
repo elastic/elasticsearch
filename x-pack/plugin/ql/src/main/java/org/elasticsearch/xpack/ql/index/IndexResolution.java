@@ -75,3 +75,4 @@ public final class IndexResolution {
         return invalid != null ? invalid : index.name();
     }
 }
+

@@ -24,7 +24,7 @@ import java.util.List;
  */
 public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsRequest, SqlStatsResponse,
         SqlStatsRequest.NodeStatsRequest, SqlStatsResponse.NodeStatsResponse> {
-    
+
     // the plan executor holds the metrics
     private final PlanExecutor planExecutor;
 
@@ -57,7 +57,8 @@ public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsReques
     protected SqlStatsResponse.NodeStatsResponse nodeOperation(SqlStatsRequest.NodeStatsRequest request, Task task) {
         SqlStatsResponse.NodeStatsResponse statsResponse = new SqlStatsResponse.NodeStatsResponse(clusterService.localNode());
         statsResponse.setStats(planExecutor.metrics().stats());
-        
+
         return statsResponse;
     }
 }
+

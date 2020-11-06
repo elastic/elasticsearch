@@ -49,3 +49,4 @@ public class LimitTests extends ESTestCase {
         assertEquals(asList(3, 4, 5, 6, 7), new Limit(5, 6).view(list));
     }
 }
+

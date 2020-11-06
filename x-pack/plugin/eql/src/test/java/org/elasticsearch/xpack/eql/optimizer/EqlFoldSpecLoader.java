@@ -56,3 +56,4 @@ public class EqlFoldSpecLoader {
         return testSpecs;
     }
 }
+

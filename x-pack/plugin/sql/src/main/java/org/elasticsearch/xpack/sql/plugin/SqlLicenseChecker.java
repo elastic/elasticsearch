@@ -27,3 +27,4 @@ public class SqlLicenseChecker {
         checkIfSqlAllowed.accept(mode);
     }
 }
+

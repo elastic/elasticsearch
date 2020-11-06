@@ -67,3 +67,4 @@ public class StWkttosql extends UnaryScalarFunction {
     }
 
 }
+

@@ -69,3 +69,4 @@ public class UnplannedExec extends LeafExec implements Unexecutable {
         return nodeName() + "[" + plan.nodeString() + "]";
     }
 }
+

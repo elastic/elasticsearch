@@ -367,3 +367,4 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         }
     }
 }
+

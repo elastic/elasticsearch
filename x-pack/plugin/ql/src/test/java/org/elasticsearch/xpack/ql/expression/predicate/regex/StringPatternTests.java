@@ -84,3 +84,4 @@ public class StringPatternTests extends ESTestCase {
         assertTrue(exactMatch("12345"));
     }
 }
+

@@ -43,3 +43,4 @@ abstract class UnresolvedNamedExpression extends NamedExpression implements Unre
         throw new UnresolvedException("attribute", this);
     }
 }
+

@@ -9,3 +9,4 @@
  * and integration tests shared between multiple qa projects.
  */
 package org.elasticsearch.xpack.sql.qa.cli;
+

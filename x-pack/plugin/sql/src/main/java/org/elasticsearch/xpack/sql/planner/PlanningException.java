@@ -25,3 +25,4 @@ public class PlanningException extends SqlClientException {
         return RestStatus.BAD_REQUEST;
     }
 }
+

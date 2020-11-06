@@ -33,3 +33,4 @@ public interface DataTypeRegistry {
 
     DataType commonType(DataType left, DataType right);
 }
+

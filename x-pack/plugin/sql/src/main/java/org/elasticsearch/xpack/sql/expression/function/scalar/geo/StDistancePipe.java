@@ -33,7 +33,7 @@ public class StDistancePipe extends BinaryPipe {
     public StDistanceProcessor asProcessor() {
         return new StDistanceProcessor(left().asProcessor(), right().asProcessor());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(left(), right());
@@ -54,3 +54,4 @@ public class StDistancePipe extends BinaryPipe {
                 && Objects.equals(right(), other.right());
     }
 }
+

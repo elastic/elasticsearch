@@ -100,3 +100,4 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
         assertEquals(310, new DatePart(Source.EMPTY, l("tzoffset"), dateTime, zoneId).makePipe().asProcessor().process(null));
     }
 }
+

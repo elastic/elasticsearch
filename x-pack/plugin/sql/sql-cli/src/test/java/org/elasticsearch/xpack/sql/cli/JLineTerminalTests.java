@@ -109,3 +109,4 @@ public class JLineTerminalTests extends ESTestCase {
         }
     }
 }
+

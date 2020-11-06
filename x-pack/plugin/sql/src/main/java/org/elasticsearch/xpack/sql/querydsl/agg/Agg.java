@@ -57,3 +57,4 @@ public abstract class Agg {
         return format(Locale.ROOT, "%s(%s)", getClass().getSimpleName(), source.toString());
     }
 }
+

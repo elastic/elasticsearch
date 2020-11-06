@@ -23,3 +23,4 @@ public class ScoreExtractorTests extends ESTestCase {
         assertEquals("SCORE", ScoreExtractor.INSTANCE.toString());
     }
 }
+

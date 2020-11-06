@@ -23,7 +23,7 @@ public class LengthFunctionProcessorTests extends ESTestCase {
         assertEquals(0, new Length(EMPTY, l("")).makePipe().asProcessor().process(null));
         assertEquals(1, new Length(EMPTY, l('f')).makePipe().asProcessor().process(null));
     }
-    
+
     public void testLengthFunctionInputsValidation() {
         QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
                 () -> new Length(EMPTY, l(5)).makePipe().asProcessor().process(null));
@@ -39,3 +39,4 @@ public class LengthFunctionProcessorTests extends ESTestCase {
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
     }
 }
+

@@ -55,3 +55,4 @@ class Agg extends Param<AggregateFunction> {
         return "a";
     }
 }
+

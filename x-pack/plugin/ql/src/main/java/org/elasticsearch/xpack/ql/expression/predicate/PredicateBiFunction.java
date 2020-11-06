@@ -30,3 +30,4 @@ public interface PredicateBiFunction<T, U, R> extends BiFunction<T, U, R> {
         return name().toLowerCase(Locale.ROOT);
     }
 }
+

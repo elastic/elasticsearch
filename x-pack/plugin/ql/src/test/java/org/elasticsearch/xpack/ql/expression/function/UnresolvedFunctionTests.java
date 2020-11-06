@@ -120,3 +120,4 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
                 uf.replaceChildren(newChildren));
     }
 }
+

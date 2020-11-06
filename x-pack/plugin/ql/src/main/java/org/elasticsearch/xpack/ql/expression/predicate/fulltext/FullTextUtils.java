@@ -52,10 +52,10 @@ abstract class FullTextUtils {
             return emptyMap();
         }
         Set<String> fieldNames = Strings.commaDelimitedListToSet(fieldString);
-        
+
         Float defaultBoost = Float.valueOf(1.0f);
         Map<String, Float> fields = new LinkedHashMap<>();
-        
+
         for (String fieldName : fieldNames) {
             if (fieldName.contains("^")) {
                 String[] split = splitInTwo(fieldName, "^");
@@ -77,7 +77,7 @@ abstract class FullTextUtils {
 
         return fields;
     }
-    
+
     private static String[] splitInTwo(String string, String delimiter) {
         String[] split = Strings.split(string, delimiter);
         if (split == null || split.length != 2) {
@@ -91,3 +91,4 @@ abstract class FullTextUtils {
         return value != null ? Operator.valueOf(value.toUpperCase(Locale.ROOT)) : null;
     }
 }
+

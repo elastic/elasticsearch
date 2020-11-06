@@ -39,3 +39,4 @@ public class SqlPainlessExtension implements PainlessExtension {
         return whitelist;
     }
 }
+

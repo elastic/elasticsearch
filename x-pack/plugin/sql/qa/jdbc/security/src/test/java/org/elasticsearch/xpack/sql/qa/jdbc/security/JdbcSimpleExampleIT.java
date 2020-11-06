@@ -29,3 +29,4 @@ public class JdbcSimpleExampleIT extends SimpleExampleTestCase {
         return properties;
     }
 }
+

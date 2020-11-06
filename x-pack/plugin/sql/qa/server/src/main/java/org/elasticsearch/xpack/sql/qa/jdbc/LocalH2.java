@@ -82,3 +82,4 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
         return DriverManager.getConnection(url, DEFAULTS);
     }
 }
+

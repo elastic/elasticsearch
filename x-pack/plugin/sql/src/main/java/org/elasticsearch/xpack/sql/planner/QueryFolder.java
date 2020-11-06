@@ -879,3 +879,4 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         protected abstract PhysicalPlan rule(SubPlan plan);
     }
 }
+

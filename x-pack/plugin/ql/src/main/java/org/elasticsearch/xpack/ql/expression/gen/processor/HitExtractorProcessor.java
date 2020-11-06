@@ -74,3 +74,4 @@ public class HitExtractorProcessor implements Processor {
         return extractor.toString();
     }
 }
+

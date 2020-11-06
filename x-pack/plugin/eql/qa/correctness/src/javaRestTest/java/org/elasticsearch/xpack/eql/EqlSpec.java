@@ -100,3 +100,4 @@ public class EqlSpec {
         return Objects.hash(queryNo);
     }
 }
+

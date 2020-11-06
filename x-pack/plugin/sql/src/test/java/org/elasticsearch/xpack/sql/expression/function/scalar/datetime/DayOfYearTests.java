@@ -31,3 +31,4 @@ public class DayOfYearTests extends ESTestCase {
         return new DayOfYear(Source.EMPTY, new Literal(Source.EMPTY, value, DataTypes.DATETIME), zoneId);
     }
 }
+

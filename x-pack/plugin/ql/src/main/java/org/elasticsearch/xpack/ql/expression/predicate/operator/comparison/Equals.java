@@ -43,3 +43,4 @@ public class Equals extends BinaryComparison implements Negatable<BinaryComparis
         return new NotEquals(source(), left(), right(), zoneId());
     }
 }
+

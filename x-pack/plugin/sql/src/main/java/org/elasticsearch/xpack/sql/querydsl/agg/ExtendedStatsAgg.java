@@ -21,3 +21,4 @@ public class ExtendedStatsAgg extends DefaultAggSourceLeafAgg {
         return AggregationBuilders::extendedStats;
     }
 }
+

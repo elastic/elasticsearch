@@ -175,3 +175,4 @@ public class StringUtilsTests extends ESTestCase {
         assertTrue(stringContains(string, substring, false));
     }
 }
+

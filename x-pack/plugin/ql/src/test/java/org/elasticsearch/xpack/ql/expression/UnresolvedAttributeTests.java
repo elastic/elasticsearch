@@ -103,3 +103,4 @@ public class UnresolvedAttributeTests extends AbstractNodeTestCase<UnresolvedAtt
         // UnresolvedAttribute doesn't have any children
     }
 }
+

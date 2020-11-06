@@ -18,3 +18,4 @@ import java.lang.annotation.Target;
 public @interface SuppressForbidden {
     String reason();
 }
+

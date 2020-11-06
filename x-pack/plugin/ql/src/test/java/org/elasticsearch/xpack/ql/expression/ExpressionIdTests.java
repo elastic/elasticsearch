@@ -19,3 +19,4 @@ public class ExpressionIdTests extends ESTestCase {
         assertNotEquals(new NameId(), new NameId());
     }
 }
+

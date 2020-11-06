@@ -41,3 +41,4 @@ public class Trim extends UnaryStringFunction {
         return DataTypes.KEYWORD;
     }
 }
+

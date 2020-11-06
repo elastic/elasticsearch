@@ -29,3 +29,4 @@ public class AggNameInput extends CommonNonExecutableInput<String> {
         return false;
     }
 }
+

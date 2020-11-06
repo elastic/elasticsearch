@@ -45,3 +45,4 @@ public class Coalesce extends ArbitraryConditionalFunction {
         return children.isEmpty() ? null : children.get(0).fold();
     }
 }
+

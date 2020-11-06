@@ -34,3 +34,4 @@ public class NullIfPipe extends BinaryPipe {
         return new NullIfProcessor(left().asProcessor(), right().asProcessor());
     }
 }
+

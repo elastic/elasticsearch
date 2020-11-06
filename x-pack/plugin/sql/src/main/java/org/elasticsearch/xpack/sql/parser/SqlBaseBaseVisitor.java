@@ -733,3 +733,4 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    */
   @Override public T visitNonReserved(SqlBaseParser.NonReservedContext ctx) { return visitChildren(ctx); }
 }
+

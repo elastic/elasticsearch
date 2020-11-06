@@ -188,3 +188,4 @@ public class MetricAggExtractor implements BucketExtractor {
         return Aggs.ROOT_GROUP_NAME + ">" + name + "." + property + i;
     }
 }
+

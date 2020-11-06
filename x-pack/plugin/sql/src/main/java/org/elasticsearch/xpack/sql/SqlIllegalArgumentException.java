@@ -32,3 +32,4 @@ public class SqlIllegalArgumentException extends QlIllegalArgumentException {
         super(cause);
     }
 }
+

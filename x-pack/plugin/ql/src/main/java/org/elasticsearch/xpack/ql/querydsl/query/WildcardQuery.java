@@ -74,3 +74,4 @@ public class WildcardQuery extends LeafQuery {
         return field + ":" + query;
     }
 }
+

@@ -472,3 +472,4 @@ public final class ExpressionTranslators {
         return new BoolQuery(source, isAnd, left, right);
     }
 }
+

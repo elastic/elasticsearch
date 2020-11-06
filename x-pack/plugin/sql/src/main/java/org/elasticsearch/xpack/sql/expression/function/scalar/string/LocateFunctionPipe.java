@@ -79,15 +79,15 @@ public class LocateFunctionPipe extends Pipe {
     public LocateFunctionProcessor asProcessor() {
         return new LocateFunctionProcessor(pattern.asProcessor(), input.asProcessor(), start == null ? null : start.asProcessor());
     }
-    
+
     public Pipe input() {
         return input;
     }
-    
+
     public Pipe start() {
         return start;
     }
-    
+
     public Pipe pattern() {
         return pattern;
     }
@@ -111,3 +111,4 @@ public class LocateFunctionPipe extends Pipe {
         return Objects.equals(pattern, other.pattern) && Objects.equals(input, other.input) && Objects.equals(start, other.start);
     }
 }
+

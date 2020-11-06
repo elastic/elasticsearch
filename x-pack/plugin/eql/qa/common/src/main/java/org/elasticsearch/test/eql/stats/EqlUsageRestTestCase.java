@@ -372,3 +372,4 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         return highLevelClient;
     }
 }
+

@@ -17,3 +17,4 @@ public class AndAggFilter extends AggFilter {
         super(name, Scripts.and(left.scriptTemplate(), right.scriptTemplate()));
     }
 }
+

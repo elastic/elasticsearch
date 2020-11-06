@@ -46,3 +46,4 @@ public class Avg extends NumericAggregate implements EnclosedAgg {
         return DataTypes.DOUBLE;
     }
 }
+

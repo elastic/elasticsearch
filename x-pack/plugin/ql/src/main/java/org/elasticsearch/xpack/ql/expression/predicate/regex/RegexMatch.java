@@ -91,3 +91,4 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
         return Objects.hash(super.hashCode(), pattern());
     }
 }
+

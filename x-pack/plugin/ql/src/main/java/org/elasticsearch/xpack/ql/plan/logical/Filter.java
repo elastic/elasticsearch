@@ -64,3 +64,4 @@ public class Filter extends UnaryPlan {
                 && Objects.equals(child(), other.child());
     }
 }
+

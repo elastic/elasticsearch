@@ -50,3 +50,4 @@ class SchemaDelegatingRowSet implements SchemaRowSet {
         return delegate.column(index);
     }
 }
+

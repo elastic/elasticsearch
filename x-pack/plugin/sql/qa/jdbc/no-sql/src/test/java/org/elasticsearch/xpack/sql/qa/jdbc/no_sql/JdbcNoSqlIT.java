@@ -9,3 +9,4 @@ package org.elasticsearch.xpack.sql.qa.jdbc.no_sql;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcNoSqlTestCase;
 
 public class JdbcNoSqlIT extends JdbcNoSqlTestCase {}
+

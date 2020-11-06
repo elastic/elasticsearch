@@ -108,3 +108,4 @@ public class StringContainsFunctionPipe extends Pipe {
                 && Objects.equals(substring(), other.substring());
     }
 }
+

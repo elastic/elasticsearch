@@ -16,3 +16,4 @@ public final class RequestDefaults {
     public static int SIZE = 10;
     public static int FETCH_SIZE = 1000;
 }
+

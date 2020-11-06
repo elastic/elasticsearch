@@ -46,3 +46,4 @@ public final class Location {
             && charPositionInLine == other.charPositionInLine;
     }
 }
+

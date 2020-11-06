@@ -36,3 +36,4 @@ public class ConstantProcessorTests extends AbstractWireSerializingTestCase<Cons
         assertEquals("test", proc.process("cat"));
     }
 }
+

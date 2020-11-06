@@ -152,3 +152,4 @@ public class InternalQlScriptUtils {
         return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern, isCaseSensitive);
     }
 }
+

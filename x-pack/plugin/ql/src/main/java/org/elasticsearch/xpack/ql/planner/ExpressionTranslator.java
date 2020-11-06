@@ -33,3 +33,4 @@ public abstract class ExpressionTranslator<E extends Expression> {
         return query;
     }
 }
+

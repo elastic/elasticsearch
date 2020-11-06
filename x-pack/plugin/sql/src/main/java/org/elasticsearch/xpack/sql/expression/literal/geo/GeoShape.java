@@ -228,3 +228,4 @@ public class GeoShape implements ToXContentFragment, ConstantNamedWriteable {
         }
     }
 }
+

@@ -114,3 +114,4 @@ public class ToNumber extends ScalarFunction implements OptionalArgument {
         return new ToNumber(source(), newChildren.get(0), newChildren.get(1));
     }
 }
+

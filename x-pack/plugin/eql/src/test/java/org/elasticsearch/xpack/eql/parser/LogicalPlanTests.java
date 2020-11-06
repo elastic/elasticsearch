@@ -106,7 +106,7 @@ public class LogicalPlanTests extends ESTestCase {
         assertEquals(UnresolvedAttribute.class, key.getClass());
         assertEquals("pid", ((UnresolvedAttribute) key).name());
     }
-    
+
     public void testSequencePlan() {
         LogicalPlan plan = parser.createStatement(
                 "sequence by pid with maxspan=2s " +
@@ -192,3 +192,4 @@ public class LogicalPlanTests extends ESTestCase {
         return ((OrderBy) plan).child();
     }
 }
+

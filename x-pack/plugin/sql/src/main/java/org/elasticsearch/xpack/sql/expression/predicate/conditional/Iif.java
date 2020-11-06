@@ -63,3 +63,4 @@ public class Iif extends Case implements OptionalArgument {
         return TypeResolution.TYPE_RESOLVED;
     }
 }
+

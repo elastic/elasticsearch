@@ -32,3 +32,4 @@ public abstract class BinaryStringStringFunction extends BinaryStringFunction<St
         return DataTypes.INTEGER;
     }
 }
+

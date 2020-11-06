@@ -110,3 +110,4 @@ public class Cast extends UnaryScalarFunction {
             && Objects.equals(field(), other.field());
     }
 }
+

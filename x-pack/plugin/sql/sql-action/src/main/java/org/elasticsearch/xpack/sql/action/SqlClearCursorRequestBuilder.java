@@ -20,3 +20,4 @@ public class SqlClearCursorRequestBuilder extends
         return this;
     }
 }
+

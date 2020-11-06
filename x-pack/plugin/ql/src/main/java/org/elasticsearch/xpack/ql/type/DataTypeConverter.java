@@ -391,7 +391,7 @@ public final class DataTypeConverter {
     public enum DefaultConverter implements Converter {
         IDENTITY(Function.identity()),
         TO_NULL(value -> null),
-        
+
         DATETIME_TO_STRING(o -> DateUtils.toString((ZonedDateTime) o)),
         OTHER_TO_STRING(String::valueOf),
 
@@ -464,7 +464,7 @@ public final class DataTypeConverter {
         private static Function<Object, Object> fromLong(LongFunction<Object> converter) {
             return (Object l) -> converter.apply(((Number) l).longValue());
         }
-        
+
         private static Function<Object, Object> fromString(Function<String, Object> converter, String to) {
             return (Object value) -> {
                 try {
@@ -520,3 +520,4 @@ public final class DataTypeConverter {
         return dataType.isInteger() ? dataType : LONG;
     }
 }
+

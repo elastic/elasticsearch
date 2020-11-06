@@ -75,3 +75,4 @@ public class PostOptimizerVerifierTests extends ESTestCase {
                 error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(ROUND(SUM_OF_SQUARES(int)) FOR keyword IN ('bla'))"));
     }
 }
+

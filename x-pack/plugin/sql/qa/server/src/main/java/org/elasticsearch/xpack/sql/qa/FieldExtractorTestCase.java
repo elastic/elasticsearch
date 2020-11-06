@@ -951,3 +951,4 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         }
     }
 }
+

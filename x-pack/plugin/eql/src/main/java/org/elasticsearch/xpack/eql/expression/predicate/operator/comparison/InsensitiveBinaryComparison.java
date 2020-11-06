@@ -66,3 +66,4 @@ public abstract class InsensitiveBinaryComparison extends BinaryOperator<Object,
         return new InsensitiveBinaryComparisonPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
     }
 }
+

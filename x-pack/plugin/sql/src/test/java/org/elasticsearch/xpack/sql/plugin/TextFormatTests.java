@@ -192,3 +192,4 @@ public class TextFormatTests extends ESTestCase {
         return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(singletonMap(paramName, paramVal)).build();
     }
 }
+

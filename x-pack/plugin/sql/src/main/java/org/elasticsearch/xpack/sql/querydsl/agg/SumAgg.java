@@ -21,3 +21,4 @@ public class SumAgg extends DefaultAggSourceLeafAgg {
         return AggregationBuilders::sum;
     }
 }
+

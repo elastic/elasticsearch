@@ -66,3 +66,4 @@ public class NamedExpressionTests extends ESTestCase {
         return TestUtils.of(EMPTY, value);
     }
 }
+

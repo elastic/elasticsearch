@@ -30,3 +30,4 @@ abstract class LeafQuery extends Query {
         // No leaf queries are nested
     }
 }
+

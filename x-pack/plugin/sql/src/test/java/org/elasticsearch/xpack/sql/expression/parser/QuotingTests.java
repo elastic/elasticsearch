@@ -105,3 +105,4 @@ public class QuotingTests extends ESTestCase {
         assertThat(plans.get(1), instanceOf(OrderBy.class));
     }
 }
+

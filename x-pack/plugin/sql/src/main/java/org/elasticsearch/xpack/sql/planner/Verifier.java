@@ -65,3 +65,4 @@ abstract class Verifier {
         return failures;
     }
 }
+

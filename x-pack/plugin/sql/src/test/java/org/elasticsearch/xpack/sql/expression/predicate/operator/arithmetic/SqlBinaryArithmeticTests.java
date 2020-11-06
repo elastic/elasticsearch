@@ -228,14 +228,14 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
         Period p = interval.interval();
         assertEquals(Period.ofYears(2).negated(), p);
     }
-    
+
     public void testMulNullInterval() {
         Literal literal = interval(Period.ofMonths(1), INTERVAL_MONTH);
         Mul result = new Mul(EMPTY, L(null), literal);
         assertTrue(result.foldable());
         assertNull(result.fold());
         assertEquals(INTERVAL_MONTH, result.dataType());
-        
+
         result = new Mul(EMPTY, literal, L(null));
         assertTrue(result.foldable());
         assertNull(result.fold());
@@ -248,7 +248,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
         assertTrue(result.foldable());
         assertNull(result.fold());
         assertEquals(INTERVAL_MONTH, result.dataType());
-        
+
         result = new Add(EMPTY, literal, L(null));
         assertTrue(result.foldable());
         assertNull(result.fold());
@@ -261,7 +261,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
         assertTrue(result.foldable());
         assertNull(result.fold());
         assertEquals(INTERVAL_MONTH, result.dataType());
-        
+
         result = new Sub(EMPTY, literal, L(null));
         assertTrue(result.foldable());
         assertNull(result.fold());
@@ -299,3 +299,4 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
         return new Literal(EMPTY, i, SqlDataTypes.fromJava(i));
     }
 }
+

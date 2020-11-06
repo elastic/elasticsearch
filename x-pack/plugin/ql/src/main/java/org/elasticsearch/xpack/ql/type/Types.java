@@ -119,7 +119,7 @@ public abstract class Types {
     private static int intSetting(Object value, int defaultValue) {
         return value == null ? defaultValue : Integer.parseInt(value.toString());
     }
-    
+
     private static void propagateUnsupportedType(String inherited, String originalType, Map<String, EsField> properties) {
         if (properties != null && properties.isEmpty() == false) {
             for (Entry<String, EsField> entry : properties.entrySet()) {
@@ -137,3 +137,4 @@ public abstract class Types {
         }
     }
 }
+

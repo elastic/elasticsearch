@@ -71,3 +71,4 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
         }
     }
 }
+

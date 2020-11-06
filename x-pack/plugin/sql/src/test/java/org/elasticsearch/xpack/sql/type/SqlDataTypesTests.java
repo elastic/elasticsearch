@@ -170,3 +170,4 @@ public class SqlDataTypesTests extends ESTestCase {
         return randomValueOtherThanMany(SqlDataTypes::isDateOrTimeBased, () -> randomFrom(SqlDataTypes.types()));
     }
 }
+

@@ -26,3 +26,4 @@ public class AttributeInputTests extends ESTestCase {
         }));
     }
 }
+

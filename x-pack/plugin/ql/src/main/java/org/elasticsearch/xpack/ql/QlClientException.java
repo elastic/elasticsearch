@@ -31,3 +31,4 @@ public abstract class QlClientException extends QlException {
         super(cause);
     }
 }
+

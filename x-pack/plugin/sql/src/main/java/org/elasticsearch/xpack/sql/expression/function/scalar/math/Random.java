@@ -34,3 +34,4 @@ public class Random extends MathFunction {
         return MathOperation.RANDOM;
     }
 }
+

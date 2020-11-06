@@ -117,3 +117,4 @@ public class BetweenFunctionProcessor implements Processor {
                 && Objects.equals(caseSensitive(), other.caseSensitive());
     }
 }
+

@@ -54,3 +54,4 @@ public class MatchQueryPredicate extends FullTextPredicate {
         return false;
     }
 }
+

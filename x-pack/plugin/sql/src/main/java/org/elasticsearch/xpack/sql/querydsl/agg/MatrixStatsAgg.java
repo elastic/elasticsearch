@@ -25,3 +25,4 @@ public class MatrixStatsAgg extends LeafAgg {
         return matrixStats(id()).fields(fields);
     }
 }
+

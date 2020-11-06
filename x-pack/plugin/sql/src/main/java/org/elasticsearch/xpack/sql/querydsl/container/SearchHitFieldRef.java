@@ -27,7 +27,7 @@ public class SearchHitFieldRef extends FieldReference {
         this.dataType = dataType;
         // these field types can only be extracted from docvalue_fields (ie, values already computed by Elasticsearch)
         // because, for us to be able to extract them from _source, we would need the mapping of those fields (which we don't have)
-        this.docValue = isAlias ? useDocValueInsteadOfSource : 
+        this.docValue = isAlias ? useDocValueInsteadOfSource :
             (SqlDataTypes.isFromDocValuesOnly(dataType) ? useDocValueInsteadOfSource : false);
         this.hitName = hitName;
     }
@@ -40,7 +40,7 @@ public class SearchHitFieldRef extends FieldReference {
     public String name() {
         return name;
     }
-    
+
     public String fullFieldName() {
         return fullFieldName;
     }
@@ -71,3 +71,4 @@ public class SearchHitFieldRef extends FieldReference {
         return name;
     }
 }
+

@@ -375,3 +375,4 @@ enum TextFormat implements MediaType {
         return value;
     }
 }
+

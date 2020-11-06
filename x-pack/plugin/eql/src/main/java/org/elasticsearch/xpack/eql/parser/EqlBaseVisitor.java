@@ -294,3 +294,4 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitEventValue(EqlBaseParser.EventValueContext ctx);
 }
+

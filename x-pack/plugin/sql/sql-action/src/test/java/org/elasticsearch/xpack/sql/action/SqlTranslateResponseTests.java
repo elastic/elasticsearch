@@ -48,3 +48,4 @@ public class SqlTranslateResponseTests extends AbstractWireSerializingTestCase<S
         return new SqlTranslateResponse(source);
     }
 }
+

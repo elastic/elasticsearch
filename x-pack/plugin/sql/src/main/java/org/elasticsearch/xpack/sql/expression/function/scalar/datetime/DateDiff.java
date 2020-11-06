@@ -217,3 +217,4 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
         return Part.VALID_VALUES;
     }
 }
+

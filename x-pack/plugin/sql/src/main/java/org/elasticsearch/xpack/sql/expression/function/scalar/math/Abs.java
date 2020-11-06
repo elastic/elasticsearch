@@ -40,3 +40,4 @@ public class Abs extends MathFunction {
         return field().dataType();
     }
 }
+

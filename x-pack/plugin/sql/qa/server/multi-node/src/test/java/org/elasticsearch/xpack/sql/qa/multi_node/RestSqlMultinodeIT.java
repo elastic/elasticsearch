@@ -121,3 +121,4 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         }
     }
 }
+

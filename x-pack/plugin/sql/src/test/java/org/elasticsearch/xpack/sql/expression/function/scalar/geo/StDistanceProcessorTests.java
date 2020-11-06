@@ -71,3 +71,4 @@ public class StDistanceProcessorTests extends AbstractWireSerializingTestCase<St
         return StDistanceProcessor::new;
     }
 }
+

@@ -347,3 +347,4 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
 }
+

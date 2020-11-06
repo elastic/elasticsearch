@@ -16,3 +16,4 @@ public class EqlAsyncGetResultAction extends ActionType<EqlSearchResponse> {
         super(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME, EqlSearchResponse::new);
     }
 }
+

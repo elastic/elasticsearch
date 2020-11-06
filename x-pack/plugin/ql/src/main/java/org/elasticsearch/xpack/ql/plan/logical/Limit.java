@@ -59,3 +59,4 @@ public class Limit extends UnaryPlan {
                 && Objects.equals(child(), other.child());
     }
 }
+

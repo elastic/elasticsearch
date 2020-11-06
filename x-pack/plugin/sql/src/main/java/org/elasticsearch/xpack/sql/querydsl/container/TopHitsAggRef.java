@@ -36,3 +36,4 @@ public class TopHitsAggRef extends AggRef {
         return ">" + name + "[" + fieldDataType.typeName() + "]";
     }
 }
+

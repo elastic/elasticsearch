@@ -31,3 +31,4 @@ public abstract class MultiPipe extends Pipe {
 
     public abstract Processor asProcessor(List<Processor> procs);
 }
+

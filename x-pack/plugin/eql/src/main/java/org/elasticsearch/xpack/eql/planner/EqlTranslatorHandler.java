@@ -17,3 +17,4 @@ public class EqlTranslatorHandler extends QlTranslatorHandler {
         return QueryTranslator.toQuery(e, this);
     }
 }
+

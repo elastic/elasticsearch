@@ -35,3 +35,4 @@ public class VarSamp extends NumericAggregate implements ExtendedStatsEnclosed {
         return NodeInfo.create(this, VarSamp::new, field());
     }
 }
+

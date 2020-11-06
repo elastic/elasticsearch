@@ -25,3 +25,4 @@ public abstract class ConfigurationFunction extends ScalarFunction {
         return configuration;
     }
 }
+

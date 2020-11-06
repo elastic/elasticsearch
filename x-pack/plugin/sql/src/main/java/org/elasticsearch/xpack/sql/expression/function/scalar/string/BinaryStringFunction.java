@@ -87,3 +87,4 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
             && Objects.equals(other.right(), right());
     }
 }
+

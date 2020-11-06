@@ -90,3 +90,4 @@ public class TomlFoldTests extends ESTestCase {
         assertEquals(spec.expected(), folded);
     }
 }
+

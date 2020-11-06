@@ -35,3 +35,4 @@ abstract class CommonNonExecutableInput<T> extends NonExecutableInput<T> {
         // Nothing to extract
     }
 }
+

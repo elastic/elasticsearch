@@ -74,3 +74,4 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
         return Double.toString(doubleValue);
     }
 }
+

@@ -21,9 +21,10 @@ public class Database extends SqlConfigurationFunction {
     public Object fold() {
         return configuration().clusterName();
     }
-    
+
     @Override
     protected NodeInfo<Database> info() {
         return NodeInfo.create(this, Database::new, configuration());
     }
 }
+

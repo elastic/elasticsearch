@@ -28,3 +28,4 @@ public interface TranslatorHandler {
 
     Object convert(Object value, DataType dataType);
 }
+

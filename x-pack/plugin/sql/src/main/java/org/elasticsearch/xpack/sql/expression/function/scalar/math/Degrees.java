@@ -34,3 +34,4 @@ public class Degrees extends MathFunction {
         return MathOperation.DEGREES;
     }
 }
+

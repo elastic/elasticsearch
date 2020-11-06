@@ -62,3 +62,4 @@ public class ScoreExtractor implements HitExtractor {
         return "SCORE";
     }
 }
+

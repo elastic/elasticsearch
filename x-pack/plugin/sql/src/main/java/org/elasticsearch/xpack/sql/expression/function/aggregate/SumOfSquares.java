@@ -35,3 +35,4 @@ public class SumOfSquares extends NumericAggregate implements ExtendedStatsEnclo
         return "sum_of_squares";
     }
 }
+

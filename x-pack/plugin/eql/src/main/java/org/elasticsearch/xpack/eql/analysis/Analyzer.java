@@ -123,3 +123,4 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 }
+

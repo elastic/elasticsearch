@@ -15,3 +15,4 @@ public interface BucketExtractor extends NamedWriteable {
 
     Object extract(Bucket bucket);
 }
+

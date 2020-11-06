@@ -215,7 +215,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                     || dataType == DATETIME
                     || dataType == SCALED_FLOAT; // because of scaling_factor
     }
-    
+
     private static NumberType numberType(DataType dataType) {
         return NumberType.valueOf(dataType.esType().toUpperCase(Locale.ROOT));
     }
@@ -340,3 +340,4 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return Objects.hash(fieldName, useDocValue, hitName, arrayLeniency);
     }
 }
+

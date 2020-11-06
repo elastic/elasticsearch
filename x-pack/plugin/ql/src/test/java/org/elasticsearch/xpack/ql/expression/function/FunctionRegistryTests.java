@@ -162,21 +162,21 @@ public class FunctionRegistryTests extends ESTestCase {
                     .buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
     }
-    
+
     public void testAliasNameIsTheSameAsAFunctionName() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
         QlIllegalArgumentException iae = expectThrows(QlIllegalArgumentException.class, () ->
                 r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "DUMMY_FUNCTION")));
         assertEquals("alias [DUMMY_FUNCTION] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
-    
+
     public void testDuplicateAliasInTwoDifferentFunctionsFromTheSameBatch() {
         QlIllegalArgumentException iae = expectThrows(QlIllegalArgumentException.class, () ->
                 new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"),
                         def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")));
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION(ALIAS)] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
-    
+
     public void testDuplicateAliasInTwoDifferentFunctionsFromTwoDifferentBatches() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
         QlIllegalArgumentException iae = expectThrows(QlIllegalArgumentException.class, () ->
@@ -229,7 +229,7 @@ public class FunctionRegistryTests extends ESTestCase {
     private UnresolvedFunction uf(UnresolvedFunction.ResolutionType resolutionType, Expression... children) {
         return new UnresolvedFunction(SourceTests.randomSource(), "DUMMY_FUNCTION", resolutionType, Arrays.asList(children));
     }
-    
+
     public static class DummyFunction extends ScalarFunction {
         public DummyFunction(Source source) {
             super(source, emptyList());
@@ -260,10 +260,11 @@ public class FunctionRegistryTests extends ESTestCase {
             return null;
         }
     }
-    
+
     public static class DummyFunction2 extends DummyFunction {
         public DummyFunction2(Source source) {
             super(source);
         }
     }
 }
+

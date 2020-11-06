@@ -58,3 +58,4 @@ public class StringContainsFunctionProcessorTests extends ESTestCase {
     }
 
 }
+

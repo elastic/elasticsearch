@@ -81,3 +81,4 @@ public class LocateProcessorTests extends AbstractWireSerializingTestCase<Locate
         assertEquals("[start] out of the allowed range [-2147483647, 2147483647], received [2147483648]", siae.getMessage());
     }
 }
+

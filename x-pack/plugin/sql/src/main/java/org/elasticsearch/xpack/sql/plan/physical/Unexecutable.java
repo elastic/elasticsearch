@@ -20,3 +20,4 @@ public interface Unexecutable extends Executable {
         throw new PlanningException("Current plan {} is not executable", this);
     }
 }
+

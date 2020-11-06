@@ -82,3 +82,4 @@ public abstract class NamedExpression extends Expression {
         return name();
     }
 }
+

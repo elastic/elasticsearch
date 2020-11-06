@@ -40,3 +40,4 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
         assertEquals(singletonList(SortBuilders.fieldSort("count").missing("_last").unmappedType("long")), source.sorts());
     }
 }
+

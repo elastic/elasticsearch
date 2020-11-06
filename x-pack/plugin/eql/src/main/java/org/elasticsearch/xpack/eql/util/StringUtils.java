@@ -27,3 +27,4 @@ public final class StringUtils {
         return new LikePattern(likeString, escape);
     }
 }
+

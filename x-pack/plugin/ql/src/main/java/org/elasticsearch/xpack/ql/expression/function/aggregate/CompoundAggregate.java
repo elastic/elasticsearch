@@ -19,3 +19,4 @@ public interface CompoundAggregate {
 
     List<Expression> arguments();
 }
+

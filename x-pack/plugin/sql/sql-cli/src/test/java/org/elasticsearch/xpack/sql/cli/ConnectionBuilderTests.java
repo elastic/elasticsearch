@@ -132,9 +132,10 @@ public class ConnectionBuilderTests extends ESTestCase {
             buildConnection(connectionBuilder, "https://user@foobar:9242/", "keystore_location"));
         assertSame(actual, ue);
     }
-    
+
     private ConnectionConfiguration buildConnection(ConnectionBuilder builder, String connectionStringArg,
                                                     String keystoreLocation) throws UserException {
         return builder.buildConnection(connectionStringArg, keystoreLocation, randomBoolean());
     }
 }
+

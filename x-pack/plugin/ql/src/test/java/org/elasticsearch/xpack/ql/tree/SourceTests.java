@@ -37,3 +37,4 @@ public class SourceTests extends ESTestCase {
             SourceTests::mutate);
     }
 }
+

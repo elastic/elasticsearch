@@ -100,3 +100,4 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
             totalHits, 0.0f);
     }
 }
+

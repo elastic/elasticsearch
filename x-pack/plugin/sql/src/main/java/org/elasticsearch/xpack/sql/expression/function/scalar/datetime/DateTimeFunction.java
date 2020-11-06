@@ -38,7 +38,7 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
     protected static Integer dateTimeChrono(Temporal dateTime, ChronoField field) {
         return Integer.valueOf(dateTime.get(field));
     }
-    
+
     @Override
     public ScriptTemplate asScript() {
         ParamsBuilder params = paramsBuilder();
@@ -48,7 +48,7 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
         params.script(script.params())
               .variable(zoneId().getId())
               .variable(extractor.chronoField().name());
-        
+
         return new ScriptTemplate(template, params.build(), dataType());
     }
 
@@ -69,3 +69,4 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
         return extractor;
     }
 }
+

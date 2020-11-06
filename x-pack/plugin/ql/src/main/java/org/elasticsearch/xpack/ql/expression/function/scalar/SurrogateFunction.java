@@ -10,3 +10,4 @@ public interface SurrogateFunction {
 
     ScalarFunction substitute();
 }
+

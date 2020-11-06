@@ -129,3 +129,4 @@ public class DateTruncPipeTests extends AbstractNodeTestCase<DateTruncPipe, Pipe
             instance.zoneId());
     }
 }
+

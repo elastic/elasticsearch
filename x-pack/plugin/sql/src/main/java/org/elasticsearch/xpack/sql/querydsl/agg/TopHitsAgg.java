@@ -115,3 +115,4 @@ public class TopHitsAgg extends LeafAgg {
                 Objects.equals(sortFieldDataType, that.sortFieldDataType);
     }
 }
+

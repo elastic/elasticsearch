@@ -73,3 +73,4 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
         return Double.toString(value);
     }
 }
+

@@ -58,3 +58,4 @@ abstract class BinaryExec extends PhysicalPlan {
                 && Objects.equals(right, other.right);
     }
 }
+

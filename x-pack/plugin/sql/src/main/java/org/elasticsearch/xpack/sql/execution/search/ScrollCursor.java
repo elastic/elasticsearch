@@ -110,7 +110,7 @@ public class ScrollCursor implements Cursor {
                         clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
                         listener::onFailure));
     }
-    
+
     static void handle(SearchResponse response, Supplier<SearchHitRowSet> makeRowHit, Consumer<Page> onPage, Consumer<Page> clearScroll,
             Schema schema) {
         if (log.isTraceEnabled()) {
@@ -163,3 +163,4 @@ public class ScrollCursor implements Cursor {
         client.clearScroll(clearScrollRequest, listener);
     }
 }
+

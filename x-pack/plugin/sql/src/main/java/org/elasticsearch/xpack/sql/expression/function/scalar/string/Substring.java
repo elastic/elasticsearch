@@ -65,7 +65,7 @@ public class Substring extends ScalarFunction {
     protected Pipe makePipe() {
         return new SubstringFunctionPipe(source(), this, Expressions.pipe(input), Expressions.pipe(start), Expressions.pipe(length));
     }
-    
+
     @Override
     public boolean foldable() {
         return input.foldable() && start.foldable() && length.foldable();
@@ -103,7 +103,7 @@ public class Substring extends ScalarFunction {
                     .script(lengthScript.params())
                     .build(), dataType());
     }
-    
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),
@@ -125,3 +125,4 @@ public class Substring extends ScalarFunction {
         return new Substring(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }
+

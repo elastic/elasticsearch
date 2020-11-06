@@ -91,3 +91,4 @@ public class InsensitiveBinaryComparisonProcessorTests extends AbstractWireSeria
         return ibc.makePipe().asProcessor().process(null);
     }
 }
+

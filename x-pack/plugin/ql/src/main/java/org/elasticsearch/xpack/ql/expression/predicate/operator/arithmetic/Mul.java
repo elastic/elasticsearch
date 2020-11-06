@@ -49,3 +49,4 @@ public class Mul extends ArithmeticOperation {
         return new Mul(source(), newLeft, newRight);
     }
 }
+

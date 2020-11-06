@@ -84,3 +84,4 @@ class PreparedQuery {
         return new PreparedQuery(sql, SqlQueryParameterAnalyzer.parametersCount(sql));
     }
 }
+

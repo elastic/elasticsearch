@@ -171,3 +171,4 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     }
 
 }
+

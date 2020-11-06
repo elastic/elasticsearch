@@ -14,7 +14,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 public class RegexProcessor implements Processor {
-    
+
     public static class RegexOperation {
 
         public static Boolean match(Object value, Pattern pattern) {
@@ -88,3 +88,4 @@ public class RegexProcessor implements Processor {
         return Objects.equals(pattern, other.pattern);
     }
 }
+

@@ -102,3 +102,4 @@ public class ToString extends ScalarFunction {
         return new ToString(source(), newChildren.get(0));
     }
 }
+

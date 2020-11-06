@@ -16,3 +16,4 @@ public class DateEsField extends EsField {
         super(name, DataTypes.DATETIME, properties, hasDocValues);
     }
 }
+

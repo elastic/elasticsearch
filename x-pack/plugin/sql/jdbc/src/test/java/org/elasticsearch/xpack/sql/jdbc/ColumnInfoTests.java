@@ -32,3 +32,4 @@ public class ColumnInfoTests extends ESTestCase {
         assertEquals("d<type=[DOUBLE]>", doubleInfo("d").toString());
     }
 }
+

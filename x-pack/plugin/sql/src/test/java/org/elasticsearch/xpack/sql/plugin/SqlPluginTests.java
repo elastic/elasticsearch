@@ -38,3 +38,4 @@ public class SqlPluginTests extends ESTestCase {
             hasSize(4));
     }
 }
+

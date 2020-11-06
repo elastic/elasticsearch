@@ -49,3 +49,4 @@ public class DefaultDataTypeRegistry implements DataTypeRegistry {
         return DataTypeConverter.commonType(left, right);
     }
 }
+

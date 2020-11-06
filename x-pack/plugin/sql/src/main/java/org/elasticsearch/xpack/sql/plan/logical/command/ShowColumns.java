@@ -115,3 +115,4 @@ public class ShowColumns extends Command {
                 && includeFrozen == other.includeFrozen;
     }
 }
+

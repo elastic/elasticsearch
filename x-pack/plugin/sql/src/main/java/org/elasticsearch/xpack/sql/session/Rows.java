@@ -56,3 +56,4 @@ public abstract class Rows {
         return new EmptyRowSet(schema(attrs));
     }
 }
+

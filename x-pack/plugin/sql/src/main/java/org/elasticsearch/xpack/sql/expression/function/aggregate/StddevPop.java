@@ -35,3 +35,4 @@ public class StddevPop extends NumericAggregate implements ExtendedStatsEnclosed
         return "std_deviation";
     }
 }
+

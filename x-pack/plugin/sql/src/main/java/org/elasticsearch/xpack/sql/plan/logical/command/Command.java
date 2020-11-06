@@ -60,3 +60,4 @@ public abstract class Command extends LogicalPlan implements SqlExecutable {
         return ListCursor.of(Rows.schema(output()), values, session.configuration().pageSize());
     }
 }
+

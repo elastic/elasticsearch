@@ -151,7 +151,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     public int hashCode() {
         return key.hashCode();
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {

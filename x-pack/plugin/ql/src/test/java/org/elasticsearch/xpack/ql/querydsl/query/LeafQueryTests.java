@@ -70,3 +70,4 @@ public class LeafQueryTests extends ESTestCase {
         assertEquals("DummyLeafQuery@1:2[]", new DummyLeafQuery(new Source(1, 1, StringUtils.EMPTY)).toString());
     }
 }
+

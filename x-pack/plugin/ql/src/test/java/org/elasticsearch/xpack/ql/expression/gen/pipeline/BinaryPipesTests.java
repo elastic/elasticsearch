@@ -162,3 +162,4 @@ public class BinaryPipesTests extends ESTestCase {
         }
     }
 }
+

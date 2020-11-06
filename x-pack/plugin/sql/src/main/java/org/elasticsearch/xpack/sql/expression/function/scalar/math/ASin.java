@@ -34,3 +34,4 @@ public class ASin extends MathFunction {
         return MathOperation.ASIN;
     }
 }
+

@@ -57,3 +57,4 @@ public class FoldingException extends SqlClientException {
         return format("line {}:{}: {}", getLineNumber(), getColumnNumber(), super.getMessage());
     }
 }
+

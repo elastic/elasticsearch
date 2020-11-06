@@ -11,3 +11,4 @@ package org.elasticsearch.xpack.sql.jdbc;
 interface DebugProxy {
 
 }
+

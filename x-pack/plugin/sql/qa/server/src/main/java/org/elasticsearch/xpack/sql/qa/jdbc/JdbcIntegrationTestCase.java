@@ -159,3 +159,4 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         return randomFrom(ids);
     }
 }
+

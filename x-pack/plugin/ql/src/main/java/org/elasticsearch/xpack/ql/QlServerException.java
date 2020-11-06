@@ -31,3 +31,4 @@ public abstract class QlServerException extends QlException {
         super(cause);
     }
 }
+

@@ -31,3 +31,4 @@ public class Distinct extends UnaryPlan {
         return true;
     }
 }
+

@@ -12,3 +12,4 @@ public class UntilGroup extends OrdinalGroup<KeyAndOrdinal> {
         super(key, KeyAndOrdinal::ordinal);
     }
 }
+

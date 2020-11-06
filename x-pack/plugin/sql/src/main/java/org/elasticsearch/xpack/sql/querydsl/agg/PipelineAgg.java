@@ -21,3 +21,4 @@ public abstract class PipelineAgg {
 
     abstract PipelineAggregationBuilder toBuilder();
 }
+

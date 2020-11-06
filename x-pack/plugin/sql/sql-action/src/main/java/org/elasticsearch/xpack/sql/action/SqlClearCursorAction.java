@@ -16,3 +16,4 @@ public class SqlClearCursorAction extends ActionType<SqlClearCursorResponse> {
         super(NAME, SqlClearCursorResponse::new);
     }
 }
+

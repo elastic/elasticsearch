@@ -118,3 +118,4 @@ class JdbcHttpClient {
         return cols;
     }
 }
+

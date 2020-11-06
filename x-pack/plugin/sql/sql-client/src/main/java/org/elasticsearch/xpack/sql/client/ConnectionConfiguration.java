@@ -28,11 +28,11 @@ import static java.util.Collections.emptyList;
  * to move away from the loose Strings...
  */
 public class ConnectionConfiguration {
-    
+
     // Validation
     public static final String PROPERTIES_VALIDATION = "validate.properties";
     private static final String PROPERTIES_VALIDATION_DEFAULT = "true";
-    
+
     // Binary communication
     public static final String BINARY_COMMUNICATION = "binary.format";
     private static final String BINARY_COMMUNICATION_DEFAULT = "true";
@@ -72,7 +72,7 @@ public class ConnectionConfiguration {
         OPTION_NAMES.addAll(SslConfig.OPTION_NAMES);
         OPTION_NAMES.addAll(ProxyConfig.OPTION_NAMES);
     }
-    
+
     private final boolean validateProperties;
     private final boolean binaryCommunication;
 
@@ -194,7 +194,7 @@ public class ConnectionConfiguration {
     protected boolean isSSLEnabled() {
         return sslConfig.isEnabled();
     }
-    
+
     public boolean validateProperties() {
         return validateProperties;
     }
@@ -252,3 +252,4 @@ public class ConnectionConfiguration {
     }
 
 }
+

@@ -57,3 +57,4 @@ class EmptyCursor implements Cursor {
         return "no next page";
     }
 }
+

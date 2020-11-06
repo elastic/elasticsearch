@@ -68,3 +68,4 @@ public class ParameterTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("Not enough actual parameters"));
     }
 }
+

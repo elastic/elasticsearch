@@ -137,3 +137,4 @@ public class SysTypes extends Command {
         return type.equals(((SysTypes) obj).type);
     }
 }
+

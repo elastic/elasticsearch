@@ -38,3 +38,4 @@ public class MedianAbsoluteDeviation extends NumericAggregate {
         return NodeInfo.create(this, MedianAbsoluteDeviation::new, field());
     }
 }
+

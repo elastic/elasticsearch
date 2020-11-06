@@ -98,3 +98,4 @@ public class CIDRMatchFunctionProcessor implements Processor {
                 && Objects.equals(addresses(), other.addresses());
     }
 }
+

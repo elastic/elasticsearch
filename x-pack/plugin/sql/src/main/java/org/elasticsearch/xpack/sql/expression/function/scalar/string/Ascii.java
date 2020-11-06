@@ -41,3 +41,4 @@ public class Ascii extends UnaryStringFunction {
         return DataTypes.INTEGER;
     }
 }
+

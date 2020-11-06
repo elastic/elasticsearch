@@ -490,3 +490,4 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return SqlDataTypeConverter.convert(asDateTime(value, true), SqlDataTypes.fromSqlOrEsType(typeName));
     }
 }
+

@@ -60,3 +60,4 @@ public class BinaryStringNumericPipe extends BinaryPipe {
         return false;
     }
 }
+

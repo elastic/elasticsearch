@@ -25,3 +25,4 @@ public class RLike extends RegexMatch<RLikePattern> {
         return new RLike(source(), newChild, pattern());
     }
 }
+

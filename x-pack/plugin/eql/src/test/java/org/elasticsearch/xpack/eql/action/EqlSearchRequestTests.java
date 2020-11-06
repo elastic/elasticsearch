@@ -108,3 +108,4 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
         return EqlSearchRequest.fromXContent(parser).indices(new String[]{defaultTestIndex});
     }
 }
+

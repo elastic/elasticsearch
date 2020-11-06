@@ -23,3 +23,4 @@ public class EqlRestIT extends ESClientYamlSuiteTestCase {
     }
 
 }
+

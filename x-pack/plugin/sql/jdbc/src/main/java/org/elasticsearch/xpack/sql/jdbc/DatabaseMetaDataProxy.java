@@ -21,3 +21,4 @@ final class DatabaseMetaDataProxy extends DebuggingInvoker {
         return result;
     }
 }
+

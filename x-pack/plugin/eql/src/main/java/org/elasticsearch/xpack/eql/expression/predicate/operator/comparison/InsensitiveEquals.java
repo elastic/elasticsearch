@@ -49,3 +49,4 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison implements Ne
         return BinaryComparisonOperation.EQ.symbol();
     }
 }
+

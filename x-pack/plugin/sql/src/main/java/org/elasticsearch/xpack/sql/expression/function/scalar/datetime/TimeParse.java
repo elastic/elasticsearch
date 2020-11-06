@@ -18,7 +18,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Da
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
 
 public class TimeParse extends BaseDateTimeParseFunction {
-    
+
     public TimeParse(Source source, Expression timestamp, Expression pattern, ZoneId zoneId) {
         super(source, timestamp, pattern, zoneId);
     }
@@ -27,7 +27,7 @@ public class TimeParse extends BaseDateTimeParseFunction {
     protected Parser parser() {
         return TIME;
     }
-    
+
     @Override
     protected NodeInfo.NodeCtor3<Expression, Expression, ZoneId, BaseDateTimeParseFunction> ctorForInfo() {
         return TimeParse::new;
@@ -47,5 +47,6 @@ public class TimeParse extends BaseDateTimeParseFunction {
     protected String scriptMethodName() {
         return "timeParse";
     }
-    
+
 }
+

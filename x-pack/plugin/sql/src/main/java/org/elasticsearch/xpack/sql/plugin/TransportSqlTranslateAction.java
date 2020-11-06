@@ -62,3 +62,4 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
                 searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)), listener::onFailure));
     }
 }
+

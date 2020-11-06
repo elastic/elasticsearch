@@ -143,3 +143,4 @@ public class StringProcessor implements Processor {
         return processor.toString();
     }
 }
+

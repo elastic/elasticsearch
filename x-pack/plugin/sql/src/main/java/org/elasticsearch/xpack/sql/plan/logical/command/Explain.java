@@ -241,3 +241,4 @@ public class Explain extends Command {
                 && Objects.equals(plan, o.plan);
     }
 }
+

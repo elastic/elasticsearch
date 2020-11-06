@@ -77,3 +77,4 @@ public class ProcessorTests extends ESTestCase {
         }
     }
 }
+

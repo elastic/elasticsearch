@@ -16,3 +16,4 @@ public interface IntervalScripting {
     String typeName();
 
 }
+

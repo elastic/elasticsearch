@@ -44,25 +44,25 @@ public class SqlTypedParamValue implements ToXContentObject {
     public SqlTypedParamValue(String type, Object value) {
         this(type, value, true);
     }
-    
+
     public SqlTypedParamValue(String type, Object value, boolean hasExplicitType) {
         this.value = value;
         this.type = type;
         this.hasExplicitType = hasExplicitType;
     }
-    
+
     public boolean hasExplicitType() {
         return hasExplicitType;
     }
-    
+
     public void hasExplicitType(boolean hasExplicitType) {
         this.hasExplicitType = hasExplicitType;
     }
-    
+
     public XContentLocation tokenLocation() {
         return tokenLocation;
     }
-    
+
     public void tokenLocation(XContentLocation tokenLocation) {
         this.tokenLocation = tokenLocation;
     }
@@ -104,3 +104,4 @@ public class SqlTypedParamValue implements ToXContentObject {
         return String.valueOf(value) + " [" + type + "][" + hasExplicitType + "][" + tokenLocation + "]";
     }
 }
+

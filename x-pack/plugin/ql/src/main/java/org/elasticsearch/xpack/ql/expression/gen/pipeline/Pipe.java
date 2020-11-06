@@ -78,3 +78,4 @@ public abstract class Pipe extends Node<Pipe> implements FieldExtraction, Resolv
         FieldExtraction resolve(Attribute attribute);
     }
 }
+

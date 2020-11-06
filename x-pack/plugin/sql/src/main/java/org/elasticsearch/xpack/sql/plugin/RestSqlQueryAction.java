@@ -99,3 +99,4 @@ public class RestSqlQueryAction extends BaseRestHandler {
         return "sql_query";
     }
 }
+

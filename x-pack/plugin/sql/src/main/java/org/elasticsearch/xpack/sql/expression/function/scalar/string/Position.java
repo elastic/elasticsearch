@@ -46,3 +46,4 @@ public class Position extends BinaryStringStringFunction {
         return NodeInfo.create(this, Position::new, left(), right());
     }
 }
+

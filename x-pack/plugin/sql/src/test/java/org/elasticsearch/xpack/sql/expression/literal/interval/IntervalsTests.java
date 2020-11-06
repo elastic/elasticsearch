@@ -255,3 +255,4 @@ public class IntervalsTests extends ESTestCase {
         return "-".equals(sign) ? Intervals.negate(interval) : interval;
     }
 }
+

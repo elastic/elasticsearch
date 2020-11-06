@@ -374,3 +374,4 @@ public class JdbcAssert {
         return new Date(date.toLocalDate().atStartOfDay(UTC).toInstant().toEpochMilli());
     }
 }
+

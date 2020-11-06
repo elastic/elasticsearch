@@ -31,3 +31,4 @@ public class EqlSearchTask extends StoredAsyncTask<EqlSearchResponse> {
             getExecutionId().getEncoded(), true, true));
     }
 }
+

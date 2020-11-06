@@ -10,3 +10,4 @@ import org.elasticsearch.test.eql.EqlRestTestCase;
 
 public class EqlRestIT extends EqlRestTestCase {
 }
+

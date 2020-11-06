@@ -68,3 +68,4 @@ public class EqlFunctionRegistry extends FunctionRegistry {
         return name.toLowerCase(Locale.ROOT);
     }
 }
+

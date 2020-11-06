@@ -317,3 +317,4 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
         return new Literal(EMPTY, interval, SqlDataTypes.fromJava(interval));
     }
 }
+

@@ -34,3 +34,4 @@ public class Cos extends MathFunction {
         return MathOperation.COS;
     }
 }
+

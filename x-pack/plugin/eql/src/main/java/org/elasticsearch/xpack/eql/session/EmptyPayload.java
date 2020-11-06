@@ -46,3 +46,4 @@ public class EmptyPayload implements Payload {
         return emptyList();
     }
 }
+

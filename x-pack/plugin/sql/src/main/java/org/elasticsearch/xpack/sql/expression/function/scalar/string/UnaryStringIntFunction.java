@@ -55,14 +55,14 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
     }
 
     protected abstract StringOperation operation();
-    
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
                 paramsBuilder().variable(field.name()).build(),
                 dataType());
     }
-    
+
     @Override
     public String processScript(String template) {
         return super.processScript(
@@ -85,3 +85,4 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
         return Objects.equals(other.field(), field());
     }
 }
+

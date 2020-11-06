@@ -45,3 +45,4 @@ public class Sign extends MathFunction {
         return DataTypes.INTEGER;
     }
 }
+

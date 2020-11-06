@@ -66,3 +66,4 @@ public abstract class SqlConfigurationFunction extends ConfigurationFunction {
         return super.equals(obj) && Objects.equals(fold(), ((SqlConfigurationFunction) obj).fold());
     }
 }
+

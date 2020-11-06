@@ -25,3 +25,4 @@ public class ClearScreenCliCommand extends AbstractCliCommand {
         return true;
     }
 }
+

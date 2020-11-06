@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import java.io.IOException;
 
 public final class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object, Object, Object, BinaryArithmeticOperation> {
-    
+
     public static final String NAME = "abn";
 
     public BinaryArithmeticProcessor(Processor left, Processor right, BinaryArithmeticOperation operation) {
@@ -45,3 +45,4 @@ public final class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<O
         return f.apply(left, right);
     }
 }
+

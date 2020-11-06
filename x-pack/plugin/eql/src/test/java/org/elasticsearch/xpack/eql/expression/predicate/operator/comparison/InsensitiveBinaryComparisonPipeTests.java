@@ -127,3 +127,4 @@ public class InsensitiveBinaryComparisonPipeTests extends AbstractNodeTestCase<I
             instance.asProcessor().function());
     }
 }
+

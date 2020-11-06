@@ -61,7 +61,7 @@ public class StartsWithProcessorTests extends ESTestCase {
         assertEquals(null, startsWithInstantiator(EMPTY, l("foo"), l(null)).get().makePipe().asProcessor().process(null));
         assertEquals(null, startsWithInstantiator(EMPTY, l(null), l(null)).get().makePipe().asProcessor().process(null));
     }
-    
+
     public void testStartsWithFunctionInputsValidation() {
         QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
                 () -> startsWithInstantiator(EMPTY, l(5), l("foo")).get().makePipe().asProcessor().process(null));
@@ -81,3 +81,4 @@ public class StartsWithProcessorTests extends ESTestCase {
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
     }
 }
+

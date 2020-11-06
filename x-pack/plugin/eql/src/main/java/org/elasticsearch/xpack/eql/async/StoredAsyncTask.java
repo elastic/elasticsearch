@@ -100,3 +100,4 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
         taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.wrap(runnable));
     }
 }
+

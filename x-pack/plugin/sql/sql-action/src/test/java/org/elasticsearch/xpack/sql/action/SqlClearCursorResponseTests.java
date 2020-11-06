@@ -33,3 +33,4 @@ public class SqlClearCursorResponseTests extends AbstractSerializingTestCase<Sql
         return new SqlClearCursorResponse(response.isSucceeded());
     }
 }
+

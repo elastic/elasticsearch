@@ -34,3 +34,4 @@ public class Stats extends CompoundNumericAggregate {
         return e instanceof Min || e instanceof Max || e instanceof Avg || e instanceof Sum;
     }
 }
+

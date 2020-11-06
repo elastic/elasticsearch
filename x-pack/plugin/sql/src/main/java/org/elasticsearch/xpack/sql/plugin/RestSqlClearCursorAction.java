@@ -44,3 +44,4 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
     }
 
 }
+

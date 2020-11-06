@@ -93,7 +93,7 @@ public class ConnectionBuilder {
             properties.setProperty(ConnectionConfiguration.AUTH_USER, user);
             properties.setProperty(ConnectionConfiguration.AUTH_PASS, password);
         }
-        
+
         properties.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(binaryCommunication));
 
         return newConnectionConfiguration(uri, connectionString, properties);
@@ -118,3 +118,4 @@ public class ConnectionBuilder {
     }
 
 }
+

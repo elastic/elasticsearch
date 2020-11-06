@@ -35,3 +35,4 @@ public class Kurtosis extends NumericAggregate implements MatrixStatsEnclosed {
         return "kurtosis";
     }
 }
+

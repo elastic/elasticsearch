@@ -364,3 +364,4 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         }
     }
 }
+

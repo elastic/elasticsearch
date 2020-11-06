@@ -8,3 +8,4 @@
  * Integration tests shared between multiple qa projects.
  */
 package org.elasticsearch.xpack.sql.qa.rest;
+

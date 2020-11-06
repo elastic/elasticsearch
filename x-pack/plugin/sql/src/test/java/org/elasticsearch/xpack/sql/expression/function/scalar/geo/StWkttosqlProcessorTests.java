@@ -50,3 +50,4 @@ public class StWkttosqlProcessorTests extends ESTestCase {
         assertEquals("POLYGON ((3.0 1.0 5.0, 4.0 2.0 4.0, 5.0 3.0 3.0, 3.0 1.0 5.0))", geoShape.toString());
     }
 }
+

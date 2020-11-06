@@ -37,3 +37,4 @@ public class ScriptFieldRef extends FieldReference {
         return "{" + name + "}";
     }
 }
+

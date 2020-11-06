@@ -30,3 +30,4 @@ public class ExtendedStats extends CompoundNumericAggregate {
         return new ExtendedStats(source(), newChildren.get(0));
     }
 }
+

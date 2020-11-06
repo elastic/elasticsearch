@@ -45,3 +45,4 @@ public class Sum extends NumericAggregate implements EnclosedAgg {
         return "sum";
     }
 }
+

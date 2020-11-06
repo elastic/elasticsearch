@@ -50,3 +50,4 @@ public class JdbcResultSetMetaDataTests extends ESTestCase {
         assertEquals("custom_label", metaData.getColumnLabel(4));
     }
 }
+

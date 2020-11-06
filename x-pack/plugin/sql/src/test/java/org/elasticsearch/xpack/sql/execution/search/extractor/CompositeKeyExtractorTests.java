@@ -93,3 +93,4 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
         return extractor instanceof CompositeKeyExtractor ? ((CompositeKeyExtractor) extractor).zoneId() : null;
     }
 }
+

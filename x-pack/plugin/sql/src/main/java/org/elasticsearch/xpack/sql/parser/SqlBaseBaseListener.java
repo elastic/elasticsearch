@@ -1273,3 +1273,4 @@ class SqlBaseBaseListener implements SqlBaseListener {
    */
   @Override public void visitErrorNode(ErrorNode node) { }
 }
+

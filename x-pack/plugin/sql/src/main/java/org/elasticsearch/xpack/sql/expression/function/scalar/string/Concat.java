@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.string.Conc
  * parameter or the concatenation of the two strings if none of them is null.
  */
 public class Concat extends BinaryScalarFunction {
-    
+
     public Concat(Source source, Expression source1, Expression source2) {
         super(source, source1, source2);
     }
@@ -52,7 +52,7 @@ public class Concat extends BinaryScalarFunction {
     protected Pipe makePipe() {
         return new ConcatFunctionPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()));
     }
-    
+
     @Override
     public Nullability nullable() {
         return Nullability.FALSE;
@@ -67,7 +67,7 @@ public class Concat extends BinaryScalarFunction {
     public Object fold() {
         return process(left().fold(), right().fold());
     }
-    
+
     @Override
     protected Concat replaceChildren(Expression newLeft, Expression newRight) {
         return new Concat(source(), newLeft, newRight);
@@ -90,3 +90,4 @@ public class Concat extends BinaryScalarFunction {
         return DataTypes.KEYWORD;
     }
 }
+

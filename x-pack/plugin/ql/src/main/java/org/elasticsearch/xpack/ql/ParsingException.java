@@ -59,3 +59,4 @@ public class ParsingException extends QlClientException {
         return format("line {}:{}: {}", getLineNumber(), getColumnNumber(), getErrorMessage());
     }
 }
+

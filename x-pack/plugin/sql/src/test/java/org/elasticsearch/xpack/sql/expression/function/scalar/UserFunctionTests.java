@@ -38,7 +38,7 @@ public class UserFunctionTests extends ESTestCase {
                 IndexResolution.valid(test),
                 new Verifier(new Metrics())
         );
-        
+
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT USER()"), true);
         NamedExpression ne = result.projections().get(0);
         assertTrue(ne instanceof Alias);
@@ -46,3 +46,4 @@ public class UserFunctionTests extends ESTestCase {
         assertNull(((User) ((Alias) ne).child()).fold());
     }
 }
+

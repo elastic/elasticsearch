@@ -41,3 +41,4 @@ public class DateTimeFormat extends BaseDateTimeFormatFunction {
         return new DateTimeFormat(source(), timestamp, pattern, zoneId());
     }
 }
+

@@ -38,3 +38,4 @@ public class RestEqlGetAsyncResultAction extends BaseRestHandler {
         return channel -> client.execute(EqlAsyncGetResultAction.INSTANCE, get, new RestToXContentListener<>(channel));
     }
 }
+

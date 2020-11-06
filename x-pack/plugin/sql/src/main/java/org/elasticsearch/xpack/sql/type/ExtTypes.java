@@ -51,3 +51,4 @@ enum ExtTypes implements SQLType {
         return type;
     }
 }
+

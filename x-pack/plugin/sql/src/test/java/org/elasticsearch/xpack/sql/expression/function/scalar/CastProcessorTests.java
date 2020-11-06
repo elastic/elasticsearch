@@ -49,9 +49,10 @@ public class CastProcessorTests extends AbstractWireSerializingTestCase<CastProc
             assertEquals(0, proc.process(false));
         }
     }
-    
+
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Processors.getNamedWriteables());
     }
 }
+

@@ -26,3 +26,4 @@ public class TableInfo {
         return isFrozen;
     }
 }
+

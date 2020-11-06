@@ -44,3 +44,4 @@ class EmptyRowSet extends AbstractRowSet implements SchemaRowSet {
         return schema;
     }
 }
+

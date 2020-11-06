@@ -28,7 +28,7 @@ public class BasicFormatter implements Writeable {
     private static final int MIN_COLUMN_WIDTH = 15;
 
     private int[] width;
-    
+
     public enum FormatOption {
         CLI(Objects::toString),
         TEXT(StringUtils::toString);
@@ -43,7 +43,7 @@ public class BasicFormatter implements Writeable {
             return apply.apply(l);
         }
     }
-    
+
     private final FormatOption formatOption;
 
     /**
@@ -78,7 +78,7 @@ public class BasicFormatter implements Writeable {
         out.writeIntArray(width);
         out.writeEnum(formatOption);
     }
-    
+
     /**
      * Format the provided {@linkplain SqlQueryResponse} for the set format
      * including the header lines.
@@ -186,3 +186,4 @@ public class BasicFormatter implements Writeable {
         return Objects.hash(width, formatOption);
     }
 }
+

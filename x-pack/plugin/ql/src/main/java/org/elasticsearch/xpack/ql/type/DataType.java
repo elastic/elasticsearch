@@ -91,11 +91,11 @@ public class DataType {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         DataType other = (DataType) obj;
         return Objects.equals(typeName, other.typeName)
                 && Objects.equals(esType, other.esType)
@@ -110,3 +110,4 @@ public class DataType {
         return name;
     }
 }
+

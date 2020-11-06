@@ -97,3 +97,4 @@ public class InnerAggregate extends AggregateFunction {
         return nodeName() + "[" + outer + ">" + inner.nodeName() + "]";
     }
 }
+

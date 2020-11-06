@@ -17,3 +17,4 @@ public class VersionTests extends ESTestCase {
         assertEquals(org.elasticsearch.Version.CURRENT.revision, ClientVersion.CURRENT.revision);
     }
 }
+

@@ -260,3 +260,4 @@ public class ExpressionBuilder extends IdentifierBuilder {
         return new Literal(source, unquoteString(source), DataTypes.KEYWORD);
     }
 }
+

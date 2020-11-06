@@ -35,3 +35,4 @@ public class VarPop extends NumericAggregate implements ExtendedStatsEnclosed {
         return "variance";
     }
 }
+

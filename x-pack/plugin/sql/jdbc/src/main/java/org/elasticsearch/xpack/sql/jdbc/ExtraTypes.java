@@ -32,3 +32,4 @@ class ExtraTypes {
     static final int GEOMETRY = 114;
 
 }
+

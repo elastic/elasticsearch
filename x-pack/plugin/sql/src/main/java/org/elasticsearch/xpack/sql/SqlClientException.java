@@ -29,3 +29,4 @@ public abstract class SqlClientException extends QlClientException {
         super(cause);
     }
 }
+

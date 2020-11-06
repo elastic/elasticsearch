@@ -55,3 +55,4 @@ public class LimitWithOffset extends org.elasticsearch.xpack.ql.plan.logical.Lim
         return false;
     }
 }
+

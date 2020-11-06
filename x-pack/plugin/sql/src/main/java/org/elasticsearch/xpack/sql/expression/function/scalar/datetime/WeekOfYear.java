@@ -16,7 +16,7 @@ import java.time.ZoneId;
  * Extract the week of the year from a datetime following the non-ISO standard.
  */
 public class WeekOfYear extends NonIsoDateTimeFunction {
-    
+
     public WeekOfYear(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId, NonIsoDateTimeExtractor.WEEK_OF_YEAR);
     }
@@ -31,3 +31,4 @@ public class WeekOfYear extends NonIsoDateTimeFunction {
         return new WeekOfYear(source(), newChild, zoneId());
     }
 }
+

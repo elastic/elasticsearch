@@ -16,3 +16,4 @@ public interface QueryRequest {
         searchSource().searchAfter(ordinal.toArray());
     }
 }
+

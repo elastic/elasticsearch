@@ -63,3 +63,4 @@ public abstract class UnaryPlan extends LogicalPlan {
         return Objects.equals(child, other.child);
     }
 }
+

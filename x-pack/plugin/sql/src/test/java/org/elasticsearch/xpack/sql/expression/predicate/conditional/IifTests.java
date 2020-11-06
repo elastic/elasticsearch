@@ -94,3 +94,4 @@ public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
         return expressions;
     }
 }
+

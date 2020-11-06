@@ -82,3 +82,4 @@ public class SqlTypesTests extends ESTestCase {
         return TypesTests.loadMapping(SqlDataTypeRegistry.INSTANCE, name, ordered);
     }
 }
+

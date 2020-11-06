@@ -33,3 +33,4 @@ public class Last extends TopHits {
         return new Last(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null);
     }
 }
+

@@ -97,3 +97,4 @@ public abstract class GeoSqlSpecTestCase extends SpecBaseIntegrationTestCase {
         return connectionProperties;
     }
 }
+

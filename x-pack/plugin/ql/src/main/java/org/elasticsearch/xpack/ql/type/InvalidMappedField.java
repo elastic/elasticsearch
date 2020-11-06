@@ -45,7 +45,7 @@ public class InvalidMappedField extends EsField {
             InvalidMappedField other = (InvalidMappedField) obj;
             return Objects.equals(errorMessage, other.errorMessage);
         }
-        
+
         return false;
     }
 
@@ -60,3 +60,4 @@ public class InvalidMappedField extends EsField {
         return new Exact(false, "Field [" + getName() + "] is invalid, cannot access it");
     }
 }
+

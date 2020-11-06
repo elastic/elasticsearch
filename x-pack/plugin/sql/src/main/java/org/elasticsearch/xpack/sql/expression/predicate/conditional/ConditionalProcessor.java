@@ -48,7 +48,7 @@ public class ConditionalProcessor implements Processor {
             return inputProcess.apply(processors, input);
         }
     }
-    
+
     public static final String NAME = "nco";
 
     private final List<Processor> processors;
@@ -99,3 +99,4 @@ public class ConditionalProcessor implements Processor {
         return Objects.hash(processors, operation);
     }
 }
+

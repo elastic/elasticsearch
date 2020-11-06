@@ -72,3 +72,4 @@ public class PivotCursor extends CompositeAggCursor {
         return "pivot for index [" + Arrays.toString(indices()) + "]";
     }
 }
+

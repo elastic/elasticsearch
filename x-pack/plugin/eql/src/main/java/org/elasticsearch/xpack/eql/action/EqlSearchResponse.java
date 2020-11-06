@@ -511,3 +511,4 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         }
     }
 }
+

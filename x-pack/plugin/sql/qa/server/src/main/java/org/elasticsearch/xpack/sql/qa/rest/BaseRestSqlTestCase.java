@@ -186,3 +186,4 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
         }
     }
 }
+

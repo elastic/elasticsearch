@@ -34,3 +34,4 @@ public class ATan extends MathFunction {
         return MathOperation.ATAN;
     }
 }
+

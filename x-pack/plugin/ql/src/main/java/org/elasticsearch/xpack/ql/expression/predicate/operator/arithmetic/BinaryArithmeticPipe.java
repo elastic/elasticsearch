@@ -52,3 +52,4 @@ public class BinaryArithmeticPipe extends BinaryPipe {
         return false;
     }
 }
+

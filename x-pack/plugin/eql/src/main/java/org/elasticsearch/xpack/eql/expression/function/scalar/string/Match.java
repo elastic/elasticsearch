@@ -105,3 +105,4 @@ public class Match extends BaseSurrogateFunction {
         return new RLike(source(), field, new RLikePattern(String.join("|", patternStrings)));
     }
 }
+

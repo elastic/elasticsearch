@@ -29,3 +29,4 @@ public class LocalStateEQLXPackPlugin extends LocalStateCompositeXPackPlugin {
     }
 
 }
+

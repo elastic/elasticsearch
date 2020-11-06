@@ -64,3 +64,4 @@ public enum DefaultBinaryArithmeticOperation implements BinaryArithmeticOperatio
         return in.readEnum(DefaultBinaryArithmeticOperation.class);
     }
 }
+

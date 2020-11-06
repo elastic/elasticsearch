@@ -66,3 +66,4 @@ public class DatePartProcessor extends BinaryDateTimeProcessor {
         return datePartField.extract(((ZonedDateTime) timestamp).withZoneSameInstant(zoneId));
     }
 }
+

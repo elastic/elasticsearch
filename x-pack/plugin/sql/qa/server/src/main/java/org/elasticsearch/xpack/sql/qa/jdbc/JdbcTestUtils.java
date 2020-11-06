@@ -127,3 +127,4 @@ final class JdbcTestUtils {
         logger.info("\n" + formatter.formatWithHeader(cols, data));
     }
 }
+

@@ -12,3 +12,4 @@ import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
  * user rather than to the JDBC driver or CLI.
  */
 public class RestSqlIT extends RestSqlTestCase {}
+

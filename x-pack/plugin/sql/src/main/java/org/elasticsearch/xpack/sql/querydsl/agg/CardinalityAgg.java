@@ -21,3 +21,4 @@ public class CardinalityAgg extends DefaultAggSourceLeafAgg {
         return AggregationBuilders::cardinality;
     }
 }
+

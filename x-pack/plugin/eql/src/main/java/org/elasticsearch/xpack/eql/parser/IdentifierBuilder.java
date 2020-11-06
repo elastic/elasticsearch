@@ -33,3 +33,4 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return identifier.replace("``", "`");
     }
 }
+

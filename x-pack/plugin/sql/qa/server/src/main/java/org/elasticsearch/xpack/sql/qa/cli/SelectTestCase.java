@@ -37,3 +37,4 @@ public abstract class SelectTestCase extends CliIntegrationTestCase {
         assertEquals("", readLine());
     }
 }
+

@@ -74,3 +74,4 @@ public class UnaryArithmeticProcessor implements Processor {
         return operation.symbol() + super.toString();
     }
 }
+

@@ -159,3 +159,4 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
         }
     }
 }
+

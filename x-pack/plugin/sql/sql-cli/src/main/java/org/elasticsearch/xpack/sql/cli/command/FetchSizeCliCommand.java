@@ -34,3 +34,4 @@ public class FetchSizeCliCommand extends AbstractCliCommand {
         return true;
     }
 }
+

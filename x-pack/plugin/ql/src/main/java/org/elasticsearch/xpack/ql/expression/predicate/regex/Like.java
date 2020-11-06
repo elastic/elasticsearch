@@ -49,3 +49,4 @@ public class Like extends RegexMatch<LikePattern> {
     }
 
 }
+

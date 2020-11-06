@@ -60,3 +60,4 @@ public class PrintLogoCommand extends AbstractCliCommand {
     }
 
 }
+

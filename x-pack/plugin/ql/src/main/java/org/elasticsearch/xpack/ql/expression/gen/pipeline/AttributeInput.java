@@ -40,3 +40,4 @@ public class AttributeInput extends NonExecutableInput<Attribute> {
         // Nothing to extract
     }
 }
+

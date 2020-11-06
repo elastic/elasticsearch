@@ -70,3 +70,4 @@ public class InsensitiveBinaryComparisonProcessor extends
         return doProcess(left().process(input), right().process(input));
     }
 }
+

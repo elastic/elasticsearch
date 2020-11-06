@@ -134,7 +134,7 @@ public class Range extends ScalarFunction {
         ScriptTemplate valueScript = asScript(value);
         ScriptTemplate lowerScript = asScript(lower);
         ScriptTemplate upperScript = asScript(upper);
-        
+
 
         String template = formatTemplate(format(Locale.ROOT, "{ql}.and({ql}.%s(%s, %s), {ql}.%s(%s, %s))",
                         includeLower() ? "gte" : "gt",
@@ -189,3 +189,4 @@ public class Range extends ScalarFunction {
                 && Objects.equals(zoneId, other.zoneId);
     }
 }
+

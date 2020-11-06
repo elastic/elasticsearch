@@ -62,3 +62,4 @@ public class NullIf extends ConditionalFunction {
             Expressions.pipe(children().get(0)), Expressions.pipe(children().get(1)));
     }
 }
+

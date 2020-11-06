@@ -328,3 +328,4 @@ public class EscapedFunctionsTests extends ESTestCase {
         assertThat(pattern.escape(), is('|'));
     }
 }
+

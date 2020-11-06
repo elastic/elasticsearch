@@ -68,3 +68,4 @@ class DefaultCursor implements Cursor {
         }
     }
 }
+

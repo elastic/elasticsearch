@@ -36,3 +36,4 @@ public enum FeatureMetric {
         return this.name().toLowerCase(Locale.ROOT);
     }
 }
+

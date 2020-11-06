@@ -39,3 +39,4 @@ public class EqlPainlessExtension implements PainlessExtension {
         return whitelist;
     }
 }
+

@@ -82,3 +82,4 @@ public abstract class Query {
         return getClass().getSimpleName() + source + "[" + innerToString() + "]";
     }
 }
+

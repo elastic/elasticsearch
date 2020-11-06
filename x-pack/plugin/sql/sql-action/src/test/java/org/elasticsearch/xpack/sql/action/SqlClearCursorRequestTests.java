@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
 public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlClearCursorRequest> {
-    
+
     public RequestInfo requestInfo;
 
     @Before
@@ -41,7 +41,7 @@ public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlC
     protected SqlClearCursorRequest doParseInstance(XContentParser parser) {
         return SqlClearCursorRequest.fromXContent(parser);
     }
-    
+
     private RequestInfo randomRequestInfo() {
         return new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), requestInfo.clientId()));
     }

@@ -36,3 +36,4 @@ public abstract class AbstractEqlIntegTestCase extends ESIntegTestCase {
         return Collections.singletonList(LocalStateEQLXPackPlugin.class);
     }
 }
+

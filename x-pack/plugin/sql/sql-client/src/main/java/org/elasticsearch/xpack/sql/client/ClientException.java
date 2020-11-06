@@ -22,3 +22,4 @@ public class ClientException extends RuntimeException {
         super(cause);
     }
 }
+

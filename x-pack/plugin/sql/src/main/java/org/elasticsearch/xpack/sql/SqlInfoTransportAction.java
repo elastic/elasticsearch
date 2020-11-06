@@ -40,3 +40,4 @@ public class SqlInfoTransportAction extends XPackInfoFeatureTransportAction {
     }
 
 }
+

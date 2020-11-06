@@ -97,7 +97,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public List<ColumnInfo> columns() {
         return columns;
     }
-    
+
     public boolean columnar() {
         return columnar;
     }
@@ -157,7 +157,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
                 }
                 builder.endArray();
             }
-            
+
             if (columnar) {
                 // columns can be specified (for the first REST request for example), or not (on a paginated/cursor based request)
                 // if the columns are missing, we take the first rows' size as the number of columns
@@ -218,7 +218,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         String name = in.readString();
         String esType = in.readString();
         Integer displaySize = in.readOptionalVInt();
-            
+
         return new ColumnInfo(table, name, esType, displaySize);
     }
 
@@ -253,3 +253,4 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         return Strings.toString(this);
     }
 }
+

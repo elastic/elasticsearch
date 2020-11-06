@@ -29,3 +29,4 @@ public class JdbcFetchSizeIT extends FetchSizeTestCase {
         return properties;
     }
 }
+

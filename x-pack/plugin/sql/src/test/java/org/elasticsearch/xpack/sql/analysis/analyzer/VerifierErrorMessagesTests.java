@@ -1141,3 +1141,4 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT * FROM test WHERE NOT (CAST(text AS string) = 'foo') OR true"));
     }
 }
+

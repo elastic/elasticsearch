@@ -71,3 +71,4 @@ public class NotQuery extends Query {
         return child.toString();
     }
 }
+

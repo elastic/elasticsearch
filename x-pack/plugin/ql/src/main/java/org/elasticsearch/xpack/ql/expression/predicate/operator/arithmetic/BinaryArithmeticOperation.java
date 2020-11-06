@@ -14,3 +14,4 @@ public interface BinaryArithmeticOperation extends PredicateBiFunction<Object, O
     @Override
     String symbol();
 }
+

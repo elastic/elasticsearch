@@ -75,3 +75,4 @@ public class StWkttosqlProcessor implements Processor {
         return 0;
     }
 }
+

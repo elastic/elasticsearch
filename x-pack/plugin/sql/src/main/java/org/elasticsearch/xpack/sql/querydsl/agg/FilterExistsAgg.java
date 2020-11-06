@@ -29,7 +29,7 @@ public class FilterExistsAgg extends LeafAgg {
     @Override
     AggregationBuilder toBuilder() {
         QueryBuilder qb;
-        
+
         if (source().fieldName() != null) {
             qb = QueryBuilders.existsQuery(source().fieldName());
         } else {
@@ -46,3 +46,4 @@ public class FilterExistsAgg extends LeafAgg {
                 DataTypes.BOOLEAN);
     }
 }
+

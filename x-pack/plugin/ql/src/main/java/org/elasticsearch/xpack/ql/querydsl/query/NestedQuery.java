@@ -175,3 +175,4 @@ public class NestedQuery extends Query {
         return path + "." + fields + "[" + child + "]";
     }
 }
+

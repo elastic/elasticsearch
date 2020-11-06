@@ -36,3 +36,4 @@ public class ReferenceInput extends NonExecutableInput<FieldExtraction> {
         context().collectFields(sourceBuilder);
     }
 }
+

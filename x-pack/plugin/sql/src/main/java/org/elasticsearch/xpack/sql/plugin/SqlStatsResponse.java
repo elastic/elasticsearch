@@ -21,11 +21,11 @@ import java.io.IOException;
 import java.util.List;
 
 public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeStatsResponse> implements ToXContentObject {
-    
+
     public SqlStatsResponse(StreamInput in) throws IOException {
         super(in);
     }
-    
+
     public SqlStatsResponse(ClusterName clusterName, List<NodeStatsResponse> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
@@ -52,9 +52,9 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeSta
     }
 
     public static class NodeStatsResponse extends BaseNodeResponse implements ToXContentObject {
-        
+
         private Counters stats;
-        
+
         public NodeStatsResponse(StreamInput in) throws IOException {
             super(in);
             if (in.readBoolean()) {
@@ -65,7 +65,7 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeSta
         public NodeStatsResponse(DiscoveryNode node) {
             super(node);
         }
-        
+
         public Counters getStats() {
             return stats;
         }
@@ -92,10 +92,11 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeSta
             builder.endObject();
             return builder;
         }
-        
+
         static SqlStatsResponse.NodeStatsResponse readNodeResponse(StreamInput in) throws IOException {
             return new SqlStatsResponse.NodeStatsResponse(in);
         }
 
     }
 }
+

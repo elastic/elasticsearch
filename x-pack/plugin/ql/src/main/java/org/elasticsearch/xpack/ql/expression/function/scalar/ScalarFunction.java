@@ -107,7 +107,7 @@ public abstract class ScalarFunction extends Function {
                 paramsBuilder().script(nested.params()).build(),
                 dataType());
     }
-    
+
     protected ScriptTemplate scriptWithAggregate(AggregateFunction aggregate) {
         String template = basicTemplate(aggregate);
         return new ScriptTemplate(processScript(template),
@@ -147,3 +147,4 @@ public abstract class ScalarFunction extends Function {
         return Scripts.formatTemplate(template);
     }
 }
+

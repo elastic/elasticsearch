@@ -68,3 +68,4 @@ public class AggSource {
         return fieldName != null ? fieldName : script.toString();
     }
 }
+

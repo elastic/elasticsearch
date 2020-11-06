@@ -30,3 +30,4 @@ public class ShowFunctionsTests extends ESTestCase {
         }, ex -> fail(ex.getMessage())));
     }
 }
+

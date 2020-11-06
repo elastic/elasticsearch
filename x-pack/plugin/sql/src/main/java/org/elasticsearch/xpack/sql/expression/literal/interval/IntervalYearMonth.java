@@ -71,3 +71,4 @@ public class IntervalYearMonth extends Interval<Period> {
         return "{sql}.intervalYearMonth({},{})";
     }
 }
+

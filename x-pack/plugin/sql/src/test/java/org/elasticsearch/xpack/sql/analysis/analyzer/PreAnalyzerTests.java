@@ -73,3 +73,4 @@ public class PreAnalyzerTests extends ESTestCase {
         assertThat(result.indices.get(0).id().index(), is("aaa"));
     }
 }
+

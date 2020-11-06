@@ -52,3 +52,4 @@ public class SqlStreamInput extends NamedWriteableAwareStreamInput {
         throw new SqlIllegalArgumentException("Expected SQL cursor stream, received [{}]", in.getClass());
     }
 }
+

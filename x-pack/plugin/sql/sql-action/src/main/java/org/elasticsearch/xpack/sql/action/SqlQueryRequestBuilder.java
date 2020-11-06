@@ -25,7 +25,7 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action) {
         this(client, action, "", Collections.emptyList(), null, Protocol.TIME_ZONE, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, false, "", new RequestInfo(Mode.PLAIN), Protocol.FIELD_MULTI_VALUE_LENIENCY, 
+            Protocol.PAGE_TIMEOUT, false, "", new RequestInfo(Mode.PLAIN), Protocol.FIELD_MULTI_VALUE_LENIENCY,
             Protocol.INDEX_INCLUDE_FROZEN);
     }
 
@@ -81,7 +81,7 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
         request.pageTimeout(timeout);
         return this;
     }
-    
+
     public SqlQueryRequestBuilder columnar(boolean columnar) {
         request.columnar(columnar);
         return this;
@@ -97,3 +97,4 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
         return this;
     }
 }
+

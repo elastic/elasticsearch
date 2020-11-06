@@ -25,3 +25,4 @@ public class LocalStateSQLXPackPlugin extends LocalStateCompositeXPackPlugin {
         });
     }
 }
+

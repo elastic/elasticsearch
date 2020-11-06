@@ -48,3 +48,4 @@ public class E extends MathFunction {
         return MathOperation.E;
     }
 }
+

@@ -30,13 +30,13 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
 
     private final Expression left, right;
-    
+
     public BinaryOptionalNumericFunction(Source source, Expression left, Expression right) {
         super(source, right != null ? Arrays.asList(left, right) : Arrays.asList(left));
         this.left = left;
         this.right = right;
     }
-    
+
     @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {
@@ -59,7 +59,7 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
             right == null ? null : Expressions.pipe(right),
             operation());
     }
-    
+
     protected abstract BinaryOptionalMathOperation operation();
 
     @Override
@@ -72,7 +72,7 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
     public Object fold() {
         return operation().apply((Number) left.fold(), (right == null ? null : (Number) right.fold()));
     }
-    
+
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         if (right() != null && newChildren.size() != 2) {
@@ -83,9 +83,9 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
 
         return replacedChildrenInstance(newChildren);
     }
-    
+
     protected abstract Expression replacedChildrenInstance(List<Expression> newChildren);
-    
+
     @Override
     public ScriptTemplate asScript() {
         ScriptTemplate leftScript = asScript(left);
@@ -108,15 +108,15 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
     public DataType dataType() {
         return left().dataType();
     }
-    
+
     protected Expression left() {
         return left;
     }
-    
+
     protected Expression right() {
         return right;
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(left(), right(), operation());
@@ -133,3 +133,4 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
             && Objects.equals(other.operation(), operation());
     }
 }
+

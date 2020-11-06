@@ -45,7 +45,7 @@ public class KeyedFilter extends UnaryPlan {
     protected KeyedFilter replaceChild(LogicalPlan newChild) {
         return new KeyedFilter(source(), newChild, keys, timestamp, tiebreaker);
     }
-    
+
     public List<? extends NamedExpression> keys() {
         return keys;
     }
@@ -53,7 +53,7 @@ public class KeyedFilter extends UnaryPlan {
     public Attribute timestamp() {
         return timestamp;
     }
-    
+
     public Attribute tiebreaker() {
         return tiebreaker;
     }
@@ -79,7 +79,7 @@ public class KeyedFilter extends UnaryPlan {
     public int hashCode() {
         return Objects.hash(keys, timestamp, tiebreaker, child());
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {

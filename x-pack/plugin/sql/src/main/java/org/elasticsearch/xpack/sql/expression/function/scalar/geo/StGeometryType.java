@@ -44,3 +44,4 @@ public class StGeometryType extends UnaryGeoFunction {
     }
 
 }
+

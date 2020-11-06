@@ -18,7 +18,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
-    
+
     public enum NonIsoDateTimeExtractor {
         DAY_OF_WEEK(zdt -> {
             // by ISO 8601 standard, Monday is the first day of the week and has the value 1
@@ -44,7 +44,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
             return apply.apply(millis.withZoneSameInstant(ZoneId.of(tzId)));
         }
     }
-    
+
     public static final String NAME = "nidt";
 
     private final NonIsoDateTimeExtractor extractor;
@@ -98,3 +98,4 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
         return extractor.toString();
     }
 }
+

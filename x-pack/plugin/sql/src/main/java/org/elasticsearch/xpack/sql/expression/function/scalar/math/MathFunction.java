@@ -50,7 +50,7 @@ public abstract class MathFunction extends UnaryScalarFunction {
     public DataType dataType() {
         return DataTypes.DOUBLE;
     }
-    
+
     @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {
@@ -81,3 +81,4 @@ public abstract class MathFunction extends UnaryScalarFunction {
         return Objects.hash(field());
     }
 }
+

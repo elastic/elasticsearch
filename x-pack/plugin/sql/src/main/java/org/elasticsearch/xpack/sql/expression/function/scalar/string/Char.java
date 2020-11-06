@@ -41,3 +41,4 @@ public class Char extends UnaryStringIntFunction {
         return DataTypes.KEYWORD;
     }
 }
+

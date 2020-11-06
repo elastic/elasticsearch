@@ -153,3 +153,4 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
 }
+

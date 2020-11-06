@@ -350,3 +350,4 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         );
     }
 }
+

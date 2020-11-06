@@ -187,3 +187,4 @@ public class UserFunctionIT extends ESRestTestCase {
         client().performRequest(request);
     }
 }
+

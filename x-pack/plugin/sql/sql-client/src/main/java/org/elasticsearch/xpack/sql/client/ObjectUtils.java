@@ -29,3 +29,4 @@ public abstract class ObjectUtils {
         return Arrays.stream(clazz.getEnumConstants()).collect(toMap(mapper, Function.identity()));
     }
 }
+

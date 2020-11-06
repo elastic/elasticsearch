@@ -26,3 +26,4 @@ public class PercentileRanksAgg extends DefaultAggSourceLeafAgg {
         return s -> percentileRanks(s, values.stream().mapToDouble(Double::doubleValue).toArray());
     }
 }
+

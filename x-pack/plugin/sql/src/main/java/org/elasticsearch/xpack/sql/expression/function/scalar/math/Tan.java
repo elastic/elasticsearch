@@ -34,3 +34,4 @@ public class Tan extends MathFunction {
         return MathOperation.TAN;
     }
 }
+

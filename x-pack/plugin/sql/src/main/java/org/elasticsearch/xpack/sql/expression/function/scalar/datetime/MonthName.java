@@ -16,7 +16,7 @@ import java.time.ZoneId;
  * Extract the month from a datetime in text format (January, February etc.)
  */
 public class MonthName extends NamedDateTimeFunction {
-    
+
     public MonthName(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId, NameExtractor.MONTH_NAME);
     }
@@ -31,3 +31,4 @@ public class MonthName extends NamedDateTimeFunction {
         return new MonthName(source(), newChild, zoneId());
     }
 }
+

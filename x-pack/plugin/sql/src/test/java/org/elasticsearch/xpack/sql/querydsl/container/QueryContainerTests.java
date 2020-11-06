@@ -120,3 +120,4 @@ public class QueryContainerTests extends ESTestCase {
         assertEquals(expected, result);
     }
 }
+

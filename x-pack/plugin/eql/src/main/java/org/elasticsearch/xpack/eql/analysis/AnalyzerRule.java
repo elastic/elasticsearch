@@ -25,3 +25,4 @@ public abstract class AnalyzerRule<SubPlan extends LogicalPlan> extends Rule<Sub
         return true;
     }
 }
+

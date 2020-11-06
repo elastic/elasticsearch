@@ -59,3 +59,4 @@ public class JdbcConnectionIT extends ConnectionTestCase {
         return properties;
     }
 }
+

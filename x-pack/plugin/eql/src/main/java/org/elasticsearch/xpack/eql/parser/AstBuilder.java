@@ -20,3 +20,4 @@ public class AstBuilder extends LogicalPlanBuilder {
         return plan(ctx.statement());
     }
 }
+

@@ -135,3 +135,4 @@ public class ColumnInfo implements ToXContentObject {
         return ProtoUtils.toString(this);
     }
 }
+

@@ -41,3 +41,4 @@ public class FullTextUtilsTests extends ESTestCase {
         assertThat(e.getColumnNumber(), is(3));
     }
 }
+

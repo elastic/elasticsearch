@@ -50,3 +50,4 @@ public abstract class Rule<E extends T, T extends Node<T>> implements UnaryOpera
         return name();
     }
 }
+

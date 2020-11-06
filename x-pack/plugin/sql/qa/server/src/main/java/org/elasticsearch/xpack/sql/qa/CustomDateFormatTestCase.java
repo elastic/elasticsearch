@@ -98,3 +98,4 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
         client().performRequest(request);
     }
 }
+

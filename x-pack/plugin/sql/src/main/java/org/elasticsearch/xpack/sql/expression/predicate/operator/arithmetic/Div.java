@@ -35,3 +35,4 @@ public class Div extends SqlArithmeticOperation {
         return SqlDataTypeConverter.commonType(left().dataType(), right().dataType());
     }
 }
+

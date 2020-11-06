@@ -8,3 +8,4 @@ package org.elasticsearch.xpack.sql.qa.jdbc.single_node;
 import org.elasticsearch.xpack.sql.qa.jdbc.SimpleExampleTestCase;
 
 public class JdbcSimpleExampleIT extends SimpleExampleTestCase {}
+

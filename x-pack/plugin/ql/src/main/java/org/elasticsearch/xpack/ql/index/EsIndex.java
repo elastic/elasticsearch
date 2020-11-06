@@ -54,3 +54,4 @@ public class EsIndex {
         return Objects.equals(name, other.name) && mapping == other.mapping;
     }
 }
+

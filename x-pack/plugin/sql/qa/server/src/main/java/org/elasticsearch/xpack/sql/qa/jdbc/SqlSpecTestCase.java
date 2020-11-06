@@ -104,3 +104,4 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
         }
     }
 }
+

@@ -55,3 +55,4 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
         return SqlDataTypeConverter.canConvert(right, left);
     }
 }
+

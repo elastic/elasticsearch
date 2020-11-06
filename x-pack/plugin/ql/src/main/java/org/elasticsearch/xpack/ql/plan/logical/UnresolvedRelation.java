@@ -105,3 +105,4 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         return UNRESOLVED_PREFIX + table.index();
     }
 }
+

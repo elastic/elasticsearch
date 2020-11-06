@@ -20,3 +20,4 @@ public abstract class AggRef implements FieldExtraction {
         return true;
     }
 }
+

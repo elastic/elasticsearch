@@ -91,3 +91,4 @@ public abstract class BinaryPipe extends Pipe {
                 && Objects.equals(right(), other.right());
     }
 }
+

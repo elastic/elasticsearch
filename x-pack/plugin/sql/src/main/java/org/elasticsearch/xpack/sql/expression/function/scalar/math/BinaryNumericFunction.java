@@ -73,3 +73,4 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
             && Objects.equals(other.operation, operation);
     }
 }
+

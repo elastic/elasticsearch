@@ -59,3 +59,4 @@ public class MultiMatchQueryPredicate extends FullTextPredicate {
         return false;
     }
 }
+

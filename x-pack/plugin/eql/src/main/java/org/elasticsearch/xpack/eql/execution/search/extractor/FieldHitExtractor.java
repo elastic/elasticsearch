@@ -64,3 +64,4 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         return false;
     }
 }
+

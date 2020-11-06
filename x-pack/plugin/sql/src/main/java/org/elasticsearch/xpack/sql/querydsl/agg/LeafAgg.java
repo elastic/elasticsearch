@@ -15,3 +15,4 @@ public abstract class LeafAgg extends Agg {
 
     abstract AggregationBuilder toBuilder();
 }
+

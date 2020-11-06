@@ -76,3 +76,4 @@ public class Aggregate extends UnaryPlan {
                 && Objects.equals(child(), other.child());
     }
 }
+

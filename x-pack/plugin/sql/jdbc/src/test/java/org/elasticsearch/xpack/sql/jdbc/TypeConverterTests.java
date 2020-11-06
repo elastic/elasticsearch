@@ -73,3 +73,4 @@ public class TypeConverterTests extends ESTestCase {
         return TypeConverter.convert(copy, type, type.toString());
     }
 }
+

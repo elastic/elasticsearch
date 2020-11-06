@@ -34,3 +34,4 @@ public class Radians extends MathFunction {
         return MathOperation.RADIANS;
     }
 }
+

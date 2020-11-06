@@ -16,7 +16,7 @@ import java.time.ZoneId;
  * Extract the day of the week from a datetime in text format (Monday, Tuesday etc.)
  */
 public class DayName extends NamedDateTimeFunction {
-    
+
     public DayName(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId, NameExtractor.DAY_NAME);
     }
@@ -31,3 +31,4 @@ public class DayName extends NamedDateTimeFunction {
         return new DayName(source(), newChild, zoneId());
     }
 }
+

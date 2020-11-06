@@ -33,3 +33,4 @@ public class ReversedIterator<T> implements Iterator<T> {
         delegate.remove();
     }
 }
+

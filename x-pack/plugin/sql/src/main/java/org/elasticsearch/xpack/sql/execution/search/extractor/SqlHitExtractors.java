@@ -29,3 +29,4 @@ public final class SqlHitExtractors {
         return entries;
     }
 }
+

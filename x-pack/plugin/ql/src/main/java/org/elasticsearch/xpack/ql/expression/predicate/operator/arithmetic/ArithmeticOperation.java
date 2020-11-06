@@ -22,7 +22,7 @@ public abstract class ArithmeticOperation extends BinaryOperator<Object, Object,
     protected ArithmeticOperation(Source source, Expression left, Expression right, BinaryArithmeticOperation operation) {
         super(source, left, right, operation);
     }
-    
+
     @Override
     protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
         return isNumeric(e, sourceText(), paramOrdinal);
@@ -46,3 +46,4 @@ public abstract class ArithmeticOperation extends BinaryOperator<Object, Object,
         return new BinaryArithmeticPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
     }
 }
+

@@ -64,7 +64,7 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
     public RequestInfo requestInfo() {
         return requestInfo;
     }
-    
+
     public void requestInfo(RequestInfo requestInfo) {
         this.requestInfo = requestInfo;
     }
@@ -80,7 +80,7 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
     public void mode(String mode) {
         this.requestInfo.mode(Mode.fromString(mode));
     }
-    
+
     public String clientId() {
         return requestInfo.clientId();
     }
@@ -111,3 +111,4 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
     }
 
 }
+

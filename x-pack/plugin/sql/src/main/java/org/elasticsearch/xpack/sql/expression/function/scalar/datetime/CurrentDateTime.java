@@ -38,3 +38,4 @@ public class CurrentDateTime extends CurrentFunction<ZonedDateTime> {
         return zdt.withNano(getNanoPrecision(precisionExpression, zdt.getNano()));
     }
 }
+

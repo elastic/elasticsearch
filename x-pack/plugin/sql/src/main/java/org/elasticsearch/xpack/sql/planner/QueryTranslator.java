@@ -682,3 +682,4 @@ final class QueryTranslator {
         return values;
     }
 }
+

@@ -99,3 +99,4 @@ public class BuiltinCommandTests extends ESTestCase {
     }
 
 }
+

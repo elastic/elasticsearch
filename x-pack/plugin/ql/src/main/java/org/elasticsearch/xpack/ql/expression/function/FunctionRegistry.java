@@ -531,3 +531,4 @@ public class FunctionRegistry {
         T build(Source source, Expression e1, Expression e2, Configuration configuration);
     }
 }
+

@@ -113,3 +113,4 @@ public class Literal extends LeafExpression {
         return new Literal(source.source(), value, source.dataType());
     }
 }
+

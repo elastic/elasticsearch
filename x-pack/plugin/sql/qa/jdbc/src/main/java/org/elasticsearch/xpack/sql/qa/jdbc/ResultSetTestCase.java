@@ -2138,3 +2138,4 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         return Calendar.getInstance(randomTimeZone(), Locale.ROOT);
     }
 }
+

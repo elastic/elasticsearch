@@ -58,3 +58,4 @@ public class SqlQueryParameterAnalyzerTests extends ESTestCase {
         assertEquals("Cannot parse given sql; unclosed string", exception.getMessage());
     }
 }
+

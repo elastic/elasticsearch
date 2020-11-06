@@ -50,3 +50,4 @@ public class Ceil extends MathFunction {
         return DataTypeConverter.asInteger(field().dataType());
     }
 }
+

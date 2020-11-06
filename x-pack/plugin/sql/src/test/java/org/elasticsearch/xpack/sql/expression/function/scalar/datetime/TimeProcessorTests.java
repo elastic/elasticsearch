@@ -80,3 +80,4 @@ public class TimeProcessorTests extends AbstractSqlWireSerializingTestCase<TimeP
         assertEquals(4, proc.process(time(18, 20, 30, 123456789)));
     }
 }
+

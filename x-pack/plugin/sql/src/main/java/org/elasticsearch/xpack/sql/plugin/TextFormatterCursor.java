@@ -85,3 +85,4 @@ public class TextFormatterCursor implements Cursor {
         return Objects.hash(delegate, formatter);
     }
 }
+

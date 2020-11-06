@@ -34,3 +34,4 @@ public class Cot extends MathFunction {
         return MathOperation.COT;
     }
 }
+

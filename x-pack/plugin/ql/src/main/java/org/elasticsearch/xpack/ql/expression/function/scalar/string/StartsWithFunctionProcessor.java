@@ -66,7 +66,7 @@ public class StartsWithFunctionProcessor implements Processor {
             return source.toString().toLowerCase(Locale.ROOT).startsWith(pattern.toString().toLowerCase(Locale.ROOT));
         }
     }
-    
+
     protected Processor source() {
         return source;
     }
@@ -84,25 +84,26 @@ public class StartsWithFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         StartsWithFunctionProcessor other = (StartsWithFunctionProcessor) obj;
         return Objects.equals(source(), other.source())
                 && Objects.equals(pattern(), other.pattern())
                 && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(source(), pattern(), isCaseSensitive());
     }
-    
+
 
     @Override
     public String getWriteableName() {
         return NAME;
     }
 }
+

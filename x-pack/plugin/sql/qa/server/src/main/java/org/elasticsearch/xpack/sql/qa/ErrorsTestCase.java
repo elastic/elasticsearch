@@ -37,3 +37,4 @@ public interface ErrorsTestCase {
 
     void testHardLimitForSortOnAggregate() throws Exception;
 }
+

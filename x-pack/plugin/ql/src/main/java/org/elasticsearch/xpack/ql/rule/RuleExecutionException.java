@@ -13,3 +13,4 @@ public class RuleExecutionException extends QlServerException {
         super(message, args);
     }
 }
+

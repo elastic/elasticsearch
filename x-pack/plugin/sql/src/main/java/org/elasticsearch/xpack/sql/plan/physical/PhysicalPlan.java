@@ -40,3 +40,4 @@ public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> implements Ex
     @Override
     public abstract boolean equals(Object obj);
 }
+

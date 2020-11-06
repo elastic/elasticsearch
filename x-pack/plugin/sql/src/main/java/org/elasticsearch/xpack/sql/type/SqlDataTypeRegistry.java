@@ -54,3 +54,4 @@ public class SqlDataTypeRegistry implements DataTypeRegistry {
     }
 
 }
+

@@ -57,3 +57,4 @@ public class GroupByNumericHistogram extends GroupByKey {
         return false;
     }
 }
+

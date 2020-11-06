@@ -72,7 +72,8 @@ abstract class ResultRowSet<E extends NamedWriteable> extends AbstractRowSet {
             action.accept(resultColumn(i));
         }
     }
-    
+
 
     protected abstract Object extractValue(E e);
 }
+

@@ -17,3 +17,4 @@ public interface Unresolvable extends Resolvable {
 
     String unresolvedMessage();
 }
+

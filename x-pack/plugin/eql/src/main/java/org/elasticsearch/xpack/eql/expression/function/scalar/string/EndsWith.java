@@ -98,7 +98,7 @@ public class EndsWith extends CaseSensitiveScalarFunction {
 
         return asScriptFrom(inputScript, patternScript);
     }
-    
+
     protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate patternScript) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s)"),
                 "endsWith",
@@ -134,3 +134,4 @@ public class EndsWith extends CaseSensitiveScalarFunction {
     }
 
 }
+

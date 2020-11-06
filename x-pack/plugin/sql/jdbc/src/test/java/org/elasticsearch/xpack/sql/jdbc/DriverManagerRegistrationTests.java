@@ -65,3 +65,4 @@ public class DriverManagerRegistrationTests extends ESTestCase {
         }
     }
 }
+

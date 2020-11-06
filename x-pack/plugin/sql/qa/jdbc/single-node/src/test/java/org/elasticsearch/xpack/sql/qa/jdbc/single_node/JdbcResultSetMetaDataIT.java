@@ -9,3 +9,4 @@ package org.elasticsearch.xpack.sql.qa.jdbc.single_node;
 import org.elasticsearch.xpack.sql.qa.jdbc.ResultSetMetaDataTestCase;
 
 public class JdbcResultSetMetaDataIT extends ResultSetMetaDataTestCase {}
+

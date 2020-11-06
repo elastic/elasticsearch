@@ -19,3 +19,4 @@ public class VersionTests extends ESTestCase {
     }
 
 }
+

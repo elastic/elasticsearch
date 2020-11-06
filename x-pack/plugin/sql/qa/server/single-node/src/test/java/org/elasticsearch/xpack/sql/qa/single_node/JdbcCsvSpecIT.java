@@ -36,3 +36,4 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
         return fileName.startsWith("nested") && randomBoolean() ? randomIntBetween(1, 5) : super.fetchSize();
     }
 }
+

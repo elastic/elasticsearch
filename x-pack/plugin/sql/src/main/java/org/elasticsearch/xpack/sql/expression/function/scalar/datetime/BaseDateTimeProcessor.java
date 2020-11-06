@@ -46,3 +46,4 @@ public abstract class BaseDateTimeProcessor implements Processor {
 
     abstract Object doProcess(ZonedDateTime dateTime);
 }
+

@@ -16,7 +16,7 @@ import java.time.ZoneId;
 import java.util.Objects;
 
 public class DateTimeParsePipe extends BinaryDateTimePipe {
-    
+
     private final Parser parser;
 
     public DateTimeParsePipe(Source source, Expression expression, Pipe left, Pipe right, ZoneId zoneId, Parser parser) {
@@ -38,12 +38,12 @@ public class DateTimeParsePipe extends BinaryDateTimePipe {
     protected Processor makeProcessor(Processor left, Processor right, ZoneId zoneId) {
         return new DateTimeParseProcessor(left, right, zoneId, parser);
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), this.parser);
     }
-    
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -58,8 +58,9 @@ public class DateTimeParsePipe extends BinaryDateTimePipe {
         DateTimeParsePipe that = (DateTimeParsePipe) o;
         return super.equals(o) && this.parser == that.parser;
     }
-    
+
     public Parser parser() {
         return parser;
     }
 }
+

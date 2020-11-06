@@ -25,3 +25,4 @@ public class CliSelectIT extends SelectTestCase {
         return CliSecurityIT.adminSecurityConfig();
     }
 }
+

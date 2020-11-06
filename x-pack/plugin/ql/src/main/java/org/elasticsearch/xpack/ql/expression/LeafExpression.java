@@ -26,3 +26,4 @@ public abstract class LeafExpression extends Expression {
         return AttributeSet.EMPTY;
     }
 }
+

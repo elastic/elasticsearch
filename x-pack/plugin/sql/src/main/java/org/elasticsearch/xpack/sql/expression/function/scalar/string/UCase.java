@@ -42,3 +42,4 @@ public class UCase extends UnaryStringFunction {
     }
 
 }
+

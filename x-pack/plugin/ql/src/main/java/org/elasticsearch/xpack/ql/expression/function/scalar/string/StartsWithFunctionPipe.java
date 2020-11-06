@@ -75,7 +75,7 @@ public class StartsWithFunctionPipe extends Pipe {
     public StartsWithFunctionProcessor asProcessor() {
         return new StartsWithFunctionProcessor(input.asProcessor(), pattern.asProcessor(), isCaseSensitive);
     }
-    
+
     public Pipe input() {
         return input;
     }
@@ -109,3 +109,4 @@ public class StartsWithFunctionPipe extends Pipe {
                 && Objects.equals(isCaseSensitive, other.isCaseSensitive);
     }
 }
+

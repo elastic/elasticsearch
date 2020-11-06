@@ -15,7 +15,7 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
     DateTimeArithmeticOperation(Source source, Expression left, Expression right, BinaryArithmeticOperation operation) {
         super(source, left, right, operation);
     }
-    
+
     @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {
@@ -36,3 +36,4 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
         return super.resolveType();
     }
 }
+

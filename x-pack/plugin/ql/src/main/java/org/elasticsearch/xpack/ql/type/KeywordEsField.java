@@ -26,7 +26,7 @@ public class KeywordEsField extends EsField {
     public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision, boolean normalized) {
         this(name, properties, hasDocValues, precision, normalized, false);
     }
-    
+
     public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision,
             boolean normalized, boolean isAlias) {
         this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias);
@@ -69,3 +69,4 @@ public class KeywordEsField extends EsField {
         return Objects.hash(super.hashCode(), precision, normalized);
     }
 }
+

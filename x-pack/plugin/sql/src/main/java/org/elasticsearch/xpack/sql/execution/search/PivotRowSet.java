@@ -79,7 +79,7 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
                 }
             }
         }
-        
+
         // check the last group using the following:
         // a. limit has been reached, the rest of the data is ignored.
         if (limit > 0 && data.size() == limit) {
@@ -145,3 +145,4 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
         return lastAfterKey;
     }
 }
+

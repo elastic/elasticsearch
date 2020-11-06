@@ -87,3 +87,4 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
         }
     }
 }
+

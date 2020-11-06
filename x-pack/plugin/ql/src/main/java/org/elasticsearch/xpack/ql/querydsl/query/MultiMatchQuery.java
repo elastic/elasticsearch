@@ -98,3 +98,4 @@ public class MultiMatchQuery extends LeafQuery {
         return fields + ":" + query;
     }
 }
+

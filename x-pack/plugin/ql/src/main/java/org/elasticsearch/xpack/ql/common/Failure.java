@@ -71,3 +71,4 @@ public class Failure {
                 StringUtils.EMPTY));
     }
 }
+

@@ -30,3 +30,4 @@ public class EqlStatsIT extends EqlUsageRestTestCase {
         super.runRequest(request);
     }
 }
+

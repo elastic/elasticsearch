@@ -167,3 +167,4 @@ public class BasicQueryClient implements QueryClient {
         }, listener::onFailure));
     }
 }
+

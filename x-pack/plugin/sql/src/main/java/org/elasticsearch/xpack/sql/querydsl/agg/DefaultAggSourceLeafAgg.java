@@ -24,3 +24,4 @@ abstract class DefaultAggSourceLeafAgg extends LeafAgg {
 
     abstract Function<String, ValuesSourceAggregationBuilder<?>> builder();
 }
+

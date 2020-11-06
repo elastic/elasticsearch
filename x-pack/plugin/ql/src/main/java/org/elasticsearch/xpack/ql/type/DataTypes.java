@@ -46,7 +46,7 @@ public final class DataTypes {
     public static final DataType OBJECT           = new DataType("object",            0,                 false, false, false);
     public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
     //@formatter:on
-    
+
     private static final Collection<DataType> TYPES = Arrays.asList(
             UNSUPPORTED,
             NULL,
@@ -69,14 +69,14 @@ public final class DataTypes {
             .stream()
             .sorted(Comparator.comparing(DataType::typeName))
             .collect(toUnmodifiableList());
-    
+
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
             .collect(toUnmodifiableMap(DataType::typeName, t -> t));
-    
+
     private static final Map<String, DataType> ES_TO_TYPE = TYPES.stream()
             .filter(e -> e.esType() != null)
             .collect(toUnmodifiableMap(DataType::esType, t -> t));
-    
+
     private DataTypes() {}
 
     public static Collection<DataType> types() {
@@ -163,3 +163,4 @@ public final class DataTypes {
         }
     }
 }
+

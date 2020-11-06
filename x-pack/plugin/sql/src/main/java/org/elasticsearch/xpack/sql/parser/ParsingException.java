@@ -59,3 +59,4 @@ public class ParsingException extends SqlClientException {
         return format("line {}:{}: {}", getLineNumber(), getColumnNumber(), getErrorMessage());
     }
 }
+

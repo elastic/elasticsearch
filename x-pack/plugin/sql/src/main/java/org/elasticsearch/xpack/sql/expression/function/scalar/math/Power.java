@@ -26,3 +26,4 @@ public class Power extends BinaryNumericFunction {
         return new Power(source(), newLeft, newRight);
     }
 }
+

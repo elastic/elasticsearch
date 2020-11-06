@@ -457,3 +457,4 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
         });
     }
 }
+

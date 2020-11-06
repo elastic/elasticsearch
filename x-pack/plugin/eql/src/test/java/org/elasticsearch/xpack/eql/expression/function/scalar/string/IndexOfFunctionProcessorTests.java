@@ -87,14 +87,15 @@ public class IndexOfFunctionProcessorTests extends ESTestCase {
         QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
                 () -> new IndexOf(EMPTY, stringLiteral, l("foo"), l(1), config).makePipe().asProcessor().process(null));
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
-        
+
         siae = expectThrows(QlIllegalArgumentException.class,
                 () -> new IndexOf(EMPTY, l("foo"), stringLiteral, l(2), config).makePipe().asProcessor().process(null));
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
-        
+
         Literal numericLiteral = randomValueOtherThanMany(v -> v.dataType().isNumeric(), () -> LiteralTests.randomLiteral());
         siae = expectThrows(QlIllegalArgumentException.class,
                 () -> new IndexOf(EMPTY, l("foo"), l("o"), numericLiteral, config).makePipe().asProcessor().process(null));
         assertThat(siae.getMessage(), startsWith("A number is required; received"));
     }
 }
+

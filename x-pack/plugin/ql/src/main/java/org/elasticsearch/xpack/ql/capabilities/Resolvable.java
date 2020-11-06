@@ -9,3 +9,4 @@ public interface Resolvable {
 
     boolean resolved();
 }
+

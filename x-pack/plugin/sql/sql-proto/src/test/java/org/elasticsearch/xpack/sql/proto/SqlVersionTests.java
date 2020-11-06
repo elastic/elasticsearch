@@ -61,3 +61,4 @@ public class SqlVersionTests extends ESTestCase {
     }
 
 }
+

@@ -40,3 +40,4 @@ public abstract class AbstractNodeTestCase<T extends B, B extends Node<B>> exten
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(randomInstance(), this::copy, this::mutate);
     }
 }
+

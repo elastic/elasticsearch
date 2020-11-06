@@ -33,7 +33,7 @@ public class ConcatFunctionPipe extends BinaryPipe {
     public ConcatFunctionProcessor asProcessor() {
         return new ConcatFunctionProcessor(left().asProcessor(), right().asProcessor());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(left(), right());
@@ -54,3 +54,4 @@ public class ConcatFunctionPipe extends BinaryPipe {
                 && Objects.equals(right(), other.right());
     }
 }
+

@@ -29,3 +29,4 @@ public class JdbcJdbcErrorsIT extends JdbcErrorsTestCase {
         return properties;
     }
 }
+

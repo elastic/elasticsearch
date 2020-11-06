@@ -90,3 +90,4 @@ public abstract class BinaryDateTimeDatePartFunction extends BinaryDateTimeFunct
         return zoneId().equals(that.zoneId());
     }
 }
+

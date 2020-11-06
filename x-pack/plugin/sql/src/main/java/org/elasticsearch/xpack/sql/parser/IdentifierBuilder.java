@@ -41,8 +41,9 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
         return Strings.collectionToDelimitedString(visitList(ctx.identifier(), String.class), ".");
     }
-    
+
     private static String unquoteIdentifier(String identifier) {
         return identifier.replace("\"\"", "\"");
     }
 }
+

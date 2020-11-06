@@ -320,3 +320,4 @@ class EqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements EqlBa
    */
   @Override public T visitEventValue(EqlBaseParser.EventValueContext ctx) { return visitChildren(ctx); }
 }
+

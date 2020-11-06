@@ -69,3 +69,4 @@ public class ToStringFunctionProcessor implements Processor {
         return NAME;
     }
 }
+

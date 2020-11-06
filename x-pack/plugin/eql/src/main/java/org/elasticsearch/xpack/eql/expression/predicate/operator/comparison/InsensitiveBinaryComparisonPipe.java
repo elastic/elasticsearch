@@ -53,3 +53,4 @@ public class InsensitiveBinaryComparisonPipe extends BinaryPipe {
         return false;
     }
 }
+

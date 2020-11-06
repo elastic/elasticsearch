@@ -74,14 +74,14 @@ public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, 
         assertEquals(123_456_780, CurrentDateTime.nanoPrecision(zdt, literal(8)).getNano());
         assertEquals(123_456_789, CurrentDateTime.nanoPrecision(zdt, literal(9)).getNano());
     }
-    
+
     public void testDefaultPrecision() {
         Configuration configuration = SqlTestUtils.randomConfiguration();
         // null precision means default precision
         CurrentDateTime cdt = new CurrentDateTime(EMPTY, null, configuration);
         ZonedDateTime now = configuration.now();
         assertEquals(now.get(ChronoField.MILLI_OF_SECOND), ((ZonedDateTime) cdt.fold()).get(ChronoField.MILLI_OF_SECOND));
-        
+
         ZonedDateTime zdt = ZonedDateTime.parse("2019-02-26T12:34:56.123456789Z");
         assertEquals(123_000_000, CurrentDateTime.nanoPrecision(zdt, null).getNano());
     }
@@ -101,3 +101,4 @@ public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, 
         assertEquals("line 1:27: precision needs to be between [0-9], received [100]", e.getMessage());
     }
 }
+

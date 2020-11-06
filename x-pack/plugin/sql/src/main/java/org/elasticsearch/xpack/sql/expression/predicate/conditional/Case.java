@@ -184,3 +184,4 @@ public class Case extends ConditionalFunction {
         return new ScriptTemplate(formatTemplate(sb.toString()), params.build(), dataType());
     }
 }
+

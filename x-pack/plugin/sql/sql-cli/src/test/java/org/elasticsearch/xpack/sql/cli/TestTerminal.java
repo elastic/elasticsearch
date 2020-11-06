@@ -122,3 +122,4 @@ public class TestTerminal implements CliTerminal {
         return stringBuilder.toString();
     }
 }
+

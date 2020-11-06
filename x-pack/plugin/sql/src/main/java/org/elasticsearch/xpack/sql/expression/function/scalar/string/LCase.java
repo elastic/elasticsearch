@@ -41,3 +41,4 @@ public class LCase extends UnaryStringFunction {
         return DataTypes.KEYWORD;
     }
 }
+

@@ -28,7 +28,7 @@ public class ParserParams {
     public ParserParams(ZoneId zoneId) {
         this.zoneId = zoneId;
     }
-    
+
     public String fieldEventCategory() {
         return fieldEventCategory;
     }

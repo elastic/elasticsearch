@@ -61,7 +61,7 @@ public class Histogram extends GroupingFunction {
 
         return resolution;
     }
-    
+
     @Override
     public final GroupingFunction replaceChildren(List<Expression> newChildren) {
         if (newChildren.size() != 2) {
@@ -95,3 +95,4 @@ public class Histogram extends GroupingFunction {
         return false;
     }
 }
+

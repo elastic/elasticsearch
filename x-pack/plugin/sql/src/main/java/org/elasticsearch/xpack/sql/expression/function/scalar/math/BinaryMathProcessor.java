@@ -41,7 +41,7 @@ public class BinaryMathProcessor extends FunctionalEnumBinaryProcessor<Number, N
             return process.apply(left, right);
         }
     }
-    
+
     public static final String NAME = "mb";
 
     public BinaryMathProcessor(Processor left, Processor right, BinaryMathOperation operation) {
@@ -64,3 +64,4 @@ public class BinaryMathProcessor extends FunctionalEnumBinaryProcessor<Number, N
         }
     }
 }
+

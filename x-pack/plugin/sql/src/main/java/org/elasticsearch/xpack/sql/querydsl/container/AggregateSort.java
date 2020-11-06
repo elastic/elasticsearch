@@ -34,14 +34,15 @@ public class AggregateSort extends Sort {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         AggregateSort other = (AggregateSort) obj;
         return Objects.equals(direction(), other.direction())
                 && Objects.equals(missing(), other.missing())
                 && Objects.equals(agg, other.agg);
     }
 }
+

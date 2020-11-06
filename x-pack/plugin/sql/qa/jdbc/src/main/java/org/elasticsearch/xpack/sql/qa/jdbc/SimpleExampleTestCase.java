@@ -41,3 +41,4 @@ public abstract class SimpleExampleTestCase extends JdbcIntegrationTestCase {
         }
     }
 }
+

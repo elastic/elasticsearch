@@ -78,3 +78,4 @@ public class UnresolvedAlias extends UnresolvedNamedExpression {
         return toString();
     }
 }
+

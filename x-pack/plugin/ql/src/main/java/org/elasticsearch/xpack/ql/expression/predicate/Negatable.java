@@ -12,3 +12,4 @@ public interface Negatable<T extends ScalarFunction> {
     T negate();
 
 }
+

@@ -70,3 +70,4 @@ abstract class DebuggingInvoker implements InvocationHandler {
         return target;
     }
 }
+

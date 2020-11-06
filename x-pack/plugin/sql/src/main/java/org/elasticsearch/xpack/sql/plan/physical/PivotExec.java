@@ -61,3 +61,4 @@ public class PivotExec extends UnaryExec implements Unexecutable {
                 && Objects.equals(child(), other.child());
     }
 }
+

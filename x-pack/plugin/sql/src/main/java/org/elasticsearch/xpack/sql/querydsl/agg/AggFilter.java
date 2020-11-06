@@ -66,3 +66,4 @@ public class AggFilter extends PipelineAgg {
         return scriptTemplate.toString();
     }
 }
+

@@ -9,3 +9,4 @@ package org.elasticsearch.xpack.sql.qa.single_node;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlUsageTestCase;
 
 public class RestSqlUsageIT extends RestSqlUsageTestCase {}
+

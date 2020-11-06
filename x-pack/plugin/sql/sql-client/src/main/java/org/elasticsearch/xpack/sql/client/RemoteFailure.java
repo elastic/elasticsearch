@@ -340,3 +340,4 @@ public class RemoteFailure {
         return "Can't parse error from Elasticsearch [" + message + "]" + parserLocation + ". "  + responseMessage;
     }
 }
+

@@ -39,3 +39,4 @@ public class StringQueryPredicate extends FullTextPredicate {
         return fields;
     }
 }
+

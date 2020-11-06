@@ -105,3 +105,4 @@ public class GeoProcessorTests extends AbstractWireSerializingTestCase<GeoProces
         assertEquals("A geo_point or geo_shape is required; received [string]", siae.getMessage());
     }
 }
+

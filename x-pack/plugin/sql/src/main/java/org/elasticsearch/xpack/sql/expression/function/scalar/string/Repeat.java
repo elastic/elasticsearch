@@ -34,3 +34,4 @@ public class Repeat extends BinaryStringNumericFunction {
         return NodeInfo.create(this, Repeat::new, left(), right());
     }
 }
+

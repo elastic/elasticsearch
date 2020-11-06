@@ -44,3 +44,4 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
         return Nullability.UNKNOWN;
     }
 }
+

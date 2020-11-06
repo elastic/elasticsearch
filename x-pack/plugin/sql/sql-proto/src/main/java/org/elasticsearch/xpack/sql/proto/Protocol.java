@@ -73,3 +73,4 @@ public final class Protocol {
     public static final String SQL_TRANSLATE_REST_ENDPOINT = "/_sql/translate";
     public static final String SQL_STATS_REST_ENDPOINT = "/_sql/stats";
 }
+

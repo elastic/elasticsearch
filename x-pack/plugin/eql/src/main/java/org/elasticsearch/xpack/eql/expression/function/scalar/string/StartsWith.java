@@ -22,3 +22,4 @@ public class StartsWith extends org.elasticsearch.xpack.ql.expression.function.s
     }
 
 }
+

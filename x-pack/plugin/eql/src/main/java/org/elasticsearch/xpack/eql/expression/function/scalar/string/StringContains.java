@@ -135,3 +135,4 @@ public class StringContains extends CaseSensitiveScalarFunction {
         return true;
     }
 }
+

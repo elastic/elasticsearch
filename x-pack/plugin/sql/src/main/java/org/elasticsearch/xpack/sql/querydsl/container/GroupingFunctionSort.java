@@ -19,19 +19,20 @@ public class GroupingFunctionSort extends Sort {
     public int hashCode() {
         return Objects.hash(direction(), missing());
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         GroupingFunctionSort other = (GroupingFunctionSort) obj;
         return Objects.equals(direction(), other.direction())
                 && Objects.equals(missing(), other.missing());
     }
 }
+

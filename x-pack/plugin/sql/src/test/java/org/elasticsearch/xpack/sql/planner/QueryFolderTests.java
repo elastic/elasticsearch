@@ -508,3 +508,4 @@ public class QueryFolderTests extends ESTestCase {
         return SqlTestUtils.randomOrderByAndLimit(noOfSelectArgs, random());
     }
 }
+

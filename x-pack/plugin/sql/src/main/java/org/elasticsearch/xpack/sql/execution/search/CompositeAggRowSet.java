@@ -96,3 +96,4 @@ class CompositeAggRowSet extends ResultRowSet<BucketExtractor> {
         return afterKey;
     }
 }
+

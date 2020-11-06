@@ -48,3 +48,4 @@ class SingletonRowSet extends AbstractRowSet implements SchemaRowSet {
         return schema;
     }
 }
+

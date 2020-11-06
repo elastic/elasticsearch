@@ -24,3 +24,4 @@ public class TyperResolutionTests extends ESTestCase {
         return TestUtils.of(EMPTY, value);
     }
 }
+

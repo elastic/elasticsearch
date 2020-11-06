@@ -16,7 +16,7 @@ import static java.util.Collections.emptyList;
 /**
  * {@link Expression}s that can be materialized and describe properties of the derived table.
  * In other words, an attribute represent a column in the results of a query.
- * 
+ *
  * In the statement {@code SELECT ABS(foo), A, B+C FROM ...} the three named
  * expressions {@code ABS(foo), A, B+C} get converted to attributes and the user can
  * only see Attributes.
@@ -143,3 +143,4 @@ public abstract class Attribute extends NamedExpression {
 
     protected abstract String label();
 }
+

@@ -23,3 +23,4 @@ public abstract class CompoundNumericAggregate extends NumericAggregate implemen
         super(source, field);
     }
 }
+

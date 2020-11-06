@@ -86,3 +86,4 @@ public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<
         }
     }
 }
+

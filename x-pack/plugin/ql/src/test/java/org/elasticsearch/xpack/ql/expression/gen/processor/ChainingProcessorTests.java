@@ -58,3 +58,4 @@ public class ChainingProcessorTests extends AbstractWireSerializingTestCase<Chai
         return randomFrom(options).get();
     }
 }
+

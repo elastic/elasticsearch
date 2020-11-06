@@ -52,3 +52,4 @@ public class BinaryComparisonPipe extends BinaryPipe {
         return false;
     }
 }
+

@@ -63,7 +63,7 @@ public class IndexOfFunctionProcessor implements Processor {
         if (substring instanceof String == false && substring instanceof Character == false) {
             throw new EqlIllegalArgumentException("A string/char is required; received [{}]", substring);
         }
-        
+
         if (start != null && start instanceof Number == false) {
             throw new EqlIllegalArgumentException("A number is required; received [{}]", start);
         }
@@ -79,7 +79,7 @@ public class IndexOfFunctionProcessor implements Processor {
 
         return result < 0 ? null : result;
     }
-    
+
     protected Processor input() {
         return input;
     }
@@ -101,26 +101,27 @@ public class IndexOfFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         IndexOfFunctionProcessor other = (IndexOfFunctionProcessor) obj;
         return Objects.equals(input(), other.input())
                 && Objects.equals(substring(), other.substring())
                 && Objects.equals(start(), other.start())
                 && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(input(), substring(), start(), isCaseSensitive());
     }
-    
+
 
     @Override
     public String getWriteableName() {
         return NAME;
     }
 }
+

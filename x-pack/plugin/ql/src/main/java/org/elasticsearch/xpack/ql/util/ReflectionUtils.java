@@ -40,7 +40,7 @@ public class ReflectionUtils {
         }
         throw new QlIllegalArgumentException("Unexpected class structure for class {}", c);
     }
-    
+
     // remove packaging from the name - strategy used for naming rules by default
     public static String ruleLikeNaming(Class<?> c) {
         String className = c.getName();
@@ -54,3 +54,4 @@ public class ReflectionUtils {
         }
     }
 }
+

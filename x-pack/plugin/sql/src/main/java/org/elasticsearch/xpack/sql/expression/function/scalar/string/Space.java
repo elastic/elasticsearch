@@ -41,3 +41,4 @@ public class Space extends UnaryStringIntFunction {
         return DataTypes.KEYWORD;
     }
 }
+

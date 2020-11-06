@@ -72,3 +72,4 @@ public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         }
     }
 }
+

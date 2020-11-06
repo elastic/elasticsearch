@@ -117,3 +117,4 @@ public class QueryStringQuery extends LeafQuery {
         return fields + ":" + query;
     }
 }
+

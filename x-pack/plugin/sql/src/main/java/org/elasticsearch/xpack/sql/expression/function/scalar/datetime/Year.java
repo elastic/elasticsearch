@@ -17,7 +17,7 @@ import java.time.ZoneId;
  * Extract the year from a datetime.
  */
 public class Year extends DateTimeHistogramFunction {
-    
+
     public Year(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId, DateTimeExtractor.YEAR);
     }
@@ -42,3 +42,4 @@ public class Year extends DateTimeHistogramFunction {
         return Histogram.YEAR_INTERVAL;
     }
 }
+

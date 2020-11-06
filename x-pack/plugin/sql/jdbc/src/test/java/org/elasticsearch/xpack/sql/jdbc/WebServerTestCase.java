@@ -23,7 +23,7 @@ import java.util.Date;
 public abstract class WebServerTestCase extends ESTestCase {
 
     private MockWebServer webServer = new MockWebServer();
-    
+
     @Before
     public void init() throws Exception {
         webServer.start();
@@ -33,15 +33,15 @@ public abstract class WebServerTestCase extends ESTestCase {
     public void cleanup() {
         webServer.close();
     }
-    
+
     public MockWebServer webServer() {
         return webServer;
     }
-    
+
     MainResponse createCurrentVersionMainResponse() {
         return createMainResponse(Version.CURRENT);
     }
-    
+
     MainResponse createMainResponse(Version version) {
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
@@ -53,8 +53,9 @@ public abstract class WebServerTestCase extends ESTestCase {
         );
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build);
     }
-    
+
     String webServerAddress() {
         return webServer.getHostName() + ":" + webServer.getPort();
     }
 }
+

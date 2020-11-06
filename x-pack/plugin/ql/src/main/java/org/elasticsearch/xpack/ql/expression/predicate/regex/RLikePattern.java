@@ -31,3 +31,4 @@ public class RLikePattern extends AbstractStringPattern {
         return regexpPattern;
     }
 }
+

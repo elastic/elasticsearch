@@ -27,20 +27,21 @@ public class ScriptSort extends Sort {
     public int hashCode() {
         return Objects.hash(direction(), missing(), script);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         ScriptSort other = (ScriptSort) obj;
         return Objects.equals(direction(), other.direction())
                 && Objects.equals(missing(), other.missing())
                 && Objects.equals(script, other.script);
     }
 }
+

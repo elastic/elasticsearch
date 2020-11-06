@@ -79,15 +79,15 @@ public class BinaryOptionalMathPipe extends Pipe {
     public BinaryOptionalMathProcessor asProcessor() {
         return new BinaryOptionalMathProcessor(left.asProcessor(), right == null ? null : right.asProcessor(), operation);
     }
-    
+
     public Pipe right() {
         return right;
     }
-    
+
     public Pipe left() {
         return left;
     }
-    
+
     public BinaryOptionalMathOperation operation() {
         return operation;
     }
@@ -108,8 +108,9 @@ public class BinaryOptionalMathPipe extends Pipe {
         }
 
         BinaryOptionalMathPipe other = (BinaryOptionalMathPipe) obj;
-        return Objects.equals(left, other.left) 
+        return Objects.equals(left, other.left)
                 && Objects.equals(right, other.right)
                 && Objects.equals(operation, other.operation);
     }
 }
+

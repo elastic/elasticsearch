@@ -99,3 +99,4 @@ public final class UnaryPipe extends Pipe {
                 && Objects.equals(expression(), other.expression());
     }
 }
+

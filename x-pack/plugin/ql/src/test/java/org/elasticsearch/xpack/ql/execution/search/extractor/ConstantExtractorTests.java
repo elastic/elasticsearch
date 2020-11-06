@@ -54,3 +54,4 @@ public class ConstantExtractorTests extends AbstractWireSerializingTestCase<Cons
         assertEquals("^42", new ConstantExtractor("42").toString());
     }
 }
+

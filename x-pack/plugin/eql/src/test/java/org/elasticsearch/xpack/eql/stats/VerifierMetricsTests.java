@@ -39,17 +39,17 @@ import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_T
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_UNTIL;
 
 public class VerifierMetricsTests extends ESTestCase {
-    
+
     private EqlParser parser = new EqlParser();
     private PreAnalyzer preAnalyzer = new PreAnalyzer();
     private EqlFunctionRegistry eqlFunctionRegistry = new EqlFunctionRegistry();
     private IndexResolution index = OptimizerTests.loadIndexResolution("mapping-default.json");
-    
+
     public void testEventQuery() {
         Counters c = eql("process where serial_event_id < 4");
         assertCounters(c, Set.of(EVENT, PIPE_HEAD));
     }
-    
+
     public void testSequenceQuery() {
         Counters c = eql("sequence\r\n" +
             "  [process where serial_event_id == 1]\r\n" +
@@ -66,17 +66,17 @@ public class VerifierMetricsTests extends ESTestCase {
             "| head 1");
         assertCounters(c, Set.of(JOIN, PIPE_HEAD, JOIN_UNTIL, JOIN_QUERIES_TWO, JOIN_KEYS_ONE));
     }
-    
+
     public void testHeadQuery() {
         Counters c = eql("process where serial_event_id < 4 | head 2");
         assertCounters(c, Set.of(EVENT, PIPE_HEAD));
     }
-    
+
     public void testTailQuery() {
         Counters c = eql("process where serial_event_id < 4 | tail 2");
         assertCounters(c, Set.of(EVENT, PIPE_TAIL));
     }
-    
+
     public void testSequenceMaxSpanQuery() {
         Counters c = eql("sequence with maxspan=1d\r\n" +
             "  [process where serial_event_id < 4] by exit_code\r\n" +
@@ -88,7 +88,7 @@ public class VerifierMetricsTests extends ESTestCase {
             "| tail 2");
         assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, PIPE_TAIL, SEQUENCE_MAXSPAN, SEQUENCE_UNTIL, SEQUENCE_QUERIES_FOUR, JOIN_KEYS_ONE));
     }
-    
+
     public void testSequenceWithTwoQueries() {
         Counters c = eql("sequence with maxspan=1d\r\n" +
             "  [process where serial_event_id < 4] by exit_code\r\n" +
@@ -98,7 +98,7 @@ public class VerifierMetricsTests extends ESTestCase {
             "| tail 2");
         assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, PIPE_TAIL, SEQUENCE_MAXSPAN, SEQUENCE_UNTIL, SEQUENCE_QUERIES_TWO, JOIN_KEYS_ONE));
     }
-    
+
     public void testSequenceWithThreeQueries() {
         Counters c = eql("sequence with maxspan=1d\r\n" +
             "  [process where serial_event_id < 4] by exit_code\r\n" +
@@ -107,7 +107,7 @@ public class VerifierMetricsTests extends ESTestCase {
             "| head 4");
         assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_MAXSPAN, SEQUENCE_QUERIES_THREE, JOIN_KEYS_ONE));
     }
-    
+
     public void testSequenceWithFiveQueries() {
         Counters c = eql("sequence with maxspan=1d\r\n" +
             "  [process where serial_event_id < 4] by exit_code\r\n" +
@@ -131,7 +131,7 @@ public class VerifierMetricsTests extends ESTestCase {
             "| tail 1");
         assertCounters(c, Set.of(SEQUENCE, PIPE_TAIL, SEQUENCE_QUERIES_FIVE_OR_MORE, JOIN_KEYS_TWO));
     }
-    
+
     public void testSequenceWithThreeKeys() {
         Counters c = eql("sequence by exit_code, user, serial_event_id\r\n" +
             "  [process where serial_event_id < 4]\r\n" +
@@ -156,12 +156,12 @@ public class VerifierMetricsTests extends ESTestCase {
     private void assertCounters(Counters actual, Set<FeatureMetric> metrics) {
         MetricsHolder expected = new MetricsHolder();
         expected.set(metrics);
-        
+
         for (FeatureMetric metric : FeatureMetric.values()) {
             assertEquals(expected.get(metric), actual.get(metric.prefixedName()));
         }
     }
-    
+
     private Counters eql(String query) {
         return eql(query, null);
     }
@@ -175,7 +175,7 @@ public class VerifierMetricsTests extends ESTestCase {
         }
         Analyzer analyzer = new Analyzer(EqlTestUtils.randomConfiguration(), eqlFunctionRegistry, verifier);
         analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(query), index));
-        
+
         return metrics == null ? null : metrics.stats();
     }
 
@@ -204,3 +204,4 @@ public class VerifierMetricsTests extends ESTestCase {
         }
     }
 }
+

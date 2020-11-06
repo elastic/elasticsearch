@@ -28,3 +28,4 @@ interface Cursor {
 
     void close() throws SQLException;
 }
+

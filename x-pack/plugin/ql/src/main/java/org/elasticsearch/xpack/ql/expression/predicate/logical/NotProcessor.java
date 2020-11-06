@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import java.io.IOException;
 
 public class NotProcessor implements Processor {
-    
+
     public static final NotProcessor INSTANCE = new NotProcessor();
 
     public static final String NAME = "ln";
@@ -39,7 +39,7 @@ public class NotProcessor implements Processor {
         if (input == null) {
             return null;
         }
-        
+
         if (!(input instanceof Boolean)) {
             throw new QlIllegalArgumentException("A boolean is required; received {}", input);
         }
@@ -61,3 +61,4 @@ public class NotProcessor implements Processor {
         return obj == null || getClass() != obj.getClass();
     }
 }
+

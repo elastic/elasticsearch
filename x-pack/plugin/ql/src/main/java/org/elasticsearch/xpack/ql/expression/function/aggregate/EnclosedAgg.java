@@ -10,3 +10,4 @@ public interface EnclosedAgg {
 
     String innerName();
 }
+

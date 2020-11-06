@@ -65,8 +65,9 @@ public class PivotExtractor implements BucketExtractor {
             return false;
         }
         PivotExtractor other = (PivotExtractor) obj;
-        return Objects.equals(groupExtractor, other.groupExtractor) 
+        return Objects.equals(groupExtractor, other.groupExtractor)
                 && Objects.equals(metricExtractor, other.metricExtractor)
                 && Objects.equals(value, other.value);
     }
 }
+

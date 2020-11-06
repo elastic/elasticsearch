@@ -110,3 +110,4 @@ public class TopHitsAggExtractor implements BucketExtractor {
         return "TopHits>" + name + "[" + fieldDataType + "]@" + zoneId;
     }
 }
+

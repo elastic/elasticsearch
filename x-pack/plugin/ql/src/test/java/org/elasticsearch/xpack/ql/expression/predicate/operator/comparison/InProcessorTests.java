@@ -64,3 +64,4 @@ public class InProcessorTests extends AbstractWireSerializingTestCase<InProcesso
         return TestUtils.of(EMPTY, value);
     }
 }
+

@@ -148,3 +148,4 @@ public class SequenceExec extends PhysicalPlan {
                 && Objects.equals(keys, other.keys);
     }
 }
+

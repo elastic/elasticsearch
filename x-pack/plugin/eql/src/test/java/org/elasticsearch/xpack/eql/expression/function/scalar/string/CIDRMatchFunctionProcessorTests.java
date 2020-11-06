@@ -71,3 +71,4 @@ public class CIDRMatchFunctionProcessorTests extends ESTestCase {
         assertEquals("A string/char is required; received [5678]", eqe.getMessage());
     }
 }
+

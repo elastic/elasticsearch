@@ -68,7 +68,7 @@ public class ComputingExtractor implements HitExtractor, BucketExtractor {
     public Object extract(Object input) {
         return processor.process(input);
     }
-    
+
     @Override
     public Object extract(Bucket bucket) {
         return processor.process(bucket);
@@ -104,3 +104,4 @@ public class ComputingExtractor implements HitExtractor, BucketExtractor {
         return processor.toString();
     }
 }
+

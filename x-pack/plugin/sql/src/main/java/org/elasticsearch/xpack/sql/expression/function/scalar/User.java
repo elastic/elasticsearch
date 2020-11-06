@@ -27,3 +27,4 @@ public class User extends SqlConfigurationFunction {
         return NodeInfo.create(this, User::new, configuration());
     }
 }
+

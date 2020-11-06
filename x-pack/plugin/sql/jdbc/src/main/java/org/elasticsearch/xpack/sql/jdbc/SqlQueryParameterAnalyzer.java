@@ -121,3 +121,4 @@ final class SqlQueryParameterAnalyzer {
         throw new SQLException("Cannot parse given sql; unclosed string");
     }
 }
+

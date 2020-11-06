@@ -26,3 +26,4 @@ public final class HitExtractors {
         return entries;
     }
 }
+

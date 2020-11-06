@@ -32,3 +32,4 @@ class SchemaCompositeAggRowSet extends CompositeAggRowSet implements SchemaRowSe
         return schema;
     }
 }
+

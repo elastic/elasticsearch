@@ -140,3 +140,4 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         return clusterService.getClusterName().value();
     }
 }
+

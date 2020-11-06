@@ -36,7 +36,7 @@ public class InsertFunctionPipe extends Pipe {
         }
         return replaceChildren(newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
-    
+
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
         Pipe newInput = input.resolveAttributes(resolver);
@@ -64,7 +64,7 @@ public class InsertFunctionPipe extends Pipe {
     public boolean resolved() {
         return input.resolved() && start.resolved() && length.resolved() && replacement.resolved();
     }
-    
+
     protected Pipe replaceChildren(Pipe newInput,
             Pipe newStart,
             Pipe newLength,
@@ -89,23 +89,23 @@ public class InsertFunctionPipe extends Pipe {
     public InsertFunctionProcessor asProcessor() {
         return new InsertFunctionProcessor(input.asProcessor(), start.asProcessor(), length.asProcessor(), replacement.asProcessor());
     }
-    
+
     public Pipe input() {
         return input;
     }
-    
+
     public Pipe start() {
         return start;
     }
-    
+
     public Pipe length() {
         return length;
     }
-    
+
     public Pipe replacement() {
         return replacement;
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(input, start, length, replacement);
@@ -128,3 +128,4 @@ public class InsertFunctionPipe extends Pipe {
                 && Objects.equals(replacement, other.replacement);
     }
 }
+

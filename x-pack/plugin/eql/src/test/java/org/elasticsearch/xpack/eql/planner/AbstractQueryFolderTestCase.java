@@ -43,3 +43,4 @@ public abstract class AbstractQueryFolderTestCase extends ESTestCase {
         return plan(index, eql);
     }
 }
+

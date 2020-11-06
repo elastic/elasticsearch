@@ -50,3 +50,4 @@ public class QueryStringQueryTests extends ESTestCase {
         assertEquals("QueryStringQuery@1:2[{foo=1.0}:eggplant]", mmq.toString());
     }
 }
+

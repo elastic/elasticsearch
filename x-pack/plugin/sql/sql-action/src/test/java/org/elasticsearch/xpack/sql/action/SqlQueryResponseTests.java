@@ -66,7 +66,7 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
                 rowCount = columnCount;
                 columnCount = temp;
             }
-            
+
             rows = new ArrayList<>(rowCount);
             for (int r = 0; r < rowCount; r++) {
                 List<Object> row = new ArrayList<>(rowCount);
@@ -131,3 +131,4 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
         return new SqlQueryResponse(response.cursor(), Mode.JDBC, false, response.columns(), response.rows());
     }
 }
+

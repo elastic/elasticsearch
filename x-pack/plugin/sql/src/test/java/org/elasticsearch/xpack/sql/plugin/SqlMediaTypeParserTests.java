@@ -91,3 +91,4 @@ public class SqlMediaTypeParserTests extends ESTestCase {
             randomBoolean(), randomBoolean()).binaryCommunication(binaryCommunication);
     }
 }
+

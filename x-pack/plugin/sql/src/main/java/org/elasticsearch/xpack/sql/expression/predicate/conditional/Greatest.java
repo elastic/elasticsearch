@@ -44,3 +44,4 @@ public class Greatest extends ArbitraryConditionalFunction {
         return GREATEST.apply(values);
     }
 }
+

@@ -77,3 +77,4 @@ public class Project extends UnaryPlan {
                 && Objects.equals(child(), other.child());
     }
 }
+

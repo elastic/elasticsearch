@@ -34,3 +34,4 @@ public class Expm1 extends MathFunction {
         return MathOperation.EXPM1;
     }
 }
+

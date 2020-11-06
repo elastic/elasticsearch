@@ -29,3 +29,4 @@ public final class StringComparisons {
         return equal == null ? null : (equal == Boolean.TRUE ? Boolean.FALSE : Boolean.TRUE);
     }
 }
+

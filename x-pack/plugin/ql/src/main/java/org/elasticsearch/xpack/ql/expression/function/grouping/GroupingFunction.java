@@ -72,3 +72,4 @@ public abstract class GroupingFunction extends Function {
         return Objects.hash(field(), parameters());
     }
 }
+

@@ -67,3 +67,4 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
             && Objects.equals(other.zoneId(), zoneId());
     }
 }
+

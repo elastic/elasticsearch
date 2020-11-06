@@ -84,3 +84,4 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
         return UNRESOLVED_PREFIX + message();
     }
 }
+

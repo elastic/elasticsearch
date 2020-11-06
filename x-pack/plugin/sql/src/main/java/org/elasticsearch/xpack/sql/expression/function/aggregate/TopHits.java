@@ -62,3 +62,4 @@ public abstract class TopHits extends AggregateFunction implements OptionalArgum
         return TypeResolution.TYPE_RESOLVED;
     }
 }
+

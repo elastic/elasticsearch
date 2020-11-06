@@ -47,3 +47,4 @@ public class CurrentDateTests extends AbstractNodeTestCase<CurrentDate, Expressi
     public void testReplaceChildren() {
     }
 }
+

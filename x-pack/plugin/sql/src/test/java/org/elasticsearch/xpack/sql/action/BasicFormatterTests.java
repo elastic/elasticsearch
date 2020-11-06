@@ -78,3 +78,4 @@ public class BasicFormatterTests extends ESTestCase {
                 formatter.estimateSize(firstResponse.rows().size()));
     }
 }
+

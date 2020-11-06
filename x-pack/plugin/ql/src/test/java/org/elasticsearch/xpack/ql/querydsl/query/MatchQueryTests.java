@@ -83,3 +83,4 @@ public class MatchQueryTests extends ESTestCase {
         assertEquals("MatchQuery@1:2[eggplant:foo]", mmq.toString());
     }
 }
+

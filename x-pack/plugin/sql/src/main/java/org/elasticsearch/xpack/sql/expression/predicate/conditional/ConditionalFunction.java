@@ -95,3 +95,4 @@ public abstract class ConditionalFunction extends ScalarFunction {
         return Objects.hash(children());
     }
 }
+

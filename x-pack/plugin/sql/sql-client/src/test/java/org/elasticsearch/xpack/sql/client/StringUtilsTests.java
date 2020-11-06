@@ -17,3 +17,4 @@ public class StringUtilsTests extends ESTestCase {
         assertEquals(rando, nullAsEmpty(rando));
     }
 }
+

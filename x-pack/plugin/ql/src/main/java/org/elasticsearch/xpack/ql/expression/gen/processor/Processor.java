@@ -17,3 +17,4 @@ public interface Processor extends NamedWriteable {
 
     Object process(Object input);
 }
+

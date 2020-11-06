@@ -565,3 +565,4 @@ class EqlBaseBaseListener implements EqlBaseListener {
    */
   @Override public void visitErrorNode(ErrorNode node) { }
 }
+

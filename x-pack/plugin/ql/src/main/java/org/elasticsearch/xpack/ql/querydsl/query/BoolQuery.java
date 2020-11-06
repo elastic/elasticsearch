@@ -105,3 +105,4 @@ public class BoolQuery extends Query {
         return left + (isAnd ? " AND " : " OR ") + right;
     }
 }
+

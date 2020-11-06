@@ -65,3 +65,4 @@ public class FunctionDefinition {
         return format(null, "{}({})", name, aliases.isEmpty() ? "" : aliases.size() == 1 ? aliases.get(0) : aliases);
     }
 }
+

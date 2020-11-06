@@ -15,3 +15,4 @@ public class EqlSearchAction extends ActionType<EqlSearchResponse> {
         super(NAME, EqlSearchResponse::new);
     }
 }
+

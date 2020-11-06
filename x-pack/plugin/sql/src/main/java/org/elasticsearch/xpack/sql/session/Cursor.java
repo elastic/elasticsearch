@@ -49,3 +49,4 @@ public interface Cursor extends NamedWriteable {
      */
     void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener);
 }
+

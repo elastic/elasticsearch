@@ -58,7 +58,7 @@ public class CliSession {
     public boolean isDebug() {
         return debug;
     }
-    
+
     public void setBinary(boolean binary) {
         this.binary = binary;
     }
@@ -82,3 +82,4 @@ public class CliSession {
         }
     }
 }
+

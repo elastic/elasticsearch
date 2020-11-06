@@ -41,3 +41,4 @@ public class OctetLength extends UnaryStringFunction {
         return DataTypes.INTEGER;
     }
 }
+

@@ -87,3 +87,4 @@ public abstract class FullTextPredicate extends Expression {
                 && Objects.equals(options, other.options);
     }
 }
+

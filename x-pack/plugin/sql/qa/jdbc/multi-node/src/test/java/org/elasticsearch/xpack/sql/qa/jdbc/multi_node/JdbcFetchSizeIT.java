@@ -8,3 +8,4 @@ package org.elasticsearch.xpack.sql.qa.jdbc.multi_node;
 import org.elasticsearch.xpack.sql.qa.jdbc.FetchSizeTestCase;
 
 public class JdbcFetchSizeIT extends FetchSizeTestCase {}
+

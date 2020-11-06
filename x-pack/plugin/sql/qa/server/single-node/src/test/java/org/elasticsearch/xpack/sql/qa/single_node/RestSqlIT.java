@@ -70,3 +70,4 @@ public class RestSqlIT extends RestSqlTestCase {
 
     }
 }
+

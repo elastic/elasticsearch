@@ -10,3 +10,4 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
 public interface MatrixStatsEnclosed extends EnclosedAgg {
 
 }
+

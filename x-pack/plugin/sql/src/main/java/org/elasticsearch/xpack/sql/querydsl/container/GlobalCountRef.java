@@ -19,3 +19,4 @@ public final class GlobalCountRef extends AggRef {
         return "#_Total_Hits_#";
     }
 }
+

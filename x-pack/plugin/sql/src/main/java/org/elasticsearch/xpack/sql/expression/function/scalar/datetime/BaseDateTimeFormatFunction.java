@@ -63,3 +63,4 @@ public abstract class BaseDateTimeFormatFunction extends BinaryDateTimeFunction 
 
     protected abstract NodeCtor3<Expression, Expression, ZoneId, BaseDateTimeFormatFunction> ctor();
 }
+

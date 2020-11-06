@@ -35,3 +35,4 @@ public class Div extends ArithmeticOperation {
         return DataTypeConverter.commonType(left().dataType(), right().dataType());
     }
 }
+

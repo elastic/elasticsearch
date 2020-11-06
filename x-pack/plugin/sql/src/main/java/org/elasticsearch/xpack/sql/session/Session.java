@@ -9,3 +9,4 @@ package org.elasticsearch.xpack.sql.session;
 public interface Session {
 
 }
+

@@ -54,3 +54,4 @@ public class EmptyExecutable implements SqlExecutable {
         return output.toString();
     }
 }
+

@@ -55,3 +55,4 @@ public abstract class BaseSurrogateFunction extends ScalarFunction implements Su
         return substitute().asScript();
     }
 }
+

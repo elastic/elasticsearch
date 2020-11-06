@@ -9,3 +9,4 @@ package org.elasticsearch.xpack.sql.qa.multi_node;
 import org.elasticsearch.xpack.sql.qa.SqlProtocolTestCase;
 
 public class SqlProtocolIT extends SqlProtocolTestCase {}
+

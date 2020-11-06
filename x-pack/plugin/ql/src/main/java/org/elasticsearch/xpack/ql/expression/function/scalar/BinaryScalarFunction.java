@@ -71,3 +71,4 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
         return getClass().getSimpleName().toLowerCase(Locale.ROOT);
     }
 }
+

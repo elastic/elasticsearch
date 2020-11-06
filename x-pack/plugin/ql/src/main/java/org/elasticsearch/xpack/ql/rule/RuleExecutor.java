@@ -196,3 +196,4 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         return new ExecutionInfo(plan, currentPlan, transformations);
     }
 }
+

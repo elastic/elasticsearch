@@ -14,12 +14,12 @@ public class HitReference {
 
     private final String index;
     private final String id;
-    
+
     public HitReference(SearchHit hit) {
         this.index = hit.getIndex();
         this.id = hit.getId();
     }
-    
+
     public String index() {
         return index;
     }
@@ -38,11 +38,11 @@ public class HitReference {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         HitReference other = (HitReference) obj;
         return Objects.equals(index, other.index)
                 && Objects.equals(id, other.id);
@@ -53,3 +53,4 @@ public class HitReference {
         return "doc[" + index + "][" + id + "]";
     }
 }
+

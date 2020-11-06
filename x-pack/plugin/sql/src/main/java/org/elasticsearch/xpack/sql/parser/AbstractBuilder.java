@@ -136,3 +136,4 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
         throw new ParsingException(source, "Does not know how to handle {}", source.text());
     }
 }
+

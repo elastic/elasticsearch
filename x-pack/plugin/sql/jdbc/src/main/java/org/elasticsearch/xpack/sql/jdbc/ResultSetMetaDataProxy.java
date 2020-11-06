@@ -11,3 +11,4 @@ final class ResultSetMetaDataProxy extends DebuggingInvoker {
         super(log, target, null);
     }
 }
+

@@ -87,7 +87,7 @@ public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestC
         assertEquals(true, lessThanOrEqualOf(l(3), l(4)).makePipe().asProcessor().process(null));
         assertEquals(true, lessThanOrEqualOf(l(3), l(3)).makePipe().asProcessor().process(null));
     }
-    
+
     public void testHandleNull() {
         assertNull(equalsOf(NULL, l(3)).makePipe().asProcessor().process(null));
         assertNull(notEqualsOf(NULL, l(3)).makePipe().asProcessor().process(null));
@@ -96,8 +96,9 @@ public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestC
         assertNull(lessThanOf(NULL, l(3)).makePipe().asProcessor().process(null));
         assertNull(lessThanOrEqualOf(NULL, l(3)).makePipe().asProcessor().process(null));
     }
-    
+
     private static Literal l(Object value) {
         return TestUtils.of(EMPTY, value);
     }
 }
+

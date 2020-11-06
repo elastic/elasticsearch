@@ -41,3 +41,4 @@ public class CharLength extends UnaryStringFunction {
         return DataTypes.INTEGER;
     }
 }
+

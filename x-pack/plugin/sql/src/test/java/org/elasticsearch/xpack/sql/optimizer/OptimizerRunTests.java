@@ -49,3 +49,4 @@ public class OptimizerRunTests extends ESTestCase {
         assertNotNull(p);
     }
 }
+

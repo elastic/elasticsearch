@@ -225,3 +225,4 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         Object parse(String line);
     }
 }
+

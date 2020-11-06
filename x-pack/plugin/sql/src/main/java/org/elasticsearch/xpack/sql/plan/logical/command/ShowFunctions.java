@@ -77,3 +77,4 @@ public class ShowFunctions extends Command {
         return Objects.equals(pattern, other.pattern);
     }
 }
+

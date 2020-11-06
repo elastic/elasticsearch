@@ -23,7 +23,7 @@ public enum QueryMetric {
             return REST;
         }
     }
-    
+
     @Override
     public String toString() {
         return this.name().toLowerCase(Locale.ROOT);
@@ -41,3 +41,4 @@ public enum QueryMetric {
         return fromString(mode == Mode.PLAIN ? clientId : mode.toString());
     }
 }
+

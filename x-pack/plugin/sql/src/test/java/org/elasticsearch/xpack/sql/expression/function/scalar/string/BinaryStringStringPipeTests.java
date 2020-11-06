@@ -28,11 +28,11 @@ public class BinaryStringStringPipeTests
     protected BinaryStringStringPipe randomInstance() {
         return randomBinaryStringStringPipe();
     }
-    
+
     private Expression randomBinaryStringStringExpression() {
         return randomBinaryStringStringPipe().expression();
     }
-    
+
     public static BinaryStringStringPipe randomBinaryStringStringPipe() {
         List<Pipe> functions = new ArrayList<>();
         functions.add(new Position(
@@ -57,7 +57,7 @@ public class BinaryStringStringPipeTests
                 b1.right(),
                 b1.operation());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+
         BinaryStringStringPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new BinaryStringStringPipe(
@@ -77,19 +77,19 @@ public class BinaryStringStringPipeTests
         Pipe newRight = pipe(((Expression) randomValueOtherThan(b.right(), () -> randomStringLiteral())));
         BinaryStringStringPipe newB =
                 new BinaryStringStringPipe(b.source(), b.expression(), b.left(), b.right(), b.operation());
-        
+
         BinaryPipe transformed = newB.replaceChildren(newLeft, b.right());
         assertEquals(transformed.left(), newLeft);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.right(), b.right());
-        
+
         transformed = newB.replaceChildren(b.left(), newRight);
         assertEquals(transformed.left(), b.left());
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.right(), newRight);
-        
+
         transformed = newB.replaceChildren(newLeft, newRight);
         assertEquals(transformed.left(), newLeft);
         assertEquals(transformed.source(), b.source());
@@ -115,7 +115,7 @@ public class BinaryStringStringPipeTests
                 pipe(((Expression) randomValueOtherThan(f.left(), () -> randomStringLiteral()))),
                 pipe(((Expression) randomValueOtherThan(f.right(), () -> randomStringLiteral()))),
                 f.operation()));
-        
+
         return randomFrom(randoms).apply(instance);
     }
 
@@ -128,3 +128,4 @@ public class BinaryStringStringPipeTests
                 instance.operation());
     }
 }
+

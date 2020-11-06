@@ -31,3 +31,4 @@ class SchemaSearchHitRowSet extends SearchHitRowSet implements SchemaRowSet {
         return schema;
     }
 }
+

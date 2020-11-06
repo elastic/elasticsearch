@@ -102,3 +102,4 @@ public class SubstringFunctionProcessor implements Processor {
         return NAME;
     }
 }
+

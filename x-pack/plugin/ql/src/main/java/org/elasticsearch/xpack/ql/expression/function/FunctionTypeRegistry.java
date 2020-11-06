@@ -10,3 +10,4 @@ public interface FunctionTypeRegistry {
 
     String type(Class<? extends Function> clazz);
 }
+

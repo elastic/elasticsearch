@@ -71,3 +71,4 @@ public class AggregateExec extends UnaryExec implements Unexecutable {
                 && Objects.equals(child(), other.child());
     }
 }
+

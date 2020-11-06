@@ -31,3 +31,4 @@ public interface StringPattern {
         return false;
     }
 }
+

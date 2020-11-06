@@ -36,3 +36,4 @@ public class CasePipe extends MultiPipe {
         return new CaseProcessor(procs);
     }
 }
+

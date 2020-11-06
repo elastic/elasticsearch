@@ -42,3 +42,4 @@ public class RTrim extends UnaryStringFunction {
     }
 
 }
+

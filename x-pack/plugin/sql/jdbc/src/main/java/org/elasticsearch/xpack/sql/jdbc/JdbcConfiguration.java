@@ -229,3 +229,4 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         return info.toArray(new DriverPropertyInfo[info.size()]);
     }
 }
+

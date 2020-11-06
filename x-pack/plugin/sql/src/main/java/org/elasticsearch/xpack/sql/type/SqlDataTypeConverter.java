@@ -190,7 +190,7 @@ public final class SqlDataTypeConverter {
         // fallback to default
         return DataTypeConverter.converterFor(from, to);
     }
-    
+
     private static Converter conversionToString(DataType from) {
         if (from == DATE) {
             return SqlConverter.DATE_TO_STRING;
@@ -200,7 +200,7 @@ public final class SqlDataTypeConverter {
         }
         return null;
     }
-    
+
     private static Converter conversionToLong(DataType from) {
         if (from == DATE) {
             return SqlConverter.DATE_TO_LONG;
@@ -347,7 +347,7 @@ public final class SqlDataTypeConverter {
     public enum SqlConverter implements Converter {
         DATE_TO_STRING(o -> DateUtils.toDateString((ZonedDateTime) o)),
         TIME_TO_STRING(o -> DateUtils.toTimeString((OffsetTime) o)),
-        
+
         DATE_TO_LONG(delegate(DATETIME_TO_LONG)),
         TIME_TO_LONG(fromTime(value -> value)),
 
@@ -385,7 +385,7 @@ public final class SqlDataTypeConverter {
         TIME_TO_BOOLEAN(fromTime(value -> value != 0));
 
         public static final String NAME = "dtc-sql";
-        
+
         private final Function<Object, Object> converter;
 
         SqlConverter(Function<Object, Object> converter) {
@@ -451,3 +451,4 @@ public final class SqlDataTypeConverter {
         }
     }
 }
+

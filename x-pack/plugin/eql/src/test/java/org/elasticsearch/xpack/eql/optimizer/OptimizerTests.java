@@ -631,3 +631,4 @@ public class OptimizerTests extends ESTestCase {
         return new GreaterThan(EMPTY, b, new Literal(EMPTY, 1, INTEGER), UTC);
     }
 }
+

@@ -33,7 +33,7 @@ public final class EqlTestUtils {
     }
 
     public static final EqlConfiguration TEST_CFG = new EqlConfiguration(new String[] {"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), null, 
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), null,
             123, "", new TaskId("test", 123), null);
 
     public static EqlConfiguration randomConfiguration() {
@@ -69,3 +69,4 @@ public final class EqlTestUtils {
     }
 
 }
+

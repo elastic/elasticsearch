@@ -20,7 +20,7 @@ import java.util.List;
  * count digits before the decimal point, starting at the decimal point.
  */
 public class Truncate extends BinaryOptionalNumericFunction implements OptionalArgument {
-    
+
     public Truncate(Source source, Expression left, Expression right) {
         super(source, left, right);
     }
@@ -34,9 +34,10 @@ public class Truncate extends BinaryOptionalNumericFunction implements OptionalA
     protected BinaryOptionalMathOperation operation() {
         return BinaryOptionalMathOperation.TRUNCATE;
     }
-    
+
     @Override
     protected final Expression replacedChildrenInstance(List<Expression> newChildren) {
         return new Truncate(source(), newChildren.get(0), right() == null ? null : newChildren.get(1));
     }
 }
+

@@ -158,3 +158,4 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
         protected abstract PhysicalPlan map(SubPlan plan);
     }
 }
+

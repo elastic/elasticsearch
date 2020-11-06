@@ -120,3 +120,4 @@ public class CursorTests extends ESTestCase {
         return Cursors.decodeFromStringWithZone(base64).v1();
     }
 }
+

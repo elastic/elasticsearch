@@ -56,3 +56,4 @@ public class MultiMatchQueryTests extends ESTestCase {
         assertEquals("MultiMatchQuery@1:2[{bar=1.0, foo=1.0}:eggplant]", mmq.toString());
     }
 }
+

@@ -6,12 +6,6 @@ grant {
   permission java.lang.RuntimePermission "getClassLoader";
   permission java.lang.RuntimePermission "setContextClassLoader";
 
-  // needed for x-pack security extension
-  permission java.security.SecurityPermission "createPolicy.JavaPolicy";
-  permission java.security.SecurityPermission "getPolicy";
-  permission java.security.SecurityPermission "setPolicy";
-  permission java.util.PropertyPermission "*", "read,write";
-
   // needed for multiple server implementations used in tests
   permission java.net.SocketPermission "*", "accept,connect";
 };

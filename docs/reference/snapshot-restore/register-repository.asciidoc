@@ -104,27 +104,14 @@ Use a shared file system repository (`"type": "fs"`) to store snapshots on a
 shared file system.
 
 To register a shared file system repository, first mount the file system to the
-same location on all master and data nodes. Next steps vary slightly based on
-your platform:
+same location on all master and data nodes. Then add the file system's path or
+parent directory to the `path.repo` setting in `elasticsearch.yml` for each
+master and data node. For running clusters, this requires a
+<<restart-cluster-rolling,rolling restart>> of each node.
 
 include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 
 include::{es-repo-dir}/tab-widgets/register-fs-repo-widget.asciidoc[]
-
-////
-[source,console]
------------------------------------
-PUT /_snapshot/my_fs_backup
-{
-  "type": "fs",
-  "settings": {
-    "location": "my_fs_backup_location",
-    "compress": true
-  }
-}
------------------------------------
-// TEST[continued]
-////
 
 [discrete]
 [[snapshots-read-only-repository]]

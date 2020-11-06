@@ -1,8 +1,4 @@
 // tag::unix[]
-Add the file system's path or parent directory to the `path.repo` setting in
-`elasticsearch.yml` for each master and data node. For running clusters, this
-requires a <<restart-cluster-rolling,rolling restart>> of each node.
-
 [source,yaml]
 ----
 path:
@@ -51,10 +47,6 @@ relative path, `my_fs_backup_location`, resolves to
 
 
 // tag::win[]
-Add the file system's path or parent directory to the `path.repo` setting in
-`elasticsearch.yml` for each master and data node. For running clusters, this
-requires a <<restart-cluster-rolling,rolling restart>> of each node.
-
 Both traditional DOS and Microsoft UNC paths are supported. The following
 example uses traditional DOS paths with escaped backslashes:
 

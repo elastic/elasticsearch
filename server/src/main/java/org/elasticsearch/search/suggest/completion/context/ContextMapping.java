@@ -94,7 +94,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     /**
      * Parses a set of index-time contexts.
      */
-    public abstract Set<String> parseContext(ParseContext parseContext, XContentParser parser)
+    public abstract Set<String> parseContext(XContentParser parser)
             throws IOException, ElasticsearchParseException;
 
     /**

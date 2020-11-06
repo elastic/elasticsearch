@@ -60,6 +60,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     public interface Indexer<Parsed, Processed> {
         Processed prepareForIndexing(Parsed geometry);
         Class<Processed> processedClass();
+        Class<Parsed> parsedClass();
         List<IndexableField> indexShape(ParseContext context, Processed shape);
     }
 
@@ -149,25 +150,25 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> ignoreZValue;
     private final Indexer<Parsed, Processed> indexer;
-    private final Parser<Parsed> parser;
 
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                           Map<String, NamedAnalyzer> indexAnalyzers,
+                                          IndexableValueParser valueParser,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
-                                          Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo);
+                                          Indexer<Parsed, Processed> indexer) {
+        super(simpleName, mappedFieldType, indexAnalyzers, valueParser, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
         this.indexer = indexer;
-        this.parser = parser;
     }
 
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                          IndexableValueParser valueParser,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
-                                          Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(), ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
+                                          Indexer<Parsed, Processed> indexer) {
+        this(simpleName, mappedFieldType, Collections.emptyMap(), valueParser, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer);
     }
 
     @Override
@@ -175,64 +176,43 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         return (AbstractGeometryFieldType) mappedFieldType;
     }
 
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
-    }
-
     protected abstract void addStoredFields(ParseContext context, Processed geometry);
     protected abstract void addDocValuesFields(String name, Processed geometry, List<IndexableField> fields, ParseContext context);
-    protected abstract void addMultiFields(ParseContext context, Processed geometry) throws IOException;
 
     /** parsing logic for geometry indexing */
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public void buildIndexableFields(ParseContext context, IndexableValue value) {
         MappedFieldType mappedFieldType = fieldType();
-
-        try {
-            Processed shape = context.parseExternalValue(indexer.processedClass());
-            if (shape == null) {
-                Parsed geometry = parser.parse(context.parser());
-                if (geometry == null) {
-                    return;
-                }
-                shape = indexer.prepareForIndexing(geometry);
-            }
-
-            List<IndexableField> fields = new ArrayList<>();
-            if (mappedFieldType.isSearchable() || mappedFieldType.hasDocValues()) {
-                fields.addAll(indexer.indexShape(context, shape));
-            }
-
-            // indexed:
-            List<IndexableField> indexedFields = new ArrayList<>();
-            if (mappedFieldType.isSearchable()) {
-                indexedFields.addAll(fields);
-            }
-            // stored:
-            if (fieldType().isStored()) {
-                addStoredFields(context, shape);
-            }
-            // docValues:
-            if (fieldType().hasDocValues()) {
-                addDocValuesFields(mappedFieldType.name(), shape, fields, context);
-            } else if (fieldType().isStored() || fieldType().isSearchable()) {
-                createFieldNamesField(context);
-            }
-
-            // add the indexed fields to the doc:
-            for (IndexableField field : indexedFields) {
-                context.doc().add(field);
-            }
-
-            // add multifields (e.g., used for completion suggester)
-            addMultiFields(context, shape);
-        } catch (Exception e) {
-            if (ignoreMalformed.value() == false) {
-                throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),
-                    fieldType().typeName());
-            }
+        if (value == IndexableValue.MALFORMED) {
             context.addIgnoredField(mappedFieldType.name());
+        }
+
+        Processed shape = indexer.prepareForIndexing(value.objectValue(indexer.parsedClass()));
+
+        List<IndexableField> fields = new ArrayList<>();
+        if (mappedFieldType.isSearchable() || mappedFieldType.hasDocValues()) {
+            fields.addAll(indexer.indexShape(context, shape));
+        }
+
+        // indexed:
+        List<IndexableField> indexedFields = new ArrayList<>();
+        if (mappedFieldType.isSearchable()) {
+            indexedFields.addAll(fields);
+        }
+        // stored:
+        if (fieldType().isStored()) {
+            addStoredFields(context, shape);
+        }
+        // docValues:
+        if (fieldType().hasDocValues()) {
+            addDocValuesFields(mappedFieldType.name(), shape, fields, context);
+        } else if (fieldType().isStored() || fieldType().isSearchable()) {
+            createFieldNamesField(context);
+        }
+
+        // add the indexed fields to the doc:
+        for (IndexableField field : indexedFields) {
+            context.doc().add(field);
         }
     }
 

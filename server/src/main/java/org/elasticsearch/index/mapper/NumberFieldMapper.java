@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -123,10 +124,41 @@ public class NumberFieldMapper extends FieldMapper {
             return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, meta);
         }
 
+        private IndexableValueParser buildParser(NumberFieldType ft) {
+            return new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+                    IndexableValue value;
+                    if (parser.currentToken() == Token.VALUE_NULL) {
+                        if (nullValue.get() != null) {
+                            value = IndexableValue.wrapNumber(nullValue.get());
+                        } else {
+                            return;
+                        }
+                    } else if (coerce.get().value() && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
+                        value = IndexableValue.wrapNumber(nullValue.get());
+                    } else {
+                        try {
+                            value = IndexableValue.wrapNumber(ft.type.parse(parser, coerce.get().value()));
+                        } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+                            if (ignoreMalformed.get().value() && parser.currentToken().isValue()) {
+                                value = IndexableValue.MALFORMED;
+                            } else {
+                                throw e;
+                            }
+                        }
+                    }
+                    indexer.accept(value);
+                }
+            };
+        }
+
         @Override
         public NumberFieldMapper build(ContentPath contentPath) {
-            MappedFieldType ft = new NumberFieldType(buildFullName(contentPath), this);
-            return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+            NumberFieldType ft = new NumberFieldType(buildFullName(contentPath), this);
+            return new NumberFieldMapper(name, ft,
+                buildParser(ft),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -1012,10 +1044,11 @@ public class NumberFieldMapper extends FieldMapper {
     private NumberFieldMapper(
             String simpleName,
             MappedFieldType mappedFieldType,
+            IndexableValueParser valueParser,
             MultiFields multiFields,
             CopyTo copyTo,
             Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, valueParser, multiFields, copyTo);
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -1046,45 +1079,8 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        XContentParser parser = context.parser();
-        Object value;
-        Number numericValue = null;
-        if (context.externalValueSet()) {
-            value = context.externalValue();
-        } else if (parser.currentToken() == Token.VALUE_NULL) {
-            value = null;
-        } else if (coerce.value()
-                && parser.currentToken() == Token.VALUE_STRING
-                && parser.textLength() == 0) {
-            value = null;
-        } else {
-            try {
-                numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
-                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
-                    context.addIgnoredField(mappedFieldType.name());
-                    return;
-                } else {
-                    throw e;
-                }
-            }
-            value = numericValue;
-        }
-
-        if (value == null) {
-            value = nullValue;
-        }
-
-        if (value == null) {
-            return;
-        }
-
-        if (numericValue == null) {
-            numericValue = fieldType().type.parse(value, coerce.value());
-        }
-
-        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue,
+    protected void buildIndexableFields(ParseContext context, IndexableValue value) {
+        context.doc().addAll(fieldType().type.createFields(fieldType().name(), value.numberValue(),
             indexed, hasDocValues, stored));
 
         if (hasDocValues == false && (stored || indexed)) {

@@ -21,11 +21,13 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 
@@ -113,6 +115,16 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
     }
 
+    public static IndexableValueParser metadataValueParser(String name) {
+        return new IndexableValueParser() {
+            @Override
+            public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) {
+                throw new MapperParsingException("Field [" + name + "] is a metadata field and cannot be added inside"
+                    + " a document. Use the index API request parameters.");
+            }
+        };
+    }
+
     public abstract static class Builder extends FieldMapper.Builder {
 
         protected Builder(String name) {
@@ -137,11 +149,17 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
-        super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+        super(mappedFieldType.name(), mappedFieldType, metadataValueParser(mappedFieldType.name()),
+            MultiFields.empty(), CopyTo.empty());
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType, NamedAnalyzer indexAnalyzer) {
-        super(mappedFieldType.name(), mappedFieldType, indexAnalyzer, MultiFields.empty(), CopyTo.empty());
+        super(mappedFieldType.name(), mappedFieldType, indexAnalyzer, metadataValueParser(mappedFieldType.name()),
+            MultiFields.empty(), CopyTo.empty());
+    }
+
+    protected MetadataFieldMapper(MappedFieldType mappedFieldType, IndexableValueParser valueParser) {
+        super(mappedFieldType.name(), mappedFieldType, valueParser, MultiFields.empty(), CopyTo.empty());
     }
 
     @Override
@@ -162,9 +180,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        throw new MapperParsingException("Field [" + name() + "] is a metadata field and cannot be added inside"
-            + " a document. Use the index API request parameters.");
+    protected void buildIndexableFields(ParseContext context, IndexableValue value) {
+        throw new UnsupportedOperationException();
     }
 
     /**

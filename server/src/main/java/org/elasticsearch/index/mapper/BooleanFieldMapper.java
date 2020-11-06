@@ -44,6 +44,7 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -94,11 +95,30 @@ public class BooleanFieldMapper extends FieldMapper {
             return List.of(meta, docValues, indexed, nullValue, stored);
         }
 
+        private IndexableValueParser buildValueParser() {
+            if (indexed.get() == false && stored.get() == false && docValues.get() == false) {
+                return IndexableValueParser.NO_OP;
+            }
+            return new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                        if (nullValue.get() != null) {
+                            indexer.accept(IndexableValue.wrapBoolean(nullValue.get()));
+                        }
+                    } else {
+                        indexer.accept(IndexableValue.wrapBoolean(parser.booleanValue()));
+                    }
+                }
+            };
+        }
+
         @Override
         public BooleanFieldMapper build(ContentPath contentPath) {
             MappedFieldType ft = new BooleanFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
                 docValues.getValue(), nullValue.getValue(), meta.getValue());
-            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+            return new BooleanFieldMapper(name, ft, buildValueParser(),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -220,8 +240,9 @@ public class BooleanFieldMapper extends FieldMapper {
     private final boolean stored;
 
     protected BooleanFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                 IndexableValueParser valueParser,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, valueParser, multiFields, copyTo);
         this.nullValue = builder.nullValue.getValue();
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
@@ -234,34 +255,15 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        if (indexed == false && stored == false && hasDocValues == false) {
-            return;
-        }
-
-        Boolean value = context.parseExternalValue(Boolean.class);
-        if (value == null) {
-            XContentParser.Token token = context.parser().currentToken();
-            if (token == XContentParser.Token.VALUE_NULL) {
-                if (nullValue != null) {
-                    value = nullValue;
-                }
-            } else {
-                value = context.parser().booleanValue();
-            }
-        }
-
-        if (value == null) {
-            return;
-        }
+    protected void buildIndexableFields(ParseContext context, IndexableValue value) {
         if (indexed) {
-            context.doc().add(new Field(fieldType().name(), value ? "T" : "F", Defaults.FIELD_TYPE));
+            context.doc().add(new Field(fieldType().name(), value.boolValue() ? "T" : "F", Defaults.FIELD_TYPE));
         }
         if (stored) {
-            context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
+            context.doc().add(new StoredField(fieldType().name(), value.boolValue() ? "T" : "F"));
         }
         if (hasDocValues) {
-            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
+            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value.boolValue() ? 1 : 0));
         } else {
             createFieldNamesField(context);
         }

@@ -39,6 +39,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -59,6 +60,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -244,12 +246,41 @@ public final class DateFieldMapper extends FieldMapper {
             }
         }
 
+        private IndexableValueParser buildValueParser(DateFieldType ft, Long nullValue) {
+            return new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+                    IndexableValue value;
+                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                        if (nullValue != null) {
+                            value = IndexableValue.wrapNumber(nullValue);
+                        } else {
+                            return;
+                        }
+                    } else {
+                        try {
+                            value = IndexableValue.wrapNumber(ft.parse(parser.text()));
+                        }
+                        catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
+                            if (ignoreMalformed.get()) {
+                                value = IndexableValue.MALFORMED;
+                            } else {
+                                throw e;
+                            }
+                        }
+                    }
+                    indexer.accept(value);
+                }
+            };
+        }
+
         @Override
         public DateFieldMapper build(ContentPath contentPath) {
             DateFieldType ft = new DateFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), docValues.getValue(),
                 buildFormatter(), resolution, nullValue.getValue(), meta.getValue());
             Long nullTimestamp = parseNullValue(ft);
-            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
+            return new DateFieldMapper(name, ft, buildValueParser(ft, nullTimestamp),
+                multiFieldsBuilder.build(this, contentPath),
                 copyTo.build(), nullTimestamp, resolution, this);
         }
     }
@@ -541,12 +572,13 @@ public final class DateFieldMapper extends FieldMapper {
     private DateFieldMapper(
             String simpleName,
             MappedFieldType mappedFieldType,
+            IndexableValueParser valueParser,
             MultiFields multiFields,
             CopyTo copyTo,
             Long nullValue,
             Resolution resolution,
             Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, valueParser, multiFields, copyTo);
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.hasDocValues = builder.docValues.getValue();
@@ -576,48 +608,21 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        String dateAsString;
-        if (context.externalValueSet()) {
-            Object dateAsObject = context.externalValue();
-            if (dateAsObject == null) {
-                dateAsString = null;
-            } else {
-                dateAsString = dateAsObject.toString();
-            }
-        } else {
-            dateAsString = context.parser().textOrNull();
+    protected void buildIndexableFields(ParseContext context, IndexableValue value) {
+        if (value == IndexableValue.MALFORMED) {
+            context.addIgnoredField(mappedFieldType.name());
+            return;
         }
-
-        long timestamp;
-        if (dateAsString == null) {
-            if (nullValue == null) {
-                return;
-            }
-            timestamp = nullValue;
-        } else {
-            try {
-                timestamp = fieldType().parse(dateAsString);
-            } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
-                if (ignoreMalformed) {
-                    context.addIgnoredField(mappedFieldType.name());
-                    return;
-                } else {
-                    throw e;
-                }
-            }
-        }
-
         if (indexed) {
-            context.doc().add(new LongPoint(fieldType().name(), timestamp));
+            context.doc().add(new LongPoint(fieldType().name(), value.numberValue().longValue()));
         }
         if (hasDocValues) {
-            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value.numberValue().longValue()));
         } else if (store || indexed) {
             createFieldNamesField(context);
         }
         if (store) {
-            context.doc().add(new StoredField(fieldType().name(), timestamp));
+            context.doc().add(new StoredField(fieldType().name(), value.numberValue().longValue()));
         }
     }
 

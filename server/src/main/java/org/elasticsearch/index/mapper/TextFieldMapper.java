@@ -62,6 +62,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -82,6 +83,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
@@ -401,6 +403,18 @@ public class TextFieldMapper extends FieldMapper {
             return analyzers;
         }
 
+        private IndexableValueParser buildParser() {
+            return new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                        return;
+                    }
+                    indexer.accept(IndexableValue.wrapString(parser.text()));
+                }
+            };
+        }
+
         @Override
         public TextFieldMapper build(ContentPath contentPath) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
@@ -415,7 +429,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             return new TextFieldMapper(name, fieldType, tft,
                 indexAnalyzers(tft.name(), phraseFieldInfo, prefixFieldInfo),
-                prefixFieldInfo, phraseFieldInfo,
+                buildParser(), prefixFieldInfo, phraseFieldInfo,
                 multiFields, copyTo.build(), this);
         }
     }
@@ -790,10 +804,11 @@ public class TextFieldMapper extends FieldMapper {
     protected TextFieldMapper(String simpleName, FieldType fieldType,
                               TextFieldType mappedFieldType,
                               Map<String, NamedAnalyzer> indexAnalyzers,
+                              IndexableValueParser valueParser,
                               SubFieldInfo prefixFieldInfo,
                               SubFieldInfo phraseFieldInfo,
                               MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, valueParser, multiFields, copyTo);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
@@ -811,29 +826,18 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        final String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            value = context.parser().textOrNull();
-        }
-
-        if (value == null) {
-            return;
-        }
-
+    protected void buildIndexableFields(ParseContext context, IndexableValue value) {
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(fieldType().name(), value, fieldType);
+            Field field = new Field(fieldType().name(), value.stringValue(), fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
                 createFieldNamesField(context);
             }
             if (prefixFieldInfo != null) {
-                context.doc().add(new Field(prefixFieldInfo.field, value, prefixFieldInfo.fieldType));
+                context.doc().add(new Field(prefixFieldInfo.field, value.stringValue(), prefixFieldInfo.fieldType));
             }
             if (phraseFieldInfo != null) {
-                context.doc().add(new Field(phraseFieldInfo.field, value, phraseFieldInfo.fieldType));
+                context.doc().add(new Field(phraseFieldInfo.field, value.stringValue(), phraseFieldInfo.fieldType));
             }
         }
     }

@@ -25,13 +25,17 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 
+import java.io.IOException;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -88,6 +92,30 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
             return Arrays.asList(indexed, ignoreMalformed, ignoreZValue, coerce, orientation, meta);
         }
 
+        private IndexableValueParser buildParser() {
+            GeometryParser geometryParser = new GeometryParser(
+                orientation.get().value().getAsBoolean(),
+                coerce.get().value(),
+                ignoreZValue.get().value());
+            GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser);
+            return new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+                    IndexableValue v;
+                    try {
+                        v = IndexableValue.wrapObject(geoShapeParser.parse(parser));
+                    } catch (ParseException e) {
+                        if (ignoreMalformed.get().value()) {
+                            v = IndexableValue.MALFORMED;
+                        } else {
+                            throw new RuntimeException(e);  // TODO clarify exceptions here
+                        }
+                    }
+                    indexer.accept(v);
+                }
+            };
+        }
+
         @Override
         public GeoShapeFieldMapper build(ContentPath contentPath) {
             GeometryParser geometryParser = new GeometryParser(
@@ -101,9 +129,10 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 orientation.get().value(),
                 geoShapeParser,
                 meta.get());
-            return new GeoShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(),
+            return new GeoShapeFieldMapper(name, ft, buildParser(),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(),
                 new GeoShapeIndexer(orientation.get().value().getAsBoolean(), buildFullName(contentPath)),
-                geoShapeParser, this);
+                this);
         }
     }
 
@@ -149,18 +178,19 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     private final Builder builder;
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                               IndexableValueParser valueParser,
                                MultiFields multiFields, CopyTo copyTo,
-                               Indexer<Geometry, Geometry> indexer, Parser<Geometry> parser, Builder builder) {
+                               Indexer<Geometry, Geometry> indexer, Builder builder) {
         super(simpleName,
             mappedFieldType,
+            valueParser,
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
             builder.orientation.get(),
             multiFields,
             copyTo,
-            indexer,
-            parser);
+            indexer);
         this.builder = builder;
     }
 
@@ -193,11 +223,6 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     @Override
     protected void addDocValuesFields(String name, Geometry geometry, List<IndexableField> fields, ParseContext context) {
         // we will throw a mapping exception before we get here
-    }
-
-    @Override
-    protected void addMultiFields(ParseContext context, Geometry geometry) {
-        // noop (completion suggester currently not compatible with geo_shape)
     }
 
     @Override

@@ -64,22 +64,24 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
 
     protected AbstractShapeGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                                Map<String, NamedAnalyzer> indexAnalyzers,
+                                               IndexableValueParser valueParser,
                                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                                Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
                                                MultiFields multiFields, CopyTo copyTo,
-                                               Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        super(simpleName, mappedFieldType, indexAnalyzers, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
+                                               Indexer<Parsed, Processed> indexer) {
+        super(simpleName, mappedFieldType, indexAnalyzers, valueParser, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer);
         this.coerce = coerce;
         this.orientation = orientation;
     }
 
     protected AbstractShapeGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                               IndexableValueParser valueParser,
                                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                                Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
                                                MultiFields multiFields, CopyTo copyTo,
-                                               Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(),
-            ignoreMalformed, coerce, ignoreZValue, orientation, multiFields, copyTo, indexer, parser);
+                                               Indexer<Parsed, Processed> indexer) {
+        this(simpleName, mappedFieldType, Collections.emptyMap(), valueParser,
+            ignoreMalformed, coerce, ignoreZValue, orientation, multiFields, copyTo, indexer);
     }
 
     @Override

@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Mapper for completion field. The field values are indexed as a weighted FST for
@@ -309,9 +310,9 @@ public class CompletionFieldMapper extends FieldMapper {
     private final int maxInputLength;
     private final Builder builder;
 
-    public CompletionFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+    public CompletionFieldMapper(String simpleName, CompletionFieldType mappedFieldType,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, builder.buildAnalyzer(), multiFields, copyTo);
+        super(simpleName, mappedFieldType, builder.buildAnalyzer(), new CompletionParser(mappedFieldType), multiFields, copyTo);
         this.builder = builder;
         this.maxInputLength = builder.maxInputLength.getValue();
     }
@@ -330,6 +331,40 @@ public class CompletionFieldMapper extends FieldMapper {
         return builder.maxInputLength.get();
     }
 
+    private static class CompletionKeys {
+        final Map<String, CompletionInputMetadata> inputMap;
+
+        private CompletionKeys(Map<String, CompletionInputMetadata> inputMap) {
+            this.inputMap = inputMap;
+        }
+    }
+
+    private static class CompletionParser extends IndexableValueParser {
+
+        final CompletionFieldType fieldType;
+
+        private CompletionParser(CompletionFieldType fieldType) {
+            this.fieldType = fieldType;
+        }
+
+        @Override
+        public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+            Token token = parser.currentToken();
+            if (token == Token.VALUE_NULL) {
+                return;
+            }
+            Map<String, CompletionInputMetadata> inputMap = new HashMap<>();
+            if (token == Token.START_ARRAY) {
+                while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                    parseInputs(token, fieldType, parser, inputMap);
+                }
+            } else {
+                parseInputs(token, fieldType, parser, inputMap);
+            }
+            indexer.accept(IndexableValue.wrapObject(new CompletionKeys(inputMap)));
+        }
+    }
+
     /**
      * Parses and indexes inputs
      *
@@ -344,25 +379,10 @@ public class CompletionFieldMapper extends FieldMapper {
      *  else adds inputs as a {@link org.apache.lucene.search.suggest.document.SuggestField}
      */
     @Override
-    public void parse(ParseContext context) throws IOException {
-        // parse
-        XContentParser parser = context.parser();
-        Token token = parser.currentToken();
-        Map<String, CompletionInputMetadata> inputMap = new HashMap<>(1);
+    public void buildIndexableFields(ParseContext context, IndexableValue value) {
 
-        if (context.externalValueSet()) {
-            inputMap = getInputMapFromExternalValue(context);
-        } else if (token == Token.VALUE_NULL) { // ignore null values
-            return;
-        } else if (token == Token.START_ARRAY) {
-            while ((token = parser.nextToken()) != Token.END_ARRAY) {
-                parse(context, token, parser, inputMap);
-            }
-        } else {
-            parse(context, token, parser, inputMap);
-        }
+        Map<String, CompletionInputMetadata> inputMap = value.objectValue(CompletionKeys.class).inputMap;
 
-        // index
         for (Map.Entry<String, CompletionInputMetadata> completionInput : inputMap.entrySet()) {
             String input = completionInput.getKey();
             if (input.trim().isEmpty()) {
@@ -388,26 +408,6 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         createFieldNamesField(context);
-        for (CompletionInputMetadata metadata: inputMap.values()) {
-            ParseContext externalValueContext = context.createExternalValueContext(metadata);
-            multiFields.parse(this, externalValueContext);
-        }
-    }
-
-    private Map<String, CompletionInputMetadata> getInputMapFromExternalValue(ParseContext context) {
-        Map<String, CompletionInputMetadata> inputMap;
-        if (isExternalValueOfClass(context, CompletionInputMetadata.class)) {
-            CompletionInputMetadata inputAndMeta = (CompletionInputMetadata) context.externalValue();
-            inputMap = Collections.singletonMap(inputAndMeta.input, inputAndMeta);
-        } else {
-            String fieldName = context.externalValue().toString();
-            inputMap = Collections.singletonMap(fieldName, new CompletionInputMetadata(fieldName, Collections.emptyMap(), 1));
-        }
-        return inputMap;
-    }
-
-    private boolean isExternalValueOfClass(ParseContext context, Class<?> clazz) {
-        return context.externalValue().getClass().equals(clazz);
     }
 
     /**
@@ -415,7 +415,7 @@ public class CompletionFieldMapper extends FieldMapper {
      *  "STRING" - interpreted as the field value (input)
      *  "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
      */
-    private void parse(ParseContext parseContext, Token token,
+    private static void parseInputs(Token token, CompletionFieldType fieldType,
                        XContentParser parser, Map<String, CompletionInputMetadata> inputMap) throws IOException {
         String currentFieldName = null;
         if (token == Token.VALUE_STRING) {
@@ -471,10 +471,10 @@ public class CompletionFieldMapper extends FieldMapper {
                         }
                         weight = weightValue.intValue();
                     } else if (Fields.CONTENT_FIELD_NAME_CONTEXTS.equals(currentFieldName)) {
-                        if (fieldType().hasContextMappings() == false) {
-                            throw new IllegalArgumentException("contexts field is not supported for field: [" + fieldType().name() + "]");
+                        if (fieldType.hasContextMappings() == false) {
+                            throw new IllegalArgumentException("contexts field is not supported for field: [" + fieldType.name() + "]");
                         }
-                        ContextMappings contextMappings = fieldType().getContextMappings();
+                        ContextMappings contextMappings = fieldType.getContextMappings();
                         XContentParser.Token currentToken = parser.currentToken();
                         if (currentToken == XContentParser.Token.START_OBJECT) {
                             ContextMapping<?> contextMapping = null;
@@ -486,7 +486,7 @@ public class CompletionFieldMapper extends FieldMapper {
                                 } else {
                                     assert fieldName != null;
                                     assert !contextsMap.containsKey(fieldName);
-                                    contextsMap.put(fieldName, contextMapping.parseContext(parseContext, parser));
+                                    contextsMap.put(fieldName, contextMapping.parseContext(parser));
                                 }
                             }
                         } else {
@@ -521,11 +521,6 @@ public class CompletionFieldMapper extends FieldMapper {
         public String toString() {
             return input;
         }
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        // no-op
     }
 
     @Override

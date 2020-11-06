@@ -48,13 +48,13 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -79,7 +79,7 @@ import java.util.Set;
  * @deprecated use {@link GeoShapeFieldMapper}
  */
 @Deprecated
-public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>, Shape> {
+public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Shape, Shape> {
 
     public static final String CONTENT_TYPE = "geo_shape";
 
@@ -301,6 +301,25 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             return defaultLevels;
         }
 
+        private IndexableValueParser buildParser() {
+            return new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+                    IndexableValue v;
+                    try {
+                        v = IndexableValue.wrapObject(ShapeParser.parse(parser).buildS4J());
+                    } catch (ElasticsearchParseException e) {
+                        if (ignoreMalformed.get().value()) {
+                            v = IndexableValue.MALFORMED;
+                        } else {
+                            throw e;
+                        }
+                    }
+                    indexer.accept(v);
+                }
+            };
+        }
+
         @Override
         public LegacyGeoShapeFieldMapper build(ContentPath contentPath) {
             if (name.isEmpty()) {
@@ -309,9 +328,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
             LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
             GeoShapeFieldType ft = buildFieldType(parser, contentPath);
-            return new LegacyGeoShapeFieldMapper(name, ft,
+            return new LegacyGeoShapeFieldMapper(name, ft, buildParser(),
                 multiFieldsBuilder.build(this, contentPath), copyTo.build(),
-                new LegacyGeoShapeIndexer(ft), parser, this);
+                new LegacyGeoShapeIndexer(ft), this);
         }
     }
 
@@ -326,7 +345,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public ShapeBuilder<?, ?, ?> parse(XContentParser parser) throws IOException, ParseException {
+        public ShapeBuilder<?, ?, ?> parse(XContentParser parser) throws IOException {
             return ShapeParser.parse(parser);
         }
 
@@ -457,12 +476,14 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     private final Builder builder;
 
     public LegacyGeoShapeFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                     IndexableValueParser valueParser,
                                      MultiFields multiFields, CopyTo copyTo,
-                                     LegacyGeoShapeIndexer indexer, LegacyGeoShapeParser parser,
+                                     LegacyGeoShapeIndexer indexer,
                                      Builder builder) {
         super(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER),
+            valueParser,
             builder.ignoreMalformed.get(), builder.coerce.get(), builder.ignoreZValue.get(), builder.orientation.get(),
-            multiFields, copyTo, indexer, parser);
+            multiFields, copyTo, indexer);
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.builder = builder;
     }
@@ -484,11 +505,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     @Override
     protected void addDocValuesFields(String name, Shape geometry, List<IndexableField> fields, ParseContext context) {
         // doc values are not supported
-    }
-
-    @Override
-    protected void addMultiFields(ParseContext context, Shape geometry) {
-        // noop (completion suggester currently not compatible with geo_shape)
     }
 
     @Override

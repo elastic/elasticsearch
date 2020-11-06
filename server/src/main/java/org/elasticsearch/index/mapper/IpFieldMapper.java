@@ -32,6 +32,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -48,6 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for ip addresses. */
@@ -112,11 +114,39 @@ public class IpFieldMapper extends FieldMapper {
             return List.of(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta);
         }
 
+        protected IndexableValueParser buildParser() {
+            return new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+                    IndexableValue value;
+                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                        if (nullValue.get() != null) {
+                            value = IndexableValue.wrapObject(nullValue.get());
+                        } else {
+                            return;
+                        }
+                    } else {
+                        try {
+                            value = IndexableValue.wrapObject(InetAddresses.forString(parser.text()));
+                        } catch (IllegalArgumentException e) {
+                            if (ignoreMalformed.get()) {
+                                value = IndexableValue.MALFORMED;
+                            } else {
+                                throw e;
+                            }
+                        }
+                    }
+                    indexer.accept(value);
+                }
+            };
+        }
+
         @Override
         public IpFieldMapper build(ContentPath contentPath) {
             return new IpFieldMapper(name,
                 new IpFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
                     hasDocValues.getValue(), parseNullValue(), meta.getValue()),
+                buildParser(),
                 multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
 
@@ -359,10 +389,11 @@ public class IpFieldMapper extends FieldMapper {
     private IpFieldMapper(
             String simpleName,
             MappedFieldType mappedFieldType,
+            IndexableValueParser valueParser,
             MultiFields multiFields,
             CopyTo copyTo,
             Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, valueParser, multiFields, copyTo);
         this.ignoreMalformedByDefault = builder.ignoreMalformedByDefault;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -388,39 +419,8 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        Object addressAsObject;
-        if (context.externalValueSet()) {
-            addressAsObject = context.externalValue();
-        } else {
-            addressAsObject = context.parser().textOrNull();
-        }
-
-        if (addressAsObject == null) {
-            addressAsObject = nullValue;
-        }
-
-        if (addressAsObject == null) {
-            return;
-        }
-
-        String addressAsString = addressAsObject.toString();
-        InetAddress address;
-        if (addressAsObject instanceof InetAddress) {
-            address = (InetAddress) addressAsObject;
-        } else {
-            try {
-                address = InetAddresses.forString(addressAsString);
-            } catch (IllegalArgumentException e) {
-                if (ignoreMalformed) {
-                    context.addIgnoredField(fieldType().name());
-                    return;
-                } else {
-                    throw e;
-                }
-            }
-        }
-
+    protected void buildIndexableFields(ParseContext context, IndexableValue value) {
+        InetAddress address = value.objectValue(InetAddress.class);
         if (indexed) {
             context.doc().add(new InetAddressPoint(fieldType().name(), address));
         }

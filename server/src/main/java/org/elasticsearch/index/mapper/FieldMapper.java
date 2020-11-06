@@ -62,6 +62,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected final MappedFieldType mappedFieldType;
     protected final Map<String, NamedAnalyzer> indexAnalyzers;
+    protected final IndexableValueParser valueParser;
     protected final MultiFields multiFields;
     protected final CopyTo copyTo;
 
@@ -73,8 +74,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @param copyTo            copyTo fields of this mapper
      */
     protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                          IndexableValueParser valueParser,
                           MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo);
+        this(simpleName, mappedFieldType, Collections.emptyMap(), valueParser, multiFields, copyTo);
     }
 
     /**
@@ -86,9 +88,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @param copyTo            copyTo fields of this mapper
      */
     protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                          NamedAnalyzer indexAnalyzer,
+                          NamedAnalyzer indexAnalyzer, IndexableValueParser valueParser,
                           MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), indexAnalyzer), multiFields, copyTo);
+        this(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), indexAnalyzer),
+            valueParser, multiFields, copyTo);
     }
 
     /**
@@ -102,6 +105,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
                           Map<String, NamedAnalyzer> indexAnalyzers,
+                          IndexableValueParser valueParser,
                           MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
         if (mappedFieldType.name().isEmpty()) {
@@ -109,6 +113,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
         this.mappedFieldType = mappedFieldType;
         this.indexAnalyzers = indexAnalyzers;
+        this.valueParser = valueParser;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
     }
@@ -151,10 +156,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Parse the field value using the provided {@link ParseContext}.
      */
-    public void parse(ParseContext context) throws IOException {
+    public final void parse(ParseContext context) throws IOException {
         try {
-            parseCreateField(context);
-        } catch (Exception e) {
+            valueParser.parseAndIndex(context.parser(), v -> {
+                buildIndexableFields(context, v);
+                for (FieldMapper mapper : multiFields) {
+                    mapper.buildIndexableFields(context, v);
+                }
+            });
+        } catch (RuntimeException e) {  // TODO clean this up!
             String valuePreview = "";
             try {
                 XContentParser parser = context.parser();
@@ -174,16 +184,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 "Preview of field's value: '{}'", e, fieldType().name(), fieldType().typeName(),
                 context.sourceToParse().id(), valuePreview);
         }
-        multiFields.parse(this, context);
     }
 
-    /**
-     * Parse the field value and populate the fields on {@link ParseContext#doc()}.
-     *
-     * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
-     * current failing token
-     */
-    protected abstract void parseCreateField(ParseContext context) throws IOException;
+    protected abstract void buildIndexableFields(ParseContext context, IndexableValue value);
 
     protected final void createFieldNamesField(ParseContext context) {
         assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";

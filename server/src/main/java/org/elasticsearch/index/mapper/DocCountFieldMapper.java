@@ -23,13 +23,13 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Consumer;
 
 /** Mapper for the doc_count field. */
 public class DocCountFieldMapper extends MetadataFieldMapper {
@@ -88,20 +88,24 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
     }
 
+    private static final IndexableValueParser VALUE_PARSER = new IndexableValueParser() {
+        @Override
+        public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+            indexer.accept(IndexableValue.wrapNumber(parser.longValue(false)));
+        }
+    };
+
     private DocCountFieldMapper() {
-        super(DocCountFieldType.INSTANCE);
+        super(DocCountFieldType.INSTANCE, VALUE_PARSER);
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        XContentParser parser = context.parser();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, parser.currentToken(), parser);
-
-        long value = parser.longValue(false);
-        if (value <= 0) {
+    protected void buildIndexableFields(ParseContext context, IndexableValue value) {
+        long count = value.numberValue().longValue();
+        if (count <= 0) {
             throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a positive integer.");
         }
-        final Field docCount = new NumericDocValuesField(NAME, value);
+        final Field docCount = new NumericDocValuesField(NAME, count);
         context.doc().add(docCount);
     }
 

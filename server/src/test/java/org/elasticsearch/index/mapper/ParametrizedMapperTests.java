@@ -167,7 +167,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         protected TestMapper(String simpleName, String fullName, MultiFields multiFields, CopyTo copyTo,
                              ParametrizedMapperTests.Builder builder) {
-            super(simpleName, new KeywordFieldMapper.KeywordFieldType(fullName), multiFields, copyTo);
+            super(simpleName, new KeywordFieldMapper.KeywordFieldType(fullName), IndexableValueParser.NO_OP, multiFields, copyTo);
             this.fixed = builder.fixed.getValue();
             this.fixed2 = builder.fixed2.getValue();
             this.variable = builder.variable.getValue();
@@ -186,7 +186,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
+        protected void buildIndexableFields(ParseContext context, IndexableValue value) {
 
         }
 

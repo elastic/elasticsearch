@@ -89,17 +89,19 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         FakeFieldMapper(FakeFieldType fieldType, String indexedValue) {
             super(fieldType.name(), fieldType,
                 new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)),
+                IndexableValueParser.NO_OP,
                 MultiFields.empty(), CopyTo.empty());
             this.indexedValue = indexedValue;
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) {
+        protected String contentType() {
+            return null;
         }
 
         @Override
-        protected String contentType() {
-            return null;
+        protected void buildIndexableFields(ParseContext context, IndexableValue value) {
+
         }
 
         @Override

@@ -42,6 +42,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class BinaryFieldMapper extends FieldMapper {
@@ -72,10 +73,27 @@ public class BinaryFieldMapper extends FieldMapper {
             return List.of(meta, stored, hasDocValues);
         }
 
+        private IndexableValueParser buildParser() {
+            if (stored.get() == false && hasDocValues.get() == false) {
+                return IndexableValueParser.NO_OP;
+            }
+            return new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                        return;
+                    }
+                    indexer.accept(IndexableValue.wrapBinary(parser.binaryValue()));
+                }
+            };
+        }
+
         @Override
         public BinaryFieldMapper build(ContentPath contentPath) {
-            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(contentPath), stored.getValue(),
-                hasDocValues.getValue(), meta.getValue()), multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+            return new BinaryFieldMapper(name,
+                new BinaryFieldType(buildFullName(contentPath), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
+                buildParser(),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -141,39 +159,29 @@ public class BinaryFieldMapper extends FieldMapper {
     private final boolean hasDocValues;
 
     protected BinaryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                IndexableValueParser valueParser,
                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, valueParser, multiFields, copyTo);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        if (stored == false && hasDocValues == false) {
-            return;
-        }
-        byte[] value = context.parseExternalValue(byte[].class);
-        if (value == null) {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else {
-                value = context.parser().binaryValue();
-            }
-        }
-        if (value == null) {
+    public void buildIndexableFields(ParseContext context, IndexableValue value) {
+        byte[] binaryValue = value.binaryValue();
+        if (binaryValue == null) {
             return;
         }
         if (stored) {
-            context.doc().add(new StoredField(fieldType().name(), value));
+            context.doc().add(new StoredField(fieldType().name(), binaryValue));
         }
-
         if (hasDocValues) {
             CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().name());
             if (field == null) {
-                field = new CustomBinaryDocValuesField(fieldType().name(), value);
+                field = new CustomBinaryDocValuesField(fieldType().name(), binaryValue);
                 context.doc().addWithKey(fieldType().name(), field);
             } else {
-                field.add(value);
+                field.add(binaryValue);
             }
         } else {
             // Only add an entry to the field names field if the field is stored

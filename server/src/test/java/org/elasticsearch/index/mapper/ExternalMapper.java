@@ -23,17 +23,17 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * This mapper add a new sub fields
@@ -123,7 +123,14 @@ public class ExternalMapper extends FieldMapper {
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
                           AbstractShapeGeometryFieldMapper<?, ?> shapeMapper, FieldMapper stringMapper,
                           MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, new ExternalFieldType(contextName, true, true, false), multiFields, copyTo);
+        super(simpleName, new ExternalFieldType(contextName, true, true, false),
+            new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) {
+                    indexer.accept(null);
+                }
+            },
+            multiFields, copyTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;
         this.binMapper = binMapper;
@@ -134,38 +141,27 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public void buildIndexableFields(ParseContext context, IndexableValue v) {
         byte[] bytes = "Hello world".getBytes(Charset.defaultCharset());
-        binMapper.parse(context.createExternalValueContext(bytes));
+        binMapper.buildIndexableFields(context, IndexableValue.wrapBinary(bytes));
 
-        boolMapper.parse(context.createExternalValueContext(true));
+        boolMapper.buildIndexableFields(context, IndexableValue.wrapBoolean(true));
 
         // Let's add a Dummy Point
         double lat = 42.0;
         double lng = 51.0;
-        ArrayList<GeoPoint> points = new ArrayList<>();
-        points.add(new GeoPoint(lat, lng));
-        pointMapper.parse(context.createExternalValueContext(points));
+        pointMapper.buildIndexableFields(context, IndexableValue.wrapObject(new GeoPoint(lat, lng)));
 
         // Let's add a Dummy Shape
         if (shapeMapper instanceof GeoShapeFieldMapper) {
-            shapeMapper.parse(context.createExternalValueContext(new Point(-100, 45)));
+            shapeMapper.buildIndexableFields(context, IndexableValue.wrapObject(new Point(-100, 45)));
         } else {
             PointBuilder pb = new PointBuilder(-100, 45);
-            shapeMapper.parse(context.createExternalValueContext(pb.buildS4J()));
+            shapeMapper.buildIndexableFields(context, IndexableValue.wrapObject(pb.buildS4J()));
         }
 
-        context = context.createExternalValueContext(generatedValue);
-
         // Let's add a Original String
-        stringMapper.parse(context);
-
-        multiFields.parse(this, context);
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) {
-        throw new UnsupportedOperationException();
+        stringMapper.buildIndexableFields(context, IndexableValue.wrapString(generatedValue));
     }
 
     @Override

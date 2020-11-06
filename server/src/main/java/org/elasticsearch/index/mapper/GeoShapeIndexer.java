@@ -182,6 +182,11 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
     }
 
     @Override
+    public Class<Geometry> parsedClass() {
+        return Geometry.class;
+    }
+
+    @Override
     public List<IndexableField> indexShape(ParseContext context, Geometry shape) {
         LuceneGeometryIndexer visitor = new LuceneGeometryIndexer(name);
         shape.visit(visitor);

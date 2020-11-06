@@ -28,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
@@ -44,16 +45,17 @@ public class MockMetadataMapperPlugin extends Plugin implements MapperPlugin {
         static final String FIELD_NAME = "_mock_metadata";
 
         protected MockMetadataMapper() {
-            super(new KeywordFieldMapper.KeywordFieldType(FIELD_NAME));
+            super(new KeywordFieldMapper.KeywordFieldType(FIELD_NAME), new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+                    indexer.accept(IndexableValue.wrapString(parser.text()));
+                }
+            });
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) throws IOException {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
-                context.doc().add(new StringField(FIELD_NAME, context.parser().text(), Field.Store.YES));
-            } else {
-                throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a string.");
-            }
+        protected void buildIndexableFields(ParseContext context, IndexableValue value) {
+            context.doc().add(new StringField(FIELD_NAME, value.stringValue(), Field.Store.YES));
         }
 
         @Override

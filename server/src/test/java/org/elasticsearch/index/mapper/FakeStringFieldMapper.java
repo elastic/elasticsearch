@@ -23,12 +23,14 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
 // Like a String mapper but with very few options. We just use it to test if highlighting on a custom string mapped field works as expected.
 public class FakeStringFieldMapper extends FieldMapper {
@@ -83,23 +85,18 @@ public class FakeStringFieldMapper extends FieldMapper {
 
     protected FakeStringFieldMapper(MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(mappedFieldType.name(), mappedFieldType, Lucene.STANDARD_ANALYZER, multiFields, copyTo);
+        super(mappedFieldType.name(), mappedFieldType, Lucene.STANDARD_ANALYZER,
+            new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+                    indexer.accept(IndexableValue.wrapString(parser.text()));
+                }
+            }, multiFields, copyTo);
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            value = context.parser().textOrNull();
-        }
-
-        if (value == null) {
-            return;
-        }
-
-        Field field = new Field(fieldType().name(), value, FIELD_TYPE);
+    protected void buildIndexableFields(ParseContext context, IndexableValue value) {
+        Field field = new Field(fieldType().name(), value.stringValue(), FIELD_TYPE);
         context.doc().add(field);
     }
 

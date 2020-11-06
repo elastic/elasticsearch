@@ -29,6 +29,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -40,11 +41,12 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -52,7 +54,7 @@ import java.util.function.Supplier;
  *
  * Uses lucene 6 LatLonPoint encoding
  */
-public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<ParsedGeoPoint>, List<? extends GeoPoint>> {
+public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<ParsedGeoPoint, ParsedGeoPoint> {
 
     public static final String CONTENT_TYPE = "geo_point";
 
@@ -108,6 +110,29 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
             return point;
         }
 
+        private IndexableValueParser buildParser() {
+            Parser<List<ParsedGeoPoint>> geoParser = new PointParser<>(name, ParsedGeoPoint::new, (parser, point) -> {
+                GeoUtils.parseGeoPoint(parser, point, ignoreZValue.get().value());
+                return point;
+            }, (ParsedGeoPoint) nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
+            return new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+                    try {
+                        for (ParsedGeoPoint point : geoParser.parse(parser)) {
+                            indexer.accept(new IndexablePointValue(point));
+                        }
+                    } catch (ParseException e) {
+                        if (ignoreMalformed.get().value()) {
+                            indexer.accept(IndexableValue.MALFORMED);
+                        } else {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            };
+        }
+
         @Override
         public FieldMapper build(ContentPath contentPath) {
             Parser<List<ParsedGeoPoint>> geoParser = new PointParser<>(name, ParsedGeoPoint::new, (parser, point) -> {
@@ -116,10 +141,36 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
             }, (ParsedGeoPoint) nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
             GeoPointFieldType ft
                 = new GeoPointFieldType(buildFullName(contentPath), indexed.get(), stored.get(), hasDocValues.get(), geoParser, meta.get());
-            return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
-                copyTo.build(), new GeoPointIndexer(ft), geoParser, this);
+            return new GeoPointFieldMapper(name, ft, buildParser(), multiFieldsBuilder.build(this, contentPath),
+                copyTo.build(), new GeoPointIndexer(ft), this);
         }
 
+    }
+
+    private static class IndexablePointValue extends IndexableValue.ConcreteValue {
+
+        final ParsedGeoPoint point;
+
+        public IndexablePointValue(ParsedGeoPoint point) {
+            super(ParsedGeoPoint.class.getName());
+            this.point = point;
+        }
+
+        @Override
+        public <T> T objectValue(Class<T> type) {
+            if (point.getClass().isAssignableFrom(type)) {
+                return type.cast(point);
+            } else {
+                throw new UnsupportedOperationException("IndexableValue of type " + point.getClass().getName()
+                    + " does not support " + type + " values");
+            }
+        }
+
+        @Override
+        public String stringValue() {
+            // TODO deprecate this? currently used in CompletionSuggester
+            return point.geohash();
+        }
     }
 
     public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())));
@@ -127,13 +178,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
     private final Builder builder;
 
     public GeoPointFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                               IndexableValueParser valueParser,
                                MultiFields multiFields, CopyTo copyTo,
-                               Indexer<List<ParsedGeoPoint>, List<? extends GeoPoint>> indexer,
-                               Parser<List<ParsedGeoPoint>> parser,
+                               Indexer<ParsedGeoPoint, ParsedGeoPoint> indexer,
                                Builder builder) {
         super(simpleName, mappedFieldType, multiFields,
-            builder.ignoreMalformed.get(), builder.ignoreZValue.get(), builder.nullValue.get(),
-            copyTo, indexer, parser);
+            builder.ignoreMalformed.get(), valueParser,
+            builder.ignoreZValue.get(), builder.nullValue.get(),
+            copyTo, indexer);
         this.builder = builder;
     }
 
@@ -143,39 +195,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
     }
 
     @Override
-    protected void addStoredFields(ParseContext context, List<? extends GeoPoint> points) {
-        for (GeoPoint point : points) {
-            context.doc().add(new StoredField(fieldType().name(), point.toString()));
-        }
+    protected void addStoredFields(ParseContext context, ParsedGeoPoint point) {
+        context.doc().add(new StoredField(fieldType().name(), point.toString()));
     }
 
     @Override
-    protected void addMultiFields(ParseContext context, List<? extends GeoPoint> points) throws IOException {
-        // @todo phase out geohash (which is currently used in the CompletionSuggester)
-        if (points.isEmpty()) {
-            return;
-        }
-
-        StringBuilder s = new StringBuilder();
-        if (points.size() > 1) {
-            s.append('[');
-        }
-        s.append(points.get(0).geohash());
-        for (int i = 1; i < points.size(); ++i) {
-            s.append(',');
-            s.append(points.get(i).geohash());
-        }
-        if (points.size() > 1) {
-            s.append(']');
-        }
-        multiFields.parse(this, context.createExternalValueContext(s));
-    }
-
-    @Override
-    protected void addDocValuesFields(String name, List<? extends GeoPoint> points, List<IndexableField> fields, ParseContext context) {
-        for (GeoPoint point : points) {
-            context.doc().add(new LatLonDocValuesField(fieldType().name(), point.lat(), point.lon()));
-        }
+    protected void addDocValuesFields(String name, ParsedGeoPoint point, List<IndexableField> fields, ParseContext context) {
+        context.doc().add(new LatLonDocValuesField(fieldType().name(), point.lat(), point.lon()));
     }
 
     @Override
@@ -289,7 +315,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         }
     }
 
-    protected static class GeoPointIndexer implements Indexer<List<ParsedGeoPoint>, List<? extends GeoPoint>> {
+    protected static class GeoPointIndexer implements Indexer<ParsedGeoPoint, ParsedGeoPoint> {
 
         protected final GeoPointFieldType fieldType;
 
@@ -298,25 +324,23 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         }
 
         @Override
-        public List<? extends GeoPoint> prepareForIndexing(List<ParsedGeoPoint> geoPoints) {
-            if (geoPoints == null || geoPoints.isEmpty()) {
-                return Collections.emptyList();
-            }
-            return geoPoints;
+        public ParsedGeoPoint prepareForIndexing(ParsedGeoPoint point) {
+            return point;
         }
 
         @Override
-        public Class<List<? extends GeoPoint>> processedClass() {
-            return (Class<List<? extends GeoPoint>>)(Object)List.class;
+        public Class<ParsedGeoPoint> processedClass() {
+            return ParsedGeoPoint.class;
         }
 
         @Override
-        public List<IndexableField> indexShape(ParseContext context, List<? extends GeoPoint> points) {
-            ArrayList<IndexableField> fields = new ArrayList<>(points.size());
-            for (GeoPoint point : points) {
-                fields.add(new LatLonPoint(fieldType.name(), point.lat(), point.lon()));
-            }
-            return fields;
+        public Class<ParsedGeoPoint> parsedClass() {
+            return ParsedGeoPoint.class;
+        }
+
+        @Override
+        public List<IndexableField> indexShape(ParseContext context, ParsedGeoPoint point) {
+            return Collections.singletonList(new LatLonPoint(fieldType.name(), point.lat(), point.lon()));
         }
     }
 }

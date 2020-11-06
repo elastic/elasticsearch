@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -139,6 +140,32 @@ public final class KeywordFieldMapper extends FieldMapper {
                 indexOptions, hasNorms, similarity, normalizer, splitQueriesOnWhitespace, meta);
         }
 
+        private IndexableValueParser buildParser(KeywordFieldType ft) {
+            return new IndexableValueParser() {
+                @Override
+                public void parseAndIndex(XContentParser parser, Consumer<IndexableValue> indexer) throws IOException {
+                    String value;
+                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                        if (nullValue.get() != null) {
+                            value = nullValue.get();
+                        } else {
+                            return;
+                        }
+                    } else {
+                        String strValue = parser.text();
+                        if (strValue.length() > ignoreAbove.get()) {
+                            return;
+                        }
+                        value = strValue;
+                    }
+                    if (ft.normalizer() != null) {
+                        value = normalizeValue(ft.normalizer, ft.name(), value);
+                    }
+                    indexer.accept(IndexableValue.wrapString(value));
+                }
+            };
+        }
+
         private KeywordFieldType buildFieldType(ContentPath contentPath, FieldType fieldType) {
             NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
@@ -167,7 +194,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
             fieldtype.setStored(this.stored.getValue());
+            KeywordFieldType kft = buildFieldType(contentPath, fieldtype);
             return new KeywordFieldMapper(name, fieldtype, buildFieldType(contentPath, fieldtype),
+                    buildParser(kft),
                     multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
@@ -322,8 +351,9 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final IndexAnalyzers indexAnalyzers;
 
     protected KeywordFieldMapper(String simpleName, FieldType fieldType, KeywordFieldType mappedFieldType,
+                                 IndexableValueParser valueParser,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, mappedFieldType.normalizer, multiFields, copyTo);
+        super(simpleName, mappedFieldType, mappedFieldType.normalizer, valueParser, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -345,30 +375,9 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = nullValue;
-            } else {
-                value =  parser.textOrNull();
-            }
-        }
-
-        if (value == null || value.length() > ignoreAbove) {
-            return;
-        }
-
-        NamedAnalyzer normalizer = fieldType().normalizer();
-        if (normalizer != null) {
-            value = normalizeValue(normalizer, name(), value);
-        }
-
+    protected void buildIndexableFields(ParseContext context, IndexableValue value) {
         // convert to utf8 only once before feeding postings/dv/stored fields
-        final BytesRef binaryValue = new BytesRef(value);
+        final BytesRef binaryValue = new BytesRef(value.stringValue());
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
             context.doc().add(field);

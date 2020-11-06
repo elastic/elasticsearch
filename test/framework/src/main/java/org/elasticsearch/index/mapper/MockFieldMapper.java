@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -30,16 +27,13 @@ import java.util.List;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends FieldMapper {
-    static Settings DEFAULT_SETTINGS = Settings.builder()
-        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
-        .build();
 
     public MockFieldMapper(String fullName) {
         this(new FakeFieldType(fullName));
     }
 
     public MockFieldMapper(MappedFieldType fieldType) {
-        super(findSimpleName(fieldType.name()), fieldType,
+        super(findSimpleName(fieldType.name()), fieldType, IndexableValueParser.NO_OP,
             MultiFields.empty(), new CopyTo.Builder().build());
     }
 
@@ -47,7 +41,12 @@ public class MockFieldMapper extends FieldMapper {
                            MappedFieldType fieldType,
                            MultiFields multifields,
                            CopyTo copyTo) {
-        super(findSimpleName(fullName), fieldType, multifields, copyTo);
+        super(findSimpleName(fullName), fieldType, IndexableValueParser.NO_OP, multifields, copyTo);
+    }
+
+    @Override
+    protected void buildIndexableFields(ParseContext context, IndexableValue value) {
+
     }
 
     @Override
@@ -79,10 +78,6 @@ public class MockFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return null;
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) {
     }
 
     public static class Builder extends FieldMapper.Builder {

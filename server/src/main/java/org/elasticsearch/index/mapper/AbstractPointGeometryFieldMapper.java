@@ -31,7 +31,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -51,9 +50,10 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
 
     protected AbstractPointGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                                MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                               IndexableValueParser valueParser,
                                                Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo,
-                                               Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
+                                               Indexer<Parsed, Processed> indexer) {
+        super(simpleName, mappedFieldType, valueParser, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer);
         this.nullValue = nullValue;
     }
 
@@ -115,7 +115,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         }
 
         @Override
-        public List<P> parse(XContentParser parser) throws IOException, ParseException {
+        public List<P> parse(XContentParser parser) throws IOException {
 
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 XContentParser.Token token = parser.nextToken();

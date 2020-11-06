@@ -378,10 +378,6 @@ public class AttributeMap<E> implements Map<Attribute, E> {
             return this;
         }
 
-        public boolean isEmpty() {
-            return map.isEmpty();
-        }
-
         public AttributeMap<E> build() {
             // copy, in case someone would do a .build, .put, .build sequence
             AttributeMap<E> m = new AttributeMap<>();

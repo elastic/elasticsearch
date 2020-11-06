@@ -426,12 +426,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             AttributeMap.Builder<Expression> aliases = AttributeMap.builder();
             for (NamedExpression ne : a.aggregates()) {
                 if (ne instanceof Alias) {
-                    Alias alias = (Alias) ne;
-                    aliases.put(alias.toAttribute(), alias.child());
+                    aliases.put(ne.toAttribute(), ((Alias) ne).child());
                 }
             }
 
-            if (aliases.isEmpty() == false) {
+            if (aliases.build().isEmpty() == false) {
                 aliases.putAll(queryC.aliases());
                 queryC = queryC.withAliases(aliases.build());
             }

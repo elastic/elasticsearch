@@ -21,11 +21,10 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
-import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -36,7 +35,6 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static java.util.Arrays.compareUnsigned;
 
@@ -105,7 +103,7 @@ public class MergedPointRangeQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        return new Weight(this) {
+        return new ConstantScoreWeight(this, boost) {
             Weight multiValuedSegmentWeight;
             Weight singleValuedSegmentWeight;
 
@@ -143,18 +141,15 @@ public class MergedPointRangeQuery extends Query {
 
             @Override
             public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                return super.bulkScorer(context);
-            }
-
-            @Override
-            @Deprecated
-            public void extractTerms(Set<Term> terms) {
-                // We don't have Terms, just numbers
-            }
-
-            @Override
-            public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                return multiValuedSegmentWeight().explain(context, doc);
+                PointValues points = context.reader().getPointValues(field);
+                if (points == null) {
+                    return null;
+                }
+                if (points.size() == points.getDocCount()) {
+                    // Each doc that has points has exactly one point.
+                    return singleValuedSegmentWeight().bulkScorer(context);
+                }
+                return multiValuedSegmentWeight().bulkScorer(context);
             }
 
             private Weight singleValuedSegmentWeight() throws IOException {

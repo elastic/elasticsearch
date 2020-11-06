@@ -191,7 +191,7 @@ public class CloseIndexResponseTests extends
         {
             final boolean acknowledged = randomBoolean();
             final boolean shardsAcknowledged = acknowledged ? randomBoolean() : false;
-            final ShardsAcknowledgedResponse expected = new ShardsAcknowledgedResponse(acknowledged, shardsAcknowledged){};
+            final ShardsAcknowledgedResponse expected = ShardsAcknowledgedResponse.of(acknowledged, shardsAcknowledged);
 
             final XContentType xContentType = randomFrom(XContentType.values());
             final BytesReference bytes = toShuffledXContent(expected, xContentType, getParams(), randomBoolean());

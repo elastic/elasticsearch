@@ -14,23 +14,20 @@ import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.IndexInputStats;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
-import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
-import static com.carrotsearch.randomizedtesting.generators.RandomPicks.randomFrom;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,27 +35,6 @@ import static org.mockito.Mockito.mock;
 
 public final class TestUtils {
     private TestUtils() {}
-
-    public static void noOpCacheCleaner() {}
-
-    public static CacheService createDefaultCacheService() {
-        return new CacheService(TestUtils::noOpCacheCleaner, Settings.EMPTY);
-    }
-
-    public static CacheService createCacheService(final Random random) {
-        final ByteSizeValue cacheSize = new ByteSizeValue(
-            randomIntBetween(random, 1, 100),
-            randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB))
-        );
-        return new CacheService(TestUtils::noOpCacheCleaner, cacheSize, randomCacheRangeSize(random));
-    }
-
-    public static ByteSizeValue randomCacheRangeSize(final Random random) {
-        return new ByteSizeValue(
-            randomIntBetween(random, 1, 100),
-            randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB))
-        );
-    }
 
     public static long numberOfRanges(long fileSize, long rangeSize) {
         return numberOfRanges(toIntBytes(fileSize), toIntBytes(rangeSize));
@@ -73,6 +49,34 @@ public final class TestUtils {
             numberOfRanges++;
         }
         return numberOfRanges;
+    }
+
+    static SortedSet<Tuple<Long, Long>> mergeContiguousRanges(final SortedSet<Tuple<Long, Long>> ranges) {
+        return ranges.stream().collect(() -> new TreeSet<>(Comparator.comparingLong(Tuple::v1)), (gaps, gap) -> {
+            if (gaps.isEmpty()) {
+                gaps.add(gap);
+            } else {
+                final Tuple<Long, Long> previous = gaps.pollLast();
+                if (previous.v2().equals(gap.v1())) {
+                    gaps.add(Tuple.tuple(previous.v1(), gap.v2()));
+                } else {
+                    gaps.add(previous);
+                    gaps.add(gap);
+                }
+            }
+        }, (gaps1, gaps2) -> {
+            if (gaps1.isEmpty() == false && gaps2.isEmpty() == false) {
+                final Tuple<Long, Long> last = gaps1.pollLast();
+                final Tuple<Long, Long> first = gaps2.pollFirst();
+                if (last.v2().equals(first.v1())) {
+                    gaps1.add(Tuple.tuple(last.v1(), first.v2()));
+                } else {
+                    gaps1.add(last);
+                    gaps2.add(first);
+                }
+            }
+            gaps1.addAll(gaps2);
+        });
     }
 
     public static void assertCounter(IndexInputStats.Counter counter, long total, long count, long min, long max) {

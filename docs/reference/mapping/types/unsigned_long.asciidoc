@@ -102,12 +102,17 @@ GET /my_index/_search
 --------------------------------
 //TEST[continued]
 
-Similarly to sort values, script values of an `unsigned_long` field
-return a `Number` representing a `Long` or `BigInteger`.
-The same values: `Long` or `BigInteger` are used for `terms` aggregations.
+
+==== Unsigned long in scripts
+Currently unsigned_long is not supported in scripts.
 
 ==== Stored fields
 A stored field of `unsigned_long` is stored and returned as `String`.
+
+==== Aggregations
+For `terms` aggregations, similarly to sort values, `Long` or
+`BigInteger` values are used. For other aggregations,
+values are converted to the `double` type.
 
 ==== Queries with mixed numeric types
 

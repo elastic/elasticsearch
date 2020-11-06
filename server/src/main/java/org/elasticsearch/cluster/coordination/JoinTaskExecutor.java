@@ -132,7 +132,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         for (final Task joinTask : joiningNodes) {
             if (joinTask.isBecomeMasterTask() || joinTask.isFinishElectionTask()) {
                 // noop
-            } else if (currentNodes.nodeExists(joinTask.node())) {
+            } else if (currentNodes.nodeExistsWithSameRoles(joinTask.node())) {
                 logger.debug("received a join request for an existing node [{}]", joinTask.node());
             } else {
                 final DiscoveryNode node = joinTask.node();

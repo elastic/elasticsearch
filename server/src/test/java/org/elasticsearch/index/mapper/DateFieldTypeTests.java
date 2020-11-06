@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -108,7 +107,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         // Fields with no value indexed.
         DateFieldType ft2 = new DateFieldType("my_date2");
 
-        assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context, false));
+        assertEquals(Relation.DISJOINT,
+            ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context, false));
 
         IOUtils.close(reader, w, dir);
     }

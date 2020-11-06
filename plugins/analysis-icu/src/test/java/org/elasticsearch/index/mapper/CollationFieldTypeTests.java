@@ -51,7 +51,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase{
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null,
             RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
             RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
-            randomBoolean(), randomBoolean(), null, null, null));
+            randomBoolean(), randomBoolean(), null, null, null, false));
     }
 
     public void testTermQuery() {

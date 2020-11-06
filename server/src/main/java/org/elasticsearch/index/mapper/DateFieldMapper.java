@@ -564,7 +564,8 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public Relation isFieldMinWithinQuery(IndexReader reader, Object from, boolean includeLower, ZoneId timeZone,
-                                              DateMathParser dateParser, QueryRewriteContext context, boolean fromIndex) throws IOException {
+                                              DateMathParser dateParser, QueryRewriteContext context, boolean fromIndex
+        ) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -593,7 +594,8 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public Relation isFieldMaxWithinQuery(IndexReader reader, Object to, boolean includeUpper, ZoneId timeZone,
-                                              DateMathParser dateParser, QueryRewriteContext context, boolean fromIndex) throws IOException {
+                                              DateMathParser dateParser, QueryRewriteContext context, boolean fromIndex
+        ) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }

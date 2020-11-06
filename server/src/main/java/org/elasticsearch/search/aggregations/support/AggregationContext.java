@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
@@ -39,6 +40,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBuc
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
 import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -47,6 +49,9 @@ import org.elasticsearch.search.sort.SortBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * Everything used to build and execute aggregations and the
@@ -166,7 +171,7 @@ public abstract class AggregationContext {
 
     /**
      * Build a {@linkplain SubSearchContext} to power an aggregation fetching top hits.
-     * Try to avoid using this because it is very very hard to test.
+     * Try to avoid using this because it pulls in a ton of dependencies.
      */
     public abstract SubSearchContext subSearchContext();
 
@@ -212,110 +217,153 @@ public abstract class AggregationContext {
 
     /**
      * Implementation of {@linkplain AggregationContext} for production usage
-     * that wraps our ubiquitous {@link QueryShardContext} and the top level
-     * {@link Query}. Unit tests should avoid using this because it requires
-     * a <strong>huge</strong> portion of a real Elasticsearch node.
+     * that wraps our ubiquitous {@link QueryShardContext} and anything else
+     * specific to aggregations. Unit tests should generally avoid using this
+     * because it requires a <strong>huge</strong> portion of a real
+     * Elasticsearch node.
      */
     public static class ProductionAggregationContext extends AggregationContext {
-        private final SearchContext context;
+        private final QueryShardContext context;
+        private final Query topLevelQuery;
+        private final AggregationProfiler profiler;
         private final MultiBucketConsumer multiBucketConsumer;
+        private final Supplier<SubSearchContext> subSearchContextBuilder;
+        private final Consumer<Aggregator> addReleasable;
+        private final BitsetFilterCache bitsetFilterCache;
+        private final int randomSeed;
+        private final LongSupplier relativeTimeInMillis;
+        private final Supplier<Boolean> isCancelled;
 
         public ProductionAggregationContext(SearchContext context, MultiBucketConsumer multiBucketConsumer) {
+            this( // TODO we'd prefer to not use SearchContext everywhere but we have a bunch of tests that use this now
+                context.getQueryShardContext(),
+                context.query(),
+                context.getProfilers() == null ? null : context.getProfilers().getAggregationProfiler(),
+                multiBucketConsumer,
+                () -> new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext()),
+                context::addReleasable,
+                context.bitsetFilterCache(),
+                context.indexShard().shardId().hashCode(),
+                context::getRelativeTimeInMillis,
+                context::isCancelled
+            );
+        }
+
+        public ProductionAggregationContext(
+            QueryShardContext context,
+            Query topLevelQuery,
+            @Nullable AggregationProfiler profiler,
+            MultiBucketConsumer multiBucketConsumer,
+            Supplier<SubSearchContext> subSearchContextBuilder,
+            Consumer<Aggregator> addReleasable,
+            BitsetFilterCache bitsetFilterCache,
+            int randomSeed,
+            LongSupplier relativeTimeInMillis,
+            Supplier<Boolean> isCancelled
+        ) {
             this.context = context;
+            this.topLevelQuery = topLevelQuery;
+            this.profiler = profiler;
             this.multiBucketConsumer = multiBucketConsumer;
+            this.subSearchContextBuilder = subSearchContextBuilder;
+            this.addReleasable = addReleasable;
+            this.bitsetFilterCache = bitsetFilterCache;
+            this.randomSeed = randomSeed;
+            this.relativeTimeInMillis = relativeTimeInMillis;
+            this.isCancelled = isCancelled;
         }
 
         @Override
         public Query query() {
-            return context.query();
+            return topLevelQuery;
         }
 
         @Override
         public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
-            if (context.getProfilers() == null) {
+            if (profiler == null) {
                 return agg;
             }
-            return new ProfilingAggregator(agg, context.getProfilers().getAggregationProfiler());
+            return new ProfilingAggregator(agg, profiler);
         }
 
         @Override
         public long nowInMillis() {
-            return context.getQueryShardContext().nowInMillis();
+            return context.nowInMillis();
         }
 
         @Override
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-            return context.getQueryShardContext().getForField(ft);
+            return context.getForField(ft);
         }
 
         @Override
         public MappedFieldType getFieldType(String path) {
-            return context.getQueryShardContext().getFieldType(path);
+            return context.getFieldType(path);
         }
 
         @Override
         public boolean isFieldMapped(String field) {
-            return context.getQueryShardContext().isFieldMapped(field);
+            return context.isFieldMapped(field);
         }
 
         @Override
         public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> scriptContext) {
-            return context.getQueryShardContext().compile(script, scriptContext);
+            return context.compile(script, scriptContext);
         }
 
         @Override
         public SearchLookup lookup() {
-            return context.getQueryShardContext().lookup();
+            return context.lookup();
         }
 
         @Override
         public ValuesSourceRegistry getValuesSourceRegistry() {
-            return context.getQueryShardContext().getValuesSourceRegistry();
+            return context.getValuesSourceRegistry();
         }
 
         @Override
         public BigArrays bigArrays() {
-            return context.getQueryShardContext().bigArrays();
+            return context.bigArrays();
         }
 
         @Override
         public IndexSearcher searcher() {
-            return context.getQueryShardContext().searcher();
+            return context.searcher();
         }
 
         @Override
         public Query buildQuery(QueryBuilder builder) throws IOException {
-            return builder.toQuery(context.getQueryShardContext());
+            return builder.toQuery(context);
         }
 
         @Override
         public IndexSettings getIndexSettings() {
-            return context.getQueryShardContext().getIndexSettings();
+            return context.getIndexSettings();
         }
 
         @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
-            return SortBuilder.buildSort(sortBuilders, context.getQueryShardContext());
+            return SortBuilder.buildSort(sortBuilders, context);
         }
 
         @Override
         public ObjectMapper getObjectMapper(String path) {
-            return context.getQueryShardContext().getObjectMapper(path);
+            return context.getObjectMapper(path);
         }
 
         @Override
         public NestedScope nestedScope() {
-            return context.getQueryShardContext().nestedScope();
+            return context.nestedScope();
         }
 
         @Override
         public SubSearchContext subSearchContext() {
-            return new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext());
+            return subSearchContextBuilder.get();
         }
 
         @Override
         public void addReleasable(Aggregator aggregator) {
-            context.addReleasable(aggregator);
+            addReleasable.accept(aggregator);
         }
 
         @Override
@@ -325,27 +373,27 @@ public abstract class AggregationContext {
 
         @Override
         public BitsetFilterCache bitsetFilterCache() {
-            return context.bitsetFilterCache();
+            return bitsetFilterCache;
         }
 
         @Override
         public BucketedSort buildBucketedSort(SortBuilder<?> sort, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
-            return sort.buildBucketedSort(context.getQueryShardContext(), bucketSize, extra);
+            return sort.buildBucketedSort(context, bucketSize, extra);
         }
 
         @Override
         public int shardRandomSeed() {
-            return context.indexShard().shardId().hashCode();
+            return randomSeed;
         }
 
         @Override
         public long getRelativeTimeInMillis() {
-            return context.getRelativeTimeInMillis();
+            return relativeTimeInMillis.getAsLong();
         }
 
         @Override
         public boolean isCancelled() {
-            return context.isCancelled();
+            return isCancelled.get();
         }
 
         @Override
@@ -355,7 +403,7 @@ public abstract class AggregationContext {
 
         @Override
         public Analyzer indexAnalyzer() {
-            return context.getQueryShardContext().getIndexAnalyzer();
+            return context.getIndexAnalyzer();
         }
     }
 }

@@ -15,9 +15,9 @@ For <<rpm,RPM installations>>, {es} writes logs to `/var/log/elasticsearch`.
 For <<targz,macOS `.tar.gz`>> installations, {es} writes logs to
 `$ES_HOME/logs`.
 
-Logs in `$ES_HOME/logs` risk deletion during an upgrade. In production, we
-strongly recommend you use the `path.logs` setting to write logs to a location
-outside of `$ES_HOME`. See <<path-settings>>.
+Files in `$ES_HOME` risk deletion during an upgrade. In production, we strongly
+recommend you use the `path.logs` setting to write logs to a location outside of
+`$ES_HOME`. See <<path-settings>>.
 // end::mac[]
 
 // tag::brew[]
@@ -29,18 +29,18 @@ For <<brew,macOS Homebrew>> installations, {es} writes logs to
 For <<targz,Linux `.tar.gz`>> installations, {es} writes logs to
 `$ES_HOME/logs`.
 
-Logs in `$ES_HOME/logs` risk deletion during an upgrade. In production, we
-strongly recommend you use the `path.logs` setting to write logs to a location
-outside of `$ES_HOME`. See <<path-settings>>.
+Files in `$ES_HOME` risk deletion during an upgrade. In production, we strongly
+recommend you use the `path.logs` setting to write logs to a location outside of
+`$ES_HOME`. See <<path-settings>>.
 // end::linux[]
 
 // tag::win-zip[]
 For <<zip-windows,Windows `.zip`>> installations, {es} writes logs to
 `%ES_HOME%\logs`.
 
-Logs in `$ES_HOME/logs` risk deletion during an upgrade. In production, we
-strongly recommend you use the `path.logs` setting to write logs to a location
-outside of `$ES_HOME`. See <<path-settings>>.
+Files in `$ES_HOME` risk deletion during an upgrade. In production, we strongly
+recommend you use the `path.logs` setting to write logs to a location outside of
+`$ES_HOME`. See <<path-settings>>.
 // end::win-zip[]
 
 // tag::win-msi[]

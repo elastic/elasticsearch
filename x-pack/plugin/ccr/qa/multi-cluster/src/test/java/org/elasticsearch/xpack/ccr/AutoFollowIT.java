@@ -436,16 +436,24 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 "because it is a replicated data stream"));
             verifyDataStream(client(), dataStreamName, ".ds-logs-tomcat-prod-000001", ".ds-logs-tomcat-prod-000002");
 
-            // Unfollow .ds-logs-tomcat-prod-000002
-            pauseFollow(".ds-logs-tomcat-prod-000002");
-            closeIndex(".ds-logs-tomcat-prod-000002");
-            unfollow(".ds-logs-tomcat-prod-000002");
+            // Promote local data stream
+            Request promoteRequest = new Request("POST", "/_data_stream/_promote/" + dataStreamName);
+            assertOK(client().performRequest(promoteRequest));
 
-            // Try again and now the rollover should be successful since all backing indices are no longer follower indices:
+            // Try again and now the rollover should be successful because local data stream is now :
             Request rolloverRequest3 = new Request("POST", "/" +  dataStreamName + "/_rollover");
             assertOK(client().performRequest(rolloverRequest3));
             verifyDataStream(client(), dataStreamName, ".ds-logs-tomcat-prod-000001", ".ds-logs-tomcat-prod-000002",
                 ".ds-logs-tomcat-prod-000003");
+
+            // TODO: verify that following a backing index for logs-tomcat-prod data stream in remote cluster fails,
+            // because local data stream isn't a replicated data stream anymore.
+
+            // Unfollow .ds-logs-tomcat-prod-000002,
+            // which is now possible because this index can now be closed as it is no longer the write index.
+            pauseFollow(".ds-logs-tomcat-prod-000002");
+            closeIndex(".ds-logs-tomcat-prod-000002");
+            unfollow(".ds-logs-tomcat-prod-000002");
         }
         // Cleanup:
         {

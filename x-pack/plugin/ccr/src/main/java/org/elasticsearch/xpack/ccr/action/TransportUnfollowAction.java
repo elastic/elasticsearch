@@ -108,7 +108,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 final int numberOfShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexMetadata.getSettings());
 
                 final GroupedActionListener<RetentionLeaseActions.Response> groupListener = new GroupedActionListener<>(
-                        new ActionListener<Collection<RetentionLeaseActions.Response>>() {
+                        new ActionListener<>() {
 
                             @Override
                             public void onResponse(final Collection<RetentionLeaseActions.Response> responses) {

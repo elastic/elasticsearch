@@ -81,9 +81,9 @@ public class FilterAllocationDecider extends AllocationDecider {
         Setting.prefixKeySetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", key ->
             Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
 
-    private volatile DiscoveryNodeFilters clusterRequireFilters;
-    private volatile DiscoveryNodeFilters clusterIncludeFilters;
-    private volatile DiscoveryNodeFilters clusterExcludeFilters;
+    private static volatile DiscoveryNodeFilters clusterRequireFilters;
+    private static volatile DiscoveryNodeFilters clusterIncludeFilters;
+    private static volatile DiscoveryNodeFilters clusterExcludeFilters;
 
     public FilterAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings));

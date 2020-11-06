@@ -140,6 +140,66 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals("node passes include/exclude/require filters", decision.getExplanation());
     }
 
+    public void testFilterAllocationWithClusterExcludeFilters() {
+        // init a FilterAllocationDecider
+        FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+
+        // use another FilterAllocationDecider in the allocationDeciders contained in the cluster state
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
+            Arrays.asList(new FilterAllocationDecider(Settings.EMPTY, clusterSettings),
+                new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
+                new ReplicaAfterPrimaryActiveAllocationDecider()));
+        AllocationService service = new AllocationService(allocationDeciders,
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE);
+
+        ClusterState state = createInitialClusterState(service, Settings.EMPTY);
+        RoutingTable routingTable = state.routingTable();
+
+        // exclude node1
+        final Settings settings = Settings.builder()
+            .put("cluster.routing.allocation.exclude._id", "node1")
+            .build();
+        clusterSettings.applySettings(settings);
+
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
+            null, null, 0);
+        allocation.debugDecision(true);
+
+        // node1 will be filtered
+        Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
+            routingTable.index("idx").shard(0).primaryShard(),
+            state.getRoutingNodes().node("node2"), allocation);
+        assertEquals(Type.YES, decision.type());
+        assertEquals("node passes include/exclude/require filters", decision.getExplanation());
+        decision = (Decision.Single) filterAllocationDecider.canAllocate(
+            routingTable.index("idx").shard(0).primaryShard(),
+            state.getRoutingNodes().node("node1"), allocation);
+        assertEquals(Type.NO, decision.type());
+        assertEquals("node matches cluster setting [cluster.routing.allocation.exclude] filters [_id:\"node1\"]",
+            decision.getExplanation());
+
+        // remove the cluster exclude setting
+        final Settings settings1 = Settings.builder()
+            .putNull("cluster.routing.allocation.exclude._id")
+            .build();
+        clusterSettings.applySettings(settings1);
+
+        // node1 will not be filtered
+        decision = (Decision.Single) filterAllocationDecider.canAllocate(
+            routingTable.index("idx").shard(0).primaryShard(),
+            state.getRoutingNodes().node("node2"), allocation);
+        assertEquals(Type.YES, decision.type());
+        assertEquals("node passes include/exclude/require filters", decision.getExplanation());
+        decision = (Decision.Single) filterAllocationDecider.canAllocate(
+            routingTable.index("idx").shard(0).primaryShard(),
+            state.getRoutingNodes().node("node1"), allocation);
+        assertEquals(Type.YES, decision.type());
+        assertEquals("node passes include/exclude/require filters", decision.getExplanation());
+    }
+
     private ClusterState createInitialClusterState(AllocationService service, Settings settings) {
         Metadata.Builder metadata = Metadata.builder();
         final Settings.Builder indexSettings = settings(Version.CURRENT).put(settings);

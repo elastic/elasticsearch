@@ -389,8 +389,8 @@ or event category field.
 === Specify a sort tiebreaker
 
 By default, the EQL search API returns matching hits by timestamp. If two or
-more events share the same timestamp, Elasticsearch uses a tiebreaker field
-value to sort the events in ascending, lexicographic order.
+more events share the same timestamp, {es} uses a tiebreaker field value to sort
+the events in ascending, lexicographic order.
 
 If you don't specify a tiebreaker field or the events also share the same
 tiebreaker value, {es} considers the events concurrent. Concurrent events cannot

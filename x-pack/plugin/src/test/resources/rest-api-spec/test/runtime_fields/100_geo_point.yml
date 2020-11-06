@@ -91,11 +91,42 @@ setup:
         index: locations
         body:
           query:
+            geo_bounding_box:
+              location_from_source:
+                top_left:
+                  lat: 10
+                  lon: -10
+                bottom_right:
+                  lat: -10
+                  lon: 10
+  - match: {hits.total.value: 1}
+
+---
+"geo shape query":
+  - do:
+      search:
+        index: locations
+        body:
+          query:
             geo_shape:
               location_from_source:
                 shape:
                   type: "envelope"
                   coordinates: [ [ -10, 10 ], [ 10, -10 ] ]
+  - match: {hits.total.value: 1}
+
+---
+"geo distance query":
+  - do:
+      search:
+        index: locations
+        body:
+          query:
+            geo_distance:
+              distance: "2000km"
+              location_from_source:
+                  lat: 0
+                  lon: 0
   - match: {hits.total.value: 1}
 
 ---

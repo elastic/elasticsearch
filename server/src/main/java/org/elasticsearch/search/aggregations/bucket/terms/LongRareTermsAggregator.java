@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -38,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongUnaryOperator;
 
 import static java.util.Collections.emptyList;
 
@@ -74,7 +76,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
         );
         this.valuesSource = valuesSource;
         this.filter = filter;
-        this.bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     protected SortedNumericDocValues getValues(ValuesSource.Numeric valuesSource, LeafReaderContext ctx) throws IOException {
@@ -126,7 +128,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
         Arrays.fill(mergeMap, -1);
         long offset = 0;
         for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
-            try (LongHash bucketsInThisOwningBucketToCollect = new LongHash(1, context.bigArrays())) {
+            try (LongHash bucketsInThisOwningBucketToCollect = new LongHash(1, bigArrays())) {
                 filters[owningOrdIdx] = newFilter();
                 List<LongRareTerms.Bucket> builtBuckets = new ArrayList<>();
                 LongKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds[owningOrdIdx]);
@@ -153,9 +155,10 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
          * to save on some redundant work.
          */
         if (keepCount != mergeMap.length) {
-            mergeBuckets(mergeMap, offset);
-            if (deferringCollector != null) {
-                deferringCollector.mergeBuckets(mergeMap);
+            LongUnaryOperator howToMerge = b -> mergeMap[(int) b];
+            rewriteBuckets(offset, howToMerge);
+            if (deferringCollector() != null) {
+                ((BestBucketsDeferringCollector) deferringCollector()).rewriteBuckets(howToMerge);
             }
         }
 

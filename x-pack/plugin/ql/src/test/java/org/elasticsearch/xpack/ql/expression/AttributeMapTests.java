@@ -7,7 +7,9 @@ package org.elasticsearch.xpack.ql.expression;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +37,47 @@ public class AttributeMapTests extends ESTestCase {
         map.put(a("three"), "three");
 
         return new AttributeMap<>(map);
+    }
+
+    public void testAttributeMapWithSameAliasesCanResolveAttributes() {
+        Alias param1 = createIntParameterAlias(1, 100);
+        Alias param2 = createIntParameterAlias(2, 100);
+        assertTrue(param1.equals(param2));
+        assertTrue(param1.semanticEquals(param2));
+        // equality on literals
+        assertTrue(param1.child().equals(param2.child()));
+        assertTrue(param1.child().semanticEquals(param2.child()));
+        assertTrue(param1.toAttribute().equals(param2.toAttribute()));
+        assertFalse(param1.toAttribute().semanticEquals(param2.toAttribute()));
+
+        Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
+        for (Alias a : Arrays.asList(param1, param2)) {
+            collectRefs.put(a.toAttribute(), a.child());
+        }
+        // we can look up the same item by both attributes
+        assertNotNull(collectRefs.get(param1.toAttribute()));
+        assertNotNull(collectRefs.get(param2.toAttribute()));
+        AttributeMap<Expression> attributeMap = new AttributeMap<>(collectRefs);
+
+        // validate that all Alias can be e
+        assertTrue(attributeMap.containsKey(param1.toAttribute()));
+        assertFalse(attributeMap.containsKey(param2.toAttribute())); // results in unknown attribute exception
+
+        AttributeMap.Builder<Expression> mapBuilder = AttributeMap.builder();
+        for (Alias a : Arrays.asList(param1, param2)) {
+            mapBuilder.put(a.toAttribute(), a.child());
+        }
+        AttributeMap<Expression> newAttributeMap = mapBuilder.build();
+
+        assertTrue(newAttributeMap.containsKey(param1.toAttribute()));
+        assertTrue(newAttributeMap.containsKey(param2.toAttribute())); // no more unknown attribute exception
+    }
+
+    private Alias createIntParameterAlias(int index, int value) {
+        Source source = new Source(1, index * 5, "?");
+        Literal literal = new Literal(source, value, DataTypes.INTEGER);
+        Alias alias = new Alias(literal.source(), literal.source().text(), literal);
+        return alias;
     }
 
     public void testEmptyConstructor() {

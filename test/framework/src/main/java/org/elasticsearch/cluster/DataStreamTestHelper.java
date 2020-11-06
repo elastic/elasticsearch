@@ -111,7 +111,7 @@ public final class DataStreamTestHelper {
             metadata = new HashMap<>();
             metadata.put("key", "value");
         }
-        return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, metadata);
+        return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, metadata, randomBoolean());
     }
 
     /**

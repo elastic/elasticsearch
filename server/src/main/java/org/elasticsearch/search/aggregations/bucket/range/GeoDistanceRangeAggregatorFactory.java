@@ -107,7 +107,7 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new RangeAggregator.Unmapped<>(name, ranges, keyed, config.format(), searchContext, parent,
+        return new RangeAggregator.Unmapped<>(name, factories, ranges, keyed, config.format(), searchContext, parent,
             rangeFactory, metadata);
     }
 

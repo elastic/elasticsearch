@@ -12,9 +12,13 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,6 +30,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -408,6 +413,58 @@ public class SparseFileTrackerTests extends ESTestCase {
         checkThread.join();
     }
 
+    public void testCompletedRanges() {
+        final byte[] fileContents = new byte[between(0, 1000)];
+        final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", fileContents.length);
+
+        final Set<AtomicBoolean> listenersCalled = new HashSet<>();
+        final Set<SparseFileTracker.Gap> gapsProcessed = Collections.synchronizedSet(
+            new TreeSet<>(Comparator.comparingLong(SparseFileTracker.Gap::start))
+        );
+        for (int i = between(0, 10); i > 0; i--) {
+            waitForRandomRange(fileContents, sparseFileTracker, listenersCalled::add, gap -> {
+                if (processGap(fileContents, gap)) {
+                    gapsProcessed.add(gap);
+                }
+            });
+            assertTrue(listenersCalled.stream().allMatch(AtomicBoolean::get));
+        }
+
+        // merge adjacent processed ranges as the SparseFileTracker does internally when a gap is completed
+        // in order to check that SparseFileTracker.getCompletedRanges() returns the expected values
+        final List<Tuple<Long, Long>> expectedCompletedRanges = gapsProcessed.stream()
+            .map(gap -> Tuple.tuple(gap.start(), gap.end()))
+            .collect(LinkedList::new, (gaps, gap) -> {
+                if (gaps.isEmpty()) {
+                    gaps.add(gap);
+                } else {
+                    final Tuple<Long, Long> previous = gaps.removeLast();
+                    if (previous.v2().equals(gap.v1())) {
+                        gaps.add(Tuple.tuple(previous.v1(), gap.v2()));
+                    } else {
+                        gaps.add(previous);
+                        gaps.add(gap);
+                    }
+                }
+            }, (gaps1, gaps2) -> {
+                if (gaps1.isEmpty() == false && gaps2.isEmpty() == false) {
+                    final Tuple<Long, Long> last = gaps1.removeLast();
+                    final Tuple<Long, Long> first = gaps2.removeFirst();
+                    if (last.v2().equals(first.v1())) {
+                        gaps1.add(Tuple.tuple(last.v1(), first.v2()));
+                    } else {
+                        gaps1.add(last);
+                        gaps2.add(first);
+                    }
+                }
+                gaps1.addAll(gaps2);
+            });
+
+        final List<Tuple<Long, Long>> completedRanges = sparseFileTracker.getCompletedRanges();
+        assertThat(completedRanges, hasSize(expectedCompletedRanges.size()));
+        assertThat(completedRanges, equalTo(expectedCompletedRanges));
+    }
+
     private static void checkRandomAbsentRange(byte[] fileContents, SparseFileTracker sparseFileTracker, boolean expectExact) {
         final long checkStart = randomLongBetween(0, fileContents.length - 1);
         final long checkEnd = randomLongBetween(0, fileContents.length);
@@ -487,19 +544,21 @@ public class SparseFileTrackerTests extends ESTestCase {
         }
     }
 
-    private static void processGap(byte[] fileContents, SparseFileTracker.Gap gap) {
+    private static boolean processGap(byte[] fileContents, SparseFileTracker.Gap gap) {
         for (long i = gap.start(); i < gap.end(); i++) {
             assertThat(fileContents[toIntBytes(i)], equalTo(UNAVAILABLE));
         }
 
         if (randomBoolean()) {
             gap.onFailure(new ElasticsearchException("simulated"));
+            return false;
         } else {
             for (long i = gap.start(); i < gap.end(); i++) {
                 fileContents[toIntBytes(i)] = AVAILABLE;
                 gap.onProgress(i + 1L);
             }
             gap.onCompletion();
+            return true;
         }
     }
 }

@@ -54,7 +54,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 == {api-query-parms-title}
 
 `allow_no_forecasts`::
-  (Optional, boolean) Specifies whether an error occurs when there are no
+  (Optional, Boolean) Specifies whether an error occurs when there are no
   forecasts. In particular, if this parameter is set to `false` and there are no
   forecasts associated with the job, attempts to delete all forecasts return an
   error. The default value is `true`.

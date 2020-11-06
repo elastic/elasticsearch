@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -42,7 +43,7 @@ import java.util.function.Function;
 /**
  * Base field mapper class for all spatial field types
  */
-public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends ParametrizedFieldMapper {
+public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends FieldMapper {
 
     public static Parameter<Explicit<Boolean>> ignoreMalformedParam(Function<FieldMapper, Explicit<Boolean>> initializer,
                                                                     boolean ignoreMalformedByDefault) {
@@ -123,19 +124,19 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Par
         }
 
         @Override
-        public final ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public final ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
 
             Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);
             if (parsesArrayValue) {
-                return new ArraySourceValueFetcher(name(), mapperService) {
+                return new ArraySourceValueFetcher(name(), context) {
                     @Override
                     protected Object parseSourceValue(Object value) {
                         return valueParser.apply(value);
                     }
                 };
             } else {
-                return new SourceValueFetcher(name(), mapperService) {
+                return new SourceValueFetcher(name(), context) {
                     @Override
                     protected Object parseSourceValue(Object value) {
                         return valueParser.apply(value);
@@ -151,14 +152,22 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Par
     private final Parser<Parsed> parser;
 
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                          Map<String, NamedAnalyzer> indexAnalyzers,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
                                           Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
         this.indexer = indexer;
         this.parser = parser;
+    }
+
+    protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                          Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
+                                          MultiFields multiFields, CopyTo copyTo,
+                                          Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
+        this(simpleName, mappedFieldType, Collections.emptyMap(), ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
     }
 
     @Override

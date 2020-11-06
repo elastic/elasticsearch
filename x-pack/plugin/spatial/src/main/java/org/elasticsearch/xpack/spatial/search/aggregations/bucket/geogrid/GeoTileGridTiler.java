@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 public class GeoTileGridTiler implements GeoGridTiler {
 
@@ -37,8 +37,8 @@ public class GeoTileGridTiler implements GeoGridTiler {
      * @return the number of tiles set by the shape
      */
     @Override
-    public int setValues(GeoShapeCellValues values, MultiGeoShapeValues.GeoShapeValue geoValue, int precision) {
-        MultiGeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
+    public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue, int precision) {
+        GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         assert bounds.minX() <= bounds.maxX();
 
         if (precision == 0) {
@@ -70,16 +70,16 @@ public class GeoTileGridTiler implements GeoGridTiler {
         }
     }
 
-    protected GeoRelation relateTile(MultiGeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
+    protected GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
         Rectangle rectangle = GeoTileUtils.toBoundingBox(xTile, yTile, precision);
         return geoValue.relate(rectangle);
     }
 
     /**
-     * Sets a singular doc-value for the {@link MultiGeoShapeValues.GeoShapeValue}. To be overriden by {@link BoundedGeoTileGridTiler}
+     * Sets a singular doc-value for the {@link GeoShapeValues.GeoShapeValue}. To be overriden by {@link BoundedGeoTileGridTiler}
      * to account for {@link org.elasticsearch.common.geo.GeoBoundingBox} conditions
      */
-    protected int setValue(GeoShapeCellValues docValues, MultiGeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
+    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
         docValues.resizeCell(1);
         docValues.add(0, GeoTileUtils.longEncodeTiles(precision, xTile, yTile));
         return 1;
@@ -92,7 +92,7 @@ public class GeoTileGridTiler implements GeoGridTiler {
      * @param precision the target precision to split the shape up into
      * @return the number of buckets the geoValue is found in
      */
-    protected int setValuesByBruteForceScan(GeoShapeCellValues values, MultiGeoShapeValues.GeoShapeValue geoValue,
+    protected int setValuesByBruteForceScan(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue,
                                             int precision, int minXTile, int minYTile, int maxXTile, int maxYTile) {
         int idx = 0;
         for (int i = minXTile; i <= maxXTile; i++) {
@@ -108,7 +108,7 @@ public class GeoTileGridTiler implements GeoGridTiler {
     }
 
     protected int setValuesByRasterization(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex,
-                                           int targetPrecision, MultiGeoShapeValues.GeoShapeValue geoValue) {
+                                           int targetPrecision, GeoShapeValues.GeoShapeValue geoValue) {
         zTile++;
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < 2; j++) {

@@ -82,7 +82,7 @@ as a minimal administrative function and is not intended to cover and be used to
 define roles for all use cases.
 
 IMPORTANT: You cannot view, edit, or remove any roles that are defined in the role
-mapping files by using the the role mapping APIs. 
+mapping files by using the role mapping APIs. 
 
 ==== Realm specific details
 [discrete]

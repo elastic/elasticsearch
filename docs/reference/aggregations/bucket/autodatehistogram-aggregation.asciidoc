@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-autodatehistogram-aggregation]]
-=== Auto-interval Date Histogram Aggregation
+=== Auto-interval date histogram aggregation
+++++
+<titleabbrev>Auto-interval date histogram</titleabbrev>
+++++
 
 A multi-bucket aggregation similar to the <<search-aggregations-bucket-datehistogram-aggregation>> except
 instead of providing an interval to use as the width of each bucket, a target number of buckets is provided

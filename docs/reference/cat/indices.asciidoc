@@ -74,13 +74,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+`local`::
+(Optional, boolean)
++
+deprecated::[7.11.0,"This parameter does not affect the request. It will be removed in a future release."]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[pri-flag]]
 `pri` (primary shards)::
-(Optional, boolean) If `true`, the response only includes information from
+(Optional, Boolean) If `true`, the response only includes information from
 primary shards. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]

@@ -1751,7 +1751,6 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63719")
     public void testCastDate() throws Exception {
         assertAcked(prepareCreate("index_date")
             .addMapping("_doc", "field", "type=date"));
@@ -1769,7 +1768,7 @@ public class FieldSortIT extends ESIntegTestCase {
         {
             SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(builders.size())
+                .setSize(2)
                 .addSort(SortBuilders.fieldSort("field").setNumericType("date"))
                 .get();
             SearchHits hits = response.getHits();
@@ -1780,12 +1779,36 @@ public class FieldSortIT extends ESIntegTestCase {
             }
             assertEquals(1712879236854L, hits.getAt(0).getSortValues()[0]);
             assertEquals(1712879237000L, hits.getAt(1).getSortValues()[0]);
+
+            response = client().prepareSearch()
+                .setMaxConcurrentShardRequests(1)
+                .setQuery(matchAllQuery())
+                .setSize(1)
+                .addSort(SortBuilders.fieldSort("field").setNumericType("date"))
+                .get();
+            hits = response.getHits();
+
+            assertEquals(1, hits.getHits().length);
+            assertThat(hits.getAt(0).getSortValues()[0].getClass(), equalTo(Long.class));
+            assertEquals(1712879236854L, hits.getAt(0).getSortValues()[0]);
+
+            response = client().prepareSearch()
+                .setMaxConcurrentShardRequests(1)
+                .setQuery(matchAllQuery())
+                .setSize(1)
+                .addSort(SortBuilders.fieldSort("field").order(SortOrder.DESC).setNumericType("date"))
+                .get();
+            hits = response.getHits();
+
+            assertEquals(1, hits.getHits().length);
+            assertThat(hits.getAt(0).getSortValues()[0].getClass(), equalTo(Long.class));
+            assertEquals(1712879237000L, hits.getAt(0).getSortValues()[0]);
         }
 
         {
             SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(builders.size())
+                .setSize(2)
                 .addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos"))
                 .get();
             SearchHits hits = response.getHits();
@@ -1795,6 +1818,28 @@ public class FieldSortIT extends ESIntegTestCase {
             }
             assertEquals(1712879236854775807L, hits.getAt(0).getSortValues()[0]);
             assertEquals(1712879237000000000L, hits.getAt(1).getSortValues()[0]);
+
+            response = client().prepareSearch()
+                .setMaxConcurrentShardRequests(1)
+                .setQuery(matchAllQuery())
+                .setSize(1)
+                .addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos"))
+                .get();
+            hits = response.getHits();
+            assertEquals(1, hits.getHits().length);
+            assertThat(hits.getAt(0).getSortValues()[0].getClass(), equalTo(Long.class));
+            assertEquals(1712879236854775807L, hits.getAt(0).getSortValues()[0]);
+
+            response = client().prepareSearch()
+                .setMaxConcurrentShardRequests(1)
+                .setQuery(matchAllQuery())
+                .setSize(1)
+                .addSort(SortBuilders.fieldSort("field").order(SortOrder.DESC).setNumericType("date_nanos"))
+                .get();
+            hits = response.getHits();
+            assertEquals(1, hits.getHits().length);
+            assertThat(hits.getAt(0).getSortValues()[0].getClass(), equalTo(Long.class));
+            assertEquals(1712879237000000000L, hits.getAt(0).getSortValues()[0]);
         }
 
         {
@@ -1802,15 +1847,14 @@ public class FieldSortIT extends ESIntegTestCase {
             builders.add(client().prepareIndex("index_date", "_doc")
                 .setSource("field", "1905-04-11T23:47:17"));
             indexRandom(true, true, builders);
-            SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
-                () -> client().prepareSearch()
+            SearchResponse response = client().prepareSearch()
                         .setQuery(matchAllQuery())
-                        .setSize(builders.size())
-                        .setAllowPartialSearchResults(false)
+                        .setSize(1)
                         .addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos"))
-                        .get()
-            );
-            assertThat(exc.toString(), containsString("are before the epoch in 1970"));
+                        .get();
+            assertNotNull(response.getShardFailures());
+            assertThat(response.getShardFailures().length, equalTo(1));
+            assertThat(response.getShardFailures()[0].toString(), containsString("are before the epoch in 1970"));
         }
 
         {
@@ -1818,15 +1862,14 @@ public class FieldSortIT extends ESIntegTestCase {
             builders.add(client().prepareIndex("index_date", "_doc")
                 .setSource("field", "2346-04-11T23:47:17"));
             indexRandom(true, true, builders);
-            SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
-                () -> client().prepareSearch()
+            SearchResponse response = client().prepareSearch()
                     .setQuery(QueryBuilders.rangeQuery("field").gt("1970-01-01"))
-                    .setSize(builders.size())
-                    .setAllowPartialSearchResults(false)
+                    .setSize(10)
                     .addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos"))
-                    .get()
-            );
-            assertThat(exc.toString(), containsString("are after 2262"));
+                    .get();
+            assertNotNull(response.getShardFailures());
+            assertThat(response.getShardFailures().length, equalTo(1));
+            assertThat(response.getShardFailures()[0].toString(), containsString("are after 2262"));
         }
     }
 

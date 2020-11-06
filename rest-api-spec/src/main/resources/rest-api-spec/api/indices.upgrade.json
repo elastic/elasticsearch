@@ -2,7 +2,7 @@
   "indices.upgrade":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-upgrade.html",
-      "description":"The _upgrade API is no longer useful and will be removed."
+      "description":"DEPRECATED Upgrades to the current version of Lucene."
     },
     "stability":"stable",
     "url":{
@@ -11,7 +11,11 @@
           "path":"/_upgrade",
           "methods":[
             "POST"
-          ]
+          ],
+          "deprecated":{
+            "version":"8.0.0",
+            "description":"The _upgrade API is no longer useful and will be removed. Instead, see _reindex API."
+          }
         },
         {
           "path":"/{index}/_upgrade",
@@ -23,6 +27,10 @@
               "type":"list",
               "description":"A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
             }
+          },
+          "deprecated":{
+            "version":"8.0.0",
+            "description":"The _upgrade API is no longer useful and will be removed. Instead, see _reindex API."
           }
         }
       ]

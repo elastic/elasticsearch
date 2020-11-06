@@ -184,7 +184,7 @@ public class AppendProcessorTests extends ESTestCase {
         String field = RandomDocumentPicks.addRandomField(random(), ingestDocument, originalValue);
 
         List<Object> valuesToAppend = new ArrayList<>();
-        String newValue = randomAlphaOfLengthBetween(1, 10);
+        String newValue = randomValueOtherThan(originalValue, () -> randomAlphaOfLengthBetween(1, 10));
         valuesToAppend.add(newValue);
         Processor appendProcessor = createAppendProcessor(field, valuesToAppend, false);
         appendProcessor.execute(ingestDocument);
@@ -208,7 +208,7 @@ public class AppendProcessorTests extends ESTestCase {
             .collect(Collectors.toSet());
 
         // create a set using the new values making sure there are no overlapping values already present in the existing values
-        Set<String> nonexistingValues = Sets.difference(newValues, new HashSet<>(existingValues));
+        Set<String> nonexistingValues = Sets.difference(newValues, new HashSet<>(list));
         List<String> valuesToAppend = new ArrayList<>(existingValues);
         valuesToAppend.addAll(nonexistingValues);
         expectedValues.addAll(nonexistingValues);

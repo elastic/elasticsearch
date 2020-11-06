@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[search-aggregations-pipeline-cumulative-cardinality-aggregation]]
-=== Cumulative Cardinality Aggregation
+=== Cumulative cardinality aggregation
+++++
+<titleabbrev>Cumulative cardinality</titleabbrev>
+++++
 
 A parent pipeline aggregation which calculates the Cumulative Cardinality in a parent histogram (or date_histogram)
 aggregation. The specified metric must be a cardinality aggregation and the enclosing histogram 

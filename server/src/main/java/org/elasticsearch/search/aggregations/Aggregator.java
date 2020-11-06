@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -67,11 +66,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Return the name of this aggregator.
      */
     public abstract String name();
-
-    /**
-     * Return the {@link SearchContext} attached with this {@link Aggregator}.
-     */
-    public abstract SearchContext context();
 
     /**
      * Return the parent aggregator.
@@ -142,12 +136,12 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
      * Build the results of this aggregation.
-     * @param owningBucketOrds the ordinals of the buckets that we want to
+     * @param ordsToCollect the ordinals of the buckets that we want to
      *        collect from this aggregation
      * @return the results for each ordinal, in the same order as the array
      *         of ordinals
      */
-    public abstract InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException;
+    public abstract InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException;
 
     /**
      * Build the result of this aggregation if it is at the "top level"

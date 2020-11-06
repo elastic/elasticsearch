@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-composite-aggregation]]
 === Composite aggregation
+++++
+<titleabbrev>Composite</titleabbrev>
+++++
 
 A multi-bucket aggregation that creates composite buckets from different sources.
 

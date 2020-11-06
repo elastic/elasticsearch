@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -189,7 +190,7 @@ public class MasterServiceTests extends ESTestCase {
             final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
             final TimeValue masterTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
 
-            master.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+            master.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(ackedRequest(ackTimeout, masterTimeout), null) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     assertTrue(threadPool.getThreadContext().isSystemContext());
@@ -225,15 +226,6 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 protected Void newResponse(boolean acknowledged) {
                     return null;
-                }
-
-                public TimeValue ackTimeout() {
-                    return ackTimeout;
-                }
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
                 }
 
                 @Override
@@ -927,20 +919,11 @@ public class MasterServiceTests extends ESTestCase {
                 publisherRef.set((clusterChangedEvent, publishListener, ackListener) ->
                     publishListener.onFailure(new FailedToCommitClusterStateException("mock exception")));
 
-                masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(null, null) {
+                masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(
+                        ackedRequest(TimeValue.ZERO, null), null) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         return ClusterState.builder(currentState).build();
-                    }
-
-                    @Override
-                    public TimeValue ackTimeout() {
-                        return TimeValue.ZERO;
-                    }
-
-                    @Override
-                    public TimeValue timeout() {
-                        return null;
                     }
 
                     @Override
@@ -982,20 +965,11 @@ public class MasterServiceTests extends ESTestCase {
                     ackListener.onNodeAck(node3, null);
                 });
 
-                masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(null, null) {
+                masterService.submitStateUpdateTask(
+                        "test2", new AckedClusterStateUpdateTask<Void>(ackedRequest(ackTimeout, null), null) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         return ClusterState.builder(currentState).build();
-                    }
-
-                    @Override
-                    public TimeValue ackTimeout() {
-                        return ackTimeout;
-                    }
-
-                    @Override
-                    public TimeValue timeout() {
-                        return null;
                     }
 
                     @Override
@@ -1030,6 +1004,23 @@ public class MasterServiceTests extends ESTestCase {
      */
     public static ClusterState discoveryState(MasterService masterService) {
         return masterService.state();
+    }
+
+    /**
+     * Returns a plain {@link AckedRequest} that does not implement any functionality outside of the timeout getters.
+     */
+    public static AckedRequest ackedRequest(TimeValue ackTimeout, TimeValue masterNodeTimeout) {
+        return new AckedRequest() {
+            @Override
+            public TimeValue ackTimeout() {
+                return ackTimeout;
+            }
+
+            @Override
+            public TimeValue masterNodeTimeout() {
+                return masterNodeTimeout;
+            }
+        };
     }
 
 }

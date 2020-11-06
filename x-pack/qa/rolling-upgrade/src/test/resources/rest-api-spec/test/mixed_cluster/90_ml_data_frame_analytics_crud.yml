@@ -29,10 +29,6 @@
 
 ---
 "Start and stop old outlier_detection job":
-  - skip:
-      version: " - 7.99.99"
-      reason: "_doc_count field is currently implemented only in 8.x"
-
   - do:
       ml.start_data_frame_analytics:
         id: "old_cluster_outlier_detection_job"
@@ -122,10 +118,6 @@
 
 ---
 "Put an outlier_detection job on the mixed cluster":
-  - skip:
-      version: " - 7.99.99"
-      reason: "_doc_count field is currently implemented only in 8.x"
-
   - do:
       ml.put_data_frame_analytics:
         id: "mixed_cluster_outlier_detection_job"

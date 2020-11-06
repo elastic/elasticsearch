@@ -444,6 +444,48 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testSimpleUnmappedArrayWithObjects() throws IOException {
+        MapperService mapperService = createMapperService();
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startArray("unmapped_field")
+                .startObject()
+                    .field("f1", "a")
+                .endObject()
+                .startObject()
+                    .field("f2", "b")
+                .endObject()
+            .endArray()
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "unmapped_field", true);
+        assertThat(fields.size(), equalTo(0));
+
+        fields = fetchFields(mapperService, source, "unmapped_field.f*", true);
+        assertThat(fields.size(), equalTo(2));
+        assertThat(fields.get("unmapped_field.f1").getValue(), equalTo("a"));
+        assertThat(fields.get("unmapped_field.f2").getValue(), equalTo("b"));
+
+        source = XContentFactory.jsonBuilder().startObject()
+            .startArray("unmapped_field")
+                .startObject()
+                    .field("f1", "a")
+                .endObject()
+                .startObject()
+                    .field("f1", "b") // same field name, this should result in a list returned
+                .endObject()
+            .endArray()
+            .endObject();
+
+        fields = fetchFields(mapperService, source, "unmapped_field.f1", true);
+        assertThat(fields.size(), equalTo(1));
+        DocumentField field = fields.get("unmapped_field.f1");
+        assertThat(field.getValues().size(), equalTo(2));
+        assertThat(field.getValues().get(0), equalTo("a"));
+        assertThat(field.getValues().get(1), equalTo("b"));
+
+    }
+
     public void testUnmappedFieldsInsideObject() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("properties")

@@ -20,8 +20,9 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -31,12 +32,11 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * A helper class to {@link FetchFieldsPhase} that's initialized with a list of field patterns to fetch.
@@ -49,49 +49,46 @@ public class FieldFetcher {
                                       boolean includeUnmapped) {
 
         List<FieldContext> fieldContexts = new ArrayList<>();
-        List<String> originalPattern = new ArrayList<>();
-        List<String> excludeForUnmappedFetch = new ArrayList<>();
+        String[] originalPattern = new String[fieldAndFormats.size()];
+        Set<String> mappedToExclude = new HashSet<>();
+        int i = 0;
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             String fieldPattern = fieldAndFormat.field;
+            originalPattern[i] = fieldAndFormat.field;
+            i++;
             String format = fieldAndFormat.format;
 
             Collection<String> concreteFields = context.simpleMatchToIndexNames(fieldPattern);
-            originalPattern.add(fieldAndFormat.field);
             for (String field : concreteFields) {
                 MappedFieldType ft = context.getFieldType(field);
                 if (ft == null || context.isMetadataField(field)) {
                     continue;
                 }
                 ValueFetcher valueFetcher = ft.valueFetcher(context, searchLookup, format);
-                excludeForUnmappedFetch.add(field);
+                mappedToExclude.add(field);
                 fieldContexts.add(new FieldContext(field, valueFetcher));
             }
-            if (fieldPattern.charAt(fieldPattern.length() - 1) != '*') {
-                // not a prefix pattern, exclude potential sub-fields when fetching unmapped fields
-                excludeForUnmappedFetch.add(fieldPattern + ".*");
-            }
         }
-        Function<Map<String, ?>, Map<String, Object>> filter = XContentMapValues.filter(
-            originalPattern.toArray(new String[originalPattern.size()]),
-            excludeForUnmappedFetch.toArray(new String[excludeForUnmappedFetch.size()])
-        );
-
-        return new FieldFetcher(fieldContexts, includeUnmapped, filter);
+        CharacterRunAutomaton pathAutomaton = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(originalPattern));
+        return new FieldFetcher(fieldContexts, includeUnmapped, pathAutomaton, mappedToExclude);
     }
 
     private final List<FieldContext> fieldContexts;
     private final boolean includeUnmapped;
-    private final Function<Map<String, ?>, Map<String, Object>> filter;
+    private final CharacterRunAutomaton pathAutomaton;
+    private final Set<String> mappedToExclude;
 
     private FieldFetcher(
         List<FieldContext> fieldContexts,
         boolean includeUnmapped,
-        Function<Map<String, ?>, Map<String, Object>> filter
+        CharacterRunAutomaton pathAutomaton,
+        Set<String> mappedToExclude
     ) {
         this.fieldContexts = fieldContexts;
         this.includeUnmapped = includeUnmapped;
-        this.filter = filter;
+        this.pathAutomaton = pathAutomaton;
+        this.mappedToExclude = mappedToExclude;
     }
 
     public Map<String, DocumentField> fetch(SourceLookup sourceLookup, Set<String> ignoredFields) throws IOException {
@@ -110,34 +107,65 @@ public class FieldFetcher {
             }
         }
         if (includeUnmapped) {
-            Map<String, Object> unmappedFieldsToAdd = filter.apply(sourceLookup.loadSourceIfNeeded());
-            collectLeafValues(unmappedFieldsToAdd, documentFields);
+            collect(documentFields, sourceLookup.loadSourceIfNeeded(), "", 0);
         }
         return documentFields;
     }
 
-    static void collectLeafValues(Map<String, Object> map, Map<String, DocumentField> documentFields) {
-        collectAllPaths("", map, documentFields);
-    }
-
-    private static void collectAllPaths(String prefix, Map<String, Object> source, Map<String, DocumentField> documentFields) {
+    private void collect(Map<String, DocumentField> documentFields, Map<String, Object> source, String parentPath, int lastState) {
         for (String key : source.keySet()) {
             Object value = source.get(key);
-            String currentPath = prefix + key;
+            String currentPath = parentPath + key;
+            int currentState = step(this.pathAutomaton, key, lastState);
+            if (currentState == -1) {
+                // path doesn't match any fields pattern
+                continue;
+            }
             if (value instanceof Map) {
-                collectAllPaths(currentPath + ".", (Map<String, Object>) value, documentFields);
+                // one step deeper into source tree
+                collect(documentFields, (Map<String, Object>) value, currentPath + ".", step(this.pathAutomaton, ".", currentState));
+            } else if (value instanceof List) {
+                // iterate through list values
+                collect(documentFields, (List<Object>) value, currentPath, currentState);
             } else {
-                DocumentField f;
-                if (value instanceof List) {
-                    f = new DocumentField(currentPath, (List) value);
-                } else {
-                    f = new DocumentField(currentPath, Collections.singletonList(value));
-                }
-                if (f.getValue() != null) {
-                    documentFields.put(currentPath, f);
+                // we have a leaf value
+                if (this.pathAutomaton.isAccept(currentState) && this.mappedToExclude.contains(currentPath) == false) {
+                    if (value != null) {
+                        DocumentField currentEntry = documentFields.get(currentPath);
+                        if (currentEntry == null) {
+                            List<Object> list = new ArrayList<>();
+                            list.add(value);
+                            documentFields.put(currentPath, new DocumentField(currentPath, list));
+                        } else {
+                            currentEntry.getValues().add(value);
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private void collect(Map<String, DocumentField> documentFields, Iterable<?> iterable, String parentPath, int lastState) {
+        List<Object> list = new ArrayList<>();
+        for (Object value : iterable) {
+            if (value instanceof Map) {
+                collect(documentFields, (Map<String, Object>) value, parentPath + ".", step(this.pathAutomaton, ".", lastState));
+            } else if (value instanceof List) {
+                // TODO can this happen with Json sources?
+            } else if (this.pathAutomaton.isAccept(lastState)) {
+                list.add(value);
+            }
+        }
+        if (list.isEmpty() == false) {
+            documentFields.put(parentPath, new DocumentField(parentPath, list));
+        }
+    }
+
+    private static int step(CharacterRunAutomaton automaton, String key, int state) {
+        for (int i = 0; state != -1 && i < key.length(); ++i) {
+            state = automaton.step(state, key.charAt(i));
+        }
+        return state;
     }
 
     public void setNextReader(LeafReaderContext readerContext) {

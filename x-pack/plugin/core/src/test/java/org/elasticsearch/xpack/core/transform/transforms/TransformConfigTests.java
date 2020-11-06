@@ -16,6 +16,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfig;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
 
@@ -28,6 +31,7 @@ import static org.elasticsearch.test.TestMatchers.matchesPattern;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransformConfigTests extends AbstractSerializingTransformTestCase<TransformConfig> {
@@ -52,6 +56,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomSyncConfig(),
             null,
             PivotConfigTests.randomPivotConfig(version),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomSettingsConfig(),
             null,
@@ -64,10 +69,12 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public static TransformConfig randomTransformConfig(String id) {
-        return randomTransformConfig(Version.CURRENT, id);
+        return randomTransformConfig(id, PivotConfigTests.randomPivotConfig(Version.CURRENT), null);
     }
 
-    public static TransformConfig randomTransformConfig(Version version, String id) {
+    public static TransformConfig randomTransformConfig(String id,
+                                                        PivotConfig pivotConfig,
+                                                        LatestDocConfig latestDocConfig) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
@@ -75,7 +82,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             randomHeaders(),
-            PivotConfigTests.randomPivotConfig(version),
+            pivotConfig,
+            latestDocConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : Instant.now(),
@@ -93,7 +101,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 randomBoolean() ? randomSyncConfig() : null,
                 randomHeaders(),
                 PivotConfigTests.randomPivotConfig(),
+                null,
                 randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+                null,
+                null,
                 null
             );
         } // else
@@ -105,7 +116,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? randomSyncConfig() : null,
             randomHeaders(),
             PivotConfigTests.randomInvalidPivotConfig(),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
+            null,
             null
         );
     }
@@ -177,6 +191,46 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
             assertThat(pivotTransformWithIdAndDefaults, matchesPattern(".*\"match_all\"\\s*:\\s*\\{\\}.*"));
         }
+    }
+
+    public void testConstructor_NoFunctionProvided() {
+        IllegalArgumentException e =
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new TransformConfig(
+                    "",
+                    randomSourceConfig(),
+                    randomDestConfig(),
+                    null,
+                    randomSyncConfig(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    SettingsConfigTests.randomSettingsConfig(),
+                    null,
+                    null));
+        assertThat(e.getMessage(), containsString("Transform configuration must specify exactly 1 function"));
+    }
+
+    public void testConstructor_TwoFunctionsProvided() {
+        IllegalArgumentException e =
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new TransformConfig(
+                    "",
+                    randomSourceConfig(),
+                    randomDestConfig(),
+                    null,
+                    randomSyncConfig(),
+                    null,
+                    PivotConfigTests.randomPivotConfig(),
+                    LatestDocConfigTests.randomLatestDocConfig(),
+                    null,
+                    SettingsConfigTests.randomSettingsConfig(),
+                    null,
+                    null));
+        assertThat(e.getMessage(), containsString("Transform configuration must specify exactly 1 function"));
     }
 
     public void testPreventHeaderInjection() {
@@ -270,7 +324,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 null,
                 null,
                 PivotConfigTests.randomPivotConfig(),
+                null,
                 randomAlphaOfLength(1001),
+                null,
+                null,
                 null
             )
         );
@@ -284,7 +341,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             null,
             null,
             PivotConfigTests.randomPivotConfig(),
+            null,
             description,
+            null,
+            null,
             null
         );
         assertThat(description, equalTo(config.getDescription()));

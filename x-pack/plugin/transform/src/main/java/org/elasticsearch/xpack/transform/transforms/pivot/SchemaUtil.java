@@ -265,7 +265,7 @@ public final class SchemaUtil {
         );
     }
 
-    private static Map<String, String> extractFieldMappings(FieldCapabilitiesResponse response) {
+    public static Map<String, String> extractFieldMappings(FieldCapabilitiesResponse response) {
         Map<String, String> extractedTypes = new HashMap<>();
 
         response.get()

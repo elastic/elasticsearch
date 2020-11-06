@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.transform.transforms.latest.LatestDoc;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
 /**
@@ -25,6 +26,8 @@ public final class FunctionFactory {
     public static Function create(TransformConfig config) {
         if (config.getPivotConfig() != null) {
             return new Pivot(config.getPivotConfig(), config.getId(), config.getSettings(), config.getVersion());
+        } else if (config.getLatestDocConfig() != null) {
+            return new LatestDoc(config.getLatestDocConfig());
         } else {
             throw new IllegalArgumentException("unknown transform function");
         }

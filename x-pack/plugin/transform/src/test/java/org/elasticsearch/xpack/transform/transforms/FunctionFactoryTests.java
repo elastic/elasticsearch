@@ -1,0 +1,41 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+package org.elasticsearch.xpack.transform.transforms;
+
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestDocConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
+import org.elasticsearch.xpack.transform.transforms.latest.LatestDoc;
+import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
+
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+
+public class FunctionFactoryTests extends ESTestCase {
+
+    public void testCreatePivotFunction() {
+        TransformConfig config =
+            TransformConfigTests.randomTransformConfig(
+                randomAlphaOfLengthBetween(1, 10),
+                PivotConfigTests.randomPivotConfig(),
+                null);
+        Function function = FunctionFactory.create(config);
+        assertThat(function, is(instanceOf(Pivot.class)));
+    }
+
+    public void testCreateLatestDocFunction() {
+        TransformConfig config =
+            TransformConfigTests.randomTransformConfig(
+                randomAlphaOfLengthBetween(1, 10),
+                null,
+                LatestDocConfigTests.randomLatestDocConfig());
+        Function function = FunctionFactory.create(config);
+        assertThat(function, is(instanceOf(LatestDoc.class)));
+    }
+}

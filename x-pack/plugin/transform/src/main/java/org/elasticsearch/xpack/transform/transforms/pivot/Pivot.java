@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -42,14 +41,12 @@ import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.Function;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -187,7 +184,7 @@ public class Pivot implements Function {
         return config.getMaxPageSearchSize() == null ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE : config.getMaxPageSearchSize();
     }
 
-    public SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {
+    private SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {
         QueryBuilder queryBuilder = sourceConfig.getQueryConfig().getQuery();
 
         SearchRequest searchRequest = new SearchRequest(sourceConfig.getIndex());
@@ -214,15 +211,11 @@ public class Pivot implements Function {
         return CompositeBucketsChangeCollector.buildChangeCollector(config.getGroupConfig().getGroups(), synchronizationField);
     }
 
-    public Stream<Map<String, Object>> extractResults(
+    private Stream<Map<String, Object>> extractResults(
         CompositeAggregation agg,
         Map<String, String> fieldTypeMap,
         TransformIndexerStats transformIndexerStats
     ) {
-        GroupConfig groups = config.getGroupConfig();
-        Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
-        Collection<PipelineAggregationBuilder> pipelineAggregationBuilders = config.getAggregationConfig().getPipelineAggregatorFactories();
-
         // defines how dates are written, if not specified in settings
         // < 7.11 as epoch millis
         // >= 7.11 as string
@@ -233,9 +226,9 @@ public class Pivot implements Function {
 
         return AggregationResultUtils.extractCompositeAggregationResults(
             agg,
-            groups,
-            aggregationBuilders,
-            pipelineAggregationBuilders,
+            config.getGroupConfig(),
+            config.getAggregationConfig().getAggregatorFactories(),
+            config.getAggregationConfig().getPipelineAggregatorFactories(),
             fieldTypeMap,
             transformIndexerStats,
             datesAsEpoch
@@ -335,8 +328,8 @@ public class Pivot implements Function {
     private static CompositeAggregationBuilder createCompositeAggregation(PivotConfig config) {
         final CompositeAggregationBuilder compositeAggregation = createCompositeAggregationSources(config);
 
-        config.getAggregationConfig().getAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
-        config.getAggregationConfig().getPipelineAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
+        config.getAggregationConfig().getAggregatorFactories().forEach(compositeAggregation::subAggregation);
+        config.getAggregationConfig().getPipelineAggregatorFactories().forEach(compositeAggregation::subAggregation);
 
         return compositeAggregation;
     }
@@ -352,7 +345,8 @@ public class Pivot implements Function {
                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
             compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
         } catch (IOException e) {
-            throw new RuntimeException(TransformMessages.TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, e);
+            throw new RuntimeException(
+                TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, "pivot"), e);
         }
         return compositeAggregation;
     }

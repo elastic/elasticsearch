@@ -107,7 +107,8 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    protected void preGetSubLeafCollectors() throws IOException {
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
+        super.preGetSubLeafCollectors(ctx);
         processBufferedDocs();
     }
 

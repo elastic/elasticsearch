@@ -42,14 +42,7 @@ public final class MappingLookup implements Iterable<Mapper> {
     private final int metadataFieldCount;
     private final FieldNameAnalyzer indexAnalyzer;
 
-    private static void put(Map<String, Analyzer> analyzers, String key, Analyzer value, Analyzer defaultValue) {
-        if (value == null) {
-            value = defaultValue;
-        }
-        analyzers.put(key, value);
-    }
-
-    public static MappingLookup fromMapping(Mapping mapping, Analyzer defaultIndex) {
+    public static MappingLookup fromMapping(Mapping mapping) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -59,7 +52,7 @@ public final class MappingLookup implements Iterable<Mapper> {
             }
         }
         collect(mapping.root, newObjectMappers, newFieldMappers, newFieldAliasMappers);
-        return new MappingLookup(newFieldMappers, newObjectMappers, newFieldAliasMappers, mapping.metadataMappers.length, defaultIndex);
+        return new MappingLookup(newFieldMappers, newObjectMappers, newFieldAliasMappers, mapping.metadataMappers.length);
     }
 
     private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
@@ -86,8 +79,7 @@ public final class MappingLookup implements Iterable<Mapper> {
     public MappingLookup(Collection<FieldMapper> mappers,
                          Collection<ObjectMapper> objectMappers,
                          Collection<FieldAliasMapper> aliasMappers,
-                         int metadataFieldCount,
-                         Analyzer defaultIndex) {
+                         int metadataFieldCount) {
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, Analyzer> indexAnalyzers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
@@ -110,8 +102,7 @@ public final class MappingLookup implements Iterable<Mapper> {
             if (fieldMappers.put(mapper.name(), mapper) != null) {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined more than once");
             }
-            MappedFieldType fieldType = mapper.fieldType();
-            put(indexAnalyzers, fieldType.name(), fieldType.indexAnalyzer(), defaultIndex);
+            indexAnalyzers.putAll(mapper.indexAnalyzers());
         }
         this.metadataFieldCount = metadataFieldCount;
 

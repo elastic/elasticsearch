@@ -620,14 +620,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return bigArrays;
     }
 
-    public SimilarityService getSimilarityService() {
-        return similarityService;
-    }
-
-    public BitsetFilterCache getBitsetFilterCache() {
-        return bitsetFilterCache;
-    }
-
     private static Map<String, MappedFieldType> parseRuntimeMappings(
         Map<String, Object> mappings,
         Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier,
@@ -650,5 +642,4 @@ public class QueryShardContext extends QueryRewriteContext {
         }
         return runtimeMappings;
     }
-
 }

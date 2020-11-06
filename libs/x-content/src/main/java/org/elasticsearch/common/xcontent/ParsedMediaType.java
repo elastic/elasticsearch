@@ -63,6 +63,7 @@ public class ParsedMediaType {
 
     /**
      * Parses a header value into it's parts.
+     * follows https://tools.ietf.org/html/rfc7231#section-3.1.1.1 but allows only single media type and do not support quality factors
      * Note: parsing can return null, but it will throw exceptions once https://github.com/elastic/elasticsearch/issues/63080 is done
      * Do not rely on nulls
      *
@@ -90,16 +91,14 @@ public class ParsedMediaType {
                     if (paramsAsString.isEmpty()) {
                         continue;
                     }
-                    // intentionally allowing to have spaces around `=`
-                    // https://tools.ietf.org/html/rfc7231#section-3.1.1.1 disallows this
-                    String[] keyValueParam = elements[i].trim().split("=");
-                    if (keyValueParam.length == 2) {
-                        String parameterName = keyValueParam[0].toLowerCase(Locale.ROOT).trim();
-                        String parameterValue = keyValueParam[1].toLowerCase(Locale.ROOT).trim();
-                        parameters.put(parameterName, parameterValue);
-                    } else {
+                    //spaces are allowed between parameters, but not between '=' sign
+                    String[] keyValueParam = paramsAsString.split("=");
+                    if (keyValueParam.length != 2 || hasTrailingSpace(keyValueParam[0]) || hasLeadingSpace(keyValueParam[1])) {
                         throw new IllegalArgumentException("invalid parameters for header [" + headerValue + "]");
                     }
+                    String parameterName = keyValueParam[0].toLowerCase(Locale.ROOT).trim();
+                    String parameterValue = keyValueParam[1].toLowerCase(Locale.ROOT).trim();
+                    parameters.put(parameterName, parameterValue);
                 }
                 return new ParsedMediaType(splitMediaType[0].trim().toLowerCase(Locale.ROOT),
                     splitMediaType[1].trim().toLowerCase(Locale.ROOT), parameters);
@@ -108,6 +107,13 @@ public class ParsedMediaType {
         return null;
     }
 
+    private static boolean hasTrailingSpace(String s) {
+        return s.length() == 0 || Character.isWhitespace(s.charAt(s.length()-1));
+    }
+
+    private static boolean hasLeadingSpace(String s) {
+        return s.length() == 0 || Character.isWhitespace(s.charAt(0));
+    }
     /**
      * Resolves this instance to a MediaType instance defined in given MediaTypeRegistry.
      * Performs validation against parameters.

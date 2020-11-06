@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -79,6 +80,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
+import static org.mockito.Mockito.mock;
 
 public class RollupIndexerIndexingTests extends AggregatorTestCase {
     private QueryShardContext queryShardContext;
@@ -88,7 +90,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     private void setup() {
         settings = createIndexSettings();
         queryShardContext = new QueryShardContext(0, settings,
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
+            BigArrays.NON_RECYCLING_INSTANCE, null, null, mock(MapperService.class), null, null,
                 null, null, null, null, () -> 0L, null, null, () -> true, null);
     }
 

@@ -393,7 +393,7 @@ public class ArchiveTests extends PackagingTestCase {
         stopElasticsearch();
 
         // (@rory) this is for debugging
-        Platforms.onLinux(() -> { logger.warn(sh.run("ps ax | grep elasticsearch").stdout); });
+        Platforms.onLinux(() -> { logger.warn(sh.run("ls -l /tmp/node.lock; ls -ld /tmp").stdout); });
 
         Result result = sh.run("echo y | " + installation.executables().nodeTool + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));

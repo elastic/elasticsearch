@@ -1,10 +1,11 @@
+[role="xpack"]
 [[actions-index]]
-=== Index Action
+=== Index action
 
 Use the `index` action to index data into Elasticsearch.
 See <<index-action-attributes>> for the supported attributes.
 
-==== Configuring Index Actions
+==== Configuring index actions
 
 The following snippet shows a simple `index` action definition:
 
@@ -15,7 +16,7 @@ The following snippet shows a simple `index` action definition:
     "condition": { ... }, <2>
     "transform": { ... }, <3>
     "index" : {
-      "index" : "my-index", <4>
+      "index" : "my-index-000001", <4>
       "doc_id": "my-id" <5>
     }
   }
@@ -23,14 +24,14 @@ The following snippet shows a simple `index` action definition:
 --------------------------------------------------
 // NOTCONSOLE
 <1> The id of the action
-<2> An optional <<condition, condition>> to restrict action execution
-<3> An optional <<transform, transform>> to transform the payload and prepare the data that should be indexed
+<2> An optional <<condition,condition>> to restrict action execution
+<3> An optional <<transform,transform>> to transform the payload and prepare the data that should be indexed
 <4> The elasticsearch index to store the data to
 <5> An optional `_id` for the document, if it should always be the same document.
 
 
 [[index-action-attributes]]
-==== Index Action Attributes
+==== Index action attributes
 
 [options="header"]
 |======
@@ -55,7 +56,7 @@ The following snippet shows a simple `index` action definition:
 |======
 
 [[anatomy-actions-index-multi-doc-support]]
-==== Multi-Document Support
+==== Multi-document support
 
 Like with all other actions, you can use a <<transform, transform>> to replace
 the current execution context payload with another and by that change the document
@@ -72,5 +73,34 @@ When a `_doc` field exists, if the field holds an object, it is extracted and in
 as a single document. If the field holds an array of objects, each object is treated as
 a document and the index action indexes all of them in a bulk.
 
-An `_index`, or `_id` value can be added per document to dynamically set the ID
+An `_index`, or `_id` value can be added per document to dynamically set the index and ID
 of the indexed document.
+
+The following snippet shows a multi-document `index` action definition:
+
+[source,js]
+--------------------------------------------------
+"actions": {
+  "index_payload": {
+    "transform": {
+      "script": """
+      def documents = ctx.payload.hits.hits.stream()
+        .map(hit -> [
+          "_index": "my-index-000001", <1>
+          "_id": hit._id, <2>
+          "severity": "Sev: " + hit._source.severity <3>
+        ])
+        .collect(Collectors.toList());
+      return [ "_doc" : documents]; <4>
+      """
+    },
+    "index": {} <5>
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> The document's index
+<2> An optional `_id` for the document
+<3> A new `severity` field derived from the original document
+<4> The payload `_doc` field which is an array of documents
+<5> Since the `_index` was informed per document this should be empty

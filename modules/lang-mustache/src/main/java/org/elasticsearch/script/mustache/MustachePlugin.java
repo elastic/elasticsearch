@@ -59,8 +59,8 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
-                new RestSearchTemplateAction(settings, restController),
-                new RestMultiSearchTemplateAction(settings, restController),
-                new RestRenderSearchTemplateAction(settings, restController));
+                new RestSearchTemplateAction(),
+                new RestMultiSearchTemplateAction(settings),
+                new RestRenderSearchTemplateAction());
     }
 }

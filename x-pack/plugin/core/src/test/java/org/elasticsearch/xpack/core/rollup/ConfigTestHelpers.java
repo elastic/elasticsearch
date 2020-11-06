@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.rollup;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -28,6 +30,7 @@ import java.util.stream.IntStream;
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.generators.RandomPicks.randomFrom;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 
 public class ConfigTestHelpers {
@@ -68,12 +71,36 @@ public class ConfigTestHelpers {
     }
 
     public static DateHistogramGroupConfig randomDateHistogramGroupConfig(final Random random) {
-        final String field = randomField(random);
-        final DateHistogramInterval interval = randomInterval();
-        final DateHistogramInterval delay = random.nextBoolean() ? randomInterval() : null;
-        String timezone = random.nextBoolean() ? randomZone().getId() : null;
-        return new DateHistogramGroupConfig(field, interval, delay, timezone);
+        return randomDateHistogramGroupConfigWithField(random, randomField(random));
     }
+
+    public static DateHistogramGroupConfig randomDateHistogramGroupConfigWithField(final Random random, final String field) {
+        final DateHistogramInterval delay = random.nextBoolean() ? randomInterval() : null;
+        final String timezone = random.nextBoolean() ? randomZone().getId() : null;
+        if (random.nextBoolean()) {
+            return new DateHistogramGroupConfig.FixedInterval(field, randomInterval(), delay, timezone);
+        } else {
+            int i = random.nextInt(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.size());
+            List<String> units = new ArrayList<>(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.keySet());
+            Collections.shuffle(units, random);
+            return new DateHistogramGroupConfig.CalendarInterval(field, new DateHistogramInterval(units.get(0)), delay, timezone);
+        }
+    }
+
+    public static DateHistogramGroupConfig randomLegacyDateHistogramGroupConfig(final Random random) {
+        final String field = randomField(random);
+        final DateHistogramInterval delay = random.nextBoolean() ? randomInterval() : null;
+        final String timezone = random.nextBoolean() ? randomZone().getId() : null;
+        if (random.nextBoolean()) {
+            return new DateHistogramGroupConfig(field, randomInterval(), delay, timezone);
+        } else {
+            int i = random.nextInt(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.size());
+            List<String> units = new ArrayList<>(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.keySet());
+            Collections.shuffle(units, random);
+            return new DateHistogramGroupConfig(field, new DateHistogramInterval(units.get(0)), delay, timezone);
+        }
+    }
+
 
     public static  List<String> getFields() {
         return IntStream.range(0, ESTestCase.randomIntBetween(1, 10))
@@ -106,26 +133,11 @@ public class ConfigTestHelpers {
 
     public static MetricConfig randomMetricConfig(final Random random) {
         final String field = randomAsciiAlphanumOfLengthBetween(random, 15, 25);  // large names so we don't accidentally collide
-        final List<String> metrics = new ArrayList<>();
-        if (random.nextBoolean()) {
-            metrics.add("min");
-        }
-        if (random.nextBoolean()) {
-            metrics.add("max");
-        }
-        if (random.nextBoolean()) {
-            metrics.add("sum");
-        }
-        if (random.nextBoolean()) {
-            metrics.add("avg");
-        }
-        if (random.nextBoolean()) {
-            metrics.add("value_count");
-        }
-        if (metrics.size() == 0) {
-            metrics.add("min");
-        }
-        return new MetricConfig(field, Collections.unmodifiableList(metrics));
+        return randomMetricConfigWithFieldAndMetrics(random, field, RollupField.SUPPORTED_METRICS);
+    }
+
+    public static MetricConfig randomMetricConfigWithFieldAndMetrics(final Random random, String field, Collection<String> metrics) {
+        return new MetricConfig(field, Collections.unmodifiableList(randomSubsetOf(randomIntBetween(random, 1, metrics.size()), metrics)));
     }
 
     public static TermsGroupConfig randomTermsGroupConfig(final Random random) {

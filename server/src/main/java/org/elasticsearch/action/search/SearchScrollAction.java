@@ -19,19 +19,15 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class SearchScrollAction extends Action<SearchResponse> {
+public class SearchScrollAction extends ActionType<SearchResponse> {
 
     public static final SearchScrollAction INSTANCE = new SearchScrollAction();
     public static final String NAME = "indices:data/read/scroll";
 
     private SearchScrollAction() {
-        super(NAME);
+        super(NAME, SearchResponse::new);
     }
 
-    @Override
-    public SearchResponse newResponse() {
-        return new SearchResponse();
-    }
 }

@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-extended-stats-bucket-aggregation]]
-=== Extended Stats Bucket Aggregation
+=== Extended stats bucket aggregation
+++++
+<titleabbrev>Extended stats bucket</titleabbrev>
+++++
 
 A sibling pipeline aggregation which calculates a variety of stats across all bucket of a specified metric in a sibling aggregation.
 The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
@@ -13,14 +16,16 @@ A `extended_stats_bucket` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "extended_stats_bucket": {
-        "buckets_path": "the_sum"
-    }
+  "extended_stats_bucket": {
+    "buckets_path": "the_sum"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
 
+[[extended-stats-bucket-params]]
 .`extended_stats_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to calculate stats for (see <<buckets-path-syntax>> for more
@@ -33,34 +38,33 @@ A `extended_stats_bucket` aggregation looks like this in isolation:
 
 The following snippet calculates the extended stats for monthly `sales` bucket:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                }
-            }
-        },
-        "stats_monthly_sales": {
-            "extended_stats_bucket": {
-                "buckets_path": "sales_per_month>sales" <1>
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
         }
+      }
+    },
+    "stats_monthly_sales": {
+      "extended_stats_bucket": {
+        "buckets_path": "sales_per_month>sales" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> `bucket_paths` instructs this `extended_stats_bucket` aggregation that we want the calculate stats for the `sales` aggregation in the
@@ -68,7 +72,7 @@ POST /sales/_search
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,
@@ -112,10 +116,18 @@ And the following may be the response:
          "sum": 985.0,
          "sum_of_squares": 446725.0,
          "variance": 41105.55555555556,
+         "variance_population": 41105.55555555556,
+         "variance_sampling": 61658.33333333334,
          "std_deviation": 202.74505063146563,
+         "std_deviation_population": 202.74505063146563,
+         "std_deviation_sampling": 248.3109609609156,
          "std_deviation_bounds": {
            "upper": 733.8234345962646,
-           "lower": -77.15676792959795
+           "lower": -77.15676792959795,
+           "upper_population" : 733.8234345962646,
+           "lower_population" : -77.15676792959795,
+           "upper_sampling" : 824.9552552551645,
+           "lower_sampling" : -168.28858858849787
          }
       }
    }

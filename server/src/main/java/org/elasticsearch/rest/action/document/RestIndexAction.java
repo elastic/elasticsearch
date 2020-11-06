@@ -19,49 +19,43 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestDeleteAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document " +
         "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, " +
         "or /{index}/_create/{id}).";
 
-    public RestIndexAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(POST, "/{index}/_doc", this); // auto id creation
-        controller.registerHandler(PUT, "/{index}/_doc/{id}", this);
-        controller.registerHandler(POST, "/{index}/_doc/{id}", this);
-
-        CreateHandler createHandler = new CreateHandler(settings);
-        controller.registerHandler(PUT, "/{index}/_create/{id}", createHandler);
-        controller.registerHandler(POST, "/{index}/_create/{id}/", createHandler);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
-        controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}", this);
-        controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(POST, "/{index}/_doc/{id}"),
+            new Route(PUT, "/{index}/_doc/{id}"),
+            new Route(POST, "/{index}/{type}/{id}"),
+            new Route(PUT, "/{index}/{type}/{id}")));
     }
 
     @Override
@@ -69,10 +63,7 @@ public class RestIndexAction extends BaseRestHandler {
         return "document_index_action";
     }
 
-    final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings) {
-            super(settings);
-        }
+    public static final class CreateHandler extends RestIndexAction {
 
         @Override
         public String getName() {
@@ -80,10 +71,19 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         @Override
+        public List<Route> routes() {
+            return unmodifiableList(asList(
+                new Route(POST, "/{index}/_create/{id}"),
+                new Route(PUT, "/{index}/_create/{id}"),
+                new Route(POST, "/{index}/{type}/{id}/_create"),
+                new Route(PUT, "/{index}/{type}/{id}/_create")));
+        }
+
+        @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
             validateOpType(request.params().get("op_type"));
             request.params().put("op_type", "create");
-            return RestIndexAction.this.prepareRequest(request, client);
+            return super.prepareRequest(request, client);
         }
 
         void validateOpType(String opType) {
@@ -93,12 +93,43 @@ public class RestIndexAction extends BaseRestHandler {
         }
     }
 
+    public static final class AutoIdHandler extends RestIndexAction {
+
+        private final Supplier<DiscoveryNodes> nodesInCluster;
+
+        public AutoIdHandler(Supplier<DiscoveryNodes> nodesInCluster) {
+            this.nodesInCluster = nodesInCluster;
+        }
+
+        @Override
+        public String getName() {
+            return "document_create_action_auto_id";
+        }
+
+        @Override
+        public List<Route> routes() {
+            return unmodifiableList(asList(
+                new Route(POST, "/{index}/_doc"),
+                new Route(POST, "/{index}/{type}")));
+        }
+
+        @Override
+        public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
+            assert request.params().get("id") == null : "non-null id: " + request.params().get("id");
+            if (request.params().get("op_type") == null && nodesInCluster.get().getMinNodeVersion().onOrAfter(Version.V_7_5_0)) {
+                // default to op_type create
+                request.params().put("op_type", "create");
+            }
+            return super.prepareRequest(request, client);
+        }
+    }
+
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndexRequest indexRequest;
         final String type = request.param("type");
         if (type != null && type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
-            deprecationLogger.deprecatedAndMaybeLog("index_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("index_with_types", TYPES_DEPRECATION_MESSAGE);
             indexRequest = new IndexRequest(request.param("index"), type, request.param("id"));
         } else {
             indexRequest = new IndexRequest(request.param("index"));
@@ -113,6 +144,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
         indexRequest.setIfSeqNo(request.paramAsLong("if_seq_no", indexRequest.ifSeqNo()));
         indexRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", indexRequest.ifPrimaryTerm()));
+        indexRequest.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, indexRequest.isRequireAlias()));
         String sOpType = request.param("op_type");
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

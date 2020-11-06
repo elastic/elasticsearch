@@ -55,7 +55,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         while (bulkRequestModifier.hasNext()) {
             bulkRequestModifier.next();
             if (randomBoolean()) {
-                bulkRequestModifier.markCurrentItemAsFailed(new RuntimeException());
+                bulkRequestModifier.markItemAsFailed(i, new RuntimeException());
                 failedSlots.add(i);
             }
             i++;
@@ -93,7 +93,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         for (int i = 0; modifier.hasNext(); i++) {
             modifier.next();
             if (i % 2 == 0) {
-                modifier.markCurrentItemAsFailed(new RuntimeException());
+                modifier.markItemAsFailed(i, new RuntimeException());
             }
         }
 

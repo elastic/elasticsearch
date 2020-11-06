@@ -3,16 +3,16 @@
 :request: FlushJobRequest
 :response: FlushJobResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Flush Job API
+=== Flush jobs API
 
-The Flush Job API provides the ability to flush a {ml} job's 
-datafeed in the cluster.
+Flushes an anomaly detection job's datafeed in the cluster.
 It accepts a +{request}+ object and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Flush Job Request
+==== Flush jobs request
 
 A +{request}+ object gets created with an existing non-null `jobId`.
 All other fields are optional for the request.
@@ -23,7 +23,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing an existing `jobId`
 
-==== Optional Arguments
+==== Optional arguments
 
 The following arguments are optional.
 
@@ -40,7 +40,7 @@ to calculate interim results (requires `calc_interim` to be `true`)
 <5> Set the skip time to skip a particular time value
 
 [id="{upid}-{api}-response"]
-==== Flush Job Response
+==== Flush jobs response
 
 A +{response}+ contains an acknowledgement and an optional end date for the
 last finalized bucket

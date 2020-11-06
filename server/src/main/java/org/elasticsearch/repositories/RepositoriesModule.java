@@ -19,17 +19,14 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SnapshotShardsService;
-import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
@@ -40,17 +37,20 @@ import java.util.Map;
 /**
  * Sets up classes for Snapshot/Restore.
  */
-public class RepositoriesModule extends AbstractModule {
+public final class RepositoriesModule {
 
     private final RepositoriesService repositoriesService;
 
     public RepositoriesModule(Environment env, List<RepositoryPlugin> repoPlugins, TransportService transportService,
-                              ClusterService clusterService, ThreadPool threadPool, NamedXContentRegistry namedXContentRegistry) {
+                              ClusterService clusterService, BigArrays bigArrays, NamedXContentRegistry namedXContentRegistry,
+                              RecoverySettings recoverySettings) {
         Map<String, Repository.Factory> factories = new HashMap<>();
-        factories.put(FsRepository.TYPE, (metadata) -> new FsRepository(metadata, env, namedXContentRegistry));
+        factories.put(FsRepository.TYPE, metadata -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays,
+            recoverySettings));
 
         for (RepositoryPlugin repoPlugin : repoPlugins) {
-            Map<String, Repository.Factory> newRepoTypes = repoPlugin.getRepositories(env, namedXContentRegistry);
+            Map<String, Repository.Factory> newRepoTypes = repoPlugin.getRepositories(env, namedXContentRegistry, clusterService,
+                    bigArrays, recoverySettings);
             for (Map.Entry<String, Repository.Factory> entry : newRepoTypes.entrySet()) {
                 if (factories.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Repository type [" + entry.getKey() + "] is already registered");
@@ -60,7 +60,8 @@ public class RepositoriesModule extends AbstractModule {
 
         Map<String, Repository.Factory> internalFactories = new HashMap<>();
         for (RepositoryPlugin repoPlugin : repoPlugins) {
-            Map<String, Repository.Factory> newRepoTypes = repoPlugin.getInternalRepositories(env, namedXContentRegistry);
+            Map<String, Repository.Factory> newRepoTypes = repoPlugin.getInternalRepositories(env, namedXContentRegistry, clusterService,
+                recoverySettings);
             for (Map.Entry<String, Repository.Factory> entry : newRepoTypes.entrySet()) {
                 if (internalFactories.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Internal repository type [" + entry.getKey() + "] is already registered");
@@ -72,18 +73,14 @@ public class RepositoriesModule extends AbstractModule {
             }
         }
 
+        Settings settings = env.settings();
         Map<String, Repository.Factory> repositoryTypes = Collections.unmodifiableMap(factories);
         Map<String, Repository.Factory> internalRepositoryTypes = Collections.unmodifiableMap(internalFactories);
-        repositoriesService = new RepositoriesService(env.settings(), clusterService, transportService, repositoryTypes,
-            internalRepositoryTypes, threadPool);
+        repositoriesService = new RepositoriesService(settings, clusterService, transportService, repositoryTypes,
+            internalRepositoryTypes, transportService.getThreadPool());
     }
 
-    @Override
-    protected void configure() {
-        bind(RepositoriesService.class).toInstance(repositoriesService);
-        bind(SnapshotsService.class).asEagerSingleton();
-        bind(SnapshotShardsService.class).asEagerSingleton();
-        bind(TransportNodesSnapshotsStatus.class).asEagerSingleton();
-        bind(RestoreService.class).asEagerSingleton();
+    public RepositoriesService getRepositoryService() {
+        return repositoriesService;
     }
 }

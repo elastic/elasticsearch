@@ -32,7 +32,7 @@ public class TextTemplateEngine {
         String mediaType = compileParams(detectContentType(template));
         template = trimContentType(textTemplate);
 
-        if (textTemplate.isUsingMustache() == false) {
+        if (textTemplate.mayRequireCompilation() == false) {
             return template;
         }
 
@@ -55,7 +55,7 @@ public class TextTemplateEngine {
         Script script = new Script(textTemplate.getType(),
                 textTemplate.getType() == ScriptType.STORED ? null : "mustache", template, options, mergedModel);
         TemplateScript.Factory compiledTemplate = service.compile(script, Watcher.SCRIPT_TEMPLATE_CONTEXT);
-        return compiledTemplate.newInstance(model).execute();
+        return compiledTemplate.newInstance(mergedModel).execute();
     }
 
     private String trimContentType(TextTemplate textTemplate) {

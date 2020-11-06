@@ -27,32 +27,32 @@ import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.List;
 
-public class RecoveryTranslogOperationsRequest extends TransportRequest {
+public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest {
 
-    private long recoveryId;
-    private ShardId shardId;
-    private List<Translog.Operation> operations;
-    private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
-    private long maxSeenAutoIdTimestampOnPrimary;
-    private long maxSeqNoOfUpdatesOrDeletesOnPrimary;
-    private RetentionLeases retentionLeases;
-
-    public RecoveryTranslogOperationsRequest() {
-    }
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final List<Translog.Operation> operations;
+    private final int totalTranslogOps;
+    private final long maxSeenAutoIdTimestampOnPrimary;
+    private final long maxSeqNoOfUpdatesOrDeletesOnPrimary;
+    private final RetentionLeases retentionLeases;
+    private final long mappingVersionOnPrimary;
 
     RecoveryTranslogOperationsRequest(
             final long recoveryId,
+            final long requestSeqNo,
             final ShardId shardId,
             final List<Translog.Operation> operations,
             final int totalTranslogOps,
             final long maxSeenAutoIdTimestampOnPrimary,
             final long maxSeqNoOfUpdatesOrDeletesOnPrimary,
-            final RetentionLeases retentionLeases) {
+            final RetentionLeases retentionLeases,
+            final long mappingVersionOnPrimary) {
+        super(requestSeqNo);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.operations = operations;
@@ -60,6 +60,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         this.maxSeenAutoIdTimestampOnPrimary = maxSeenAutoIdTimestampOnPrimary;
         this.maxSeqNoOfUpdatesOrDeletesOnPrimary = maxSeqNoOfUpdatesOrDeletesOnPrimary;
         this.retentionLeases = retentionLeases;
+        this.mappingVersionOnPrimary = mappingVersionOnPrimary;
     }
 
     public long recoveryId() {
@@ -90,11 +91,19 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         return retentionLeases;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    /**
+     * Returns the mapping version which is at least as up to date as the mapping version that the primary used to index
+     * the translog operations in this request. If the mapping version on the replica is not older this version, we should not
+     * retry on {@link org.elasticsearch.index.mapper.MapperException}; otherwise we should wait for a new mapping then retry.
+     */
+    long mappingVersionOnPrimary() {
+        return mappingVersionOnPrimary;
+    }
+
+    RecoveryTranslogOperationsRequest(StreamInput in) throws IOException {
+        super(in);
         recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         operations = Translog.readOperations(in, "recovery");
         totalTranslogOps = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
@@ -113,6 +122,11 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         } else {
             retentionLeases = RetentionLeases.EMPTY;
         }
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            mappingVersionOnPrimary = in.readVLong();
+        } else {
+            mappingVersionOnPrimary = Long.MAX_VALUE;
+        }
     }
 
     @Override
@@ -130,6 +144,9 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         }
         if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             retentionLeases.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            out.writeVLong(mappingVersionOnPrimary);
         }
     }
 }

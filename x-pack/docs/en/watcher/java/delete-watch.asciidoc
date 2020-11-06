@@ -1,8 +1,8 @@
-[float]
+[discrete]
 [[api-java-delete-watch]]
-=== Delete Watch API
+=== Delete watch API
 
-The DELETE watch API removes a watch (identified by its `id`) from {watcher}.
+The delete watch API removes a watch (identified by its `id`) from {watcher}.
 Once removed, the document representing the watch in the `.watches` index is
 gone and it will never be executed again.
 

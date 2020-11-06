@@ -1,11 +1,12 @@
+[role="xpack"]
 [[watcher-release-notes]]
 == Watcher Release Notes (Pre-5.0)
 
-[float]
+[discrete]
 [[watcher-change-list]]
 === Change List
 
-[float]
+[discrete]
 ==== 2.4.2
 November 22, 2016
 
@@ -14,7 +15,7 @@ November 22, 2016
 order to prevent failed deletions with watches having small intervals
 * Chain input: Parsing now throws an exception if a data structure is added, that cannot keep its order
 
-[float]
+[discrete]
 ==== 2.4.1
 September 28, 2016
 
@@ -34,7 +35,7 @@ in the watch history.
 HTTP actions.
 * Running watches can be updated and deleted.
 
-[float]
+[discrete]
 ==== 2.4.0
 August 31, 2016
 
@@ -42,7 +43,7 @@ August 31, 2016
 * The HTTP headers of a response are now part of the payload and can be accessed via `ctx.payload._headers`
 
 
-[float]
+[discrete]
 ==== 2.3.5
 August 3, 2016
 
@@ -58,7 +59,7 @@ need to wait one day for this update to take effect when a new history index is
 created.
 * The `watcher.http.proxy.port` setting for global proxy configuration was not applied correctly.
 
-[float]
+[discrete]
 ==== 2.3.4
 July 7, 2016
 
@@ -76,14 +77,14 @@ created.
 elements and the colspan and rowspan attributes on <td> and <tr> elements.
 * Fixed the Watcher/Marvel examples in the documentation.
 
-[float]
+[discrete]
 ==== 2.3.3
 May 18, 2016
 
 .Enhancements
 * Adds support for Elasticsearch 2.3.3
 
-[float]
+[discrete]
 ==== 2.3.2
 April 26, 2016
 
@@ -98,14 +99,14 @@ becomes `foo_bar`
 are not specified at the account level or within the action itself, instead
 of failing.
 
-[float]
+[discrete]
 ==== 2.3.1
 April 4, 2016
 
 .Enhancements
 * Adds support for Elasticsearch 2.3.1
 
-[float]
+[discrete]
 ==== 2.3.0
 March 30, 2016
 
@@ -119,45 +120,45 @@ March 30, 2016
   {ref}/watcher-api-execute-watch.html[Execute Watch API]
 
 .New Features
-* Added <<actions-pagerduty, PagerDuty action>>
-* Added support for adding <<configuring-email-attachments, attachments to emails>>
+* Added <<actions-pagerduty,PagerDuty action>>
+* Added support for adding <<configuring-email-attachments,attachments to emails>>
   via HTTP requests and superseding and deprecating the usage of `attach_data`
   in order to use this feature
 
-[float]
+[discrete]
 ==== 2.2.1
 March 10, 2016
 
 .Bug Fixes
 * The `croneval` CLI tool sets the correct environment to run
 
-[float]
+[discrete]
 ==== 2.2.0
 February 2, 2016
 
 .Enhancements
 * Adds support for Elasticsearch 2.2.0.
 
-[float]
+[discrete]
 ==== 2.1.2
 February 2, 2016
 
 .Enhancements
 * Adds support for Elasticsearch 2.1.2
 
-[float]
+[discrete]
 ==== 2.1.1
 December 17, 2015
 
 .Bug Fixes
 * Fixed an issue that prevented sending of emails
 
-[float]
+[discrete]
 ==== 2.1.0
 November 24, 2015
 
 .New Features
-* Adds support for <<input-chain, chaining several inputs>>
+* Adds support for <<input-chain,chaining several inputs>>
 
 .Enhancements
 * Adds support for Elasticsearch 2.1.0.
@@ -173,7 +174,7 @@ November 24, 2015
   running and those watch execution are unable the execute during the current
   start process.
 
-[float]
+[discrete]
 ==== 2.0.1
 November 24, 2015
 
@@ -186,7 +187,7 @@ November 24, 2015
   was running and those watch execution are unable the execute during the current
   start process.
 
-[float]
+[discrete]
 ==== 2.0.0
 October 28, 2015
 
@@ -204,13 +205,13 @@ October 28, 2015
   use the following index name `<logstash-{now/d{YYYY.MM.dd|+01:00}}>`.
 
 .New Features
-* Added new <<actions-hipchat, HipChat Action>>
-* Added new <<actions-slack, Slack Action>>
-* Watches now have an <<watch-active-state, active state>>. In addition, a new
+* Added new <<actions-hipchat,HipChat Action>>
+* Added new <<actions-slack,Slack Action>>
+* Watches now have an <<watch-active-state,active state>>. In addition, a new
   API was added to {ref}/watcher-api-activate-watch.html[activate]
   /{ref}watcher-api-deactivate-watch.html[deactivate] registered watches.
-* Added new <<condition-array-compare, array_compare>>, that can compare an array
-  of values in the <<watch-execution-context, Watch Execution Context Model>>
+* Added new <<condition-array-compare,array_compare>>, that can compare an array
+  of values in the <<watch-execution-context,Watch execution context model>>
   to a given value.
 
 .Enhancements
@@ -241,7 +242,7 @@ October 28, 2015
 * Fixed url encoding issue in http input and webhook output. The url params were
   url encoded twice.
 
-[float]
+[discrete]
 ==== 1.0.1
 July 29, 2015
 
@@ -255,7 +256,7 @@ July 29, 2015
 * Fixed a compatibility issue with Elasticsearch 1.6.1 and 1.7.2, which were
   released earlier today.
 
-[float]
+[discrete]
 ==== 1.0.0
 June 25, 2015
 
@@ -268,45 +269,45 @@ June 25, 2015
 * Cleaned up the <<watcher-api-stats, Stats API>> response.
 
 
-[float]
+[discrete]
 ==== 1.0.0-rc1
 June 19, 2015
 
 .New Features
-* Added <<watcher-api-execute-inline-watch, inline watch>> support to the Execute API
+* Added <<watcher-api-execute-inline-watch,inline watch>> support to the Execute API
 
 .Enhancements
-* Added execution context <<watch-execution-context, variables>> support.
-* Email html body sanitization is now <<email-html-sanitization, configurable>>.
+* Added execution context <<watch-execution-context,variables>> support.
+* Email html body sanitization is now <<email-html-sanitization,configurable>>.
 * It is now possible to configure timeouts for http requests in
-  <<http-input-attributes, HTTP input>> and <<webhook-action-attributes, webhook actions>>.
+  <<http-input-attributes,HTTP input>> and <<webhook-action-attributes,webhook actions>>.
 
-[float]
+[discrete]
 ==== 1.0.0-Beta2
 June 10, 2015
 
 .New Features
-* <<actions-ack-throttle, Acking and Throttling>> are now applied at the action
+* <<actions-ack-throttle,Acking and throttling>> are now applied at the action
   level rather than the watch level.
-* Added support for <<anatomy-actions-index-multi-doc-support, multi-doc>>
+* Added support for <<anatomy-actions-index-multi-doc-support,multi-doc>>
   indexing to the index action.
-* Added a queued watches metric that's accessible via the <<watcher-api-stats, Stats API>>.
+* Added a queued watches metric that's accessible via the <<watcher-api-stats,stats API>>.
 * Added a currently-executing watches metric that's accessible via the
-  <<watcher-api-stats, Stats API>>.
+  <<watcher-api-stats,stats API>>.
 
 .Enhancements
-* The <<condition-compare, compare condition>> result now includes the value of
+* The <<condition-compare,compare condition>> result now includes the value of
   each field that was referenced in the comparison.
-* The <<watcher-api-execute-watch, Execute API>> now supports a default trigger
+* The <<watcher-api-execute-watch,execute API>> now supports a default trigger
   event (**breaking change**).
 * The `watch_record` document structure in the `.watch_history-*` indices has
   changed significantly (**breaking change**).
 * A new internal index was introduced - `.triggered_watches`
-* Added support for headers in the <<actions-webhook, Webhook Action>> result
-  and the <<input-http, HTTP Input>> result.
-* Add plain text response body support for the <<input-http, HTTP Input>>.
+* Added support for headers in the <<actions-webhook,webhook action>> result
+  and the <<input-http,HTTP input>> result.
+* Add plain text response body support for the <<input-http,HTTP input>>.
 
 .Bug Fixes
-* Disallow negative time value settings for <<actions-ack-throttle, `throttle_period`>>
-* Added support for separate keystore and truststore in <<actions-webhook, Webhook Action>>
-  and <<input-http, HTTP Input>>.
+* Disallow negative time value settings for <<actions-ack-throttle,`throttle_period`>>
+* Added support for separate keystore and truststore in <<actions-webhook,webhook action>>
+  and <<input-http,HTTP input>>.

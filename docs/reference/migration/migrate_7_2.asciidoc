@@ -1,0 +1,30 @@
+[[breaking-changes-7.2]]
+== Breaking changes in 7.2
+++++
+<titleabbrev>7.2</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 7.2.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+[discrete]
+[[breaking_72_discovery_changes]]
+=== Discovery changes
+
+[discrete]
+==== Only a single port may be given for each seed host.
+
+In earlier versions you could include a range of ports in entries in the
+`discovery.seed_hosts` list, but {es} used only the first port in the range and
+unexpectedly ignored the rest.  For instance if you set `discovery.seed_hosts:
+"10.11.12.13:9300-9310"` then {es} would only use `10.11.12.13:9300` for
+discovery. Seed host addresses containing port ranges are now rejected.
+
+// end::notable-breaking-changes[]

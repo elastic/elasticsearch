@@ -6,21 +6,22 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZonedDateTime;
+
+import static org.elasticsearch.xpack.sql.util.DateUtils.getNanoPrecision;
 
 public class CurrentDateTime extends CurrentFunction<ZonedDateTime> {
 
     private final Expression precision;
 
     public CurrentDateTime(Source source, Expression precision, Configuration configuration) {
-        super(source, configuration, nanoPrecision(configuration.now(), precision), DataType.DATETIME);
+        super(source, configuration, nanoPrecision(configuration.now(), precision), DataTypes.DATETIME);
         this.precision = precision;
     }
 
@@ -34,13 +35,6 @@ public class CurrentDateTime extends CurrentFunction<ZonedDateTime> {
     }
 
     static ZonedDateTime nanoPrecision(ZonedDateTime zdt, Expression precisionExpression) {
-        int precision = precisionExpression != null ? Foldables.intValueOf(precisionExpression) : 3;
-        int nano = zdt.getNano();
-        if (precision >= 0 && precision < 10) {
-            // remove the remainder
-            nano = nano - nano % (int) Math.pow(10, (9 - precision));
-            return zdt.withNano(nano);
-        }
-        return zdt;
+        return zdt.withNano(getNanoPrecision(precisionExpression, zdt.getNano()));
     }
 }

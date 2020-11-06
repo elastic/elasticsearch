@@ -18,14 +18,15 @@
  */
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -42,6 +43,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
@@ -61,7 +63,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(emptySet(), null, client,
         new NoneCircuitBreakerService(), usageService);
-    private static RestValidateQueryAction action = new RestValidateQueryAction(Settings.EMPTY, controller);
+    private static RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**
      * Configures {@link NodeClient} to stub {@link ValidateQueryAction} transport action.
@@ -79,10 +81,17 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             }
         };
 
-        final Map<Action, TransportAction> actions = new HashMap<>();
+        final Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
-        client.initialize(actions, () -> "local", null);
+        client.initialize(actions, () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()));
+        controller.registerHandler(action);
+    }
+
+    @Before
+    public void ensureCleanContext() {
+        // Make sure we have a clean context for each test
+        threadPool.getThreadContext().stashContext();
     }
 
     @AfterClass

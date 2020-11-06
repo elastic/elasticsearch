@@ -35,7 +35,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -58,15 +58,15 @@ public class ShardSplittingQueryTests extends ESTestCase {
         final int numDocs = randomIntBetween(50, 100);
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
         int numShards =  randomIntBetween(2, 10);
-        IndexMetaData metaData = IndexMetaData.builder("test")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0).build();
         int targetShardId = randomIntBetween(0, numShards-1);
         boolean hasNested = randomBoolean();
         for (int j = 0; j < numDocs; j++) {
-            int shardId = OperationRouting.generateShardId(metaData, Integer.toString(j), null);
+            int shardId = OperationRouting.generateShardId(metadata, Integer.toString(j), null);
             if (hasNested) {
                 List<Iterable<IndexableField>> docs = new ArrayList<>();
                 int numNested = randomIntBetween(0, 10);
@@ -95,7 +95,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         writer.close();
 
 
-        assertSplit(dir, metaData, targetShardId, hasNested);
+        assertSplit(dir, metadata, targetShardId, hasNested);
         dir.close();
     }
 
@@ -105,8 +105,8 @@ public class ShardSplittingQueryTests extends ESTestCase {
         final int numDocs = randomIntBetween(50, 100);
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
         int numShards =  randomIntBetween(2, 10);
-        IndexMetaData metaData = IndexMetaData.builder("test")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0).build();
@@ -114,7 +114,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         int targetShardId = randomIntBetween(0, numShards-1);
         for (int j = 0; j < numDocs; j++) {
             String routing = randomRealisticUnicodeOfCodepointLengthBetween(1, 5);
-            final int shardId = OperationRouting.generateShardId(metaData, null, routing);
+            final int shardId = OperationRouting.generateShardId(metadata, null, routing);
             if (hasNested) {
                 List<Iterable<IndexableField>> docs = new ArrayList<>();
                 int numNested = randomIntBetween(0, 10);
@@ -143,7 +143,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         }
         writer.commit();
         writer.close();
-        assertSplit(dir, metaData, targetShardId, hasNested);
+        assertSplit(dir, metadata, targetShardId, hasNested);
         dir.close();
     }
 
@@ -153,8 +153,8 @@ public class ShardSplittingQueryTests extends ESTestCase {
         final int numDocs = randomIntBetween(50, 100);
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
         int numShards = randomIntBetween(2, 10);
-        IndexMetaData metaData = IndexMetaData.builder("test")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0).build();
@@ -165,7 +165,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
             final int shardId;
             if (randomBoolean()) {
                 String routing = randomRealisticUnicodeOfCodepointLengthBetween(1, 5);
-                shardId = OperationRouting.generateShardId(metaData, null, routing);
+                shardId = OperationRouting.generateShardId(metadata, null, routing);
                 rootDoc = Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                     new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
@@ -173,7 +173,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                     sequenceIDFields.primaryTerm
                 );
             } else {
-                shardId = OperationRouting.generateShardId(metaData, Integer.toString(j), null);
+                shardId = OperationRouting.generateShardId(metadata, Integer.toString(j), null);
                 rootDoc = Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                     new SortedNumericDocValuesField("shard_id", shardId),
@@ -199,7 +199,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         }
         writer.commit();
         writer.close();
-        assertSplit(dir, metaData, targetShardId, hasNested);
+        assertSplit(dir, metadata, targetShardId, hasNested);
         dir.close();
     }
 
@@ -210,8 +210,8 @@ public class ShardSplittingQueryTests extends ESTestCase {
         final int numDocs = randomIntBetween(50, 100);
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
         int numShards =  randomIntBetween(2, 10);
-        IndexMetaData metaData = IndexMetaData.builder("test")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .routingPartitionSize(randomIntBetween(1, 10))
@@ -220,7 +220,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         int targetShardId = randomIntBetween(0, numShards-1);
         for (int j = 0; j < numDocs; j++) {
             String routing = randomRealisticUnicodeOfCodepointLengthBetween(1, 5);
-            final int shardId = OperationRouting.generateShardId(metaData, Integer.toString(j), routing);
+            final int shardId = OperationRouting.generateShardId(metadata, Integer.toString(j), routing);
 
             if (hasNested) {
                 List<Iterable<IndexableField>> docs = new ArrayList<>();
@@ -250,18 +250,18 @@ public class ShardSplittingQueryTests extends ESTestCase {
         }
         writer.commit();
         writer.close();
-        assertSplit(dir, metaData, targetShardId, hasNested);
+        assertSplit(dir, metadata, targetShardId, hasNested);
         dir.close();
     }
 
 
 
 
-    void assertSplit(Directory dir, IndexMetaData metaData, int targetShardId, boolean hasNested) throws IOException {
+    void assertSplit(Directory dir, IndexMetadata metadata, int targetShardId, boolean hasNested) throws IOException {
         try (IndexReader reader = DirectoryReader.open(dir)) {
             IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setQueryCache(null);
-            final Weight splitWeight = searcher.createWeight(searcher.rewrite(new ShardSplittingQuery(metaData, targetShardId, hasNested)),
+            final Weight splitWeight = searcher.createWeight(searcher.rewrite(new ShardSplittingQuery(metadata, targetShardId, hasNested)),
                 ScoreMode.COMPLETE_NO_SCORES, 1f);
             final List<LeafReaderContext> leaves = reader.leaves();
             for (final LeafReaderContext ctx : leaves) {

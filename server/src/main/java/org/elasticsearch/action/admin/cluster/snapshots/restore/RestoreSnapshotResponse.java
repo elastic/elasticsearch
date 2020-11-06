@@ -43,13 +43,15 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class RestoreSnapshotResponse extends ActionResponse implements ToXContentObject {
 
     @Nullable
-    private RestoreInfo restoreInfo;
+    private final RestoreInfo restoreInfo;
 
-    RestoreSnapshotResponse(@Nullable RestoreInfo restoreInfo) {
+    public RestoreSnapshotResponse(@Nullable RestoreInfo restoreInfo) {
         this.restoreInfo = restoreInfo;
     }
 
-    RestoreSnapshotResponse() {
+    public RestoreSnapshotResponse(StreamInput in) throws IOException {
+        super(in);
+        restoreInfo = RestoreInfo.readOptionalRestoreInfo(in);
     }
 
     /**
@@ -62,15 +64,8 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        restoreInfo = RestoreInfo.readOptionalRestoreInfo(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalStreamable(restoreInfo);
+        out.writeOptionalWriteable(restoreInfo);
     }
 
     public RestStatus status() {

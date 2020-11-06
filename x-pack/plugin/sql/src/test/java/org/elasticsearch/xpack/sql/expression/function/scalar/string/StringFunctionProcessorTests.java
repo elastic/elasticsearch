@@ -134,10 +134,10 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         StringProcessor proc = new StringProcessor(StringOperation.LENGTH);
         assertNull(proc.process(null));
         assertEquals(7, proc.process("foo bar"));
-        assertEquals(0, proc.process(""));
-        assertEquals(0, proc.process("    "));
-        assertEquals(7, proc.process("foo bar   "));
-        assertEquals(10, proc.process("   foo bar   "));
+        assertEquals(0, proc.process(withRandomWhitespaces(" \t  \r\n \n ", true, true)));
+        assertEquals(0, proc.process(withRandomWhitespaces("    ", true, true)));
+        assertEquals(7, proc.process(withRandomWhitespaces("foo bar", false, true)));
+        assertEquals(10, proc.process(withRandomWhitespaces("   foo bar   ", false, true)));
         assertEquals(1, proc.process('f'));
 
         stringCharInputValidation(proc);
@@ -148,9 +148,10 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         assertNull(proc.process(null));
         assertEquals("foo bar", proc.process("foo bar"));
         assertEquals("", proc.process(""));
-        assertEquals("", proc.process("    "));
-        assertEquals("foo bar", proc.process("foo bar   "));
-        assertEquals("   foo bar", proc.process("   foo bar   "));
+        assertEquals("", proc.process(withRandomWhitespaces(" \t  \r\n \n ", true, true)));
+        assertEquals("foo bar", proc.process(withRandomWhitespaces("foo bar", false, true)));
+        assertEquals("    foo   bar", proc.process(withRandomWhitespaces("    foo   bar", false, true)));
+        assertEquals(" \t \n \r\n foo \t \r\n \n bar", proc.process(withRandomWhitespaces(" \t \n \r\n foo \t \r\n \n bar", false, true)));
         assertEquals("f", proc.process('f'));
 
         stringCharInputValidation(proc);
@@ -161,9 +162,25 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         assertNull(proc.process(null));
         assertEquals("foo bar", proc.process("foo bar"));
         assertEquals("", proc.process(""));
-        assertEquals("", proc.process("    "));
-        assertEquals("foo bar", proc.process("   foo bar"));
-        assertEquals("foo bar   ", proc.process("   foo bar   "));
+        assertEquals("", proc.process(withRandomWhitespaces(" \t  \r\n \n ", true, true)));
+        assertEquals("foo bar", proc.process(withRandomWhitespaces("foo bar", true, false)));
+        assertEquals("foo   bar   ", proc.process(withRandomWhitespaces("foo   bar   ", true, false)));
+        assertEquals("foo \t \r\n \n bar \t \r\n \n ", proc.process(withRandomWhitespaces("foo \t \r\n \n bar \t \r\n \n ", true, false)));
+        assertEquals("f", proc.process('f'));
+
+        stringCharInputValidation(proc);
+    }
+
+    public void testTrim() {
+        StringProcessor proc = new StringProcessor(StringOperation.TRIM);
+        assertNull(proc.process(null));
+        assertEquals("foo bar", proc.process("foo bar"));
+        assertEquals("", proc.process(""));
+        assertEquals("", proc.process(withRandomWhitespaces(" \t  \r\n \n ", true, true)));
+        assertEquals("foo bar", proc.process(withRandomWhitespaces("foo bar", true, false)));
+        assertEquals("foo   bar", proc.process(withRandomWhitespaces("foo   bar", false, true)));
+        assertEquals("foo bar", proc.process(withRandomWhitespaces("foo bar",true, true)));
+        assertEquals("foo \t \r\n \n bar", proc.process(withRandomWhitespaces("foo \t \r\n \n bar", true, true)));
         assertEquals("f", proc.process('f'));
 
         stringCharInputValidation(proc);
@@ -214,5 +231,23 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         assertEquals(14, proc.process("\u20ac\u039B\u03F4\u263C\u1D400"));
 
         stringCharInputValidation(proc);
+    }
+
+    private static String withRandomWhitespaces(String str, boolean prefix, boolean suffix) {
+        if (prefix == false && suffix == false) {
+            return str;
+        }
+
+        StringBuilder sb = new StringBuilder(str);
+        int noWhitespaces = randomIntBetween(1, 100);
+        for (int i = 0; i < noWhitespaces; i++) {
+            if (prefix) {
+                sb.insert(0, randomFrom(" ", "\t", "\n", "\r", "\r\n"));
+            }
+            if (suffix) {
+                sb.append(randomFrom(" ", "\t", "\n", "\r", "\r\n"));
+            }
+        }
+        return sb.toString();
     }
 }

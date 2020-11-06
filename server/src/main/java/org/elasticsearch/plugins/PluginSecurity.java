@@ -19,24 +19,21 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.bootstrap.PluginPolicyInfo;
+import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
-import java.nio.file.Files;
+import java.net.URL;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.security.Permission;
-import java.security.PermissionCollection;
-import java.security.Permissions;
-import java.security.Policy;
-import java.security.URIParameter;
 import java.security.UnresolvedPermission;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -55,15 +52,15 @@ class PluginSecurity {
             // sort permissions in a reasonable order
             Collections.sort(requested);
 
-            terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            terminal.println(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
-            terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            terminal.errorPrintln(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
+            terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
             // print all permissions:
             for (String permission : requested) {
-                terminal.println(Verbosity.NORMAL, "* " + permission);
+                terminal.errorPrintln(Verbosity.NORMAL, "* " + permission);
             }
-            terminal.println(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
-            terminal.println(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
+            terminal.errorPrintln(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
+            terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
             prompt(terminal, batch);
         }
     }
@@ -115,41 +112,15 @@ class PluginSecurity {
     }
 
     /**
-     * Parses plugin policy into a set of permissions. Each permission is formatted for output to users.
+     * Extract a unique set of permissions from the plugin's policy file. Each permission is formatted for output to users.
      */
-    public static Set<String> parsePermissions(Path file, Path tmpDir) throws IOException {
-        // create a zero byte file for "comparison"
-        // this is necessary because the default policy impl automatically grants two permissions:
-        // 1. permission to exitVM (which we ignore)
-        // 2. read permission to the code itself (e.g. jar file of the code)
+    static Set<String> getPermissionDescriptions(PluginPolicyInfo pluginPolicyInfo, Path tmpDir) throws IOException {
+        Set<Permission> allPermissions = new HashSet<>(PolicyUtil.getPolicyPermissions(null, pluginPolicyInfo.policy, tmpDir));
+        for (URL jar : pluginPolicyInfo.jars) {
+            Set<Permission> jarPermissions = PolicyUtil.getPolicyPermissions(jar, pluginPolicyInfo.policy, tmpDir);
+            allPermissions.addAll(jarPermissions);
+        }
 
-        Path emptyPolicyFile = Files.createTempFile(tmpDir, "empty", "tmp");
-        final Policy emptyPolicy;
-        try {
-            emptyPolicy = Policy.getInstance("JavaPolicy", new URIParameter(emptyPolicyFile.toUri()));
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-        IOUtils.rm(emptyPolicyFile);
-
-        // parse the plugin's policy file into a set of permissions
-        final Policy policy;
-        try {
-            policy = Policy.getInstance("JavaPolicy", new URIParameter(file.toUri()));
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-        PermissionCollection permissions = policy.getPermissions(PluginSecurity.class.getProtectionDomain());
-        // this method is supported with the specific implementation we use, but just check for safety.
-        if (permissions == Policy.UNSUPPORTED_EMPTY_COLLECTION) {
-            throw new UnsupportedOperationException("JavaPolicy implementation does not support retrieving permissions");
-        }
-        PermissionCollection actualPermissions = new Permissions();
-        for (Permission permission : Collections.list(permissions.elements())) {
-            if (!emptyPolicy.implies(PluginSecurity.class.getProtectionDomain(), permission)) {
-                actualPermissions.add(permission);
-            }
-        }
-        return Collections.list(actualPermissions.elements()).stream().map(PluginSecurity::formatPermission).collect(Collectors.toSet());
+        return allPermissions.stream().map(PluginSecurity::formatPermission).collect(Collectors.toSet());
     }
 }

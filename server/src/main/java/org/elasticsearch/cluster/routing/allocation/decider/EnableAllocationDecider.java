@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import java.util.Locale;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -106,11 +106,11 @@ public class EnableAllocationDecider extends AllocationDecider {
                 "explicitly ignoring any disabling of allocation due to manual allocation commands via the reroute API");
         }
 
-        final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
+        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         final Allocation enable;
         final boolean usedIndexSetting;
-        if (INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.exists(indexMetaData.getSettings())) {
-            enable = INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.get(indexMetaData.getSettings());
+        if (INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.exists(indexMetadata.getSettings())) {
+            enable = INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.get(indexMetadata.getSettings());
             usedIndexSetting = true;
         } else {
             enable = this.enableAllocation;
@@ -148,9 +148,9 @@ public class EnableAllocationDecider extends AllocationDecider {
         }
 
         if (enableRebalance == Rebalance.NONE) {
-            for (IndexMetaData indexMetaData : allocation.metaData()) {
-                if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexMetaData.getSettings())
-                    && INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexMetaData.getSettings()) != Rebalance.NONE) {
+            for (IndexMetadata indexMetadata : allocation.metadata()) {
+                if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexMetadata.getSettings())
+                    && INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexMetadata.getSettings()) != Rebalance.NONE) {
                     return allocation.decision(Decision.YES, NAME, "rebalancing is permitted on one or more indices");
                 }
             }
@@ -166,7 +166,7 @@ public class EnableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of rebalancing");
         }
 
-        Settings indexSettings = allocation.metaData().getIndexSafe(shardRouting.index()).getSettings();
+        Settings indexSettings = allocation.metadata().getIndexSafe(shardRouting.index()).getSettings();
         final Rebalance enable;
         final boolean usedIndexSetting;
         if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexSettings)) {

@@ -46,8 +46,8 @@ public class MaxBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new MaxBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new MaxBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metadata);
     }
 
     @Override
@@ -62,16 +62,6 @@ public class MaxBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
             return new MaxBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         }
     };
-
-    @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<MaxBucketPipelineAggregationBuilder> other) {
-        return true;
-    }
 
     @Override
     public String getWriteableName() {

@@ -19,14 +19,13 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
-
 import org.junit.Before;
+
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
@@ -37,7 +36,8 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestUpdateByQueryAction(Settings.EMPTY, controller());
+        action = new RestUpdateByQueryAction();
+        controller().registerHandler(action);
     }
 
     public void testTypeInPath() throws IOException  {
@@ -45,11 +45,15 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
             .withMethod(RestRequest.Method.POST)
             .withPath("/some_index/some_type/_update_by_query")
             .build();
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
+
         dispatchRequest(request);
 
         // checks the type in the URL is propagated correctly to the request object
         // only works after the request is dispatched, so its params are filled from url.
-        UpdateByQueryRequest ubqRequest = action.buildRequest(request);
+        UpdateByQueryRequest ubqRequest = action.buildRequest(request, DEFAULT_NAMED_WRITABLE_REGISTRY);
         assertArrayEquals(new String[]{"some_type"}, ubqRequest.getDocTypes());
 
         // RestUpdateByQueryAction itself doesn't check for a deprecated type usage
@@ -58,7 +62,8 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
     }
 
     public void testParseEmpty() throws IOException {
-        UpdateByQueryRequest request = action.buildRequest(new FakeRestRequest.Builder(new NamedXContentRegistry(emptyList())).build());
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(new NamedXContentRegistry(emptyList())).build();
+        UpdateByQueryRequest request = action.buildRequest(restRequest, DEFAULT_NAMED_WRITABLE_REGISTRY);
         assertEquals(AbstractBulkByScrollRequest.SIZE_ALL_MATCHES, request.getSize());
         assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE, request.getSearchRequest().source().size());
     }

@@ -1,3 +1,4 @@
+[role="xpack"]
 [[java-rest-high-security-create-token]]
 === Create Token API
 
@@ -48,6 +49,8 @@ The returned `CreateTokenResponse` contains the following properties:
 `scope`:: The scope of the token. May be `null`.
 `refreshToken`:: A secondary "refresh" token that may be used to extend
  the life of an access token. May be `null`.
+`authentication`:: This is the authentication object for the newly created token. See also
+<<{upid}-authenticate-response, authenticate response>> for details.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

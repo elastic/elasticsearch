@@ -15,7 +15,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -38,12 +40,13 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
         // Disable native ML autodetect_process as the c++ controller won't be available
         newSettings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
-        newSettings.put(MachineLearningField.MAX_MODEL_MEMORY_LIMIT.getKey(), new ByteSizeValue(1024));
+        newSettings.put(MachineLearningField.MAX_MODEL_MEMORY_LIMIT.getKey(), ByteSizeValue.ofBytes(1024));
         newSettings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // Disable security otherwise delete-by-query action fails to get authorized
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        // Disable ILM history index so that the tests don't have to clean it up
+        newSettings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         return newSettings.build();
     }
 
@@ -55,7 +58,10 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(LocalStateMachineLearning.class);
+        return pluginList(
+            LocalStateMachineLearning.class,
+            // ILM is required for .ml-state template index settings
+            IndexLifecycle.class);
     }
 
     /**
@@ -120,6 +126,13 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             assertNull(exceptionHolder.get().getMessage(), exceptionHolder.get());
         }
         return responseHolder.get();
+    }
+
+    public static void assertNoException(AtomicReference<Exception> error) throws Exception {
+        if (error.get() == null) {
+            return;
+        }
+        throw error.get();
     }
 
 }

@@ -1,0 +1,17 @@
+include::transform-apis.asciidoc[leveloffset=+1]
+
+//CREATE
+include::put-transform.asciidoc[leveloffset=+2]
+//DELETE
+include::delete-transform.asciidoc[leveloffset=+2]
+//GET
+include::get-transform.asciidoc[leveloffset=+2]
+include::get-transform-stats.asciidoc[leveloffset=+2]
+//PREVIEW
+include::preview-transform.asciidoc[leveloffset=+2]
+//START
+include::start-transform.asciidoc[leveloffset=+2]
+//STOP
+include::stop-transform.asciidoc[leveloffset=+2]
+//UPDATE
+include::update-transform.asciidoc[leveloffset=+2]

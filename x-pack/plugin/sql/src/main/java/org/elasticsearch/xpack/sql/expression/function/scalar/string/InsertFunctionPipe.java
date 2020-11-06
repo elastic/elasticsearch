@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -17,13 +17,13 @@ import java.util.Objects;
 
 public class InsertFunctionPipe extends Pipe {
 
-    private final Pipe source, start, length, replacement;
+    private final Pipe input, start, length, replacement;
 
     public InsertFunctionPipe(Source source, Expression expression,
-            Pipe src, Pipe start,
+            Pipe input, Pipe start,
             Pipe length, Pipe replacement) {
-        super(source, expression, Arrays.asList(src, start, length, replacement));
-        this.source = src;
+        super(source, expression, Arrays.asList(input, start, length, replacement));
+        this.input = input;
         this.start = start;
         this.length = length;
         this.replacement = replacement;
@@ -39,22 +39,22 @@ public class InsertFunctionPipe extends Pipe {
     
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
+        Pipe newInput = input.resolveAttributes(resolver);
         Pipe newStart = start.resolveAttributes(resolver);
         Pipe newLength = length.resolveAttributes(resolver);
         Pipe newReplacement = replacement.resolveAttributes(resolver);
-        if (newSource == source
+        if (newInput == input
                 && newStart == start
                 && newLength == length
                 && newReplacement == replacement) {
             return this;
         }
-        return replaceChildren(newSource, newStart, newLength, newReplacement);
+        return replaceChildren(newInput, newStart, newLength, newReplacement);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery()
+        return input.supportedByAggsOnlyQuery()
                 && start.supportedByAggsOnlyQuery()
                 && length.supportedByAggsOnlyQuery()
                 && replacement.supportedByAggsOnlyQuery();
@@ -62,19 +62,19 @@ public class InsertFunctionPipe extends Pipe {
 
     @Override
     public boolean resolved() {
-        return source.resolved() && start.resolved() && length.resolved() && replacement.resolved();
+        return input.resolved() && start.resolved() && length.resolved() && replacement.resolved();
     }
     
-    protected Pipe replaceChildren(Pipe newSource,
+    protected Pipe replaceChildren(Pipe newInput,
             Pipe newStart,
             Pipe newLength,
             Pipe newReplacement) {
-        return new InsertFunctionPipe(source(), expression(), newSource, newStart, newLength, newReplacement);
+        return new InsertFunctionPipe(source(), expression(), newInput, newStart, newLength, newReplacement);
     }
 
     @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+    public final void collectFields(QlSourceBuilder sourceBuilder) {
+        input.collectFields(sourceBuilder);
         start.collectFields(sourceBuilder);
         length.collectFields(sourceBuilder);
         replacement.collectFields(sourceBuilder);
@@ -82,16 +82,16 @@ public class InsertFunctionPipe extends Pipe {
 
     @Override
     protected NodeInfo<InsertFunctionPipe> info() {
-        return NodeInfo.create(this, InsertFunctionPipe::new, expression(), source, start, length, replacement);
+        return NodeInfo.create(this, InsertFunctionPipe::new, expression(), input, start, length, replacement);
     }
 
     @Override
     public InsertFunctionProcessor asProcessor() {
-        return new InsertFunctionProcessor(source.asProcessor(), start.asProcessor(), length.asProcessor(), replacement.asProcessor());
+        return new InsertFunctionProcessor(input.asProcessor(), start.asProcessor(), length.asProcessor(), replacement.asProcessor());
     }
     
-    public Pipe src() {
-        return source;
+    public Pipe input() {
+        return input;
     }
     
     public Pipe start() {
@@ -108,7 +108,7 @@ public class InsertFunctionPipe extends Pipe {
     
     @Override
     public int hashCode() {
-        return Objects.hash(source, start, length, replacement);
+        return Objects.hash(input, start, length, replacement);
     }
 
     @Override
@@ -122,7 +122,7 @@ public class InsertFunctionPipe extends Pipe {
         }
 
         InsertFunctionPipe other = (InsertFunctionPipe) obj;
-        return Objects.equals(source, other.source)
+        return Objects.equals(input, other.input)
                 && Objects.equals(start, other.start)
                 && Objects.equals(length, other.length)
                 && Objects.equals(replacement, other.replacement);

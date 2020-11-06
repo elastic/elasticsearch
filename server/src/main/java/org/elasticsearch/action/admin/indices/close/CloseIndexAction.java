@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class CloseIndexAction extends Action<CloseIndexResponse> {
+public class CloseIndexAction extends ActionType<CloseIndexResponse> {
 
     public static final CloseIndexAction INSTANCE = new CloseIndexAction();
     public static final String NAME = "indices:admin/close";
 
     private CloseIndexAction() {
-        super(NAME);
-    }
-
-    @Override
-    public CloseIndexResponse newResponse() {
-        return new CloseIndexResponse();
+        super(NAME, CloseIndexResponse::new);
     }
 }

@@ -19,41 +19,66 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
-public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, HistogramAggregatorFactory> {
+/**
+ * Constructs the per-shard aggregator instance for histogram aggregation.  Selects the numeric or range field implementation based on the
+ * field type.
+ */
+public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double interval, offset;
     private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
-    private final double minBound, maxBound;
+    private final DoubleBounds extendedBounds;
+    private final DoubleBounds hardBounds;
 
-    public HistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double interval, double offset,
-            BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-            SearchContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(HistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, RangeHistogramAggregator::new, true);
+
+        builder.register(
+            HistogramAggregationBuilder.REGISTRY_KEY,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            NumericHistogramAggregator::new,
+                true);
+    }
+
+    public HistogramAggregatorFactory(String name,
+                                        ValuesSourceConfig config,
+                                        double interval,
+                                        double offset,
+                                        BucketOrder order,
+                                        boolean keyed,
+                                        long minDocCount,
+                                        DoubleBounds extendedBounds,
+                                        DoubleBounds hardBounds,
+                                        AggregationContext context,
+                                        AggregatorFactory parent,
+                                        AggregatorFactories.Builder subFactoriesBuilder,
+                                        Map<String, Object> metadata) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.interval = interval;
         this.offset = offset;
         this.order = order;
         this.keyed = keyed;
         this.minDocCount = minDocCount;
-        this.minBound = minBound;
-        this.maxBound = maxBound;
+        this.extendedBounds = extendedBounds;
+        this.hardBounds = hardBounds;
     }
 
     public long minDocCount() {
@@ -61,24 +86,35 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, context, parent);
-        }
-        return createAggregator(valuesSource, parent, pipelineAggregators, metaData);
-    }
-
-    private Aggregator createAggregator(ValuesSource.Numeric valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
-
-        return new HistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound, valuesSource,
-                config.format(), context, parent, pipelineAggregators, metaData);
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          CardinalityUpperBound cardinality,
+                                          Map<String, Object> metadata) throws IOException {
+        return context.getValuesSourceRegistry()
+            .getAggregator(HistogramAggregationBuilder.REGISTRY_KEY, config)
+            .build(
+                name,
+                factories,
+                interval,
+                offset,
+                order,
+                keyed,
+                minDocCount,
+                extendedBounds,
+                hardBounds,
+                config,
+                searchContext,
+                parent,
+                cardinality,
+                metadata
+            );
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        return createAggregator(null, parent, pipelineAggregators, metaData);
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            Map<String, Object> metadata) throws IOException {
+        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds,
+            hardBounds, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

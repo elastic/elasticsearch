@@ -1,5 +1,9 @@
 
 subprojects {
-  // fixtures are mostly external and by default we don't want to check forbidden apis
-  forbiddenApisMain.enabled = false
+  // fixtures don't have tests, these are external projects used by the build
+  pluginManager.withPlugin('java') {
+    tasks.named('test').configure {
+      enabled = false
+    }
+  }
 }

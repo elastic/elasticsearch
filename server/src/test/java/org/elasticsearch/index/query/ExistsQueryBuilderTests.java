@@ -28,7 +28,6 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -37,7 +36,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -60,12 +58,16 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         String fieldPattern = queryBuilder.fieldName();
-        Collection<String> fields = context.getQueryShardContext().simpleMatchToIndexNames(fieldPattern);
-        Collection<String> mappedFields = fields.stream().filter((field) -> context.getQueryShardContext().getObjectMapper(field) != null
-                || context.getQueryShardContext().getMapperService().fullName(field) != null).collect(Collectors.toList());
-        if (context.mapperService().getIndexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
+        Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
+        Collection<String> mappedFields = fields.stream().filter((field) -> context.getObjectMapper(field) != null
+                || context.isFieldMapped(field)).collect(Collectors.toList());
+        if (mappedFields.size() == 0) {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            return;
+        }
+        if (context.getIndexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
             if (fields.size() == 1) {
                 assertThat(query, instanceOf(ConstantScoreQuery.class));
                 ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
@@ -84,30 +86,25 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                     assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
             }
-        } else if (fields.size() == 1 && mappedFields.size() == 0) {
-            assertThat(query, instanceOf(MatchNoDocsQuery.class));
-            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
-            assertThat(matchNoDocsQuery.toString(null),
-                    containsString("No field \"" + fields.iterator().next() + "\" exists in mappings."));
         } else if (fields.size() == 1) {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
             String field = expectedFieldName(fields.iterator().next());
-            if (context.getQueryShardContext().getObjectMapper(field) != null) {
+            if (context.getObjectMapper(field) != null) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
                 BooleanQuery booleanQuery = (BooleanQuery) constantScoreQuery.getQuery();
                 List<String> childFields = new ArrayList<>();
-                context.getQueryShardContext().getObjectMapper(field).forEach(mapper -> childFields.add(mapper.name()));
+                context.getObjectMapper(field).forEach(mapper -> childFields.add(mapper.name()));
                 assertThat(booleanQuery.clauses().size(), equalTo(childFields.size()));
                 for (int i = 0; i < childFields.size(); i++) {
                     BooleanClause booleanClause = booleanQuery.clauses().get(i);
                     assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
-            } else if (context.getQueryShardContext().getMapperService().fullName(field).hasDocValues()) {
+            } else if (context.getFieldType(field).hasDocValues()) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(DocValuesFieldExistsQuery.class));
                 DocValuesFieldExistsQuery dvExistsQuery = (DocValuesFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, dvExistsQuery.getField());
-            } else if (context.getQueryShardContext().getMapperService().fullName(field).omitNorms() == false) {
+            } else if (context.getFieldType(field).getTextSearchInfo().hasNorms()) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(NormsFieldExistsQuery.class));
                 NormsFieldExistsQuery normsExistsQuery = (NormsFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, normsExistsQuery.getField());
@@ -127,6 +124,18 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                 assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
             }
         }
+    }
+
+    @Override
+    public void testMustRewrite() {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        ExistsQueryBuilder queryBuilder = new ExistsQueryBuilder("foo");
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+            () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+        Query ret = ExistsQueryBuilder.newFilter(context, "foo", false);
+        assertThat(ret, instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testIllegalArguments() {

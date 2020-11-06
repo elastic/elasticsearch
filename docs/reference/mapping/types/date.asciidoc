@@ -1,11 +1,17 @@
 [[date]]
-=== Date datatype
+=== Date field type
+++++
+<titleabbrev>Date</titleabbrev>
+++++
 
-JSON doesn't have a date datatype, so dates in Elasticsearch can either be:
+JSON doesn't have a date data type, so dates in Elasticsearch can either be:
 
 * strings containing formatted dates, e.g. `"2015-01-01"` or `"2015/01/01 12:10:30"`.
 * a long number representing _milliseconds-since-the-epoch_.
 * an integer representing _seconds-since-the-epoch_.
+
+NOTE: Values for _milliseconds-since-the-epoch_ and _seconds-since-the-epoch_
+must be non-negative. Use a formatted date to represent dates before 1970.
 
 Internally, dates are converted to UTC (if the time-zone is specified) and
 stored as a long number representing milliseconds-since-the-epoch.
@@ -28,9 +34,9 @@ or milliseconds-since-the-epoch.
 
 For instance:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -41,21 +47,21 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 { "date": "2015-01-01" } <2>
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 { "date": "2015-01-01T12:10:30Z" } <3>
 
-PUT my_index/_doc/3
+PUT my-index-000001/_doc/3
 { "date": 1420070400001 } <4>
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "sort": { "date": "asc"} <5>
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `date` field uses the default `format`.
 <2> This document uses a plain date.
 <3> This document includes a time.
@@ -70,9 +76,9 @@ Each format will be tried in turn until a matching format is found.  The first
 format will be used to convert the _milliseconds-since-the-epoch_ value back
 into a string.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -84,7 +90,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[date-params]]
 ==== Parameters for `date` fields
@@ -135,3 +140,7 @@ The following parameters are accepted by `date` fields:
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.

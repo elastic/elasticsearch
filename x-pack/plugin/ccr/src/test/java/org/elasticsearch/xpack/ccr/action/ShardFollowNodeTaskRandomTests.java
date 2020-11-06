@@ -7,9 +7,12 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -17,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -42,15 +46,19 @@ import static org.hamcrest.Matchers.hasSize;
 public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
     public void testSingleReaderWriter() throws Exception {
-        TestRun testRun = createTestRun(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomIntBetween(1, 2048));
+        TestRun testRun = createTestRun(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomIntBetween(1, 2048));
         ShardFollowNodeTask task = createShardFollowTask(1, testRun);
         startAndAssertAndStopTask(task, testRun);
     }
 
     public void testMultipleReaderWriter() throws Exception {
         int concurrency = randomIntBetween(2, 8);
-        TestRun testRun = createTestRun(0, 0, 0, between(1, 1024));
+        TestRun testRun = createTestRun(0, 0, 0, 0, between(1, 1024));
         ShardFollowNodeTask task = createShardFollowTask(concurrency, testRun);
         startAndAssertAndStopTask(task, testRun);
     }
@@ -110,6 +118,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
             private volatile long mappingVersion = 0L;
             private volatile long settingsVersion = 0L;
+            private volatile long aliasesVersion = 0L;
             private final Map<Long, Integer> fromToSlot = new HashMap<>();
 
             @Override
@@ -123,19 +132,24 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             }
 
             @Override
+            protected void innerUpdateAliases(LongConsumer handler, Consumer<Exception> errorHandler) {
+                handler.accept(aliasesVersion);
+            }
+
+            @Override
             protected void innerSendBulkShardOperationsRequest(
                 String followerHistoryUUID, List<Translog.Operation> operations,
                 long maxSeqNoOfUpdates,
                 Consumer<BulkShardOperationsResponse> handler,
                 Consumer<Exception> errorHandler) {
                 for(Translog.Operation op : operations) {
-                    tracker.markSeqNoAsCompleted(op.seqNo());
+                    tracker.markSeqNoAsProcessed(op.seqNo());
                 }
                 receivedOperations.addAll(operations);
 
                 // Emulate network thread and avoid SO:
                 final BulkShardOperationsResponse response = new BulkShardOperationsResponse();
-                response.setGlobalCheckpoint(tracker.getCheckpoint());
+                response.setGlobalCheckpoint(tracker.getProcessedCheckpoint());
                 response.setMaxSeqNo(tracker.getMaxSeqNo());
                 threadPool.generic().execute(() -> handler.accept(response));
             }
@@ -170,10 +184,17 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         }
                     } else {
                         assert from >= testRun.finalExpectedGlobalCheckpoint;
-                        final long globalCheckpoint = tracker.getCheckpoint();
+                        final long globalCheckpoint = tracker.getProcessedCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
-                        handler.accept(new ShardChangesAction.Response(0L, 0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(),
-                            new Translog.Operation[0], 1L));
+                        handler.accept(new ShardChangesAction.Response(
+                                0L,
+                                0L,
+                                0L,
+                                globalCheckpoint,
+                                maxSeqNo,
+                                randomNonNegativeLong(),
+                                new Translog.Operation[0],
+                                1L));
                     }
                 };
                 threadPool.generic().execute(task);
@@ -233,10 +254,16 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         };
     }
 
-    private static TestRun createTestRun(long startSeqNo, long startMappingVersion, long startSettingsVersion, int maxOperationCount) {
+    private static TestRun createTestRun(
+            final long startSeqNo,
+            final long startMappingVersion,
+            final long startSettingsVersion,
+            final long startAliasesVersion,
+            final int maxOperationCount) {
         long prevGlobalCheckpoint = startSeqNo;
         long mappingVersion = startMappingVersion;
         long settingsVersion = startSettingsVersion;
+        long aliasesVersion = startAliasesVersion;
         int numResponses = randomIntBetween(16, 256);
         Map<Long, List<TestResponse>> responses = new HashMap<>(numResponses);
         for (int i = 0; i < numResponses; i++) {
@@ -247,7 +274,9 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             if (sometimes()) {
                 settingsVersion++;
             }
-
+            if (sometimes()) {
+                aliasesVersion++;
+            }
             if (sometimes()) {
                 List<TestResponse> item = new ArrayList<>();
                 // Sometimes add a random retryable error
@@ -268,6 +297,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     new ShardChangesAction.Response(
                         mappingVersion,
                         settingsVersion,
+                        aliasesVersion,
                         nextGlobalCheckPoint,
                         nextGlobalCheckPoint,
                         randomNonNegativeLong(),
@@ -285,7 +315,11 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     List<TestResponse> item = new ArrayList<>();
                     // Sometimes add a random retryable error
                     if (sometimes()) {
-                        Exception error = new UnavailableShardsException(new ShardId("test", "test", 0), "");
+                        Exception error = randomFrom(
+                            new UnavailableShardsException(new ShardId("test", "test", 0), ""),
+                            new NoSeedNodeLeftException("cluster_a"),
+                            new CircuitBreakingException("test", randomInt(), randomInt(), randomFrom(CircuitBreaker.Durability.values())),
+                            new EsRejectedExecutionException("test"));
                         item.add(new TestResponse(error, mappingVersion, settingsVersion, null));
                     }
                     // Sometimes add an empty shard changes response to also simulate a leader shard lagging behind
@@ -293,6 +327,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         ShardChangesAction.Response response = new ShardChangesAction.Response(
                             mappingVersion,
                             settingsVersion,
+                            aliasesVersion,
                             prevGlobalCheckpoint,
                             prevGlobalCheckpoint,
                             randomNonNegativeLong(),
@@ -312,6 +347,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     ShardChangesAction.Response response = new ShardChangesAction.Response(
                         mappingVersion,
                         settingsVersion,
+                        aliasesVersion,
                         localLeaderGCP,
                         localLeaderGCP,
                         randomNonNegativeLong(),

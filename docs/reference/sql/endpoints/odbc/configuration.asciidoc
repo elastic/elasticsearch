@@ -60,7 +60,7 @@ Such a file can be then shared among multiple systems and the user will need to 
 
 The configuration steps are similar for all the above points. Following is an example of configuring a System DSN.
 
-[float]
+[discrete]
 ===== 2.1 Launch {odbc} DSN Editor
 Click on the _System DSN_ tab, then on the _Add..._ button:
 
@@ -82,7 +82,7 @@ image:images/sql/odbc/dsn_editor_basic.png[]
 
 This new window has three tabs, each responsible for a set of configuration parameters, as follows.
 
-[float]
+[discrete]
 ===== 2.2 Connection parameters
 This tab allows configuration for the following items:
 
@@ -100,6 +100,15 @@ This field allows a arbitrary text; generally used for short notes about the con
 +
 Example: _Clear-text connection to the local [::1]:9200._
 +
+* Cloud ID
++
+The _Cloud ID_ is a string that simplifies the configuration when connecting to
+Elastic's Cloud {ess}; it is obtained from within the Cloud console of each
+{es} cluster and encodes the connection parameters to that cluster.
++
+NOTE: When this field is provisioned, the _Hostname_, _Port_ and the security
+settings are provisioned as well and their respective inputs disabled.
++
 * Hostname
 +
 This field requires an IP address or a resolvable DNS name of the {es} instance that the driver will connect to.
@@ -114,13 +123,13 @@ NOTE: If left empty, the default *9200* port number will be used.
 +
 * Username, Password
 +
-If security is enabled, these fields will need to contain the credentials of the user configured to access the REST SQL endpoint.
+If security is enabled, these fields will need to contain the credentials of the access user.
 
 At a minimum, the _Name_ and _Hostname_ fields must be provisioned, before the DSN can be saved.
 
-WARNING: Connection encryption is enabled by default. This will need to be changed if connecting to a SQL API endpoint with no cryptography enabled.
+WARNING: Connection encryption is enabled by default. This will need to be changed if connecting to an {es} node with no encryption.
 
-[float]
+[discrete]
 ===== 2.3 Cryptography parameters
 One of the following SSL options can be chosen:
 
@@ -171,8 +180,83 @@ will be considered by default. Choose _All Files (\*.*)_ from the drop down, if 
 .Certificate file browser
 image:images/sql/odbc/dsn_editor_security_cert.png[]
 
-[float]
-===== 2.4 Logging parameters
+[discrete]
+===== 2.4 Connection parameters
+The connection configuration can further be tweaked by the following parameters.
+
+* Request timeout (s)
++
+The maximum number of seconds for a request to the server. The value 0 disables the timeout.
+This corresponds to the `Timeout` setting in <<odbc-cfg-dsnparams>>.
++
+* Max page size (rows)
++
+The maximum number of rows that Elasticsearch SQL server should send the driver for one page.
+This corresponds to the `MaxFetchSize` setting in <<odbc-cfg-dsnparams>>.
++
+* Max page length (MB)
++
+The maximum number of megabytes that the driver will accept for one page.
+This corresponds to the `MaxBodySizeMB` setting in <<odbc-cfg-dsnparams>>.
++
+* Varchar limit
++
+The maximum character length of the string type columns.
+this correspeonds to the `VarcharLimit` setting in <<odbc-cfg-dsnparams>>.
++
+* Floats format
++
+How should the floating point numbers be printed, when these are converted to string by the driver.
+This corresponds to the `ScientificFloats` setting in <<odbc-cfg-dsnparams>>.
++
+* Data encoding
++
+How should the data between the server and the driver be encoded as.
+This corresponds to the `Packing` setting in <<odbc-cfg-dsnparams>>.
++
+* Data compression
++
+Should the data between the server and the driver be compressed?
+This corresponds to the `Compression` setting in <<odbc-cfg-dsnparams>>.
++
+* Follow HTTP redirects
++
+Should the driver follow HTTP redirects of the requests to the server?
+This corresponds to the `Follow` setting in <<odbc-cfg-dsnparams>>.
++
+* Use local timezone
++
+Should the driver use machine's local timezone? The default is UTC.
+This corresponds to the `ApplyTZ` setting in <<odbc-cfg-dsnparams>>.
++
+* Auto-escape PVAs
++
+Should the driver auto-escape the pattern-value arguments?
+This corresponds to the `AutoEscapePVA` setting in <<odbc-cfg-dsnparams>>.
++
+* Multi value field lenient
++
+Should the server return one value out of a multi-value field (instead of rejecting the request)?
+This corresponds to the `MultiFieldLenient` setting in <<odbc-cfg-dsnparams>>.
++
+* Include frozen indices
++
+Should the server consider the frozen indices when servicing a request?
+This corresponds to the `IndexIncludeFrozen` setting in <<odbc-cfg-dsnparams>>.
++
+* Early query execution
++
+Should the driver execute a non-parameterized query as soon as it's submitted
+for preparation?
+This corresponds to the `EarlyExecution` setting in <<odbc-cfg-dsnparams>>.
+
+
+[[dsn_editor_misc]]
+.Connection parameters
+image:images/sql/odbc/dsn_editor_misc.png[]
+
+[discrete]
+===== 2.5 Logging parameters
 For troubleshooting purposes, the {odbc} offers functionality to log the API calls that an application makes; this is enabled in the Administrator application:
 
 [[administrator_tracing]]
@@ -205,7 +289,7 @@ When authentication is enabled, the password will be redacted from the logs.
 NOTE: Debug-logging can quickly lead to the creation of many very large files and generate significant processing overhead. Only enable if
 instructed so and preferably only when fetching low volumes of data.
 
-[float]
+[discrete]
 [[connection_testing]]
 ===== 2.5 Testing the connection
 Once the _Hostname_, the _Port_ (if different from implicit default) and the SSL options are configured, you can test if the provided
@@ -268,26 +352,52 @@ once, the connection logging taking precedence over the environment variable
 logging.
 
 [[odbc-cfg-dsnparams]]
-[float]
+[discrete]
 ==== Connection string parameters
 
 The following is a list of additional parameters that can be configured for a
 particular connection, in case the default behavior of the driver is not
-suitable. This can be done within the client application, in a manner
-particular to that application, generally in a free text input box (sometimes
-named "Connection string", "String extras", or similar).  The format of the
-string is `Attribute1=Value1`. Multiple attributes can be specified, separated
-by a semicolon `Attribute1=Value1;Attribute2=Value2;`. The attribute names are
-given below.
+suitable. For earlier versions of the driver, this needs to be done within the
+client application, in a manner particular to that application, generally in a
+free text input box (sometimes named "Connection string", "String extras", or
+similar).  The format of the string is `Attribute1=Value1`. Multiple attributes
+can be specified, separated by a semicolon
+`Attribute1=Value1;Attribute2=Value2;`. The attribute names are given below.
 
 `Timeout` (default: `0`)::
 The maximum time (in seconds) a request to the server can take. This can be
 overridden by a larger statement-level timeout setting. The value 0 means no
 timeout.
 
+
 `Follow` (default: `yes`)::
 A boolean value (`yes`|`no` / `true`|`false` / `0`|`1`) controlling if the
 driver will follow HTTP redirects.
+
+
+`Packing` (default: `CBOR`)::
+This value controls which data format to encode the REST content in. Possible
+values are:
+
+* `CBOR`: use the Concise Binary Object Representation format. This is the
+preferred encoding, given its more compact format.
+
+* `JSON`: use the JavaScript Object Notation format. This format is more
+verbose, but easier to read, useful in debugging cases.
+
+
+`Compression` (default: `auto`)::
+This value controls if and when the REST content - encoded in one of the above
+formats -  is going to be compressed. The possible values are:
+
+* `on`: enables the compression;
+
+* `off`: disables the compression;
+
+* `auto`: enables the compression, except for the case when the data flows
+through a secure connection; since in this case the encryption layer employs
+its own data compression and there can be security implications when an
+additional compression is enabled, the setting should be kept to this value.
 
 
 `MaxFetchSize` (default: `0`)::
@@ -301,6 +411,18 @@ The maximum size (in megabytes) that an answer can grow to, before being
 rejected as too large by the driver.
 This is concerning the HTTP answer body of one page, not the cumulated data
 volume that a query might generate.
+
+
+`VarcharLimit` (default: `0`)::
+The maximum width of the string columns.
+If this setting is greater than zero, the driver will advertise all the string
+type columns as having a maximum character length equal to this value and will
+truncate any longer string to it. The string types are textual fields
+(TEXT, KEYWORD etc.) and some specialized fields (IP, the GEOs etc.). Note that
+no interpretation of the value is performed before trunctation, which can lead
+to invalid values if the limit is set too low.
+This is required for those applications that do not support column lengths as
+large as {es} fields can be.
 
 
 `ApplyTZ` (default: `no`)::
@@ -330,21 +452,6 @@ This setting is not effective when the application fetches from the driver the
 values as numbers and then does the conversion subsequently itself.
 
 
-`VersionChecking` (default: `strict`)::
-By default, the version of the driver and that of the server must be the same.
-This parameter will allow a driver to connect to a server of different version.
-The variation however can only be of the minor version, both endpoints must be
-of same major version number.
-Possible values:
-
-* `strict`: the versions must be in sync;
-
-* `major`: the versions must have the same major number.
-
-WARNING: This parameter can only be used for troubleshooting purposes. Running
-with versions out of sync is not supported.
-
-
 `MultiFieldLenient` (default: `true`)::
 This boolean parameter controls the behavior of the server in case a
 multi-value field is queried. In case this is set and the server encounters
@@ -354,3 +461,25 @@ it as the value for the column. If not set, the server will return an error.
 This corresponds to {es-sql}'s request parameter `field_multi_value_leniency`
 (see <<sql-rest-fields>>).
 
+
+`AutoEscapePVA` (default: `true`)::
+The pattern-value arguments make use of `_` and `%` as special characters to
+build patern matching values. Some applications however use these chars as
+regular ones, which can lead to {es-sql} returning more data than the app
+intended. With the auto escaping, the driver will inspect the arguments and
+will escape these special characters if not already done by the application.
+
+
+`IndexIncludeFrozen` (default: `false`)::
+If this parameter is `true`, the server will include the frozen indices in the
+query execution.
+This corresponds to {es-sql}'s request parameter `index_include_frozen`
+
+
+`EarlyExecution` (default: `true`)::
+If this parameter is `true`, the driver will execute a statement as soon as the
+application submits it for preparation, i.e. early and is functionally
+equivalent to a direct execution. This will only happen if the query lacks
+parameters. Early execution is useful with those applications that inspect the
+result before actually executing the query. {es-sql} lacks a preparation API,
+so early execution is required for interoperability with these applications.

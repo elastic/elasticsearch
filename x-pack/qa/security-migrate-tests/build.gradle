@@ -2,34 +2,28 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
-  testCompile project(path: xpackModule('security'), configuration: 'runtime')
-  testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
+  testImplementation project(xpackModule('core'))
+  testImplementation project(path: xpackModule('security'))
+  testImplementation project(path: xpackProject('transport-client').path)
 }
 
-integTestCluster {
+testClusters.integTest {
+  testDistribution = "DEFAULT"
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
-  extraConfigFile 'roles.yml', 'roles.yml'
+  extraConfigFile 'roles.yml', file('roles.yml')
   [
     test_admin: 'superuser',
     transport_user: 'superuser',
     existing: 'superuser',
     bob: 'actual_role'
-  ].each { String user, String role ->
-    setupCommand 'setupUser#' + user,
-                 'bin/elasticsearch-users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
+  ].each { String username, String role ->
+    user username: username, password: 'x-pack-test-password', role: role
   }
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_admin',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
-  }
+}
+
+integTest {
+  nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
 }
 
 testingConventions {

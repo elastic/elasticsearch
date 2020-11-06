@@ -1,0 +1,103 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test set processor with template value":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "foo",
+                  "value" : "{{bar}}",
+                  "ignore_empty_value" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          foo: "hello"
+        }
+  - do:
+      index:
+        index: test
+        id: 2
+        pipeline: "1"
+        body: {
+          foo: "hello",
+          bar: ""
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.foo: "hello" }
+
+  - do:
+      get:
+        index: test
+        id: 2
+  - match: { _source.foo: "hello" }
+---
+"Test set processor with index change and require_alias":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_index",
+                  "value" : "new_require_alias_index"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      catch: missing
+      index:
+        index:   test_require_alias
+        pipeline: 1
+        require_alias: true
+        body:    { foo: bar }
+
+  - do:
+      catch: missing
+      indices.get:
+        index: test_require_alias
+  - do:
+      catch: missing
+      indices.get:
+        index: new_require_alias_index
+
+  - do:
+      indices.create:
+        index: backing_index
+        body:
+          mappings: {}
+          aliases:
+            new_require_alias_index: {}
+
+  - do:
+      index:
+        index:   test_require_alias
+        pipeline: 1
+        require_alias: true
+        body:    { foo: bar }

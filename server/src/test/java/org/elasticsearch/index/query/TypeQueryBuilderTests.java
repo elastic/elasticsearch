@@ -19,17 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 
@@ -41,15 +37,11 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
     }
 
     @Override
-    protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        if (createShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
-            assertEquals(new MatchNoDocsQuery(), query);
+    protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+        if (createShardContext().typeExists(queryBuilder.type())) {
+            assertThat(query, equalTo(Queries.newNonNestedFilter(context.indexVersionCreated())));
         } else {
-            assertThat(query,
-                anyOf(
-                    equalTo(new TypeFieldMapper.TypesQuery(new BytesRef(queryBuilder.type()))),
-                    equalTo(new MatchAllDocsQuery()))
-            );
+            assertEquals(new MatchNoDocsQuery(), query);
         }
     }
 
@@ -81,6 +73,12 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
     @Override
     public void testMustRewrite() throws IOException {
         super.testMustRewrite();
+        assertWarnings(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    public void testCacheability() throws IOException {
+        super.testCacheability();
         assertWarnings(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
     }
 }

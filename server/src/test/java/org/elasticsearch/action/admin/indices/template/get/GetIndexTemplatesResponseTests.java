@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,14 +47,14 @@ public class GetIndexTemplatesResponseTests extends AbstractXContentTestCase<Get
 
     @Override
     protected GetIndexTemplatesResponse createTestInstance() {
-        List<IndexTemplateMetaData> templates = new ArrayList<>();
+        List<IndexTemplateMetadata> templates = new ArrayList<>();
         int numTemplates = between(0, 10);
         for (int t = 0; t < numTemplates; t++) {
-            IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder("template-" + t);
+            IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("template-" + t);
             templateBuilder.patterns(IntStream.range(0, between(1, 5)).mapToObj(i -> "pattern-" + i).collect(Collectors.toList()));
             int numAlias = between(0, 5);
             for (int i = 0; i < numAlias; i++) {
-                templateBuilder.putAlias(AliasMetaData.builder(randomAlphaOfLengthBetween(1, 10)));
+                templateBuilder.putAlias(AliasMetadata.builder(randomAlphaOfLengthBetween(1, 10)));
             }
             if (randomBoolean()) {
                 templateBuilder.settings(Settings.builder().put("index.setting-1", randomLong()));
@@ -80,8 +80,8 @@ public class GetIndexTemplatesResponseTests extends AbstractXContentTestCase<Get
     @Override
     protected boolean supportsUnknownFields() {
         // We can not inject anything at the top level because a GetIndexTemplatesResponse is serialized as a map
-        // from template name to template content. IndexTemplateMetaDataTests already covers situations where we
-        // inject arbitrary things inside the IndexTemplateMetaData.
+        // from template name to template content. IndexTemplateMetadataTests already covers situations where we
+        // inject arbitrary things inside the IndexTemplateMetadata.
         return false;
     }
 

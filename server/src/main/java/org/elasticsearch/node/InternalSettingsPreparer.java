@@ -91,10 +91,6 @@ public class InternalSettingsPreparer {
         checkSettingsForTerminalDeprecation(output);
         finalizeSettings(output, defaultNodeName);
 
-        environment = new Environment(output.build(), configPath);
-
-        // we put back the path.logs so we can use it in the logging configuration file
-        output.put(Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile().toAbsolutePath().normalize().toString());
         return new Environment(output.build(), configPath);
     }
 
@@ -120,13 +116,16 @@ public class InternalSettingsPreparer {
         // This method to be removed in 8.0.0, as it was deprecated in 6.0 and removed in 7.0
         assert Version.CURRENT.major != 8: "Logic pertaining to config driven prompting should be removed";
         for (String setting : output.keys()) {
-            switch (output.get(setting)) {
-                case SECRET_PROMPT_VALUE:
-                    throw new SettingsException("Config driven secret prompting was deprecated in 6.0.0. Use the keystore" +
-                        " for secure settings.");
-                case TEXT_PROMPT_VALUE:
-                    throw new SettingsException("Config driven text prompting was deprecated in 6.0.0. Use the keystore" +
-                        " for secure settings.");
+            final String value = output.get(setting);
+            if (value != null) {
+                switch (value) {
+                    case SECRET_PROMPT_VALUE:
+                        throw new SettingsException("Config driven secret prompting was deprecated in 6.0.0. Use the keystore" +
+                            " for secure settings.");
+                    case TEXT_PROMPT_VALUE:
+                        throw new SettingsException("Config driven text prompting was deprecated in 6.0.0. Use the keystore" +
+                            " for secure settings.");
+                }
             }
         }
     }

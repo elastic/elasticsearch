@@ -22,7 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState.FeatureAware;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,7 +40,7 @@ import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 
 public class FeatureAwareTests extends ESTestCase {
 
-    abstract static class Custom implements MetaData.Custom {
+    abstract static class Custom implements Metadata.Custom {
 
         private final Version version;
 
@@ -49,12 +49,12 @@ public class FeatureAwareTests extends ESTestCase {
         }
 
         @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return MetaData.ALL_CONTEXTS;
+        public EnumSet<Metadata.XContentContext> context() {
+            return Metadata.ALL_CONTEXTS;
         }
 
         @Override
-        public Diff<MetaData.Custom> diff(final MetaData.Custom previousState) {
+        public Diff<Metadata.Custom> diff(final Metadata.Custom previousState) {
             return null;
         }
 

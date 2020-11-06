@@ -6,12 +6,8 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -21,20 +17,24 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchReques
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
+import java.util.List;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetWatchAction extends WatcherRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetWatchAction.class));
+    @Override
+    public List<Route> routes() {
+        return emptyList();
+    }
 
-    public RestGetWatchAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_watcher/watch/{id}", this,
-            GET, URI_BASE + "/watcher/watch/{id}", deprecationLogger);
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        return singletonList(new ReplacedRoute(GET, "/_watcher/watch/{id}", GET, URI_BASE + "/watcher/watch/{id}"));
     }
 
     @Override
@@ -48,9 +48,7 @@ public class RestGetWatchAction extends WatcherRestHandler {
         return channel -> client.getWatch(getWatchRequest, new RestBuilderListener<GetWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetWatchResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
                 response.toXContent(builder, request);
-                builder.endObject();
                 RestStatus status = response.isFound() ? OK : NOT_FOUND;
                 return new BytesRestResponse(status, builder);
             }

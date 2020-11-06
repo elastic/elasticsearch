@@ -21,6 +21,7 @@ package org.elasticsearch.watcher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -182,7 +183,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
         private FileObserver[] listChildren(boolean initial) throws IOException {
             Path[] files = listFiles();
-            if (files != null && files.length > 0) {
+            if (CollectionUtils.isEmpty(files) == false) {
                 FileObserver[] children = new FileObserver[files.length];
                 for (int i = 0; i < files.length; i++) {
                     children[i] = createChild(files[i], initial);
@@ -195,7 +196,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
         private void updateChildren() throws IOException {
             Path[] files = listFiles();
-            if (files != null && files.length > 0) {
+            if (CollectionUtils.isEmpty(files) == false) {
                 FileObserver[] newChildren = new FileObserver[files.length];
                 int child = 0;
                 int file = 0;

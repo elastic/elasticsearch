@@ -83,7 +83,7 @@ public class TransportActionProxyTests extends ESTestCase {
 
 
     public void testSendMessage() throws InterruptedException {
-        serviceA.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+        serviceA.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse("TS_A");
@@ -92,7 +92,7 @@ public class TransportActionProxyTests extends ESTestCase {
         TransportActionProxy.registerProxyAction(serviceA, "internal:test", SimpleTestResponse::new);
         serviceA.connectToNode(nodeB);
 
-        serviceB.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+        serviceB.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse("TS_B");
@@ -100,7 +100,7 @@ public class TransportActionProxyTests extends ESTestCase {
             });
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", SimpleTestResponse::new);
         serviceB.connectToNode(nodeC);
-        serviceC.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+        serviceC.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse("TS_C");
@@ -133,17 +133,12 @@ public class TransportActionProxyTests extends ESTestCase {
                         latch.countDown();
                     }
                 }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
             });
         latch.await();
     }
 
     public void testException() throws InterruptedException {
-        serviceA.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+        serviceA.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse("TS_A");
@@ -152,7 +147,7 @@ public class TransportActionProxyTests extends ESTestCase {
         TransportActionProxy.registerProxyAction(serviceA, "internal:test", SimpleTestResponse::new);
         serviceA.connectToNode(nodeB);
 
-        serviceB.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+        serviceB.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse("TS_B");
@@ -160,7 +155,7 @@ public class TransportActionProxyTests extends ESTestCase {
             });
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", SimpleTestResponse::new);
         serviceB.connectToNode(nodeC);
-        serviceC.registerRequestHandler("internal:test", SimpleTestRequest::new, ThreadPool.Names.SAME,
+        serviceC.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new,
             (request, channel, task) -> {
                 throw new ElasticsearchException("greetings from TS_C");
             });
@@ -192,11 +187,6 @@ public class TransportActionProxyTests extends ESTestCase {
                         latch.countDown();
                     }
                 }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
             });
         latch.await();
     }
@@ -209,9 +199,8 @@ public class TransportActionProxyTests extends ESTestCase {
         }
         public SimpleTestRequest() {}
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public SimpleTestRequest(StreamInput in) throws IOException {
+            super(in);
             sourceNode = in.readString();
         }
 
@@ -235,13 +224,7 @@ public class TransportActionProxyTests extends ESTestCase {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(targetNode);
         }
     }

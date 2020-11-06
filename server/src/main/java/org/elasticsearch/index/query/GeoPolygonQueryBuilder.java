@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.Polygon;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
@@ -151,7 +153,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
@@ -199,7 +201,13 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             lons[i] = p.lon();
         }
 
-        return LatLonPoint.newPolygonQuery(fieldType.name(), new Polygon(lats, lons));
+        Polygon polygon = new Polygon(lats, lons);
+        Query query = LatLonPoint.newPolygonQuery(fieldType.name(), polygon);
+        if (fieldType.hasDocValues()) {
+            Query dvQuery = LatLonDocValuesField.newSlowPolygonQuery(fieldType.name(), polygon);
+            query = new IndexOrDocValuesQuery(query, dvQuery);
+        }
+        return query;
     }
 
     @Override

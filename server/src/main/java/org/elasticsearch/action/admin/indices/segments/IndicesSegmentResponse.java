@@ -44,12 +44,13 @@ import java.util.Set;
 
 public class IndicesSegmentResponse extends BroadcastResponse {
 
-    private ShardSegments[] shards;
+    private final ShardSegments[] shards;
 
     private Map<String, IndexSegments> indicesSegments;
 
-    IndicesSegmentResponse() {
-
+    IndicesSegmentResponse(StreamInput in) throws IOException {
+        super(in);
+        shards = in.readArray(ShardSegments::new, ShardSegments[]::new);
     }
 
     IndicesSegmentResponse(ShardSegments[] shards, int totalShards, int successfulShards, int failedShards,
@@ -82,23 +83,10 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         return indicesSegments;
     }
 
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shards = new ShardSegments[in.readVInt()];
-        for (int i = 0; i < shards.length; i++) {
-            shards[i] = ShardSegments.readShardSegments(in);
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(shards.length);
-        for (ShardSegments shard : shards) {
-            shard.writeTo(out);
-        }
+        out.writeArray(shards);
     }
 
     @Override

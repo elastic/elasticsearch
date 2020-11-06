@@ -6,11 +6,11 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.Combinations;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.Combinations;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -18,9 +18,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.sql.expression.Expressions.pipe;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
-import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
+import static org.elasticsearch.xpack.ql.expression.Expressions.pipe;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
+import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 
 public class ReplaceFunctionPipeTests extends AbstractNodeTestCase<ReplaceFunctionPipe, Pipe> {
 
@@ -51,7 +51,7 @@ public class ReplaceFunctionPipeTests extends AbstractNodeTestCase<ReplaceFuncti
         ReplaceFunctionPipe newB = new ReplaceFunctionPipe(
                 b1.source(),
                 newExpression,
-                b1.src(),
+                b1.input(),
                 b1.pattern(),
                 b1.replacement());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
@@ -61,7 +61,7 @@ public class ReplaceFunctionPipeTests extends AbstractNodeTestCase<ReplaceFuncti
         newB = new ReplaceFunctionPipe(
                 newLoc,
                 b2.expression(),
-                b2.src(),
+                b2.input(),
                 b2.pattern(),
                 b2.replacement());
         assertEquals(newB,
@@ -71,22 +71,21 @@ public class ReplaceFunctionPipeTests extends AbstractNodeTestCase<ReplaceFuncti
     @Override
     public void testReplaceChildren() {
         ReplaceFunctionPipe b = randomInstance();
-        Pipe newSource = pipe(((Expression) randomValueOtherThan(b.source(), () -> randomStringLiteral())));
-        Pipe newPattern = pipe(((Expression) randomValueOtherThan(b.pattern(), () -> randomStringLiteral())));
-        Pipe newR = pipe(((Expression) randomValueOtherThan(b.replacement(), () -> randomStringLiteral())));
-        ReplaceFunctionPipe newB =
-                new ReplaceFunctionPipe(b.source(), b.expression(), b.src(), b.pattern(), b.replacement());
+        Pipe newInput = randomValueOtherThan(b.input(), () -> pipe(randomStringLiteral()));
+        Pipe newPattern = randomValueOtherThan(b.pattern(), () -> pipe(randomStringLiteral()));
+        Pipe newR = randomValueOtherThan(b.replacement(), () -> pipe(randomStringLiteral()));
+        ReplaceFunctionPipe newB = new ReplaceFunctionPipe(b.source(), b.expression(), b.input(), b.pattern(), b.replacement());
         ReplaceFunctionPipe transformed = null;
         
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
                 transformed = (ReplaceFunctionPipe) newB.replaceChildren(
-                        comb.get(0) ? newSource : b.src(),
+                        comb.get(0) ? newInput : b.input(),
                         comb.get(1) ? newPattern : b.pattern(),
                         comb.get(2) ? newR : b.replacement());
                 
-                assertEquals(transformed.src(), comb.get(0) ? newSource : b.src());
+                assertEquals(transformed.input(), comb.get(0) ? newInput : b.input());
                 assertEquals(transformed.pattern(), comb.get(1) ? newPattern : b.pattern());
                 assertEquals(transformed.replacement(), comb.get(2) ? newR : b.replacement());
                 assertEquals(transformed.expression(), b.expression());
@@ -103,12 +102,9 @@ public class ReplaceFunctionPipeTests extends AbstractNodeTestCase<ReplaceFuncti
             for(BitSet comb : new Combinations(3, i)) {
                 randoms.add(f -> new ReplaceFunctionPipe(f.source(),
                         f.expression(),
-                        comb.get(0) ? pipe(((Expression) randomValueOtherThan(f.src(),
-                                () -> randomStringLiteral()))) : f.src(),
-                        comb.get(1) ? pipe(((Expression) randomValueOtherThan(f.pattern(),
-                                () -> randomStringLiteral()))) : f.pattern(),
-                        comb.get(2) ? pipe(((Expression) randomValueOtherThan(f.replacement(),
-                                () -> randomStringLiteral()))) : f.replacement()));
+                        comb.get(0) ? randomValueOtherThan(f.input(), () -> pipe(randomStringLiteral())) : f.input(),
+                        comb.get(1) ? randomValueOtherThan(f.pattern(), () -> pipe(randomStringLiteral())) : f.pattern(),
+                        comb.get(2) ? randomValueOtherThan(f.replacement(), () -> pipe(randomStringLiteral())) : f.replacement()));
             }
         }
         
@@ -119,7 +115,7 @@ public class ReplaceFunctionPipeTests extends AbstractNodeTestCase<ReplaceFuncti
     protected ReplaceFunctionPipe copy(ReplaceFunctionPipe instance) {
         return new ReplaceFunctionPipe(instance.source(),
                 instance.expression(),
-                instance.src(),
+                instance.input(),
                 instance.pattern(),
                 instance.replacement());
     }

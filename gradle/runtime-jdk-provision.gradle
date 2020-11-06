@@ -1,0 +1,33 @@
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
+
+apply plugin: 'elasticsearch.jdk-download'
+
+if (BuildParams.getIsRuntimeJavaHomeSet()) {
+  configure(allprojects - project(':build-tools')) {
+    project.tasks.withType(Test).configureEach { Test test ->
+      if (BuildParams.getIsRuntimeJavaHomeSet()) {
+        test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
+      }
+    }
+  }
+} else {
+  jdks {
+    provisioned_runtime {
+      vendor = VersionProperties.bundledJdkVendor
+      version = VersionProperties.getBundledJdk(OS.current().name().toLowerCase())
+      platform = OS.current().name().toLowerCase()
+      architecture = Architecture.current().name().toLowerCase()
+    }
+  }
+
+  configure(allprojects - project(':build-tools')) {
+    project.tasks.withType(Test).configureEach { Test test ->
+      test.dependsOn(rootProject.jdks.provisioned_runtime)
+      test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
+    }
+  }
+}
+// if neither condition above is executed, tests will use the gradle jvm

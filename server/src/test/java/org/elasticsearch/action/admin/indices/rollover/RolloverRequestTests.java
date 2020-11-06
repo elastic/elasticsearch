@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -32,9 +33,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
@@ -115,6 +118,35 @@ public class RolloverRequestTests extends ESTestCase {
         assertThat(request.getCreateIndexRequest().settings().getAsInt("number_of_shards", 0), equalTo(10));
     }
 
+    public void testTypelessMappingParsing() throws Exception {
+        final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        final XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("mappings")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+
+        boolean includeTypeName = false;
+        request.fromXContent(includeTypeName, createParser(builder));
+
+        CreateIndexRequest createIndexRequest = request.getCreateIndexRequest();
+        String mapping = createIndexRequest.mappings().get(MapperService.SINGLE_MAPPING_NAME);
+        assertNotNull(mapping);
+
+        Map<String, Object> parsedMapping = XContentHelper.convertToMap(
+            new BytesArray(mapping), false, XContentType.JSON).v2();
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) parsedMapping.get(MapperService.SINGLE_MAPPING_NAME);
+        assertNotNull(properties);
+        assertFalse(properties.isEmpty());
+    }
+
     public void testSerialize() throws Exception {
         RolloverRequest originalRequest = new RolloverRequest("alias-index", "new-index-name");
         originalRequest.addMaxIndexDocsCondition(randomNonNegativeLong());
@@ -124,10 +156,9 @@ public class RolloverRequestTests extends ESTestCase {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();
             try (StreamInput in = new NamedWriteableAwareStreamInput(bytes.streamInput(), writeableRegistry)) {
-                RolloverRequest cloneRequest = new RolloverRequest();
-                cloneRequest.readFrom(in);
+                RolloverRequest cloneRequest = new RolloverRequest(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
-                assertThat(cloneRequest.getAlias(), equalTo(originalRequest.getAlias()));
+                assertThat(cloneRequest.getRolloverTarget(), equalTo(originalRequest.getRolloverTarget()));
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {
                     Condition<?> condition = originalRequest.getConditions().get(entry.getKey());
                     //here we compare the string representation as there is some information loss when serializing
@@ -187,7 +218,7 @@ public class RolloverRequestTests extends ESTestCase {
         ActionRequestValidationException validationException = rolloverRequest.validate();
         assertNotNull(validationException);
         assertEquals(1, validationException.validationErrors().size());
-        assertEquals("index alias is missing", validationException.validationErrors().get(0));
+        assertEquals("rollover target is missing", validationException.validationErrors().get(0));
     }
 
     private static List<Consumer<RolloverRequest>> conditionsGenerator = new ArrayList<>();

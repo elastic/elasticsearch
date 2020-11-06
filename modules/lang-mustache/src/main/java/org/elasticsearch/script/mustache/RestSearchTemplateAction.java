@@ -21,10 +21,8 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -33,8 +31,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -47,17 +48,16 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
-    public RestSearchTemplateAction(Settings settings, RestController controller) {
-        super(settings);
-
-        controller.registerHandler(GET, "/_search/template", this);
-        controller.registerHandler(POST, "/_search/template", this);
-        controller.registerHandler(GET, "/{index}/_search/template", this);
-        controller.registerHandler(POST, "/{index}/_search/template", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
-        controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_search/template"),
+            new Route(POST, "/_search/template"),
+            new Route(GET, "/{index}/_search/template"),
+            new Route(POST, "/{index}/_search/template"),
+            // Deprecated typed endpoints.
+            new Route(GET, "/{index}/{type}/_search/template"),
+            new Route(POST, "/{index}/{type}/_search/template")));
     }
 
     @Override
@@ -69,7 +69,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, request, null, size -> searchRequest.source().size(size));
+        RestSearchAction.parseSearchRequest(
+            searchRequest, request, null, client.getNamedWriteableRegistry(), size -> searchRequest.source().size(size));
 
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;
@@ -77,7 +78,6 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
         searchTemplateRequest.setRequest(searchRequest);
-        RestSearchAction.checkRestTotalHits(request, searchRequest);
 
         return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
     }

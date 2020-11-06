@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -35,7 +35,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     private final SearchRequestBuilder source;
 
     protected AbstractBulkByScrollRequestBuilder(ElasticsearchClient client,
-                                                 Action<BulkByScrollResponse> action, SearchRequestBuilder source, Request request) {
+                                                 ActionType<BulkByScrollResponse> action, SearchRequestBuilder source, Request request) {
         super(client, action, request);
         this.source = source;
     }
@@ -67,10 +67,22 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     }
 
     /**
-     * The maximum number of documents to attempt.
+     * Maximum number of processed documents. Defaults to processing all
+     * documents.
+     * @deprecated please use maxDocs(int) instead.
      */
+    @Deprecated
     public Self size(int size) {
-        request.setSize(size);
+        return maxDocs(size);
+    }
+
+
+    /**
+     * Maximum number of processed documents. Defaults to processing all
+     * documents.
+     */
+    public Self maxDocs(int maxDocs) {
+        request.setMaxDocs(maxDocs);
         return self();
     }
 

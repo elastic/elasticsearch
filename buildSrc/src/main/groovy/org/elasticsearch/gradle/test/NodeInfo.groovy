@@ -23,6 +23,7 @@ import com.sun.jna.Native
 import com.sun.jna.WString
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.Project
 
 import java.nio.file.Files
@@ -107,6 +108,9 @@ class NodeInfo {
     /** the version of elasticsearch that this node runs */
     Version nodeVersion
 
+    /** true if the node is not the current version */
+    boolean isBwcNode
+
     /** Holds node configuration for part of a test cluster. */
     NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, String nodeVersion, File sharedDir) {
         this.config = config
@@ -121,6 +125,7 @@ class NodeInfo {
         baseDir = new File(project.buildDir, "cluster/${prefix} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')
         this.nodeVersion = Version.fromString(nodeVersion)
+        this.isBwcNode = this.nodeVersion.before(VersionProperties.elasticsearch)
         homeDir = new File(baseDir, "elasticsearch-${nodeVersion}")
         pathConf = new File(homeDir, 'config')
         if (config.dataDir != null) {

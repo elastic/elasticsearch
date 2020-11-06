@@ -21,44 +21,42 @@ package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.tasks.Classpath;
-import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.process.ExecOperations;
+
+import javax.inject.Inject;
+import java.io.File;
 
 /**
  * Runs CheckJarHell on a classpath.
  */
+@CacheableTask
 public class JarHellTask extends PrecommitTask {
 
     private FileCollection classpath;
+    private ExecOperations execOperations;
 
-    private Object javaHome;
-
-    public JarHellTask() {
+    @Inject
+    public JarHellTask(ExecOperations execOperations) {
+        this.execOperations = execOperations;
         setDescription("Runs CheckJarHell on the configured classpath");
     }
 
     @TaskAction
     public void runJarHellCheck() {
-        LoggedExec.javaexec(getProject(), spec -> {
-            spec.classpath(getClasspath());
-            spec.executable(getJavaHome() + "/bin/java");
+        LoggedExec.javaexec(execOperations, spec -> {
+            spec.environment("CLASSPATH", getClasspath().getAsPath());
             spec.setMain("org.elasticsearch.bootstrap.JarHell");
         });
     }
 
-    @Input
-    public Object getJavaHome() {
-        return javaHome;
-    }
-
-    public void setJavaHome(Object javaHome) {
-        this.javaHome = javaHome;
-    }
-
-    @Classpath
+    // We use compile classpath normalization here because class implementation changes are irrelevant for the purposes of jar hell.
+    // We only care about the runtime classpath ABI here.
+    @CompileClasspath
     public FileCollection getClasspath() {
-        return classpath.filter(file -> file.exists());
+        return classpath.filter(File::exists);
     }
 
     public void setClasspath(FileCollection classpath) {

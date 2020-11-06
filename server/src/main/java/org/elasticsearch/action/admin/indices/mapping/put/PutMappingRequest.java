@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -78,6 +78,28 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private Index concreteIndex;
 
+    private boolean writeIndexOnly;
+
+    public PutMappingRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        type = in.readOptionalString();
+        source = in.readString();
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            in.readBoolean(); // updateAllTypes
+        }
+        concreteIndex = in.readOptionalWriteable(Index::new);
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+            origin = in.readOptionalString();
+        } else {
+            origin = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            writeIndexOnly = in.readBoolean();
+        }
+    }
+
     public PutMappingRequest() {
     }
 
@@ -102,7 +124,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         } else if (source.isEmpty()) {
             validationException = addValidationError("mapping source is empty", validationException);
         }
-        if (concreteIndex != null && (indices != null && indices.length > 0)) {
+        if (concreteIndex != null && CollectionUtils.isEmpty(indices) == false) {
             validationException = addValidationError("either concrete index or unresolved indices can be set, concrete index: ["
                 + concreteIndex + "] and indices: " + Arrays.asList(indices) , validationException);
         }
@@ -122,7 +144,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * Sets a concrete index for this put mapping request.
      */
     public PutMappingRequest setConcreteIndex(Index index) {
-        Objects.requireNonNull(indices, "index must not be null");
+        Objects.requireNonNull(index, "index must not be null");
         this.concreteIndex = index;
         return this;
     }
@@ -150,6 +172,11 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     public PutMappingRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     /**
@@ -301,22 +328,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         }
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        type = in.readOptionalString();
-        source = in.readString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readBoolean(); // updateAllTypes
-        }
-        concreteIndex = in.readOptionalWriteable(Index::new);
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            origin = in.readOptionalString();
-        } else {
-            origin = null;
-        }
+    public PutMappingRequest writeIndexOnly(boolean writeIndexOnly) {
+        this.writeIndexOnly = writeIndexOnly;
+        return this;
+    }
+
+    public boolean writeIndexOnly() {
+        return writeIndexOnly;
     }
 
     @Override
@@ -332,6 +350,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeOptionalWriteable(concreteIndex);
         if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             out.writeOptionalString(origin);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeBoolean(writeIndexOnly);
         }
     }
 

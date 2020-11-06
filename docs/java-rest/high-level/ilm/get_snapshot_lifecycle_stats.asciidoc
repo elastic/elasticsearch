@@ -1,0 +1,35 @@
+--
+:api: slm-get-snapshot-lifecycle-stats
+:request: GetSnapshotLifecycleStatsRequest
+:response: GetSnapshotLifecycleStatsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get Snapshot Lifecycle Stats API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Get Snapshot Lifecycle Stats API allows you to retrieve statistics about snapshots taken or
+deleted, as well as retention runs by the snapshot lifecycle service.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains global statistics as well as a map of `SnapshotPolicyStats`,
+accessible by the id of the policy, which contains statistics about each policy.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+

@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 public class CreateSnapshotResponseTests extends AbstractXContentTestCase<CreateSnapshotResponse> {
 
@@ -49,6 +51,10 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         List<String> indices = new ArrayList<>();
         indices.add("test0");
         indices.add("test1");
+
+        List<String> dataStreams = new ArrayList<>();
+        dataStreams.add("test0");
+        dataStreams.add("test1");
         String reason = "reason";
         long startTime = System.currentTimeMillis();
         long endTime = startTime + 10000;
@@ -64,6 +70,17 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         boolean globalState = randomBoolean();
 
         return new CreateSnapshotResponse(
-            new SnapshotInfo(snapshotId, indices, startTime, reason, endTime, totalShards, shardFailures, globalState));
+            new SnapshotInfo(snapshotId, indices, dataStreams, startTime, reason, endTime, totalShards, shardFailures,
+                globalState, SnapshotInfoTests.randomUserMetadata()));
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // Don't inject random fields into the custom snapshot metadata, because the metadata map is equality-checked after doing a
+        // round-trip through xContent serialization/deserialization. Even though the rest of the object ignores unknown fields,
+        // `metadata` doesn't ignore unknown fields (it just includes them in the parsed object, because the keys are arbitrary), so any
+        // new fields added to the metadata before it gets deserialized that weren't in the serialized version will cause the equality
+        // check to fail.
+        return field -> field.startsWith("snapshot.metadata");
     }
 }

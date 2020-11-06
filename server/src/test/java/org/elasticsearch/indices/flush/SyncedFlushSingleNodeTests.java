@@ -20,7 +20,7 @@ package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,7 +38,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -110,11 +109,17 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         assertTrue(response.success());
     }
 
-    public void testSyncFailsIfOperationIsInFlight() throws InterruptedException, ExecutionException {
+    public void testSyncFailsIfOperationIsInFlight() throws Exception {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
         IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
+
+        // wait for the GCP sync spawned from the index request above to complete to avoid that request disturbing the check below
+        assertBusy(() -> {
+            assertEquals(0, shard.getLastSyncedGlobalCheckpoint());
+            assertEquals(0, shard.getActiveOperationsCount());
+        });
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
@@ -135,8 +140,8 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testSyncFailsOnIndexClosedOrMissing() throws InterruptedException {
         createIndex("test", Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
         IndexService test = getInstanceFromNode(IndicesService.class).indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);

@@ -3,14 +3,16 @@
 :request: GetCalendarEventsRequest
 :response: GetCalendarEventsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Get Calendar Events API
-Retrieves a calendars events.
+=== Get calendar events API
+
+Retrieves a calendar's events.
 It accepts a +{request}+ and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get Calendars Request
+==== Get calendar events request
 
 A +{request}+ requires a non-null calendar ID.
 Using the literal `_all` returns the events for all calendars.
@@ -19,9 +21,9 @@ Using the literal `_all` returns the events for all calendars.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Constructing a new request for the specified calendarId
+<1> Constructing a new request for the specified calendarId.
 
-==== Optional Arguments
+==== Optional arguments
 The following arguments are optional:
 
 
@@ -48,12 +50,12 @@ include-tagged::{doc-tests-file}[{api}-end]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-jobid]
 --------------------------------------------------
-<1> Get events for the job. When this option is used calendar_id must be `_all`
+<1> Get events for the job. When this option is used calendar_id must be `_all`.
 
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Get calendars Response
+==== Get calendar events response
 
 The returned +{response}+ contains the requested events:
 
@@ -61,5 +63,5 @@ The returned +{response}+ contains the requested events:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The count of events that were matched
-<2> The events retrieved
+<1> The count of events that were matched.
+<2> The events retrieved.

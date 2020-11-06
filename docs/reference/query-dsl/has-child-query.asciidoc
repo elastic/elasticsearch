@@ -1,134 +1,158 @@
 [[query-dsl-has-child-query]]
-=== Has Child Query
+=== Has child query
+++++
+<titleabbrev>Has child</titleabbrev>
+++++
 
-The `has_child` filter accepts a query and the child type to run against, and
-results in parent documents that have child docs matching the query. Here is
-an example:
+Returns parent documents whose <<parent-join,joined>> child documents match a
+provided query. You can create parent-child relationships between documents in
+the same index using a <<parent-join,join>> field mapping.
 
-[source,js]
---------------------------------------------------
+[WARNING]
+====
+Because it performs a join, the `has_child` is slow compared to other queries.
+Its performance degrades as the number of matching child documents pointing to
+unique parent documents increases. Each `has_child` query in a search can
+increase query time significantly.
+
+If you care about query performance, do not use this query. If you need to use
+the `has_child` query, use it as rarely as possible. 
+====
+
+[[has-child-query-ex-request]]
+==== Example request
+
+[[has-child-index-setup]]
+===== Index setup
+To use the `has_child` query, your index must include a <<parent-join,join>>
+field mapping. For example:
+
+[source,console]
+----
+PUT /my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "my-join-field": {
+        "type": "join",
+        "relations": {
+          "parent": "child"
+        }
+      }
+    }
+  }
+}
+
+----
+// TESTSETUP
+
+[[has-child-query-ex-query]]
+===== Example query
+
+[source,console]
+----
 GET /_search
 {
-    "query": {
-        "has_child" : {
-            "type" : "blog_tag",
-            "query" : {
-                "term" : {
-                    "tag" : "something"
-                }
-            }
-        }
+  "query": {
+    "has_child": {
+      "type": "child",
+      "query": {
+        "match_all": {}
+      },
+      "max_children": 10,
+      "min_children": 2,
+      "score_mode": "min"
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
 
-Note that the `has_child` is a slow query compared to other queries in the
-query dsl due to the fact that it performs a join. The performance degrades
-as the number of matching child documents pointing to unique parent documents
-increases. If you care about query performance you should not use this query.
-However if you do happen to use this query then use it as little as possible.
-Each `has_child` query that gets added to a search request can increase query
-time significantly.
+[[has-child-top-level-params]]
+==== Top-level parameters for `has_child`
 
-[float]
-==== Scoring capabilities
+`type`::
+(Required, string) Name of the child relationship mapped for the
+<<parent-join,join>> field.
 
-The `has_child` also has scoring support. The
-supported score modes are `min`, `max`, `sum`, `avg` or `none`. The default is
-`none` and yields the same behaviour as in previous versions. If the
-score mode is set to another value than `none`, the scores of all the
-matching child documents are aggregated into the associated parent
-documents. The score type can be specified with the `score_mode` field
-inside the `has_child` query:
+`query`::
+(Required, query object) Query you wish to run on child documents of the `type`
+field. If a child document matches the search, the query returns the parent
+document.
 
-[source,js]
---------------------------------------------------
+`ignore_unmapped`::
++
+--
+(Optional, Boolean) Indicates whether to ignore an unmapped `type` and not
+return any documents instead of an error. Defaults to `false`.
+
+If `false`, {es} returns an error if the `type` is unmapped.
+
+You can use this parameter to query multiple indices that may not contain the
+`type`.
+--
+
+`max_children`::
+(Optional, integer) Maximum number of child documents that match the `query`
+allowed for a returned parent document. If the parent document exceeds this
+limit, it is excluded from the search results.
+
+`min_children`::
+(Optional, integer) Minimum number of child documents that match the `query`
+required to match the query for a returned parent document. If the parent
+document does not meet this limit, it is excluded from the search results.
+
+`score_mode`::
++
+--
+(Optional, string) Indicates how scores for matching child documents affect the
+root parent document's <<relevance-scores,relevance score>>. Valid values
+are:
+
+`none` (Default)::
+Do not use the relevance scores of matching child documents. The query assigns
+parent documents a score of `0`.
+
+`avg`::
+Use the mean relevance score of all matching child documents.
+
+`max`::
+Uses the highest relevance score of all matching child documents.
+
+`min`::
+Uses the lowest relevance score of all matching child documents.
+
+`sum`::
+Add together the relevance scores of all matching child documents.
+--
+
+[[has-child-query-notes]]
+==== Notes
+
+[[has-child-query-performance]]
+===== Sorting
+You cannot sort the results of a `has_child` query using standard
+<<sort-search-results,sort options>>.
+
+If you need to sort returned documents by a field in their child documents, use
+a `function_score` query and sort by `_score`. For example, the following query
+sorts returned documents by the `click_count` field of their child documents.
+
+[source,console]
+----
 GET /_search
 {
-    "query": {
-        "has_child" : {
-            "type" : "blog_tag",
-            "score_mode" : "min",
-            "query" : {
-                "term" : {
-                    "tag" : "something"
-                }
-            }
+  "query": {
+    "has_child": {
+      "type": "child",
+      "query": {
+        "function_score": {
+          "script_score": {
+            "script": "_score * doc['click_count'].value"
+          }
         }
+      },
+      "score_mode": "max"
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
-
-[float]
-==== Min/Max Children
-
-The `has_child` query allows you to specify that a minimum and/or maximum
-number of children are required to match for the parent doc to be considered
-a match:
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "has_child" : {
-            "type" : "blog_tag",
-            "score_mode" : "min",
-            "min_children": 2, <1>
-            "max_children": 10, <1>
-            "query" : {
-                "term" : {
-                    "tag" : "something"
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-<1> Both `min_children` and `max_children` are optional.
-
-The  `min_children` and `max_children` parameters can be combined with
-the `score_mode` parameter.
-
-[float]
-==== Ignore Unmapped
-
-When set to `true` the `ignore_unmapped` option will ignore an unmapped `type`
-and will not match any documents for this query. This can be useful when
-querying multiple indexes which might have different mappings. When set to
-`false` (the default value) the query will throw an exception if the `type`
-is not mapped.
-
-[float]
-==== Sorting
-
-Parent documents can't be sorted by fields in matching child documents via the
-regular sort options. If you need to sort parent document by field in the child
-documents then you should use the `function_score` query and then just sort
-by `_score`.
-
-Sorting blogs by child documents' `click_count` field:
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "has_child" : {
-            "type" : "blog_tag",
-            "score_mode" : "max",
-            "query" : {
-                "function_score" : {
-                    "script_score": {
-                        "script": "_score * doc['click_count'].value"
-                    }
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
+----

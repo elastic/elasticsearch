@@ -67,6 +67,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
@@ -80,19 +81,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     public static class NodeRequest extends BaseNodeRequest {
         protected String requestName;
 
-        public NodeRequest() {
-            super();
-        }
-
-        public NodeRequest(NodesRequest request, String nodeId) {
-            super(nodeId);
-            requestName = request.requestName;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
             requestName = in.readString();
+        }
+
+        public NodeRequest(NodesRequest request) {
+            requestName = request.requestName;
         }
 
         @Override
@@ -115,19 +110,14 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
         private String requestName;
 
-        NodesRequest() {
-            super();
+        NodesRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
         }
 
         public NodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
         }
 
         @Override
@@ -157,13 +147,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         @Override
-        protected NodeRequest newNodeRequest(String nodeId, NodesRequest request) {
-            return new NodeRequest(request, nodeId);
+        protected NodeRequest newNodeRequest(NodesRequest request) {
+            return new NodeRequest(request);
         }
 
         @Override
-        protected NodeResponse newNodeResponse() {
-            return new NodeResponse();
+        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+            return new NodeResponse(in);
         }
     }
 
@@ -318,6 +308,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Check task counts using taskManager
         Map<Long, Task> localTasks = testNodes[0].transportService.getTaskManager().getTasks();
+        logger.info("local tasks [{}]", localTasks.values().stream()
+            .map(t -> Strings.toString(t.taskInfo(testNodes[0].getNodeId(), true)))
+            .collect(Collectors.joining(",")));
         assertEquals(2, localTasks.size()); // all node tasks + 1 coordinating task
         Task coordinatingTask = localTasks.get(Collections.min(localTasks.keySet()));
         Task subTask = localTasks.get(Collections.max(localTasks.keySet()));
@@ -470,17 +463,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         CountDownLatch responseLatch = new CountDownLatch(1);
-        Task task = startBlockingTestNodesAction(checkLatch, new ActionListener<NodesResponse>() {
-            @Override
-            public void onResponse(NodesResponse nodeResponses) {
-                responseLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                responseLatch.countDown();
-            }
-        });
+        Task task = startBlockingTestNodesAction(checkLatch, ActionListener.wrap(responseLatch::countDown));
         String actionName = "internal:testAction"; // only pick the main action
 
         // Try to cancel main task using action name

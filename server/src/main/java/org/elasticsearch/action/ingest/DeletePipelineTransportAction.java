@@ -22,7 +22,7 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -32,7 +32,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class DeletePipelineTransportAction extends TransportMasterNodeAction<DeletePipelineRequest, AcknowledgedResponse> {
+public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNodeAction<DeletePipelineRequest> {
 
     private final IngestService ingestService;
 
@@ -40,23 +40,13 @@ public class DeletePipelineTransportAction extends TransportMasterNodeAction<Del
     public DeletePipelineTransportAction(ThreadPool threadPool, IngestService ingestService, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeletePipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, indexNameExpressionResolver, DeletePipelineRequest::new);
+            threadPool, actionFilters, DeletePipelineRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.ingestService = ingestService;
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
-    }
-
-    @Override
     protected void masterOperation(DeletePipelineRequest request, ClusterState state,
-        ActionListener<AcknowledgedResponse> listener) throws Exception {
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
         ingestService.delete(request, listener);
     }
 

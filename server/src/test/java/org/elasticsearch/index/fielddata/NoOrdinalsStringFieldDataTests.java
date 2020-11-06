@@ -22,35 +22,38 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 /** Returns an implementation based on paged bytes which doesn't implement WithOrdinals in order to visit different paths in the code,
  *  eg. BytesRefFieldComparatorSource makes decisions based on whether the field data implements WithOrdinals. */
 public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTests {
 
-    public static IndexFieldData<AtomicFieldData> hideOrdinals(final IndexFieldData<?> in) {
-        return new IndexFieldData<AtomicFieldData>() {
-
-            @Override
-            public Index index() {
-                return in.index();
-            }
-
+    public static IndexFieldData<LeafFieldData> hideOrdinals(final IndexFieldData<?> in) {
+        return new IndexFieldData<LeafFieldData>() {
             @Override
             public String getFieldName() {
                 return in.getFieldName();
             }
 
             @Override
-            public AtomicFieldData load(LeafReaderContext context) {
+            public ValuesSourceType getValuesSourceType() {
+                return in.getValuesSourceType();
+            }
+
+            @Override
+            public LeafFieldData load(LeafReaderContext context) {
                 return in.load(context);
             }
 
             @Override
-            public AtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
+            public LeafFieldData loadDirect(LeafReaderContext context) throws Exception {
                 return in.loadDirect(context);
             }
 
@@ -61,8 +64,9 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
             }
 
             @Override
-            public void clear() {
-                in.clear();
+            public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
+                    SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+                throw new UnsupportedOperationException();
             }
 
         };
@@ -70,7 +74,7 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
 
     @SuppressWarnings("unchecked")
     @Override
-    public IndexFieldData<AtomicFieldData> getForField(String fieldName) {
+    public IndexFieldData<LeafFieldData> getForField(String fieldName) {
         return hideOrdinals(super.getForField(fieldName));
     }
 

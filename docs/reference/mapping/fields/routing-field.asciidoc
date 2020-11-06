@@ -11,16 +11,15 @@ The default value used for `_routing` is the document's <<mapping-id-field,`_id`
 Custom routing patterns can be implemented by specifying a custom `routing`
 value per document.  For instance:
 
-[source,js]
+[source,console]
 ------------------------------
-PUT my_index/_doc/1?routing=user1&refresh=true <1>
+PUT my-index-000001/_doc/1?routing=user1&refresh=true <1>
 {
   "title": "This is a document"
 }
 
-GET my_index/_doc/1?routing=user1 <2>
+GET my-index-000001/_doc/1?routing=user1 <2>
 ------------------------------
-// CONSOLE
 // TESTSETUP
 
 <1> This document uses `user1` as its routing value, instead of its ID.
@@ -30,9 +29,9 @@ GET my_index/_doc/1?routing=user1 <2>
 
 The value of the `_routing` field is accessible in queries:
 
-[source,js]
+[source,console]
 --------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "terms": {
@@ -41,9 +40,11 @@ GET my_index/_search
   }
 }
 --------------------------
-// CONSOLE
 
 <1> Querying on the `_routing` field (also see the <<query-dsl-ids-query,`ids` query>>)
+
+NOTE: Data streams do not support custom routing. Instead, target the
+appropriate backing index for the stream.
 
 ==== Searching with custom routing
 
@@ -51,9 +52,9 @@ Custom routing can reduce the impact of searches.  Instead of having to fan
 out a search request to all the shards in an index, the request can be sent to
 just the shard that matches the specific routing value (or values):
 
-[source,js]
+[source,console]
 ------------------------------
-GET my_index/_search?routing=user1,user2 <1>
+GET my-index-000001/_search?routing=user1,user2 <1>
 {
   "query": {
     "match": {
@@ -62,7 +63,6 @@ GET my_index/_search?routing=user1,user2 <1>
   }
 }
 ------------------------------
-// CONSOLE
 
 <1> This search request will only be executed on the shards associated with the `user1` and `user2` routing values.
 
@@ -77,9 +77,9 @@ Forgetting the routing value can lead to a document being indexed on more than
 one shard.  As a safeguard, the `_routing` field can be configured to make a
 custom `routing` value required for all CRUD operations:
 
-[source,js]
+[source,console]
 ------------------------------
-PUT my_index2
+PUT my-index-000002
 {
   "mappings": {
     "_routing": {
@@ -88,14 +88,14 @@ PUT my_index2
   }
 }
 
-PUT my_index2/_doc/1 <2>
+PUT my-index-000002/_doc/1 <2>
 {
   "text": "No routing value provided"
 }
 ------------------------------
-// CONSOLE
 // TEST[catch:bad_request]
-<1> Routing is required for `_doc` documents.
+
+<1> Routing is required for all documents.
 <2> This index request throws a `routing_missing_exception`.
 
 ==== Unique IDs with custom routing

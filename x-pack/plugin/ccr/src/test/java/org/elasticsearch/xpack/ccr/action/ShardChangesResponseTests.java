@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardChangesAction.Response> {
+public class ShardChangesResponseTests extends AbstractWireSerializingTestCase<ShardChangesAction.Response> {
 
     @Override
     protected ShardChangesAction.Response createTestInstance() {
         final long mappingVersion = randomNonNegativeLong();
         final long settingsVersion = randomNonNegativeLong();
+        final long aliasesVersion = randomNonNegativeLong();
         final long leaderGlobalCheckpoint = randomNonNegativeLong();
         final long leaderMaxSeqNo = randomLongBetween(leaderGlobalCheckpoint, Long.MAX_VALUE);
         final long maxSeqNoOfUpdatesOrDeletes = randomLongBetween(-1, Long.MAX_VALUE);
@@ -25,6 +27,7 @@ public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardC
         return new ShardChangesAction.Response(
             mappingVersion,
             settingsVersion,
+            aliasesVersion,
             leaderGlobalCheckpoint,
             leaderMaxSeqNo,
             maxSeqNoOfUpdatesOrDeletes,
@@ -34,8 +37,7 @@ public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardC
     }
 
     @Override
-    protected ShardChangesAction.Response createBlankInstance() {
-        return new ShardChangesAction.Response();
+    protected Writeable.Reader<ShardChangesAction.Response> instanceReader() {
+        return ShardChangesAction.Response::new;
     }
-
 }

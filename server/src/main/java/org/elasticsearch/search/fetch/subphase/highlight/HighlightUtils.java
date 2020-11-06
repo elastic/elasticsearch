@@ -18,16 +18,12 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -49,14 +45,12 @@ public final class HighlightUtils {
     /**
      * Load field values for highlighting.
      */
-    public static List<Object> loadFieldValues(SearchContextHighlight.Field field,
-                                               MappedFieldType fieldType,
-                                               SearchContext searchContext,
-                                               FetchSubPhase.HitContext hitContext) throws IOException {
+    public static List<Object> loadFieldValues(MappedFieldType fieldType,
+                                               FetchSubPhase.HitContext hitContext,
+                                               boolean forceSource) throws IOException {
         //percolator needs to always load from source, thus it sets the global force source to true
-        boolean forceSource = searchContext.highlight().forceSource(field);
         List<Object> textsToHighlight;
-        if (!forceSource && fieldType.stored()) {
+        if (forceSource == false && fieldType.isStored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
             textsToHighlight = fieldVisitor.fields().get(fieldType.name());
@@ -65,8 +59,7 @@ public final class HighlightUtils {
                 textsToHighlight = Collections.emptyList();
             }
         } else {
-            SourceLookup sourceLookup = searchContext.lookup().source();
-            sourceLookup.setSegmentAndDocument(hitContext.readerContext(), hitContext.docId());
+            SourceLookup sourceLookup = hitContext.sourceLookup();
             textsToHighlight = sourceLookup.extractRawValues(fieldType.name());
         }
         assert textsToHighlight != null;
@@ -77,14 +70,5 @@ public final class HighlightUtils {
         public static final Encoder DEFAULT = new DefaultEncoder();
         public static final Encoder HTML = new SimpleHTMLEncoder();
     }
-    
-    static Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type) {
-        if (type instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper.KeywordFieldType keywordFieldType = (KeywordFieldMapper.KeywordFieldType) type;
-            if (keywordFieldType.normalizer() != null) {
-                return  keywordFieldType.normalizer();
-            }
-        }
-        return docMapper.mappers().indexAnalyzer();
-    }    
+
 }

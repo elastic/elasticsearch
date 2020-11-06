@@ -19,14 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -38,6 +38,8 @@ import java.io.IOException;
 
 public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMappingsRequest, GetMappingsResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportGetMappingsAction.class);
+
     private final IndicesService indicesService;
 
     @Inject
@@ -45,25 +47,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
                                       ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService) {
         super(GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetMappingsRequest::new,
-                indexNameExpressionResolver);
+                indexNameExpressionResolver, GetMappingsResponse::new);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        // very lightweight operation, no need to fork
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(GetMappingsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNames(state, request));
-    }
-
-    @Override
-    protected GetMappingsResponse newResponse() {
-        return new GetMappingsResponse();
     }
 
     @Override
@@ -71,8 +56,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
                                      final ActionListener<GetMappingsResponse> listener) {
         logger.trace("serving getMapping request based on version {}", state.version());
         try {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result =
-                    state.metaData().findMappings(concreteIndices, request.types(), indicesService.getFieldFilter());
+            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> result =
+                    state.metadata().findMappings(concreteIndices, request.types(), indicesService.getFieldFilter());
             listener.onResponse(new GetMappingsResponse(result));
         } catch (IOException e) {
             listener.onFailure(e);

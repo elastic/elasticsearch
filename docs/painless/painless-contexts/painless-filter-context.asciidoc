@@ -41,25 +41,24 @@ Defining cost as a script parameter enables the cost to be configured
 in the script query request. For example, the following request finds
 all available theatre seats for evening performances that are under $18.
 
-[source,js]
+[source,console]
 ----
-GET evening/_search
+GET seats/_search
 {
-    "query": {
-        "bool" : {
-            "filter" : {
-                "script" : {
-                    "script" : {
-                        "source" : "doc['sold'].value == false && doc['cost'].value < params.cost",
-                        "params" : {
-                            "cost" : 18
-                        }
-                    }
-                }
+  "query": {
+    "bool": {
+      "filter": {
+        "script": {
+          "script": {
+            "source": "doc['sold'].value == false && doc['cost'].value < params.cost",
+            "params": {
+              "cost": 18
             }
+          }
         }
+      }
     }
+  }
 }
 ----
-// CONSOLE
 // TEST[skip: requires setup from other pages]

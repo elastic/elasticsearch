@@ -23,6 +23,14 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
     private boolean includeStats;
 
     public WatcherStatsRequest() {
+        super((String[]) null);
+    }
+
+    public WatcherStatsRequest(StreamInput in) throws IOException {
+        super(in);
+        includeCurrentWatches = in.readBoolean();
+        includeQueuedWatches = in.readBoolean();
+        includeStats = in.readBoolean();
     }
 
     public boolean includeCurrentWatches() {
@@ -55,14 +63,6 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        includeCurrentWatches = in.readBoolean();
-        includeQueuedWatches = in.readBoolean();
-        includeStats = in.readBoolean();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(includeCurrentWatches);
@@ -81,10 +81,14 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
         private boolean includeQueuedWatches;
         private boolean includeStats;
 
-        public Node() {}
+        public Node(StreamInput in) throws IOException {
+            super(in);
+            includeCurrentWatches = in.readBoolean();
+            includeQueuedWatches = in.readBoolean();
+            includeStats = in.readBoolean();
+        }
 
-        public Node(WatcherStatsRequest request, String nodeId) {
-            super(nodeId);
+        public Node(WatcherStatsRequest request) {
             includeCurrentWatches = request.includeCurrentWatches();
             includeQueuedWatches = request.includeQueuedWatches();
             includeStats = request.includeStats();
@@ -100,14 +104,6 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
 
         public boolean includeStats() {
             return includeStats;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            includeCurrentWatches = in.readBoolean();
-            includeQueuedWatches = in.readBoolean();
-            includeStats = in.readBoolean();
         }
 
         @Override

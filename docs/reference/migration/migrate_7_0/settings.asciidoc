@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_70_settings_changes]]
 === Settings changes
 
@@ -9,20 +9,21 @@
 
 // end::notable-breaking-changes[]
 
-[float]
+[discrete]
+[[default-node-name-now-hostname]]
 ==== The default for `node.name` is now the hostname
 
 `node.name` now defaults to the hostname at the time when Elasticsearch
 is started. Previously the default node name was the first eight characters
 of the node id. It can still be configured explicitly in `elasticsearch.yml`.
 
-[float]
+[discrete]
 ==== Percolator
 
 * The deprecated `index.percolator.map_unmapped_fields_as_string` setting has been removed in favour of
   the `index.percolator.map_unmapped_fields_as_text` setting.
 
-[float]
+[discrete]
 ==== Index thread pool
 
 * Internally, single-document index/delete/update requests are executed as bulk
@@ -31,7 +32,7 @@ of the node id. It can still be configured explicitly in `elasticsearch.yml`.
   longer needed and has been removed. As such, the  settings
   `thread_pool.index.size` and `thread_pool.index.queue_size` have been removed.
 
-[float]
+[discrete]
 [[write-thread-pool-fallback]]
 ==== Write thread pool fallback
 
@@ -43,12 +44,12 @@ of the node id. It can still be configured explicitly in `elasticsearch.yml`.
   available to keep the display output in APIs as `bulk` instead of `write`.
   These fallback settings and this system property have been removed.
 
-[float]
+[discrete]
 ==== Disabling memory-mapping
 
 * The setting `node.store.allow_mmapfs` has been renamed to `node.store.allow_mmap`.
 
-[float]
+[discrete]
 [[remove-http-enabled]]
 ==== Http enabled setting removed
 
@@ -56,7 +57,7 @@ of the node id. It can still be configured explicitly in `elasticsearch.yml`.
 use of the transport client. This setting has been removed, as the transport client
 will be removed in the future, thus requiring HTTP to always be enabled.
 
-[float]
+[discrete]
 [[remove-http-pipelining-setting]]
 ==== Http pipelining setting removed
 
@@ -65,7 +66,7 @@ This setting has been removed, as disabling http pipelining support on the serve
 provided little value. The setting `http.pipelining.max_events` can still be used to
 limit the number of pipelined requests in-flight.
 
-[float]
+[discrete]
 ==== Cross-cluster search settings renamed
 
 The cross-cluster search remote cluster connection infrastructure is also used
@@ -79,7 +80,7 @@ in the cluster state, or set on dynamic settings updates, we will automatically
 upgrade the setting from `search.remote.*` to `cluster.remote.*`. The fallback
 settings will be removed in 8.0.0.
 
-[float]
+[discrete]
 [[audit-logfile-local-node-info]]
 ==== Audit logfile local node info
 
@@ -99,7 +100,7 @@ Moreover, `xpack.security.audit.logfile.emit_node_name` has changed its default
 from `true` to `false`. All other settings mentioned before, have kept their
 default value of `false`.
 
-[float]
+[discrete]
 [[include-realm-type-in-setting]]
 ==== Security realms settings
 
@@ -129,7 +130,7 @@ Any realm specific secure settings that have been stored in the elasticsearch
 keystore (such as ldap bind passwords, or passwords for ssl keys) must be updated
 in a similar way.
 
-[float]
+[discrete]
 [[tls-setting-fallback]]
 ==== TLS/SSL settings
 
@@ -139,20 +140,77 @@ fallback to a default configuration when using TLS. Each component (realm, trans
 http client, etc) must now be configured with their own settings for TLS if it is being
 used.
 
-[float]
+[discrete]
 [[tls-v1-removed]]
 ==== TLS v1.0 disabled
 
 TLS version 1.0 is now disabled by default as it suffers from
 https://www.owasp.org/index.php/Transport_Layer_Protection_Cheat_Sheet#Rule_-_Only_Support_Strong_Protocols[known security issues].
 The default protocols are now TLSv1.3 (if supported), TLSv1.2 and TLSv1.1.
-You can enable TLS v1.0 by configuring the relevant `ssl.supported_protocols` setting to include `"TLSv1"`, for example:
+
+You can enable TLS v1.0 by configuring the relevant `ssl.supported_protocols`
+setting to include `"TLSv1"`.
+Depending on your local configuration and the TLS protocols that are in use
+on your network, you may need to enable TLS v1.0 support in any or all of the
+following places:
+
+`xpack.security.http.ssl.supported_protocols`::
+For incoming HTTP connections to Elasticsearch's HTTP (Rest) interface.
+If there are clients that connect to {es} and do not support newer TLS versions,
+you must update this setting.
+
+`xpack.http.ssl.supported_protocols`::
+For outgoing HTTP connections from {watcher}.
+If you have watches that connect to external HTTP servers and do not support
+newer TLS versions, you must update this setting.
+
+`xpack.security.authc.realms.ldap.{name}.ssl.supported_protocols`::
+For outgoing LDAP connections from {es} {security-features}.
+If you have an LDAP realm enabled and the LDAP directory to which that realm
+connects does not support newer TLS versions, you must update this setting.
+
+`xpack.security.authc.realms.active_directory.{name}.ssl.supported_protocols`::
+For outgoing Active Directory (LDAP) connections from {es} {security-features}.
+If you have an AD realm enabled and the directory server to which that realm
+connects does not support newer TLS versions, you must update this setting.
+
+`xpack.security.authc.realms.saml.{name}.ssl.supported_protocols`::
+For outgoing HTTP connections to retrieve SAML metadata.
+If you have a SAML realm enabled and the realm is configured to retrieve
+metadata over HTTPS (that is, `idp.metadata.path` is a URL starting with
+`https://`) and the web server which hosts the metadata does not support newer
+TLS versions, you must update this setting.
+
+`xpack.security.authc.realms.oidc.{name}.ssl.supported_protocols`::
+For outgoing HTTP connections to an OpenId Connect Provider.
+If you have an OpenId Connect ("oidc") realm enabled and the realm is configured
+to connect to a remote OpenID Connect Provider which does not support newer TLS
+versions, you must update this setting.
+
+`xpack.monitoring.exporters.{name}.ssl.supported_protocols`::
+For remote monitoring data.
+If your monitoring data is exported to a remote monitoring cluster and that
+cluster is configured to only support TLSv1, you must update this setting.
+
+`reindex.ssl.supported_protocols`::
+For reindex from remote.
+If you reindex data from a remote {es} cluster which has SSL enabled on the
+`http` interface and that cluster is configured to only support TLSv1, you must
+update this setting.
+
+`xpack.security.transport.ssl.supported_protocols`::
+For incoming connections between {es} nodes. If you have specialized network
+equipment which inspects TLS packets between your nodes, and that equipment
+enforces TLSv1 you must update this setting.
+
+
+The following is an example that enables TLS v1.0 for incoming HTTP connections:
 [source,yaml]
 --------------------------------------------------
 xpack.security.http.ssl.supported_protocols: [ "TLSv1.3", "TLSv1.2", "TLSv1.1", "TLSv1" ]
 --------------------------------------------------
 
-[float]
+[discrete]
 [[trial-explicit-security]]
 ==== Security on Trial Licenses
 
@@ -168,7 +226,7 @@ This behaviour has been now removed, so security is only enabled if:
 * `xpack.security.enabled` is `true`; _or_
 * `xpack.security.enabled` is not set, and a gold or platinum license is installed.
 
-[float]
+[discrete]
 [[watcher-notifications-account-settings]]
 ==== Watcher notifications account settings
 
@@ -191,7 +249,7 @@ node's keystore, i.e., they are not to be specified via the cluster settings API
 - `xpack.notification.slack.account.<id>.url`, instead use
 `xpack.notification.slack.account.<id>.secure_url`
 
-[float]
+[discrete]
 [[remove-audit-index-output]]
 ==== Audit index output type removed
 
@@ -206,13 +264,13 @@ were allowed to continue as usual. The recommended replacement is the
 use of the `logfile` audit output type and using other components from the
 Elastic Stack to handle the indexing part.
 
-[float]
+[discrete]
 [[ingest-user-agent-ecs-always]]
 ==== Ingest User Agent processor defaults uses `ecs` output format
 https://github.com/elastic/ecs[ECS] format is now the default.
 The `ecs` setting for the user agent ingest processor now defaults to true.
 
-[float]
+[discrete]
 [[remove-action-master-force_local]]
 ==== Remove `action.master.force_local`
 
@@ -221,12 +279,12 @@ internally by the tribe node to force reads to local cluster state (instead of
 forwarding to a master, which tribe nodes did not have).  Since the tribe
 node was removed, this setting was removed too.
 
-[float]
+[discrete]
 ==== Enforce cluster-wide shard limit
 The cluster-wide shard limit is now enforced and not optional. The limit can
 still be adjusted as desired using the cluster settings API.
 
-[float]
+[discrete]
 ==== HTTP Max content length setting is no longer parsed leniently
 Previously, `http.max_content_length` would reset to `100mb` if the setting was
-`Integer.MAX_VALUE`.  This leniency has been removed.
+greater than `Integer.MAX_VALUE`.  This leniency has been removed.

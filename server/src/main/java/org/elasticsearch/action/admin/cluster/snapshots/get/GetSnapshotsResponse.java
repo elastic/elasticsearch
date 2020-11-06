@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -51,13 +51,15 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             (p, c) -> SnapshotInfo.SNAPSHOT_INFO_PARSER.apply(p, c).build(), new ParseField("snapshots"));
     }
 
-    private List<SnapshotInfo> snapshots = Collections.emptyList();
+    private final List<SnapshotInfo> snapshots;
 
-    GetSnapshotsResponse() {
+    public GetSnapshotsResponse(List<SnapshotInfo> snapshots) {
+        this.snapshots = Collections.unmodifiableList(snapshots);
     }
 
-    GetSnapshotsResponse(List<SnapshotInfo> snapshots) {
-        this.snapshots = Collections.unmodifiableList(snapshots);
+    GetSnapshotsResponse(StreamInput in) throws IOException {
+        super(in);
+        snapshots = Collections.unmodifiableList(in.readList(SnapshotInfo::new));
     }
 
     /**
@@ -70,23 +72,8 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        List<SnapshotInfo> builder = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            builder.add(new SnapshotInfo(in));
-        }
-        snapshots = Collections.unmodifiableList(builder);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(snapshots.size());
-        for (SnapshotInfo snapshotInfo : snapshots) {
-            snapshotInfo.writeTo(out);
-        }
+        out.writeList(snapshots);
     }
 
     @Override
@@ -116,5 +103,10 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     @Override
     public int hashCode() {
         return Objects.hash(snapshots);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

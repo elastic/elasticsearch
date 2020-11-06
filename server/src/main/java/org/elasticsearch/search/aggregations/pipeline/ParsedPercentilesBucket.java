@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.metrics.Percentiles;
 
 import java.io.IOException;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 public class ParsedPercentilesBucket extends ParsedPercentiles implements Percentiles {
 
@@ -57,6 +58,16 @@ public class ParsedPercentilesBucket extends ParsedPercentiles implements Percen
     }
 
     @Override
+    public double value(String name) {
+        return percentile(Double.parseDouble(name));
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return percentiles.keySet().stream().map(d -> d.toString()).collect(Collectors.toList());
+    }
+
+    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("values");
         for (Entry<Double, Double> percent : percentiles.entrySet()) {
@@ -73,7 +84,7 @@ public class ParsedPercentilesBucket extends ParsedPercentiles implements Percen
         return builder;
     }
 
-    private static ObjectParser<ParsedPercentilesBucket, Void> PARSER =
+    private static final ObjectParser<ParsedPercentilesBucket, Void> PARSER =
             new ObjectParser<>(ParsedPercentilesBucket.class.getSimpleName(), true, ParsedPercentilesBucket::new);
 
     static {

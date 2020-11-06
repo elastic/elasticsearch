@@ -25,6 +25,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -119,17 +120,19 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      * the collect will fail with an {@link IllegalStateException} if a document contains more than one value for the
      * field.
      *
-     * @param collapseField The sort field used to group
-     *                      documents.
-     * @param sort          The {@link Sort} used to sort the collapsed hits.
-     *                      The collapsing keeps only the top sorted document per collapsed key.
-     *                      This must be non-null, ie, if you want to groupSort by relevance
-     *                      use Sort.RELEVANCE.
-     * @param topN          How many top groups to keep.
+     * @param collapseField     The sort field used to group documents.
+     * @param collapseFieldType The {@link MappedFieldType} for this sort field.
+     * @param sort              The {@link Sort} used to sort the collapsed hits.
+     *                          The collapsing keeps only the top sorted document per collapsed key.
+     *                          This must be non-null, ie, if you want to groupSort by relevance
+     *                          use Sort.RELEVANCE.
+     * @param topN              How many top groups to keep.
      */
-    public static CollapsingTopDocsCollector<?> createNumeric(String collapseField, Sort sort,
+    public static CollapsingTopDocsCollector<?> createNumeric(String collapseField,
+                                                              MappedFieldType collapseFieldType,
+                                                              Sort sort,
                                                               int topN)  {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseField),
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseFieldType),
                 collapseField, sort, topN);
     }
 
@@ -139,16 +142,18 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      * the collect will fail with an {@link IllegalStateException} if a document contains more than one value for the
      * field.
      *
-     * @param collapseField The sort field used to group
-     *                      documents.
-     * @param sort          The {@link Sort} used to sort the collapsed hits. The collapsing keeps only the top sorted
-     *                      document per collapsed key.
-     *                      This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
-     * @param topN          How many top groups to keep.
+     * @param collapseField     The sort field used to group documents.
+     * @param collapseFieldType The {@link MappedFieldType} for this sort field.
+     * @param sort              The {@link Sort} used to sort the collapsed hits. The collapsing keeps only the top sorted
+     *                          document per collapsed key.
+     *                          This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
+     * @param topN              How many top groups to keep.
      */
-    public static CollapsingTopDocsCollector<?> createKeyword(String collapseField, Sort sort,
+    public static CollapsingTopDocsCollector<?> createKeyword(String collapseField,
+                                                              MappedFieldType collapseFieldType,
+                                                              Sort sort,
                                                               int topN)  {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseField),
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType),
                 collapseField, sort, topN);
     }
 }

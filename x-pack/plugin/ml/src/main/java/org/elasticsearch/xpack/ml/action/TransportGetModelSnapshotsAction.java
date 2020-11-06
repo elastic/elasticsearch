@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -22,6 +25,8 @@ import java.util.stream.Collectors;
 public class TransportGetModelSnapshotsAction extends HandledTransportAction<GetModelSnapshotsAction.Request,
         GetModelSnapshotsAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportGetModelSnapshotsAction.class);
+
     private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
 
@@ -36,10 +41,17 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
     @Override
     protected void doExecute(Task task, GetModelSnapshotsAction.Request request,
                              ActionListener<GetModelSnapshotsAction.Response> listener) {
-        logger.debug("Get model snapshots for job {} snapshot ID {}. from = {}, size = {}"
-                + " start = '{}', end='{}', sort={} descending={}",
-                request.getJobId(), request.getSnapshotId(), request.getPageParams().getFrom(), request.getPageParams().getSize(),
-                request.getStart(), request.getEnd(), request.getSort(), request.getDescOrder());
+        logger.debug(
+            () -> new ParameterizedMessage(
+                "Get model snapshots for job {} snapshot ID {}. from = {}, size = {} start = '{}', end='{}', sort={} descending={}",
+                request.getJobId(),
+                request.getSnapshotId(),
+                request.getPageParams().getFrom(),
+                request.getPageParams().getSize(),
+                request.getStart(),
+                request.getEnd(),
+                request.getSort(),
+                request.getDescOrder()));
 
         jobManager.jobExists(request.getJobId(), ActionListener.wrap(
                 ok -> {

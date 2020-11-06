@@ -1,24 +1,32 @@
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+import org.elasticsearch.gradle.util.GradleUtils
+
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-    testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
-integTestRunner {
-    /* To support taking index snapshots, we have to set path.repo setting */
-    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+// let the javaRestTest see the classpath of main
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", javaRestTest)
+
+
+File repoDir = file("$buildDir/testclusters/repo")
+
+javaRestTest {
+  /* To support taking index snapshots, we have to set path.repo setting */
+  systemProperty 'tests.path.repo', repoDir
 }
 
-integTestCluster {
-    numNodes = 4
-    clusterName = 'ilm'
-    
-    setting 'xpack.ilm.enabled', 'true'
-    setting 'xpack.security.enabled', 'false'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'indices.lifecycle.poll_interval', '1000ms'
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 4
+
+  setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'indices.lifecycle.poll_interval', '1000ms'
+  setting 'logger.org.elasticsearch.xpack.core.ilm', 'TRACE'
+  setting 'logger.org.elasticsearch.xpack.ilm', 'TRACE'
 }

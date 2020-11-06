@@ -6,9 +6,21 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * Empty response for a {@link SetEnabledRequest}
  */
 public class SetEnabledResponse extends ActionResponse {
+
+    public SetEnabledResponse() {}
+
+    public SetEnabledResponse(StreamInput in) throws IOException {
+        super(in);
+    }
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {}
 }

@@ -18,6 +18,7 @@
  */
 
 package org.elasticsearch.rest;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
@@ -70,10 +70,6 @@ public abstract class BaseRestHandler implements RestHandler {
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
     public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
-    protected BaseRestHandler(Settings settings) {
-        // TODO drop settings from ctor
-    }
-
     public final long getUsageCount() {
         return usageCount.sum();
     }
@@ -85,6 +81,12 @@ public abstract class BaseRestHandler implements RestHandler {
      *         {@link RestNodesUsageAction}.
      */
     public abstract String getName();
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public abstract List<Route> routes();
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
@@ -195,4 +197,57 @@ public abstract class BaseRestHandler implements RestHandler {
         return Collections.emptySet();
     }
 
+    public static class Wrapper extends BaseRestHandler {
+
+        protected final BaseRestHandler delegate;
+
+        public Wrapper(BaseRestHandler delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String getName() {
+            return delegate.getName();
+        }
+
+        @Override
+        public List<Route> routes() {
+            return delegate.routes();
+        }
+
+        @Override
+        public List<DeprecatedRoute> deprecatedRoutes() {
+            return delegate.deprecatedRoutes();
+        }
+
+        @Override
+        public List<ReplacedRoute> replacedRoutes() {
+            return delegate.replacedRoutes();
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+            return delegate.prepareRequest(request, client);
+        }
+
+        @Override
+        protected Set<String> responseParams() {
+            return delegate.responseParams();
+        }
+
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return delegate.canTripCircuitBreaker();
+        }
+
+        @Override
+        public boolean supportsContentStream() {
+            return delegate.supportsContentStream();
+        }
+
+        @Override
+        public boolean allowsUnsafeBuffers() {
+            return delegate.allowsUnsafeBuffers();
+        }
+    }
 }

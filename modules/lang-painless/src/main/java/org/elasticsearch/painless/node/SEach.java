@@ -19,102 +19,57 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a for-each loop and defers to subnodes depending on type.
  */
 public class SEach extends AStatement {
 
-    private final String type;
-    private final String name;
-    private AExpression expression;
-    private final SBlock block;
+    private final String canonicalTypeName;
+    private final String symbol;
+    private final AExpression iterableNode;
+    private final SBlock blockNode;
 
-    private AStatement sub = null;
+    public SEach(int identifier, Location location, String canonicalTypeName, String symbol, AExpression iterableNode, SBlock blockNode) {
+        super(identifier, location);
 
-    public SEach(Location location, String type, String name, AExpression expression, SBlock block) {
-        super(location);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.iterableNode = Objects.requireNonNull(iterableNode);
+        this.blockNode = blockNode;
+    }
 
-        this.type = Objects.requireNonNull(type);
-        this.name = Objects.requireNonNull(name);
-        this.expression = Objects.requireNonNull(expression);
-        this.block = block;
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public AExpression getIterableNode() {
+        return iterableNode;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
-
-        expression.extractVariables(variables);
-
-        if (block != null) {
-            block.extractVariables(variables);
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitEach(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        expression.analyze(locals);
-        expression.expected = expression.actual;
-        expression = expression.cast(locals);
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        iterableNode.visit(userTreeVisitor, scope);
 
-        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
-
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+        if (blockNode != null) {
+            blockNode.visit(userTreeVisitor, scope);
         }
-
-        locals = Locals.newLocalScope(locals);
-        Variable variable = locals.addVariable(location, clazz, name, true);
-
-        if (expression.actual.isArray()) {
-            sub = new SSubEachArray(location, variable, expression, block);
-        } else if (expression.actual == def.class || Iterable.class.isAssignableFrom(expression.actual)) {
-            sub = new SSubEachIterable(location, variable, expression, block);
-        } else {
-            throw createError(new IllegalArgumentException("Illegal for each type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
-        }
-
-        sub.analyze(locals);
-
-        if (block == null) {
-            throw createError(new IllegalArgumentException("Extraneous for each loop."));
-        }
-
-        block.beginLoop = true;
-        block.inLoop = true;
-        block.analyze(locals);
-        block.statementCount = Math.max(1, block.statementCount);
-
-        if (block.loopEscape && !block.anyContinue) {
-            throw createError(new IllegalArgumentException("Extraneous for loop."));
-        }
-
-        statementCount = 1;
-
-        if (locals.hasVariable(Locals.LOOP)) {
-            sub.loopCounter = locals.getVariable(location, Locals.LOOP);
-        }
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        sub.write(writer, globals);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type, name, expression, block);
     }
 }

@@ -24,6 +24,10 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.OriginalIndicesTests;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,14 +40,14 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalAggregationsTests;
-import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Base64;
-import java.util.List;
 
 import static java.util.Collections.emptyList;
 
@@ -58,7 +62,11 @@ public class QuerySearchResultTests extends ESTestCase {
 
     private static QuerySearchResult createTestInstance() throws Exception {
         ShardId shardId = new ShardId("index", "uuid", randomInt());
-        QuerySearchResult result = new QuerySearchResult(randomLong(), new SearchShardTarget("node", shardId, null, OriginalIndices.NONE));
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
+        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(OriginalIndicesTests.randomOriginalIndices(), searchRequest,
+            shardId, 1, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, randomNonNegativeLong(), null, new String[0]);
+        QuerySearchResult result = new QuerySearchResult(new ShardSearchContextId(UUIDs.base64UUID(), randomLong()),
+            new SearchShardTarget("node", shardId, null, OriginalIndices.NONE), shardSearchRequest);
         if (randomBoolean()) {
             result.terminatedEarly(randomBoolean());
         }
@@ -77,9 +85,8 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
-        Version version = VersionUtils.randomVersion(random());
-        QuerySearchResult deserialized = copyStreamable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, version);
-        assertEquals(querySearchResult.getRequestId(), deserialized.getRequestId());
+        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new);
+        assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
         assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
         assertEquals(querySearchResult.topDocs().topDocs.totalHits, deserialized.topDocs().topDocs.totalHits);
@@ -87,19 +94,9 @@ public class QuerySearchResultTests extends ESTestCase {
         assertEquals(querySearchResult.size(), deserialized.size());
         assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
         if (deserialized.hasAggs()) {
-            Aggregations aggs = querySearchResult.consumeAggs();
-            Aggregations deserializedAggs = deserialized.consumeAggs();
+            Aggregations aggs = querySearchResult.consumeAggs().expand();
+            Aggregations deserializedAggs = deserialized.consumeAggs().expand();
             assertEquals(aggs.asList(), deserializedAggs.asList());
-            List<SiblingPipelineAggregator> pipelineAggs = ((InternalAggregations) aggs).getTopLevelPipelineAggregators();
-            List<SiblingPipelineAggregator> deserializedPipelineAggs =
-                ((InternalAggregations) deserializedAggs).getTopLevelPipelineAggregators();
-            assertEquals(pipelineAggs.size(), deserializedPipelineAggs.size());
-            for (int i = 0; i < pipelineAggs.size(); i++) {
-                SiblingPipelineAggregator pipelineAgg = pipelineAggs.get(i);
-                SiblingPipelineAggregator deserializedPipelineAgg = deserializedPipelineAggs.get(i);
-                assertArrayEquals(pipelineAgg.bucketsPaths(), deserializedPipelineAgg.bucketsPaths());
-                assertEquals(pipelineAgg.name(), deserializedPipelineAgg.name());
-            }
         }
         assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
     }
@@ -121,14 +118,19 @@ public class QuerySearchResultTests extends ESTestCase {
         byte[] bytes = Base64.getDecoder().decode(message);
         try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
             in.setVersion(Version.V_7_0_0);
-            QuerySearchResult querySearchResult = new QuerySearchResult();
-            querySearchResult.readFrom(in);
-            assertEquals(100, querySearchResult.getRequestId());
+            QuerySearchResult querySearchResult = new QuerySearchResult(in);
+            assertEquals(100, querySearchResult.getContextId().getId());
             assertTrue(querySearchResult.hasAggs());
-            InternalAggregations aggs = (InternalAggregations)querySearchResult.consumeAggs();
+            InternalAggregations aggs = querySearchResult.consumeAggs().expand();
             assertEquals(1, aggs.asList().size());
-            //top-level pipeline aggs are retrieved as part of InternalAggregations although they were serialized separately
-            assertEquals(1, aggs.getTopLevelPipelineAggregators().size());
+            // We deserialize and throw away top level pipeline aggs
         }
+    }
+
+    public void testNullResponse() throws Exception {
+        QuerySearchResult querySearchResult = QuerySearchResult.nullInstance();
+        QuerySearchResult deserialized =
+            copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, Version.CURRENT);
+        assertEquals(querySearchResult.isNull(), deserialized.isNull());
     }
 }

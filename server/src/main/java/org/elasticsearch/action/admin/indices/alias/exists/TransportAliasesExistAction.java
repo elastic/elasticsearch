@@ -38,13 +38,7 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadAction<G
                                        ThreadPool threadPool, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
         super(AliasesExistAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        // very lightweight operation, no need to fork
-        return ThreadPool.Names.SAME;
+            indexNameExpressionResolver, AliasesExistResponse::new, ThreadPool.Names.SAME);
     }
 
     @Override
@@ -54,14 +48,9 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadAction<G
     }
 
     @Override
-    protected AliasesExistResponse newResponse() {
-        return new AliasesExistResponse();
-    }
-
-    @Override
     protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<AliasesExistResponse> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        boolean result = state.metaData().hasAliases(request.aliases(), concreteIndices);
+        boolean result = state.metadata().hasAliases(request.aliases(), concreteIndices);
         listener.onResponse(new AliasesExistResponse(result));
     }
 

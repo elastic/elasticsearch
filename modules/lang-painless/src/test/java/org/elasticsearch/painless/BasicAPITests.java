@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class BasicAPITests extends ScriptTestCase {
 
@@ -138,5 +139,31 @@ public class BasicAPITests extends ScriptTestCase {
     public void testStatic() {
         assertEquals(10, exec("staticAddIntsTest(7, 3)"));
         assertEquals(15.5f, exec("staticAddFloatsTest(6.5f, 9.0f)"));
+    }
+
+    // TODO: remove this when the transition from Joda to Java datetimes is completed
+    public void testJCZDTToZonedDateTime() {
+        assertEquals(0L, exec(
+                "Instant instant = Instant.ofEpochMilli(434931330000L);" +
+                "JodaCompatibleZonedDateTime d = new JodaCompatibleZonedDateTime(instant, ZoneId.of('Z'));" +
+                "ZonedDateTime t = d;" +
+                "return ChronoUnit.MILLIS.between(d, t);"
+        ));
+    }
+
+    public void testRandomUUID() {
+        assertTrue(
+                Pattern.compile("\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}").matcher(
+                    (String)exec(
+                            "UUID a = UUID.randomUUID();" +
+                            "String s = a.toString(); " +
+                            "UUID b = UUID.fromString(s);" +
+                            "if (a.equals(b) == false) {" +
+                            "   throw new RuntimeException('uuids did not match');" +
+                            "}" +
+                            "return s;"
+                    )
+                ).matches()
+        );
     }
 }

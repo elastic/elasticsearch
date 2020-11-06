@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.collector.ml;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -14,9 +15,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizationStatus;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
@@ -85,7 +89,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                                                              "_host_address",
                                                              new TransportAddress(TransportAddress.META_ADDRESS, 9300),
                                                              singletonMap("attr", "value"),
-                                                             singleton(DiscoveryNode.Role.MASTER),
+                                                             singleton(DiscoveryNodeRole.MASTER_ROLE),
                                                              Version.V_6_0_0_beta1);
 
         final ModelSizeStats modelStats = new ModelSizeStats.Builder("_model")
@@ -95,14 +99,23 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                                                             .setTotalPartitionFieldCount(103L)
                                                             .setBucketAllocationFailuresCount(104L)
                                                             .setMemoryStatus(ModelSizeStats.MemoryStatus.OK)
+                                                            .setCategorizedDocCount(42)
+                                                            .setTotalCategoryCount(8)
+                                                            .setFrequentCategoryCount(4)
+                                                            .setRareCategoryCount(2)
+                                                            .setDeadCategoryCount(1)
+                                                            .setFailedCategoryCount(3)
+                                                            .setCategorizationStatus(CategorizationStatus.WARN)
                                                             .setTimestamp(date1)
                                                             .setLogTime(date2)
                                                             .build();
 
         final DataCounts dataCounts = new DataCounts("_job_id", 0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, date3, date4, date5, date6, date7);
         final ForecastStats forecastStats = new ForecastStats();
-        final JobStats jobStats = new JobStats("_job", dataCounts, modelStats, forecastStats, JobState.OPENED, discoveryNode,
-                "_explanation", time);
+        final TimingStats timingStats = new TimingStats(
+            "_job_id", 100, 10.0, 30.0, 20.0, 25.0, new ExponentialAverageCalculationContext(50.0, null, null));
+        final JobStats jobStats = new JobStats(
+            "_job", dataCounts, modelStats, forecastStats, JobState.OPENED, discoveryNode, "_explanation", time, timingStats);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
         final JobStatsMonitoringDoc document = new JobStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, jobStats);
@@ -151,6 +164,13 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                          + "\"total_partition_field_count\":103,"
                          + "\"bucket_allocation_failures_count\":104,"
                          + "\"memory_status\":\"ok\","
+                         + "\"categorized_doc_count\":42,"
+                         + "\"total_category_count\":8,"
+                         + "\"frequent_category_count\":4,"
+                         + "\"rare_category_count\":2,"
+                         + "\"dead_category_count\":1,"
+                         + "\"failed_category_count\":3,"
+                         + "\"categorization_status\":\"warn\","
                          + "\"log_time\":1483315322002,"
                          + "\"timestamp\":1483228861001"
                         + "},"
@@ -168,8 +188,18 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                           + "}"
                         + "},"
                        + "\"assignment_explanation\":\"_explanation\","
-                       + "\"open_time\":\"13h\""
-                      + "}"
+                       + "\"open_time\":\"13h\","
+                       + "\"timing_stats\":{"
+                        + "\"job_id\":\"_job_id\","
+                        + "\"bucket_count\":100,"
+                        + "\"total_bucket_processing_time_ms\":2000.0,"
+                        + "\"minimum_bucket_processing_time_ms\":10.0,"
+                        + "\"maximum_bucket_processing_time_ms\":30.0,"
+                        + "\"average_bucket_processing_time_ms\":20.0,"
+                        + "\"exponential_average_bucket_processing_time_ms\":25.0,"
+                        + "\"exponential_average_bucket_processing_time_per_hour_ms\":50.0"
+                       + "}"
+                     + "}"
                     + "}", xContent.utf8ToString());
     }
 }

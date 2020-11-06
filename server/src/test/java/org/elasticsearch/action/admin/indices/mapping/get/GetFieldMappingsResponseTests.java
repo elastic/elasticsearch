@@ -19,15 +19,16 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,22 +39,21 @@ import java.util.function.Predicate;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTestCase<GetFieldMappingsResponse> {
+public class GetFieldMappingsResponseTests extends AbstractSerializingTestCase<GetFieldMappingsResponse> {
 
     public void testManualSerialization() throws IOException {
-        Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = new HashMap<>();
-        FieldMappingMetaData fieldMappingMetaData = new FieldMappingMetaData("my field", new BytesArray("{}"));
-        mappings.put("index", Collections.singletonMap("type", Collections.singletonMap("field", fieldMappingMetaData)));
+        Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings = new HashMap<>();
+        FieldMappingMetadata fieldMappingMetadata = new FieldMappingMetadata("my field", new BytesArray("{}"));
+        mappings.put("index", Collections.singletonMap("type", Collections.singletonMap("field", fieldMappingMetadata)));
         GetFieldMappingsResponse response = new GetFieldMappingsResponse(mappings);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
-            GetFieldMappingsResponse serialized = new GetFieldMappingsResponse();
             try (StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes)) {
-                serialized.readFrom(in);
-                FieldMappingMetaData metaData = serialized.fieldMappings("index", "type", "field");
-                assertNotNull(metaData);
-                assertEquals(new BytesArray("{}"), metaData.getSource());
+                GetFieldMappingsResponse serialized = new GetFieldMappingsResponse(in);
+                FieldMappingMetadata metadata = serialized.fieldMappings("index", "type", "field");
+                assertNotNull(metadata);
+                assertEquals(new BytesArray("{}"), metadata.getSource());
             }
         }
     }
@@ -82,21 +82,21 @@ public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTes
 
         final GetFieldMappingsResponse response = GetFieldMappingsResponse.fromXContent(parser);
 
-        FieldMappingMetaData fieldMappingMetaData =
-            new FieldMappingMetaData("my field", new BytesArray("{\"type\":\"keyword\"}"));
-        Map<String, FieldMappingMetaData> fieldMapping = new HashMap<>();
-        fieldMapping.put("field0", fieldMappingMetaData);
-        fieldMapping.put("field1", fieldMappingMetaData);
+        FieldMappingMetadata fieldMappingMetadata =
+            new FieldMappingMetadata("my field", new BytesArray("{\"type\":\"keyword\"}"));
+        Map<String, FieldMappingMetadata> fieldMapping = new HashMap<>();
+        fieldMapping.put("field0", fieldMappingMetadata);
+        fieldMapping.put("field1", fieldMappingMetadata);
 
-        Map<String, Map<String, FieldMappingMetaData>> typeMapping = new HashMap<>();
+        Map<String, Map<String, FieldMappingMetadata>> typeMapping = new HashMap<>();
         typeMapping.put("doctype0", fieldMapping);
         typeMapping.put("doctype1", fieldMapping);
 
-        Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = new HashMap<>();
+        Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings = new HashMap<>();
         mappings.put("index0", typeMapping);
         mappings.put("index1", typeMapping);
 
-        final Map<String, Map<String, Map<String, FieldMappingMetaData>>> responseMappings = response.mappings();
+        final Map<String, Map<String, Map<String, FieldMappingMetadata>>> responseMappings = response.mappings();
         assertThat(responseMappings, equalTo(mappings));
     }
 
@@ -106,13 +106,13 @@ public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTes
     }
 
     @Override
-    protected GetFieldMappingsResponse createBlankInstance() {
-        return new GetFieldMappingsResponse();
+    protected GetFieldMappingsResponse createTestInstance() {
+        return new GetFieldMappingsResponse(randomMapping());
     }
 
     @Override
-    protected GetFieldMappingsResponse createTestInstance() {
-        return new GetFieldMappingsResponse(randomMapping());
+    protected Writeable.Reader<GetFieldMappingsResponse> instanceReader() {
+        return GetFieldMappingsResponse::new;
     }
 
     @Override
@@ -132,21 +132,21 @@ public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTes
         return new ToXContent.MapParams(Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true"));
     }
 
-    private Map<String, Map<String, Map<String, FieldMappingMetaData>>> randomMapping() {
-        Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = new HashMap<>();
+    private Map<String, Map<String, Map<String, FieldMappingMetadata>>> randomMapping() {
+        Map<String, Map<String, Map<String, FieldMappingMetadata>>> mappings = new HashMap<>();
 
         int indices = randomInt(10);
         for(int i = 0; i < indices; i++) {
-            final Map<String, Map<String, FieldMappingMetaData>> doctypesMappings = new HashMap<>();
+            final Map<String, Map<String, FieldMappingMetadata>> doctypesMappings = new HashMap<>();
             int doctypes = randomInt(10);
             for(int j = 0; j < doctypes; j++) {
-                Map<String, FieldMappingMetaData> fieldMappings = new HashMap<>();
+                Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
                 int fields = randomInt(10);
                 for(int k = 0; k < fields; k++) {
                     final String mapping = randomBoolean() ? "{\"type\":\"string\"}" : "{\"type\":\"keyword\"}";
-                    FieldMappingMetaData metaData =
-                        new FieldMappingMetaData("my field", new BytesArray(mapping));
-                    fieldMappings.put("field" + k, metaData);
+                    FieldMappingMetadata metadata =
+                        new FieldMappingMetadata("my field", new BytesArray(mapping));
+                    fieldMappings.put("field" + k, metadata);
                 }
                 doctypesMappings.put("doctype" + j, fieldMappings);
             }

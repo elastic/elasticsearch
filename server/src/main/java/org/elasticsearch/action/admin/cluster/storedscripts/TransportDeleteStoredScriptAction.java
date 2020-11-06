@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -33,7 +33,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction<DeleteStoredScriptRequest, AcknowledgedResponse> {
+public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMasterNodeAction<DeleteStoredScriptRequest> {
 
     private final ScriptService scriptService;
 
@@ -42,18 +42,8 @@ public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction
                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                              ScriptService scriptService) {
         super(DeleteStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteStoredScriptRequest::new);
+                DeleteStoredScriptRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.scriptService = scriptService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
     }
 
     @Override

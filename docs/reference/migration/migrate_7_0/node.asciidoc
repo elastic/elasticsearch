@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_70_node_changes]]
 === Node start up
 
@@ -9,7 +9,7 @@
 
 // end::notable-breaking-changes[]
 
-[float]
+[discrete]
 ==== Nodes with left-behind data or metadata refuse to start
 Repurposing an existing node by changing node.master or node.data to false can leave lingering on-disk metadata and
 data around, which will not be accessible by the node's new role. Beside storing non-accessible data, this can lead

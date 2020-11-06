@@ -3,31 +3,33 @@
 :request: MlInfoRequest
 :response: MlInfoResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== ML Get Info API
+=== Get {ml} info API
 
-The ML Get API provides defaults and limits used internally by {ml}.
+Provides defaults and limits used internally by {ml}.
 These may be useful to a user interface that needs to interpret machine learning
-configurations where certain fields are missing because the end user was happy with the default value.
+configurations where certain fields are missing because the end user was happy
+with the default value.
 
 It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get Info Request
+==== Get {ml} info request
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Constructing a new request
+<1> Constructing a new request.
 
 [id="{upid}-{api}-response"]
-==== ML Get Info Response
+==== Get {ml} info response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> `info` from the +{response}+ contains ml info details
+<1> `info` from the +{response}+ contains {ml} info details.
 
 include::../execution.asciidoc[]

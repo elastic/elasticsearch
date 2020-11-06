@@ -22,6 +22,7 @@ package org.elasticsearch.ingest;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Processor used for testing, keeps track of how many times it is invoked and
@@ -31,24 +32,40 @@ public class TestProcessor implements Processor {
 
     private final String type;
     private final String tag;
-    private final Consumer<IngestDocument> ingestDocumentConsumer;
+    private final String description;
+    private final Function<IngestDocument, IngestDocument> ingestDocumentMapper;
     private final AtomicInteger invokedCounter = new AtomicInteger();
 
     public TestProcessor(Consumer<IngestDocument> ingestDocumentConsumer) {
-        this(null, "test-processor", ingestDocumentConsumer);
+        this(null, "test-processor", null, ingestDocumentConsumer);
     }
 
-    public TestProcessor(String tag, String type, Consumer<IngestDocument> ingestDocumentConsumer) {
-        this.ingestDocumentConsumer = ingestDocumentConsumer;
+    public TestProcessor(RuntimeException e) {
+        this(null, "test-processor", null, e);
+    }
+
+    public TestProcessor(String tag, String type, String description, RuntimeException e) {
+        this(tag, type, description, (Consumer<IngestDocument>) i -> { throw e; });
+    }
+
+    public TestProcessor(String tag, String type, String description, Consumer<IngestDocument> ingestDocumentConsumer) {
+        this(tag, type, description, id -> {
+            ingestDocumentConsumer.accept(id);
+            return id;
+        });
+    }
+
+    public TestProcessor(String tag, String type, String description, Function<IngestDocument, IngestDocument> ingestDocumentMapper) {
+        this.ingestDocumentMapper = ingestDocumentMapper;
         this.type = type;
         this.tag = tag;
+        this.description = description;
     }
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         invokedCounter.incrementAndGet();
-        ingestDocumentConsumer.accept(ingestDocument);
-        return ingestDocument;
+        return ingestDocumentMapper.apply(ingestDocument);
     }
 
     @Override
@@ -61,6 +78,11 @@ public class TestProcessor implements Processor {
         return tag;
     }
 
+    @Override
+    public String getDescription() {
+        return description;
+    }
+
     public int getInvokedCounter() {
         return invokedCounter.get();
     }
@@ -68,8 +90,8 @@ public class TestProcessor implements Processor {
     public static final class Factory implements Processor.Factory {
         @Override
         public TestProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    Map<String, Object> config) throws Exception {
-            return new TestProcessor(processorTag, "test-processor", ingestDocument -> {});
+                                    String description, Map<String, Object> config) throws Exception {
+            return new TestProcessor(processorTag, "test-processor", description, ingestDocument -> {});
         }
     }
 }

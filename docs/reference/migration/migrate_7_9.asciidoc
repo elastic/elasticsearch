@@ -1,0 +1,160 @@
+[[breaking-changes-7.9]]
+== Breaking changes in 7.9
+++++
+<titleabbrev>7.9</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 7.9.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+* <<breaking_79_indices_changes>>
+* <<breaking_79_script_cache_changes>>
+* <<breaking_79_settings_changes>>
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+[discrete]
+[[breaking_79_indices_changes]]
+=== Indices changes
+.{es} includes built-in index templates for `logs-*-*` and `metrics-*-*`.
+
+[%collapsible]
+====
+*Details* +
+In 7.9, {es} added built-in index templates for the `metrics-*-*` and
+`logs-*-*` index patterns, each with a priority of `100`.
+{ingest-guide}/ingest-management-overview.html[{agent}] uses these templates to
+create data streams.
+
+*Impact* +
+If you use {agent}, assign your index templates a priority
+lower than `100` to avoid overriding the built-in templates.
+
+Otherwise, to avoid accidentally applying the built-in templates, use a
+non-overlapping index pattern or assign templates with an overlapping pattern a
+`priority` higher than `100`.
+
+For example, if you don't use {agent} and want to use a template for the
+`logs-*` index pattern, assign your template a priority of `200`. This ensures
+your template is applied instead of the built-in template for `logs-*-*`.
+====
+//end::notable-breaking-changes[]
+
+//tag::notable-breaking-changes[]
+[discrete]
+[[breaking_79_script_cache_changes]]
+=== Script cache changes
+[[deprecate_general_script_cache_size]]
+.The `script.cache.max_size` setting is deprecated.
+
+[%collapsible]
+====
+*Details* +
+The `script.cache.max_size` setting is deprecated. In {es} 8.0.0, this is
+set per-context.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `script.cache.max_size`
+setting. You may use `script.context.$CONTEXT.cache_max_size` for the particular context.
+For example, for the `ingest` context, use `script.context.ingest.cache_max_size`.
+
+====
+
+[discrete]
+[[deprecate_general_script_expire]]
+.The `script.cache.expire` setting is deprecated.
+
+[%collapsible]
+====
+*Details* +
+The `script.cache.expire` setting is deprecated. In {es} 8.0.0, this is
+set per-context.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `script.cache.expire`
+setting. You may use `script.context.$CONTEXT.cache_expire` for the particular context.
+For example, for the `update` context, use `script.context.update.cache_expire`.
+
+====
+
+[discrete]
+[[deprecate_general_script_compile_rate]]
+.The `script.max_compilations_rate` setting is deprecated.
+
+[%collapsible]
+====
+*Details* +
+The `script.max_compilations_rate` setting is deprecated. In {es} 8.0.0, this is
+set per-context.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `script.max_compilations_rate`
+setting. You may use `script.context.$CONTEXT.max_compilations_rate` for the particular
+context.  For example, for the `processor_conditional` context, use
+`script.context.processor_conditional.max_compilations_rate`.
+
+====
+
+[discrete]
+[[deprecate_mapping_updates_for_ingest_privileges]]
+.Mapping actions have been deprecated for the `create_doc`, `create`, `index` and `write` privileges.
+[%collapsible]
+====
+*Details* +
+In {es} 8.0.0, the following privileges will no longer allow users to
+explicitly update the mapping of an index:
+
+* `create_doc`
+* `create`
+* `index`
+* `write`
+
+Additionally, in {es} 8.0.0, the following privileges will no longer allow users to
+{ref}/dynamic-mapping.html[dynamically update the mapping] of an index 
+during indexing or ingest:
+
+* `create_doc`
+* `create`
+* `index`
+
+These privileges will continue to allow mapping actions on indices (but not on data streams) until
+{es} 8.0.0. However, deprecation warnings will be returned.
+
+*Impact* +
+To allow users to explicitly update the mapping of an index,
+grant the `manage` privilege.
+
+To dynamically update the mapping of an index during indexing or
+ingest, grant the `auto_configure` privilege and use index templates. This lets
+you dynamically update the index mapping based on the template's mapping configuration.
+====
+
+[discrete]
+[[breaking_79_settings_changes]]
+=== Settings changes
+
+[[deprecate_auto_import_dangling_indices]]
+.Automatically importing dangling indices is disabled by default.
+
+[%collapsible]
+====
+*Details* +
+Automatically importing <<dangling-indices,dangling indices>> into the cluster
+is unsafe and is now disabled by default. This feature will be removed entirely
+in {es} 8.0.0.
+
+*Impact* +
+Use the <<dangling-indices-api,Dangling indices API>> to list, delete or import
+any dangling indices manually.
+
+Alternatively you can enable automatic imports of dangling indices, recovering
+the unsafe behaviour of earlier versions, by setting
+`gateway.auto_import_dangling_indices` to `true`. This setting is deprecated
+and will be removed in {es} 8.0.0. We do not recommend using this setting.
+
+====
+//end::notable-breaking-changes[]

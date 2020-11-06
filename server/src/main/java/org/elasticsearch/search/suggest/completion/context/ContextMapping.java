@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 
@@ -140,25 +139,8 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
      * Checks if the current context is consistent with the rest of the fields. For example, the GeoContext
      * should check that the field that it points to has the correct type.
      */
-    protected void validateReferences(Version indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
+    public void validateReferences(Version indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
         // No validation is required by default
-    }
-
-    /**
-     * Verifies that all field paths specified in contexts point to the fields with correct mappings
-     */
-    public static void validateContextPaths(Version indexVersionCreated, List<FieldMapper> fieldMappers,
-                                            Function<String, MappedFieldType> fieldResolver) {
-        for (FieldMapper fieldMapper : fieldMappers) {
-            if (CompletionFieldMapper.CONTENT_TYPE.equals(fieldMapper.typeName())) {
-                CompletionFieldMapper.CompletionFieldType fieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
-                if (fieldType.hasContextMappings()) {
-                    for (ContextMapping context : fieldType.getContextMappings()) {
-                        context.validateReferences(indexVersionCreated, fieldResolver);
-                    }
-                }
-            }
-        }
     }
 
     @Override

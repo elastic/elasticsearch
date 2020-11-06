@@ -20,24 +20,24 @@
 
 package org.elasticsearch.script;
 
-import java.util.Collections;
-import java.util.HashMap;
+import org.elasticsearch.common.logging.DeprecationLogger;
+
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * An update script.
  */
 public abstract class UpdateScript {
 
-    private static final Map<String, String> DEPRECATIONS;
-    static {
-        Map<String, String> deprecations = new HashMap<>();
-        deprecations.put(
-                "_type",
-                "[types removal] Looking up doc types [_type] in scripts is deprecated."
-        );
-        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-    }
+    private static final DeprecationLogger deprecationLogger =
+            DeprecationLogger.getLogger(DynamicMap.class);
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
+            "_type", value -> {
+                deprecationLogger.deprecate("update-script",
+                        "[types removal] Looking up doc types [_type] in scripts is deprecated.");
+                return value;
+            });
 
     public static final String[] PARAMETERS = { };
 
@@ -52,7 +52,7 @@ public abstract class UpdateScript {
 
     public UpdateScript(Map<String, Object> params, Map<String, Object> ctx) {
         this.params = params;
-        this.ctx = new DeprecationMap(ctx, DEPRECATIONS, "update-script");
+        this.ctx = new DynamicMap(ctx, PARAMS_FUNCTIONS);
     }
 
     /** Return the parameters for this script. */

@@ -47,20 +47,32 @@ public class NodesStatsRequestBuilder
     }
 
     /**
+     * Add a single metric to the request.
+     *
+     * @param metric Name of metric as a string.
+     * @return This, for request chaining.
+     */
+    public NodesStatsRequestBuilder addMetric(String metric) {
+        request.addMetric(metric);
+        return this;
+    }
+
+    /**
+     * Add an array of metrics to the request.
+     *
+     * @param metrics Metric names as strings.
+     * @return This, for request chaining.
+     */
+    public NodesStatsRequestBuilder addMetrics(String... metrics) {
+        request.addMetrics(metrics);
+        return this;
+    }
+
+    /**
      * Should the node indices stats be returned.
      */
     public NodesStatsRequestBuilder setIndices(boolean indices) {
         request.indices(indices);
-        return this;
-    }
-
-    public NodesStatsRequestBuilder setBreaker(boolean breaker) {
-        request.breaker(breaker);
-        return this;
-    }
-
-    public NodesStatsRequestBuilder setScript(boolean script) {
-        request.script(script);
         return this;
     }
 
@@ -71,82 +83,4 @@ public class NodesStatsRequestBuilder
         request.indices(indices);
         return this;
     }
-
-    /**
-     * Should the node OS stats be returned.
-     */
-    public NodesStatsRequestBuilder setOs(boolean os) {
-        request.os(os);
-        return this;
-    }
-
-    /**
-     * Should the node OS stats be returned.
-     */
-    public NodesStatsRequestBuilder setProcess(boolean process) {
-        request.process(process);
-        return this;
-    }
-
-    /**
-     * Should the node JVM stats be returned.
-     */
-    public NodesStatsRequestBuilder setJvm(boolean jvm) {
-        request.jvm(jvm);
-        return this;
-    }
-
-    /**
-     * Should the node thread pool stats be returned.
-     */
-    public NodesStatsRequestBuilder setThreadPool(boolean threadPool) {
-        request.threadPool(threadPool);
-        return this;
-    }
-
-    /**
-     * Should the node file system stats be returned.
-     */
-    public NodesStatsRequestBuilder setFs(boolean fs) {
-        request.fs(fs);
-        return this;
-    }
-
-    /**
-     * Should the node Transport stats be returned.
-     */
-    public NodesStatsRequestBuilder setTransport(boolean transport) {
-        request.transport(transport);
-        return this;
-    }
-
-    /**
-     * Should the node HTTP stats be returned.
-     */
-    public NodesStatsRequestBuilder setHttp(boolean http) {
-        request.http(http);
-        return this;
-    }
-
-    /**
-     * Should the discovery stats be returned.
-     */
-    public NodesStatsRequestBuilder setDiscovery(boolean discovery) {
-        request.discovery(discovery);
-        return this;
-    }
-
-    /**
-     * Should ingest statistics be returned.
-     */
-    public NodesStatsRequestBuilder setIngest(boolean ingest) {
-        request.ingest(ingest);
-        return this;
-    }
-
-    public NodesStatsRequestBuilder setAdaptiveSelection(boolean adaptiveSelection) {
-        request.adaptiveSelection(adaptiveSelection);
-        return this;
-    }
-
 }

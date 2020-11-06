@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -17,6 +20,9 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
 import org.junit.Before;
 
@@ -54,23 +60,32 @@ public class AggregationDataExtractorTests extends ESTestCase {
     private List<String> indices;
     private QueryBuilder query;
     private AggregatorFactories.Builder aggs;
+    private DatafeedTimingStatsReporter timingStatsReporter;
 
     private class TestDataExtractor extends AggregationDataExtractor {
 
         private SearchResponse nextResponse;
+        private SearchPhaseExecutionException ex;
 
         TestDataExtractor(long start, long end) {
-            super(testClient, createContext(start, end));
+            super(testClient, createContext(start, end), timingStatsReporter);
         }
 
         @Override
         protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
             capturedSearchRequests.add(searchRequestBuilder);
+            if (ex != null) {
+                throw ex;
+            }
             return nextResponse;
         }
 
         void setNextResponse(SearchResponse searchResponse) {
             nextResponse = searchResponse;
+        }
+
+        void setNextResponseToError(SearchPhaseExecutionException ex) {
+            this.ex = ex;
         }
     }
 
@@ -88,6 +103,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
                 .addAggregator(AggregationBuilders.histogram("time").field("time").interval(1000).subAggregation(
                         AggregationBuilders.terms("airline").field("airline").subAggregation(
                                 AggregationBuilders.avg("responsetime").field("responsetime"))));
+        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
     }
 
     public void testExtraction() throws IOException {
@@ -239,34 +255,17 @@ public class AggregationDataExtractorTests extends ESTestCase {
         assertThat(capturedSearchRequests.size(), equalTo(1));
     }
 
-    public void testExtractionGivenSearchResponseHasError() throws IOException {
+    public void testExtractionGivenSearchResponseHasError() {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
-        extractor.setNextResponse(createErrorResponse());
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
 
         assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, extractor::next);
-    }
-
-    public void testExtractionGivenSearchResponseHasShardFailures() {
-        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
-        extractor.setNextResponse(createResponseWithShardFailures());
-
-        assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, extractor::next);
-    }
-
-    public void testExtractionGivenInitSearchResponseEncounteredUnavailableShards() {
-        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
-        extractor.setNextResponse(createResponseWithUnavailableShards(2));
-
-        assertThat(extractor.hasNext(), is(true));
-        IOException e = expectThrows(IOException.class, extractor::next);
-        assertThat(e.getMessage(), equalTo("[" + jobId + "] Search request encountered [2] unavailable shards"));
+        expectThrows(SearchPhaseExecutionException.class, extractor::next);
     }
 
     private AggregationDataExtractorContext createContext(long start, long end) {
         return new AggregationDataExtractorContext(jobId, timeField, fields, indices, query, aggs, start, end, true,
-                Collections.emptyMap());
+            Collections.emptyMap(), SearchRequest.DEFAULT_INDICES_OPTIONS);
     }
 
     @SuppressWarnings("unchecked")
@@ -284,28 +283,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));
         when(searchResponse.getAggregations()).thenReturn(aggregations);
-        return searchResponse;
-    }
-
-    private SearchResponse createErrorResponse() {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.status()).thenReturn(RestStatus.INTERNAL_SERVER_ERROR);
-        return searchResponse;
-    }
-
-    private SearchResponse createResponseWithShardFailures() {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.status()).thenReturn(RestStatus.OK);
-        when(searchResponse.getShardFailures()).thenReturn(
-                new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("shard failed"))});
-        return searchResponse;
-    }
-
-    private SearchResponse createResponseWithUnavailableShards(int unavailableShards) {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.status()).thenReturn(RestStatus.OK);
-        when(searchResponse.getSuccessfulShards()).thenReturn(3);
-        when(searchResponse.getTotalShards()).thenReturn(3 + unavailableShards);
+        when(searchResponse.getTook()).thenReturn(TimeValue.timeValueMillis(randomNonNegativeLong()));
         return searchResponse;
     }
 

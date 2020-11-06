@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.invoke.CallSite;
@@ -38,6 +39,7 @@ public class DefBootstrapTests extends ESTestCase {
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {
         CallSite site = DefBootstrap.bootstrap(painlessLookup,
+                                               new FunctionTable(),
                                                Collections.emptyMap(),
                                                MethodHandles.publicLookup(),
                                                "toString",
@@ -59,6 +61,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testTwoTypes() throws Throwable {
         CallSite site = DefBootstrap.bootstrap(painlessLookup,
+                                               new FunctionTable(),
                                                Collections.emptyMap(),
                                                MethodHandles.publicLookup(),
                                                "toString",
@@ -85,6 +88,7 @@ public class DefBootstrapTests extends ESTestCase {
         // if this changes, test must be rewritten
         assertEquals(5, DefBootstrap.PIC.MAX_DEPTH);
         CallSite site = DefBootstrap.bootstrap(painlessLookup,
+                                               new FunctionTable(),
                                                Collections.emptyMap(),
                                                MethodHandles.publicLookup(),
                                                "toString",
@@ -112,6 +116,7 @@ public class DefBootstrapTests extends ESTestCase {
     /** test that we revert to the megamorphic classvalue cache and that it works as expected */
     public void testMegamorphic() throws Throwable {
         DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          new FunctionTable(),
                                                                           Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "size",
@@ -145,6 +150,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testNullGuardAdd() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          new FunctionTable(),
                                                                           Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "add",
@@ -158,6 +164,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testNullGuardAddWhenCached() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          new FunctionTable(),
                                                                           Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "add",
@@ -172,6 +179,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testNullGuardEq() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          new FunctionTable(),
                                                                           Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "eq",
@@ -186,6 +194,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testNullGuardEqWhenCached() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          new FunctionTable(),
                                                                           Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "eq",
@@ -205,6 +214,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testNoNullGuardAdd() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          new FunctionTable(),
                                                                           Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "add",
@@ -220,6 +230,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testNoNullGuardAddWhenCached() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          new FunctionTable(),
                                                                           Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "add",

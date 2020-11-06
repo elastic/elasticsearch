@@ -53,7 +53,7 @@ import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_IP;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.TAG_PREFIX;
 
 class AwsEc2SeedHostsProvider implements SeedHostsProvider {
-    
+
     private static final Logger logger = LogManager.getLogger(AwsEc2SeedHostsProvider.class);
 
     private final TransportService transportService;
@@ -174,8 +174,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                 }
                 if (address != null) {
                     try {
-                        // we only limit to 1 port per address, makes no sense to ping 100 ports
-                        final TransportAddress[] addresses = transportService.addressesFromString(address, 1);
+                        final TransportAddress[] addresses = transportService.addressesFromString(address);
                         for (int i = 0; i < addresses.length; i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
                             dynamicHosts.add(addresses[i]);
@@ -222,22 +221,13 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
 
     private final class TransportAddressesCache extends SingleObjectCache<List<TransportAddress>> {
 
-        private boolean empty = true;
-
         protected TransportAddressesCache(TimeValue refreshInterval) {
             super(refreshInterval,  new ArrayList<>());
         }
 
         @Override
-        protected boolean needsRefresh() {
-            return (empty || super.needsRefresh());
-        }
-
-        @Override
         protected List<TransportAddress> refresh() {
-            final List<TransportAddress> nodes = fetchDynamicNodes();
-            empty = nodes.isEmpty();
-            return nodes;
+            return fetchDynamicNodes();
         }
     }
 }

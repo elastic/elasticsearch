@@ -91,3 +91,39 @@
 
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "Types cannot be provided in put mapping requests, unless the include_type_name parameter is set to true." }
+
+---
+"Update per-field metadata":
+
+  - skip:
+      version:     " - 7.5.99"
+      reason:      "Per-field meta was introduced in 7.6"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+                meta:
+                  bar: baz
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            foo:
+              type: keyword
+              meta:
+                baz: quux
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - is_false: test_index.mappings.properties.foo.meta.bar
+  - match: { test_index.mappings.properties.foo.meta.baz: "quux" }
+

@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,9 +33,8 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     private final double sum;
     private final long count;
 
-    public InternalAvg(String name, double sum, long count, DocValueFormat format, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalAvg(String name, double sum, long count, DocValueFormat format, Map<String, Object> metadata) {
+        super(name, metadata);
         this.sum = sum;
         this.count = count;
         this.format = format;
@@ -87,25 +85,17 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalAvg doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAvg reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         long count = 0;
-        double sum = 0;
-        double compensation = 0;
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         for (InternalAggregation aggregation : aggregations) {
             InternalAvg avg = (InternalAvg) aggregation;
             count += avg.count;
-            if (Double.isFinite(avg.sum) == false) {
-                sum += avg.sum;
-            } else if (Double.isFinite(sum)) {
-                double corrected = avg.sum - compensation;
-                double newSum = sum + corrected;
-                compensation = (newSum - sum) - corrected;
-                sum = newSum;
-            }
+            kahanSummation.add(avg.sum);
         }
-        return new InternalAvg(getName(), sum, count, format, pipelineAggregators(), getMetaData());
+        return new InternalAvg(getName(), kahanSummation.value(), count, format, getMetadata());
     }
 
     @Override
@@ -118,12 +108,15 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(sum, count, format.getWriteableName());
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sum, count, format.getWriteableName());
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         InternalAvg other = (InternalAvg) obj;
         return Objects.equals(sum, other.sum) &&
                 Objects.equals(count, other.count) &&

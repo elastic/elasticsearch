@@ -31,11 +31,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -46,24 +46,22 @@ final class OutboundHandler {
 
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
 
-    private final MeanMetric transmittedBytesMetric = new MeanMetric();
-
     private final String nodeName;
     private final Version version;
     private final String[] features;
+    private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
-    private final TransportLogger transportLogger;
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
-    OutboundHandler(String nodeName, Version version, String[] features, ThreadPool threadPool, BigArrays bigArrays,
-                    TransportLogger transportLogger) {
+    OutboundHandler(String nodeName, Version version, String[] features, StatsTracker statsTracker, ThreadPool threadPool,
+                    BigArrays bigArrays) {
         this.nodeName = nodeName;
         this.version = version;
         this.features = features;
+        this.statsTracker = statsTracker;
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
-        this.transportLogger = transportLogger;
     }
 
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
@@ -130,18 +128,14 @@ final class OutboundHandler {
     private void internalSend(TcpChannel channel, SendContext sendContext) throws IOException {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         BytesReference reference = sendContext.get();
-        try {
+        // stash thread context so that channel event loop is not polluted by thread context
+        try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
             channel.sendMessage(reference, sendContext);
         } catch (RuntimeException ex) {
             sendContext.onFailure(ex);
             CloseableChannel.closeChannel(channel);
             throw ex;
         }
-
-    }
-
-    MeanMetric getTransmittedBytes() {
-        return transmittedBytesMetric;
     }
 
     void setMessageListener(TransportMessageListener listener) {
@@ -201,7 +195,7 @@ final class OutboundHandler {
             try {
                 message = messageSupplier.get();
                 messageSize = message.length();
-                transportLogger.logOutboundMessage(channel, message);
+                TransportLogger.logOutboundMessage(channel, message);
                 return message;
             } catch (Exception e) {
                 onFailure(e);
@@ -212,7 +206,7 @@ final class OutboundHandler {
         @Override
         protected void innerOnResponse(Void v) {
             assert messageSize != -1 : "If onResponse is being called, the message should have been serialized";
-            transmittedBytesMetric.inc(messageSize);
+            statsTracker.markBytesWritten(messageSize);
             closeAndCallback(() -> listener.onResponse(v));
         }
 

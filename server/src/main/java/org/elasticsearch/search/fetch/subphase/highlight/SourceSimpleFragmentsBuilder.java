@@ -21,10 +21,8 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -32,15 +30,16 @@ import java.util.List;
 
 public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
-    private final SearchContext searchContext;
+    private final SourceLookup sourceLookup;
 
     public SourceSimpleFragmentsBuilder(MappedFieldType fieldType,
-                                        SearchContext searchContext,
+                                        boolean fixBrokenAnalysis,
+                                        SourceLookup sourceLookup,
                                         String[] preTags,
                                         String[] postTags,
                                         BoundaryScanner boundaryScanner) {
-        super(fieldType, preTags, postTags, boundaryScanner);
-        this.searchContext = searchContext;
+        super(fieldType, fixBrokenAnalysis, preTags, postTags, boundaryScanner);
+        this.sourceLookup = sourceLookup;
     }
 
     public static final Field[] EMPTY_FIELDS = new Field[0];
@@ -48,9 +47,6 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
-        SourceLookup sourceLookup = searchContext.lookup().source();
-        sourceLookup.setSegmentAndDocument((LeafReaderContext) reader.getContext(), docId);
-
         List<Object> values = sourceLookup.extractRawValues(fieldType.name());
         if (values.isEmpty()) {
             return EMPTY_FIELDS;

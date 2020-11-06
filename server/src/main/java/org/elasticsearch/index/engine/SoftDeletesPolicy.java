@@ -120,7 +120,7 @@ final class SoftDeletesPolicy {
              *    localCheckpointOfSafeCommit.
              *  - Changes APIs are driven by a combination of the global checkpoint, retention operations, and retention leases. Here we
              *    prefer using the global checkpoint instead of the maximum sequence number because only operations up to the global
-             *    checkpoint are exposed in the the changes APIs.
+             *    checkpoint are exposed in the changes APIs.
              */
 
             // calculate the minimum sequence number to retain based on retention leases

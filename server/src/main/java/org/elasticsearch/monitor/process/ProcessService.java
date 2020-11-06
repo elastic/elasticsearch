@@ -26,8 +26,9 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.node.ReportingService;
 
-public final class ProcessService {
+public final class ProcessService implements ReportingService<ProcessInfo> {
 
     private static final Logger logger = LogManager.getLogger(ProcessService.class);
 
@@ -47,6 +48,7 @@ public final class ProcessService {
         logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
+    @Override
     public ProcessInfo info() {
         return this.info;
     }

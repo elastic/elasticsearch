@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -24,7 +24,9 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.support.MustacheTemplateEvaluator;
 
@@ -44,7 +46,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Representation of a Mustache template for expressing one or more roles names in a {@link ExpressionRoleMapping}.
  */
-public class TemplateRoleName implements ToXContent, Writeable {
+public class TemplateRoleName implements ToXContentObject, Writeable {
 
     private static final ConstructingObjectParser<TemplateRoleName, Void> PARSER = new ConstructingObjectParser<>(
         "role-mapping-template", false, arr -> new TemplateRoleName((BytesReference) arr[0], (Format) arr[1]));
@@ -94,6 +96,24 @@ public class TemplateRoleName implements ToXContent, Writeable {
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    public void validate(ScriptService scriptService) {
+        try {
+            final XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template, XContentType.JSON);
+            final Script script = MustacheTemplateEvaluator.parseForScript(parser, Collections.emptyMap());
+            final TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
+            if ("mustache".equals(script.getLang())) {
+                compiledTemplate.execute();
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(e);
         }
     }
 

@@ -1,5 +1,5 @@
 [[shard-request-cache]]
-=== Shard request cache
+=== Shard request cache settings
 
 When a search request is run against an index or against many indices, each
 involved shard executes the search locally and returns its local results to
@@ -21,9 +21,12 @@ but it will cache `hits.total`,  <<search-aggregations,aggregations>>, and
 <<search-suggesters,suggestions>>.
 
 Most queries that use `now` (see <<date-math>>) cannot be cached.
+
+Scripted queries that use the API calls which are non-deterministic, such as
+`Math.random()` or `new Date()` are not cached.
 ===================================
 
-[float]
+[discrete]
 ==== Cache invalidation
 
 The cache is smart -- it keeps the same _near real-time_ promise as uncached
@@ -40,51 +43,48 @@ evicted.
 
 The cache can be expired manually with the <<indices-clearcache,`clear-cache` API>>:
 
-[source,js]
+[source,console]
 ------------------------
-POST /kimchy,elasticsearch/_cache/clear?request=true
+POST /my-index-000001,my-index-000002/_cache/clear?request=true
 ------------------------
-// CONSOLE
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
-[float]
+[discrete]
 ==== Enabling and disabling caching
 
 The cache is enabled by default, but can be disabled when creating a new
 index as follows:
 
-[source,js]
+[source,console]
 -----------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "index.requests.cache.enable": false
   }
 }
 -----------------------------
-// CONSOLE
 
 It can also be enabled or disabled dynamically on an existing index with the
 <<indices-update-settings,`update-settings`>> API:
 
-[source,js]
+[source,console]
 -----------------------------
-PUT /my_index/_settings
+PUT /my-index-000001/_settings
 { "index.requests.cache.enable": true }
 -----------------------------
-// CONSOLE
 // TEST[continued]
 
 
-[float]
+[discrete]
 ==== Enabling and disabling caching per request
 
 The `request_cache` query-string parameter can be used to enable or disable
 caching on a *per-request* basis.  If set, it overrides the index-level setting:
 
-[source,js]
+[source,console]
 -----------------------------
-GET /my_index/_search?request_cache=true
+GET /my-index-000001/_search?request_cache=true
 {
   "size": 0,
   "aggs": {
@@ -96,18 +96,13 @@ GET /my_index/_search?request_cache=true
   }
 }
 -----------------------------
-// CONSOLE
 // TEST[continued]
-
-IMPORTANT: If your query uses a script whose result is not deterministic (e.g.
-it uses a random function or references the current time) you should set the
-`request_cache` flag to `false` to disable caching for that request.
 
 Requests where `size` is greater than 0 will not be cached even if the request cache is
 enabled in the index settings. To cache these requests you will need to use the
 query-string parameter detailed here.
 
-[float]
+[discrete]
 ==== Cache key
 
 The whole JSON body is used as the cache key.  This means that if the JSON
@@ -118,7 +113,7 @@ TIP: Most JSON libraries support a _canonical_ mode which ensures that JSON
 keys are always emitted in the same order. This canonical mode can be used in
 the application to ensure that a request is always serialized in the same way.
 
-[float]
+[discrete]
 ==== Cache settings
 
 The cache is managed at the node level, and has a default maximum size of `1%`
@@ -134,22 +129,20 @@ for cached results, but there should be no reason to do so.  Remember that
 stale results are automatically invalidated when the index is refreshed. This
 setting is provided for completeness' sake only.
 
-[float]
+[discrete]
 ==== Monitoring cache usage
 
 The size of the cache (in bytes) and the number of evictions can be viewed
 by index, with the <<indices-stats,`indices-stats`>> API:
 
-[source,js]
+[source,console]
 ------------------------
 GET /_stats/request_cache?human
 ------------------------
-// CONSOLE
 
 or by node with the <<cluster-nodes-stats,`nodes-stats`>> API:
 
-[source,js]
+[source,console]
 ------------------------
 GET /_nodes/stats/indices/request_cache?human
 ------------------------
-// CONSOLE

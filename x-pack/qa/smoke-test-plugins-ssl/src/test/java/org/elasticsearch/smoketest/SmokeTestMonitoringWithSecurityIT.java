@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -96,9 +98,14 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     @Before
     public void enableExporter() throws Exception {
         Settings exporterSettings = Settings.builder()
-                .put("xpack.monitoring.collection.enabled", true)
-                .put("xpack.monitoring.exporters._http.enabled", true)
-                .put("xpack.monitoring.exporters._http.host", "https://" + randomNodeHttpAddress())
+            .put("xpack.monitoring.collection.enabled", true)
+            .put("xpack.monitoring.exporters._http.enabled", true)
+            .put("xpack.monitoring.exporters._http.type", "http")
+            .put("xpack.monitoring.exporters._http.host", "https://" + randomNodeHttpAddress())
+            .put("xpack.monitoring.exporters._http.auth.username", "monitoring_agent")
+            .put("xpack.monitoring.exporters._http.auth.password", "x-pack-test-password")
+            .put("xpack.monitoring.exporters._http.ssl.verification_mode", "full")
+            .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
     }
@@ -106,10 +113,15 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     @After
     public void disableExporter() {
         Settings exporterSettings = Settings.builder()
-                .putNull("xpack.monitoring.collection.enabled")
-                .putNull("xpack.monitoring.exporters._http.enabled")
-                .putNull("xpack.monitoring.exporters._http.host")
-                .build();
+            .putNull("xpack.monitoring.collection.enabled")
+            .putNull("xpack.monitoring.exporters._http.enabled")
+            .putNull("xpack.monitoring.exporters._http.type")
+            .putNull("xpack.monitoring.exporters._http.host")
+            .putNull("xpack.monitoring.exporters._http.auth.username")
+            .putNull("xpack.monitoring.exporters._http.auth.password")
+            .putNull("xpack.monitoring.exporters._http.ssl.verification_mode")
+            .putNull("xpack.monitoring.exporters._http.ssl.certificate_authorities")
+            .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
     }
 
@@ -160,13 +172,14 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     }
 
     private String randomNodeHttpAddress() {
-        List<NodeInfo> nodes = client().admin().cluster().prepareNodesInfo().clear().setHttp(true).get().getNodes();
+        List<NodeInfo> nodes = client().admin().cluster().prepareNodesInfo().clear().addMetric(Metric.HTTP.metricName()).get().getNodes();
         assertThat(nodes.size(), greaterThan(0));
 
         InetSocketAddress[] httpAddresses = new InetSocketAddress[nodes.size()];
         for (int i = 0; i < nodes.size(); i++) {
-            httpAddresses[i] = nodes.get(i).getHttp().address().publishAddress().address();
+            httpAddresses[i] = nodes.get(i).getInfo(HttpInfo.class).address().publishAddress().address();
         }
         return NetworkAddress.format(randomFrom(httpAddresses));
     }
+
 }

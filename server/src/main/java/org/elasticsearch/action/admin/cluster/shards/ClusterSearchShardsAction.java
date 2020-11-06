@@ -19,25 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.action.ActionType;
 
-public class ClusterSearchShardsAction extends Action<ClusterSearchShardsResponse> {
+public class ClusterSearchShardsAction extends ActionType<ClusterSearchShardsResponse> {
 
     public static final ClusterSearchShardsAction INSTANCE = new ClusterSearchShardsAction();
     public static final String NAME = "indices:admin/shards/search_shards";
 
     private ClusterSearchShardsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public ClusterSearchShardsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<ClusterSearchShardsResponse> getResponseReader() {
-        return ClusterSearchShardsResponse::new;
+        super(NAME, ClusterSearchShardsResponse::new);
     }
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.index.merge;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -30,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class MergeStats implements Streamable, Writeable, ToXContentFragment {
+public class MergeStats implements Writeable, ToXContentFragment {
 
     private long total;
     private long totalTimeInMillis;
@@ -236,11 +235,6 @@ public class MergeStats implements Streamable, Writeable, ToXContentFragment {
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
         static final String TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES = "total_auto_throttle_in_bytes";
         static final String TOTAL_THROTTLE_BYTES_PER_SEC = "total_auto_throttle";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

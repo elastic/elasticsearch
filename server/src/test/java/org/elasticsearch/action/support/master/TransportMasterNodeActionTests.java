@@ -34,15 +34,19 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -95,9 +99,9 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         localNode = new DiscoveryNode("local_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
+                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
         remoteNode = new DiscoveryNode("remote_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT);
+                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
         allNodes = new DiscoveryNode[]{localNode, remoteNode};
     }
 
@@ -124,6 +128,12 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     }
 
     public static class Request extends MasterNodeRequest<Request> {
+        Request() {}
+
+        Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -132,6 +142,13 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
     class Response extends ActionResponse {
         private long identity = randomLong();
+
+        Response() {}
+
+        Response(StreamInput in) throws IOException {
+            super(in);
+            identity = in.readLong();
+        }
 
         @Override
         public boolean equals(Object o) {
@@ -148,14 +165,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeLong(identity);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            identity = in.readLong();
         }
     }
 
@@ -163,24 +173,14 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Action(String actionName, TransportService transportService, ClusterService clusterService,
                ThreadPool threadPool) {
             super(actionName, transportService, clusterService, threadPool,
-                    new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), Request::new);
+                    new ActionFilters(new HashSet<>()), Request::new, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                    Response::new, ThreadPool.Names.SAME);
         }
 
         @Override
         protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
             // remove unneeded threading by wrapping listener with SAME to prevent super.doExecute from wrapping it with LISTENER
             super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener, false));
-        }
-
-        @Override
-        protected String executor() {
-            // very lightweight operation in memory, no need to fork to a thread
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        protected Response newResponse() {
-            return new Response();
         }
 
         @Override
@@ -367,8 +367,11 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         boolean rejoinSameMaster = failsWithConnectTransportException && randomBoolean();
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
         DiscoveryNode masterNode = this.remoteNode;
-        setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, masterNode, allNodes))
-            .version(randomIntBetween(0, 10))); // use a random base version so it can go down when simulating a restart.
+        setState(
+            clusterService,
+            // use a random base version so it can go down when simulating a restart.
+            ClusterState.builder(ClusterStateCreationUtils.state(localNode, masterNode, allNodes)).version(randomIntBetween(0, 10))
+        );
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
@@ -381,7 +384,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
         if (rejoinSameMaster) {
-            transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(masterNode, "Fake error"));
+            transport.handleRemoteError(capturedRequest.requestId,
+                randomBoolean() ? new ConnectTransportException(masterNode, "Fake error") : new NodeClosedException(masterNode));
             assertFalse(listener.isDone());
             if (randomBoolean()) {
                 // simulate master node removal

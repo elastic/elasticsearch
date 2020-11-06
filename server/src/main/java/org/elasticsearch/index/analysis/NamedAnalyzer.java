@@ -47,14 +47,14 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this(name, scope, analyzer, Integer.MIN_VALUE);
     }
 
-    NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionIncrementGap) {
+    public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionIncrementGap) {
         super(ERROR_STRATEGY);
         this.name = name;
         this.scope = scope;
         this.analyzer = analyzer;
         this.positionIncrementGap = positionIncrementGap;
-        if (analyzer instanceof org.elasticsearch.index.analysis.CustomAnalyzer) {
-            this.analysisMode = ((org.elasticsearch.index.analysis.CustomAnalyzer) analyzer).getAnalysisMode();
+        if (analyzer instanceof org.elasticsearch.index.analysis.AnalyzerComponentsProvider) {
+            this.analysisMode = ((org.elasticsearch.index.analysis.AnalyzerComponentsProvider) analyzer).getComponents().analysisMode();
         } else {
             this.analysisMode = AnalysisMode.ALL;
         }
@@ -112,11 +112,12 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
             return; // everything allowed if this analyzer is in ALL mode
         }
         if (this.getAnalysisMode() != mode) {
-            if (analyzer instanceof CustomAnalyzer) {
-                TokenFilterFactory[] tokenFilters = ((CustomAnalyzer) analyzer).tokenFilters();
+            if (analyzer instanceof AnalyzerComponentsProvider) {
+                TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
                 List<String> offendingFilters = new ArrayList<>();
                 for (TokenFilterFactory tokenFilter : tokenFilters) {
-                    if (tokenFilter.getAnalysisMode() != mode) {
+                    AnalysisMode filterMode = tokenFilter.getAnalysisMode();
+                    if (filterMode != AnalysisMode.ALL && filterMode != mode) {
                         offendingFilters.add(tokenFilter.name());
                     }
                 }

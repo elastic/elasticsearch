@@ -23,22 +23,24 @@ import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestUpgradeStatusAction extends BaseRestHandler {
 
-    public RestUpgradeStatusAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_upgrade", this);
-        controller.registerHandler(GET, "/{index}/_upgrade", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_upgrade"),
+            new Route(GET, "/{index}/_upgrade")));
     }
 
     @Override

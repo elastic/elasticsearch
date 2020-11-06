@@ -6,13 +6,13 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.document.RestBulkAction;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -34,19 +34,19 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         case OLD:
             break;
         case MIXED:
-            Request waitForYellow = new Request("GET", "/_cluster/health");
-            waitForYellow.addParameter("wait_for_nodes", "3");
-            waitForYellow.addParameter("wait_for_status", "yellow");
-            client().performRequest(waitForYellow);
+            ensureHealth((request -> {
+                request.addParameter("timeout", "70s");
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "yellow");
+            }));
             break;
         case UPGRADED:
-            Request waitForGreen = new Request("GET", "/_cluster/health/test_index,index_with_replicas,empty_index");
-            waitForGreen.addParameter("wait_for_nodes", "3");
-            waitForGreen.addParameter("wait_for_status", "green");
-            // wait for long enough that we give delayed unassigned shards to stop being delayed
-            waitForGreen.addParameter("timeout", "70s");
-            waitForGreen.addParameter("level", "shards");
-            client().performRequest(waitForGreen);
+            ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "green");
+                request.addParameter("timeout", "70s");
+                request.addParameter("level", "shards");
+            }));
             break;
         default:
             throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -56,35 +56,39 @@ public class IndexingIT extends AbstractUpgradeTestCase {
             {
                 Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
                 assertThat("this branch is not needed if we aren't compatible with 6.0",
-                        minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+                    minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
                 if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
                     XContentBuilder template = jsonBuilder();
                     template.startObject();
                     {
-                        template.field("index_patterns", "*");
+                        template.array("index_patterns", "test_index", "index_with_replicas", "empty_index");
                         template.startObject("settings");
                         template.field("number_of_shards", 5);
                         template.endObject();
                     }
                     template.endObject();
-                    Request createTemplate = new Request("PUT", "/_template/template");
+                    Request createTemplate = new Request("PUT", "/_template/xpack-prevent-bwc-deprecation-template");
                     createTemplate.setJsonEntity(Strings.toString(template));
                     client().performRequest(createTemplate);
                 }
             }
-
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(createTestIndex);
             client().performRequest(createTestIndex);
+            allowedWarnings("index [test_index] matches multiple legacy templates [global, xpack-prevent-bwc-deprecation-template], " +
+                "composable templates will only match a single template");
 
             String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
             Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");
             createIndexWithReplicas.setJsonEntity(recoverQuickly);
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(createIndexWithReplicas);
             client().performRequest(createIndexWithReplicas);
 
             Request createEmptyIndex = new Request("PUT", "/empty_index");
             // Ask for recovery to be quick
             createEmptyIndex.setJsonEntity(recoverQuickly);
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(createEmptyIndex);
             client().performRequest(createEmptyIndex);
 
             bulk("test_index", "_OLD", 5);
@@ -143,7 +147,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         client().performRequest(bulk);
     }
 
-    private void assertCount(String index, int count) throws IOException {
+    static void assertCount(String index, int count) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");

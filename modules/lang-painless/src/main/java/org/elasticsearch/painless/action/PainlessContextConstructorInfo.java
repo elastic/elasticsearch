@@ -114,4 +114,20 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
     public int hashCode() {
         return Objects.hash(declaring, parameters);
     }
+
+    @Override
+    public String toString() {
+        return "PainlessContextConstructorInfo{" +
+                "declaring='" + declaring + '\'' +
+                ", parameters=" + parameters +
+                '}';
+    }
+
+    public String getDeclaring() {
+        return declaring;
+    }
+
+    public List<String> getParameters() {
+        return parameters;
+    }
 }

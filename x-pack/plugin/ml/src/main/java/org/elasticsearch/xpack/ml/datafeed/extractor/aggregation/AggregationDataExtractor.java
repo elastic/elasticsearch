@@ -9,6 +9,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 
 /**
  * An implementation that extracts data from elasticsearch using search with aggregations on a client.
@@ -18,14 +19,17 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
  */
 class AggregationDataExtractor extends AbstractAggregationDataExtractor<SearchRequestBuilder> {
 
-    AggregationDataExtractor(Client client, AggregationDataExtractorContext dataExtractorContext) {
-        super(client, dataExtractorContext);
+    AggregationDataExtractor(
+            Client client, AggregationDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
+        super(client, dataExtractorContext, timingStatsReporter);
     }
 
     @Override
     protected SearchRequestBuilder buildSearchRequest(SearchSourceBuilder searchSourceBuilder) {
         return new SearchRequestBuilder(client, SearchAction.INSTANCE)
             .setSource(searchSourceBuilder)
+            .setIndicesOptions(context.indicesOptions)
+            .setAllowPartialSearchResults(false)
             .setIndices(context.indices);
     }
 }

@@ -52,11 +52,15 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     public static final long NO_INGEST_TOOK = -1L;
 
-    private BulkItemResponse[] responses;
-    private long tookInMillis;
-    private long ingestTookInMillis;
+    private final BulkItemResponse[] responses;
+    private final long tookInMillis;
+    private final long ingestTookInMillis;
 
-    BulkResponse() {
+    public BulkResponse(StreamInput in) throws IOException {
+        super(in);
+        responses = in.readArray(BulkItemResponse::new, BulkItemResponse[]::new);
+        tookInMillis = in.readVLong();
+        ingestTookInMillis = in.readZLong();
     }
 
     public BulkResponse(BulkItemResponse[] responses, long tookInMillis) {
@@ -130,23 +134,8 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        responses = new BulkItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = BulkItemResponse.readBulkItem(in);
-        }
-        tookInMillis = in.readVLong();
-        ingestTookInMillis = in.readZLong();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(responses.length);
-        for (BulkItemResponse response : responses) {
-            response.writeTo(out);
-        }
+        out.writeArray(responses);
         out.writeVLong(tookInMillis);
         out.writeZLong(ingestTookInMillis);
     }
@@ -175,7 +164,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     public static BulkResponse fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         long took = -1L;
         long ingestTook = NO_INGEST_TOOK;

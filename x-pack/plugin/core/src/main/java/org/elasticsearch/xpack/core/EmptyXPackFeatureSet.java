@@ -17,11 +17,6 @@ public class EmptyXPackFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public String description() {
-        return "Core will not function without this empty featureset compliments of the way the TransportXPackInfoAction Guice works";
-    }
-
-    @Override
     public boolean available() {
         return false;
     }

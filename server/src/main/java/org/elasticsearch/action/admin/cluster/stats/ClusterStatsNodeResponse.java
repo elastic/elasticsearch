@@ -33,12 +33,20 @@ import java.io.IOException;
 
 public class ClusterStatsNodeResponse extends BaseNodeResponse {
 
-    private NodeInfo nodeInfo;
-    private NodeStats nodeStats;
-    private ShardStats[] shardsStats;
+    private final NodeInfo nodeInfo;
+    private final NodeStats nodeStats;
+    private final ShardStats[] shardsStats;
     private ClusterHealthStatus clusterStatus;
 
-    ClusterStatsNodeResponse() {
+    public ClusterStatsNodeResponse(StreamInput in) throws IOException {
+        super(in);
+        clusterStatus = null;
+        if (in.readBoolean()) {
+            clusterStatus = ClusterHealthStatus.fromValue(in.readByte());
+        }
+        this.nodeInfo = new NodeInfo(in);
+        this.nodeStats = new NodeStats(in);
+        shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
     }
 
     public ClusterStatsNodeResponse(DiscoveryNode node, @Nullable ClusterHealthStatus clusterStatus,
@@ -71,25 +79,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     }
 
     public static ClusterStatsNodeResponse readNodeResponse(StreamInput in) throws IOException {
-        ClusterStatsNodeResponse nodeResponse = new ClusterStatsNodeResponse();
-        nodeResponse.readFrom(in);
-        return nodeResponse;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        clusterStatus = null;
-        if (in.readBoolean()) {
-            clusterStatus = ClusterHealthStatus.fromValue(in.readByte());
-        }
-        this.nodeInfo = NodeInfo.readNodeInfo(in);
-        this.nodeStats = NodeStats.readNodeStats(in);
-        int size = in.readVInt();
-        shardsStats = new ShardStats[size];
-        for (int i = 0; i < size; i++) {
-            shardsStats[i] = ShardStats.readShardStats(in);
-        }
+        return new ClusterStatsNodeResponse(in);
     }
 
     @Override
@@ -103,9 +93,6 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         }
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
-        out.writeVInt(shardsStats.length);
-        for (ShardStats ss : shardsStats) {
-            ss.writeTo(out);
-        }
+        out.writeArray(shardsStats);
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -43,6 +44,7 @@ public final class FileStructureFinderManager {
 
     public static final int MIN_SAMPLE_LINE_COUNT = 2;
     public static final int DEFAULT_IDEAL_SAMPLE_LINE_COUNT = 1000;
+    public static final int DEFAULT_LINE_MERGE_SIZE_LIMIT = 10000;
 
     static final Set<String> FILEBEAT_SUPPORTED_ENCODINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         "866", "ansi_x3.4-1968", "arabic", "ascii", "asmo-708", "big5", "big5-hkscs", "chinese", "cn-big5", "cp1250", "cp1251", "cp1252",
@@ -96,8 +98,9 @@ public final class FileStructureFinderManager {
         this.scheduler = Objects.requireNonNull(scheduler);
     }
 
-    public FileStructureFinder findFileStructure(Integer idealSampleLineCount, InputStream fromFile) throws Exception {
-        return findFileStructure(idealSampleLineCount, fromFile, FileStructureOverrides.EMPTY_OVERRIDES, null);
+    public FileStructureFinder findFileStructure(Integer idealSampleLineCount, Integer lineMergeSizeLimit,
+                                                 InputStream fromFile) throws Exception {
+        return findFileStructure(idealSampleLineCount, lineMergeSizeLimit, fromFile, FileStructureOverrides.EMPTY_OVERRIDES, null);
     }
 
     /**
@@ -106,6 +109,8 @@ public final class FileStructureFinderManager {
      *                             If the stream has fewer lines then an attempt will still be made, providing at
      *                             least {@link #MIN_SAMPLE_LINE_COUNT} lines can be read.  If <code>null</code>
      *                             the value of {@link #DEFAULT_IDEAL_SAMPLE_LINE_COUNT} will be used.
+     * @param lineMergeSizeLimit Maximum number of characters permitted when lines are merged to create messages.
+     *                           If <code>null</code> the value of {@link #DEFAULT_LINE_MERGE_SIZE_LIMIT} will be used.
      * @param fromFile A stream from which the sample will be read.
      * @param overrides Aspects of the file structure that are known in advance.  These take precedence over
      *                  values determined by structure analysis.  An exception will be thrown if the file structure
@@ -116,20 +121,21 @@ public final class FileStructureFinderManager {
      * @return A {@link FileStructureFinder} object from which the structure and messages can be queried.
      * @throws Exception A variety of problems could occur at various stages of the structure finding process.
      */
-    public FileStructureFinder findFileStructure(Integer idealSampleLineCount, InputStream fromFile, FileStructureOverrides overrides,
-                                                 TimeValue timeout)
-        throws Exception {
-        return findFileStructure(new ArrayList<>(), (idealSampleLineCount == null) ? DEFAULT_IDEAL_SAMPLE_LINE_COUNT : idealSampleLineCount,
-            fromFile, overrides, timeout);
-    }
-
-    public FileStructureFinder findFileStructure(List<String> explanation, int idealSampleLineCount, InputStream fromFile)
-        throws Exception {
-        return findFileStructure(explanation, idealSampleLineCount, fromFile, FileStructureOverrides.EMPTY_OVERRIDES, null);
-    }
-
-    public FileStructureFinder findFileStructure(List<String> explanation, int idealSampleLineCount, InputStream fromFile,
+    public FileStructureFinder findFileStructure(Integer idealSampleLineCount, Integer lineMergeSizeLimit, InputStream fromFile,
                                                  FileStructureOverrides overrides, TimeValue timeout) throws Exception {
+        return findFileStructure(new ArrayList<>(), (idealSampleLineCount == null) ? DEFAULT_IDEAL_SAMPLE_LINE_COUNT : idealSampleLineCount,
+            (lineMergeSizeLimit == null) ? DEFAULT_LINE_MERGE_SIZE_LIMIT : lineMergeSizeLimit, fromFile, overrides, timeout);
+    }
+
+    public FileStructureFinder findFileStructure(List<String> explanation, int idealSampleLineCount, int lineMergeSizeLimit,
+                                                 InputStream fromFile) throws Exception {
+        return findFileStructure(explanation, idealSampleLineCount, lineMergeSizeLimit, fromFile, FileStructureOverrides.EMPTY_OVERRIDES,
+            null);
+    }
+
+    public FileStructureFinder findFileStructure(List<String> explanation, int idealSampleLineCount, int lineMergeSizeLimit,
+                                                 InputStream fromFile, FileStructureOverrides overrides,
+                                                 TimeValue timeout) throws Exception {
 
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("structure analysis", timeout, scheduler)) {
 
@@ -148,7 +154,8 @@ public final class FileStructureFinderManager {
             Tuple<String, Boolean> sampleInfo = sampleFile(sampleReader, charsetName, MIN_SAMPLE_LINE_COUNT,
                 Math.max(MIN_SAMPLE_LINE_COUNT, idealSampleLineCount), timeoutChecker);
 
-            return makeBestStructureFinder(explanation, sampleInfo.v1(), charsetName, sampleInfo.v2(), overrides, timeoutChecker);
+            return makeBestStructureFinder(explanation, sampleInfo.v1(), charsetName, sampleInfo.v2(), lineMergeSizeLimit, overrides,
+                timeoutChecker);
         } catch (Exception e) {
             // Add a dummy exception containing the explanation so far - this can be invaluable for troubleshooting as incorrect
             // decisions made early on in the structure analysis can result in seemingly crazy decisions or timeouts later on
@@ -175,7 +182,8 @@ public final class FileStructureFinderManager {
 
         // Determine some extra characteristics of the input to compensate for some deficiencies of ICU4J
         boolean pureAscii = true;
-        boolean containsZeroBytes = false;
+        int evenPosZeroCount = 0;
+        int oddPosZeroCount = 0;
         inputStream.mark(BUFFER_SIZE);
         byte[] workspace = new byte[BUFFER_SIZE];
         int remainingLength = BUFFER_SIZE;
@@ -184,17 +192,22 @@ public final class FileStructureFinderManager {
             if (bytesRead <= 0) {
                 break;
             }
-            for (int i = 0; i < bytesRead && containsZeroBytes == false; ++i) {
+            for (int i = 0; i < bytesRead; ++i) {
                 if (workspace[i] == 0) {
-                    containsZeroBytes = true;
                     pureAscii = false;
+                    if (i % 2 == 0) {
+                        ++evenPosZeroCount;
+                    } else {
+                        ++oddPosZeroCount;
+                    }
                 } else {
                     pureAscii = pureAscii && workspace[i] > 0 && workspace[i] < 128;
                 }
             }
             remainingLength -= bytesRead;
-        } while (containsZeroBytes == false && remainingLength > 0);
+        } while (remainingLength > 0);
         inputStream.reset();
+        boolean containsZeroBytes = evenPosZeroCount > 0 || oddPosZeroCount > 0;
         timeoutChecker.check("character set detection");
 
         if (pureAscii) {
@@ -235,6 +248,11 @@ public final class FileStructureFinderManager {
                 if (containsZeroBytes && spaceEncodingContainsZeroByte == false) {
                     explanation.add("Character encoding [" + name + "] matched the input with [" + charsetMatch.getConfidence() +
                         "%] confidence but was rejected as the input contains zero bytes and the [" + name + "] encoding does not");
+                } else if (containsZeroBytes && 3 * oddPosZeroCount > 2 * evenPosZeroCount && 3 * evenPosZeroCount > 2 * oddPosZeroCount) {
+                    explanation.add("Character encoding [" + name + "] matched the input with [" + charsetMatch.getConfidence() +
+                        "%] confidence but was rejected as the distribution of zero bytes between odd and even positions in the " +
+                        "file is very close - [" + evenPosZeroCount + "] and [" + oddPosZeroCount + "] in the first [" +
+                        (BUFFER_SIZE / 1024) + "kB] of input");
                 } else {
                     explanation.add("Using character encoding [" + name + "], which matched the input with [" +
                         charsetMatch.getConfidence() + "%] confidence");
@@ -252,20 +270,24 @@ public final class FileStructureFinderManager {
     }
 
     FileStructureFinder makeBestStructureFinder(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
-                                                FileStructureOverrides overrides, TimeoutChecker timeoutChecker) throws Exception {
+                                                int lineMergeSizeLimit, FileStructureOverrides overrides,
+                                                TimeoutChecker timeoutChecker) throws Exception {
 
         Character delimiter = overrides.getDelimiter();
         Character quote = overrides.getQuote();
         Boolean shouldTrimFields = overrides.getShouldTrimFields();
         List<FileStructureFinderFactory> factories;
+        double allowedFractionOfBadLines = 0.0;
         if (delimiter != null) {
+            allowedFractionOfBadLines = DelimitedFileStructureFinderFactory.DELIMITER_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
 
             // If a precise delimiter is specified, we only need one structure finder
             // factory, and we'll tolerate as little as one column in the input
             factories = Collections.singletonList(new DelimitedFileStructureFinderFactory(delimiter, (quote == null) ? '"' : quote, 1,
                 (shouldTrimFields == null) ? (delimiter == '|') : shouldTrimFields));
 
-        } else if (quote != null || shouldTrimFields != null) {
+        } else if (quote != null || shouldTrimFields != null || FileStructure.Format.DELIMITED.equals(overrides.getFormat())) {
+            allowedFractionOfBadLines = DelimitedFileStructureFinderFactory.FORMAT_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
 
             // The delimiter is not specified, but some other aspect of delimited files is,
             // so clone our default delimited factories altering the overridden values
@@ -283,8 +305,9 @@ public final class FileStructureFinderManager {
 
         for (FileStructureFinderFactory factory : factories) {
             timeoutChecker.check("high level format detection");
-            if (factory.canCreateFromSample(explanation, sample)) {
-                return factory.createFromSample(explanation, sample, charsetName, hasByteOrderMarker, overrides, timeoutChecker);
+            if (factory.canCreateFromSample(explanation, sample, allowedFractionOfBadLines)) {
+                return factory.createFromSample(explanation, sample, charsetName, hasByteOrderMarker, lineMergeSizeLimit, overrides,
+                    timeoutChecker);
             }
         }
 

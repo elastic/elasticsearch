@@ -32,7 +32,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -51,9 +51,9 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknown
 
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
- * of the relevant action, and if it has failed or not (with the failure message incase it failed).
+ * of the relevant action, and if it has failed or not (with the failure message in case it failed).
  */
-public class BulkItemResponse implements Streamable, StatusToXContentObject {
+public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
     private static final String _INDEX = "_index";
     private static final String _TYPE = "_type";
@@ -95,16 +95,16 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
      *           the item in the {@link BulkResponse#getItems} array.
      */
     public static BulkItemResponse fromXContent(XContentParser parser, int id) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 
         String currentFieldName = parser.currentName();
         token = parser.nextToken();
 
         final OpType opType = OpType.fromString(currentFieldName);
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         DocWriteResponse.Builder builder = null;
         CheckedConsumer<XContentParser, IOException> itemParser = null;
@@ -147,9 +147,9 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             }
         }
 
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
         token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
 
         BulkItemResponse bulkItemResponse;
         if (exception != null) {
@@ -177,9 +177,10 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         private final Exception cause;
         private final RestStatus status;
         private final long seqNo;
+        private final long term;
         private final boolean aborted;
 
-        public static ConstructingObjectParser<Failure, Void> PARSER =
+        public static final ConstructingObjectParser<Failure, Void> PARSER =
             new ConstructingObjectParser<>(
                 "bulk_failures",
                 true,
@@ -199,33 +200,36 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         /**
          * For write failures before operation was assigned a sequence number.
          *
-         * use @{link {@link #Failure(String, String, String, Exception, long)}}
+         * use @{link {@link #Failure(String, String, String, Exception, long, long)}}
          * to record operation sequence no with failure
          */
         public Failure(String index, String type, String id, Exception cause) {
-            this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+            this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM, false);
         }
 
         public Failure(String index, String type, String id, Exception cause, boolean aborted) {
-            this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO, aborted);
+            this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM, aborted);
         }
 
         public Failure(String index, String type, String id, Exception cause, RestStatus status) {
-            this(index, type, id, cause, status, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+            this(index, type, id, cause, status, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM, false);
         }
 
         /** For write failures after operation was assigned a sequence number. */
-        public Failure(String index, String type, String id, Exception cause, long seqNo) {
-            this(index, type, id, cause, ExceptionsHelper.status(cause), seqNo, false);
+        public Failure(String index, String type, String id, Exception cause, long seqNo, long term) {
+            this(index, type, id, cause, ExceptionsHelper.status(cause), seqNo, term, false);
         }
 
-        public Failure(String index, String type, String id, Exception cause, RestStatus status, long seqNo, boolean aborted) {
+        private Failure(String index, String type, String id, Exception cause, RestStatus status, long seqNo, long term, boolean aborted) {
             this.index = index;
             this.type = type;
             this.id = id;
             this.cause = cause;
             this.status = status;
             this.seqNo = seqNo;
+            this.term = term;
             this.aborted = aborted;
         }
 
@@ -238,35 +242,26 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             id = in.readOptionalString();
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
-            if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                seqNo = in.readZLong();
+            seqNo = in.readZLong();
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+                term = in.readVLong();
             } else {
-                seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                term = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
             }
-            if (supportsAbortedFlag(in.getVersion())) {
-                aborted = in.readBoolean();
-            } else {
-                aborted = false;
-            }
+            aborted = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(getIndex());
-            out.writeString(getType());
-            out.writeOptionalString(getId());
-            out.writeException(getCause());
-            if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                out.writeZLong(getSeqNo());
+            out.writeString(index);
+            out.writeString(type);
+            out.writeOptionalString(id);
+            out.writeException(cause);
+            out.writeZLong(seqNo);
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+                out.writeVLong(term);
             }
-            if (supportsAbortedFlag(out.getVersion())) {
-                out.writeBoolean(aborted);
-            }
-        }
-
-        private static boolean supportsAbortedFlag(Version version) {
-            // The "aborted" flag was not in 6.0.0-beta2
-            return version.after(Version.V_6_0_0_beta2);
+            out.writeBoolean(aborted);
         }
 
         /**
@@ -321,6 +316,15 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         }
 
         /**
+         * The operation primary term of the primary
+         * NOTE: {@link SequenceNumbers#UNASSIGNED_PRIMARY_TERM}
+         * indicates primary term was not assigned by primary
+         */
+        public long getTerm() {
+            return term;
+        }
+
+        /**
          * Whether this failure is the result of an <em>abort</em>.
          * If {@code true}, the request to which this failure relates should never be retried, regardless of the {@link #getCause() cause}.
          * @see BulkItemRequest#abort(String, Exception)
@@ -361,8 +365,46 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
 
     private Failure failure;
 
-    BulkItemResponse() {
+    BulkItemResponse() {}
 
+    BulkItemResponse(ShardId shardId, StreamInput in) throws IOException {
+        id = in.readVInt();
+        opType = OpType.fromId(in.readByte());
+
+        byte type = in.readByte();
+        if (type == 0) {
+            response = new IndexResponse(shardId, in);
+        } else if (type == 1) {
+            response = new DeleteResponse(shardId, in);
+        } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
+            response = new UpdateResponse(shardId, in);
+        } else if (type != 2) {
+            throw new IllegalArgumentException("Unexpected type [" + type + "]");
+        }
+
+        if (in.readBoolean()) {
+            failure = new Failure(in);
+        }
+    }
+
+    BulkItemResponse(StreamInput in) throws IOException {
+        id = in.readVInt();
+        opType = OpType.fromId(in.readByte());
+
+        byte type = in.readByte();
+        if (type == 0) {
+            response = new IndexResponse(in);
+        } else if (type == 1) {
+            response = new DeleteResponse(in);
+        } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
+            response = new UpdateResponse(in);
+        } else if (type != 2) {
+            throw new IllegalArgumentException("Unexpected type [" + type + "]");
+        }
+
+        if (in.readBoolean()) {
+            failure = new Failure(in);
+        }
     }
 
     public BulkItemResponse(int id, OpType opType, DocWriteResponse response) {
@@ -463,35 +505,6 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         return this.failure;
     }
 
-    public static BulkItemResponse readBulkItem(StreamInput in) throws IOException {
-        BulkItemResponse response = new BulkItemResponse();
-        response.readFrom(in);
-        return response;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        id = in.readVInt();
-        opType = OpType.fromId(in.readByte());
-
-        byte type = in.readByte();
-        if (type == 0) {
-            response = new IndexResponse();
-            response.readFrom(in);
-        } else if (type == 1) {
-            response = new DeleteResponse();
-            response.readFrom(in);
-
-        } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
-            response = new UpdateResponse();
-            response.readFrom(in);
-        }
-
-        if (in.readBoolean()) {
-            failure = new Failure(in);
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
@@ -500,13 +513,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         if (response == null) {
             out.writeByte((byte) 2);
         } else {
-            if (response instanceof IndexResponse) {
-                out.writeByte((byte) 0);
-            } else if (response instanceof DeleteResponse) {
-                out.writeByte((byte) 1);
-            } else if (response instanceof UpdateResponse) {
-                out.writeByte((byte) 3); // make 3 instead of 2, because 2 is already in use for 'no responses'
-            }
+            writeResponseType(out);
             response.writeTo(out);
         }
         if (failure == null) {
@@ -514,6 +521,36 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         } else {
             out.writeBoolean(true);
             failure.writeTo(out);
+        }
+    }
+
+    public void writeThin(StreamOutput out) throws IOException {
+        out.writeVInt(id);
+        out.writeByte(opType.getId());
+
+        if (response == null) {
+            out.writeByte((byte) 2);
+        } else {
+            writeResponseType(out);
+            response.writeThin(out);
+        }
+        if (failure == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            failure.writeTo(out);
+        }
+    }
+
+    private void writeResponseType(StreamOutput out) throws IOException {
+        if (response instanceof IndexResponse) {
+            out.writeByte((byte) 0);
+        } else if (response instanceof DeleteResponse) {
+            out.writeByte((byte) 1);
+        } else if (response instanceof UpdateResponse) {
+            out.writeByte((byte) 3); // make 3 instead of 2, because 2 is already in use for 'no responses'
+        } else {
+            throw new IllegalStateException("Unexpected response type found [" + response.getClass() + "]");
         }
     }
 }

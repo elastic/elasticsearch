@@ -47,7 +47,6 @@ final class RecoveryTranslogOperationsResponse extends TransportResponse {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        super.writeTo(out);
         // before 6.0.0 we responded with an empty response so we have to maintain that
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             out.writeZLong(localCheckpoint);

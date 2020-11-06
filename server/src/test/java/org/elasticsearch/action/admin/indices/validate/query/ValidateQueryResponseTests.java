@@ -21,9 +21,9 @@ package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

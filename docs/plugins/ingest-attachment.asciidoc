@@ -2,7 +2,7 @@
 === Ingest Attachment Processor Plugin
 
 The ingest attachment plugin lets Elasticsearch extract file attachments in common formats (such as PPT, XLS, and PDF) by
-using the Apache text extraction library http://lucene.apache.org/tika/[Tika].
+using the Apache text extraction library https://tika.apache.org/[Tika].
 
 You can use the ingest attachment plugin as a replacement for the mapper attachment plugin.
 
@@ -32,7 +32,7 @@ include::install_remove.asciidoc[]
 
 For example, this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/attachment
 {
@@ -45,21 +45,20 @@ PUT _ingest/pipeline/attachment
     }
   ]
 }
-PUT my_index/_doc/my_id?pipeline=attachment
+PUT my-index-00001/_doc/my_id?pipeline=attachment
 {
   "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
 }
-GET my_index/_doc/my_id
+GET my-index-00001/_doc/my_id
 --------------------------------------------------
-// CONSOLE
 
 Returns this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my_index",
+  "_index": "my-index-00001",
   "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
@@ -81,7 +80,7 @@ Returns this:
 
 To specify only some fields to be extracted:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/attachment
 {
@@ -96,11 +95,57 @@ PUT _ingest/pipeline/attachment
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: Extracting contents from binary data is a resource intensive operation and
       consumes a lot of resources. It is highly recommended to run pipelines
       using this processor in a dedicated ingest node.
+      
+[[ingest-attachment-cbor]]
+==== Use the attachment processor with CBOR
+
+To avoid encoding and decoding JSON to base64, you can instead pass CBOR data to
+the attachment processor. For example, the following request creates the
+`cbor-attachment` pipeline, which uses the attachment processor.
+
+[source,console]
+----
+PUT _ingest/pipeline/cbor-attachment
+{
+  "description" : "Extract attachment information",
+  "processors" : [
+    {
+      "attachment" : {
+        "field" : "data"
+      }
+    }
+  ]
+}
+----
+
+The following Python script passes CBOR data to an HTTP indexing request that
+includes the `cbor-attachment` pipeline. The HTTP request headers use a
+a `content-type` of `application/cbor`.
+
+NOTE: Not all {es} clients support custom HTTP request headers.
+
+[source,python]
+----
+import cbor2
+import requests
+
+file = 'my-file'
+headers = {'content-type': 'application/cbor'}
+
+with open(file, 'rb') as f:
+  doc = {
+    'data': f.read()
+  }
+  requests.put(
+    'http://localhost:9200/my-index-000001/_doc/my_id?pipeline=cbor-attachment', 
+    data=cbor2.dumps(doc), 
+    headers=headers
+  )
+----
 
 [[ingest-attachment-extracted-chars]]
 ==== Limit the number of extracted chars
@@ -115,7 +160,7 @@ setting.
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/attachment
 {
@@ -130,21 +175,20 @@ PUT _ingest/pipeline/attachment
     }
   ]
 }
-PUT my_index/_doc/my_id?pipeline=attachment
+PUT my-index-00001/_doc/my_id?pipeline=attachment
 {
   "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
 }
-GET my_index/_doc/my_id
+GET my-index-00001/_doc/my_id
 --------------------------------------------------
-// CONSOLE
 
 Returns this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my_index",
+  "_index": "my-index-00001",
   "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
@@ -164,7 +208,7 @@ Returns this:
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/attachment
 {
@@ -179,22 +223,21 @@ PUT _ingest/pipeline/attachment
     }
   ]
 }
-PUT my_index/_doc/my_id_2?pipeline=attachment
+PUT my-index-00001/_doc/my_id_2?pipeline=attachment
 {
   "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
   "max_size": 5
 }
-GET my_index/_doc/my_id_2
+GET my-index-00001/_doc/my_id_2
 --------------------------------------------------
-// CONSOLE
 
 Returns this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my_index",
+  "_index": "my-index-00001",
   "_type": "_doc",
   "_id": "my_id_2",
   "_version": 1,
@@ -247,7 +290,7 @@ of the attachments field and insert
 the properties into the document so the following `foreach`
 processor is used:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/attachment
 {
@@ -266,7 +309,7 @@ PUT _ingest/pipeline/attachment
     }
   ]
 }
-PUT my_index/_doc/my_id?pipeline=attachment
+PUT my-index-00001/_doc/my_id?pipeline=attachment
 {
   "attachments" : [
     {
@@ -279,15 +322,15 @@ PUT my_index/_doc/my_id?pipeline=attachment
     }
   ]
 }
-GET my_index/_doc/my_id
+GET my-index-00001/_doc/my_id
 --------------------------------------------------
-// CONSOLE
 
 Returns this:
-[source,js]
+
+[source,console-result]
 --------------------------------------------------
 {
-  "_index" : "my_index",
+  "_index" : "my-index-00001",
   "_type" : "_doc",
   "_id" : "my_id",
   "_version" : 1,

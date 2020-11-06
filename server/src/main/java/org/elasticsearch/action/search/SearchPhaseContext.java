@@ -19,12 +19,15 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
 import java.util.concurrent.Executor;
@@ -32,7 +35,7 @@ import java.util.concurrent.Executor;
 /**
  * This class provide contextual state and access to resources across multiple search phases.
  */
-interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
+interface SearchPhaseContext extends Executor {
     // TODO maybe we can make this concrete later - for now we just implement this in the base class for all initial phases
 
     /**
@@ -56,11 +59,17 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
     SearchRequest getRequest();
 
     /**
-     * Builds the final search response that should be send back to the user.
+     * Builds and sends the final search response back to the user.
+     *
      * @param internalSearchResponse the internal search response
-     * @param scrollId an optional scroll ID if this search is a scroll search
+     * @param queryResults           the results of the query phase
      */
-    SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId);
+    void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults);
+
+    /**
+     * Notifies the top-level listener of the provided exception
+     */
+    void onFailure(Exception e);
 
     /**
      * This method will communicate a fatal phase failure back to the user. In contrast to a shard failure
@@ -92,11 +101,13 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
 
     /**
      * Releases a search context with the given context ID on the node the given connection is connected to.
-     * @see org.elasticsearch.search.query.QuerySearchResult#getRequestId()
-     * @see org.elasticsearch.search.fetch.FetchSearchResult#getRequestId()
+     * @see org.elasticsearch.search.query.QuerySearchResult#getContextId()
+     * @see org.elasticsearch.search.fetch.FetchSearchResult#getContextId()
      *
      */
-    default void sendReleaseSearchContext(long contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    default void sendReleaseSearchContext(ShardSearchContextId contextId,
+                                          Transport.Connection connection,
+                                          OriginalIndices originalIndices) {
         if (connection != null) {
             getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }
@@ -105,7 +116,7 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
     /**
      * Builds an request for the initial search phase.
      */
-    ShardSearchTransportRequest buildShardSearchRequest(SearchShardIterator shardIt);
+    ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt);
 
     /**
      * Processes the phase transition from on phase to another. This method handles all errors that happen during the initial run execution
@@ -114,4 +125,8 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
      */
     void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase);
 
+    /**
+     * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
+     */
+    void addReleasable(Releasable releasable);
 }

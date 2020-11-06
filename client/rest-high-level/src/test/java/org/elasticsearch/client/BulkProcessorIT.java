@@ -248,7 +248,8 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
             for (int i = 1; i <= numDocs; i++) {
-                if (randomBoolean()) {
+                // let's make sure we get at least 1 item in the MultiGetRequest regardless of the randomising roulette
+                if (randomBoolean() || multiGetRequest.getItems().size() == 0) {
                     testDocs++;
                     processor.add(new IndexRequest("test").id(Integer.toString(testDocs))
                             .source(XContentType.JSON, "field", "value"));
@@ -291,7 +292,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         assertMultiGetResponse(highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT), testDocs);
     }
 
-    @SuppressWarnings("unchecked")
     public void testGlobalParametersAndSingleRequest() throws Exception {
         createIndexWithMultipleShards("test");
 
@@ -326,7 +326,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         assertThat(blogs, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGlobalParametersAndBulkProcessor() throws Exception {
         createIndexWithMultipleShards("test");
 

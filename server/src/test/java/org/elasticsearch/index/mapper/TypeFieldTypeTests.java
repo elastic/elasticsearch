@@ -21,58 +21,33 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
-public class TypeFieldTypeTests extends FieldTypeTestCase {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new TypeFieldMapper.TypeFieldType();
-    }
+import java.util.Arrays;
 
-    public void testTermsQuery() throws Exception {
+public class TypeFieldTypeTests extends ESTestCase {
+
+    public void testTermsQuery() {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
-        Version indexVersionCreated = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
-        Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
-        IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
-        IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
-        Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
-        Mockito.when(context.indexVersionCreated()).thenReturn(indexVersionCreated);
 
-        MapperService mapperService = Mockito.mock(MapperService.class);
-        Mockito.when(mapperService.documentMapper()).thenReturn(null);
-        Mockito.when(context.getMapperService()).thenReturn(mapperService);
-
-        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
-        ft.setName(TypeFieldMapper.NAME);
+        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType("_doc");
         Query query = ft.termQuery("my_type", context);
         assertEquals(new MatchNoDocsQuery(), query);
 
-        DocumentMapper mapper = Mockito.mock(DocumentMapper.class);
-        Mockito.when(mapper.type()).thenReturn("my_type");
-        Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
-        query = ft.termQuery("my_type", context);
+        query = ft.termQuery("_doc", context);
         assertEquals(new MatchAllDocsQuery(), query);
 
-        Mockito.when(mapperService.hasNested()).thenReturn(true);
-        query = ft.termQuery("my_type", context);
-        assertEquals(Queries.newNonNestedFilter(context.indexVersionCreated()), query);
+        query = ft.termsQuery(Arrays.asList("_doc", "type", "foo"), context);
+        assertEquals(new MatchAllDocsQuery(), query);
 
-        mapper = Mockito.mock(DocumentMapper.class);
-        Mockito.when(mapper.type()).thenReturn("other_type");
-        Mockito.when(mapperService.documentMapper()).thenReturn(mapper);
-        query = ft.termQuery("my_type", context);
+        query = ft.termsQuery(Arrays.asList("type", "foo"), context);
         assertEquals(new MatchNoDocsQuery(), query);
+
+        query = ft.termQueryCaseInsensitive("_DOC", context);
+        assertEquals(new MatchAllDocsQuery(), query);
+
+        assertWarnings("[types removal] Using the _type field in queries and aggregations is deprecated, prefer to use a field instead.");
     }
 }

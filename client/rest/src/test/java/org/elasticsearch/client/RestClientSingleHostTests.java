@@ -52,7 +52,6 @@ import org.apache.http.util.EntityUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import javax.net.ssl.SSLHandshakeException;
@@ -62,12 +61,12 @@ import java.io.StringWriter;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -125,30 +124,24 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     static CloseableHttpAsyncClient mockHttpClient(final ExecutorService exec) {
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
         when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-            any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
-            @Override
-            public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
+            any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer((Answer<Future<HttpResponse>>) invocationOnMock -> {
                 final HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                 final FutureCallback<HttpResponse> futureCallback =
                     (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
                 // Call the callback asynchronous to better simulate how async http client works
-                return exec.submit(new Callable<HttpResponse>() {
-                    @Override
-                    public HttpResponse call() throws Exception {
-                        if (futureCallback != null) {
-                            try {
-                                HttpResponse httpResponse = responseOrException(requestProducer);
-                                futureCallback.completed(httpResponse);
-                            } catch(Exception e) {
-                                futureCallback.failed(e);
-                            }
-                            return null;
+                return exec.submit(() -> {
+                    if (futureCallback != null) {
+                        try {
+                            HttpResponse httpResponse = responseOrException(requestProducer);
+                            futureCallback.completed(httpResponse);
+                        } catch(Exception e) {
+                            futureCallback.failed(e);
                         }
-                        return responseOrException(requestProducer);
+                        return null;
                     }
+                    return responseOrException(requestProducer);
                 });
-            }
-        });
+            });
         return httpClient;
     }
 
@@ -431,6 +424,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     public void testDeprecationWarnings() throws Exception {
         String chars = randomAsciiAlphanumOfLength(5);
         assertDeprecationWarnings(singletonList("poorly formatted " + chars), singletonList("poorly formatted " + chars));
+        assertDeprecationWarnings(singletonList(formatWarningWithoutDate(chars)), singletonList(chars));
         assertDeprecationWarnings(singletonList(formatWarning(chars)), singletonList(chars));
         assertDeprecationWarnings(
                 Arrays.asList(formatWarning(chars), "another one", "and another"),
@@ -440,6 +434,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 Arrays.asList("ignorable one", "and another"));
         assertDeprecationWarnings(singletonList("exact"), singletonList("exact"));
         assertDeprecationWarnings(Collections.<String>emptyList(), Collections.<String>emptyList());
+
+        String proxyWarning = "112 - \"network down\" \"Sat, 25 Aug 2012 23:34:45 GMT\"";
+        assertDeprecationWarnings(singletonList(proxyWarning), singletonList(proxyWarning));
     }
 
     private enum DeprecationWarningOption {
@@ -522,11 +519,16 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * Emulates Elasticsearch's DeprecationLogger.formatWarning in simple
+     * Emulates Elasticsearch's HeaderWarningLogger.formatWarning in simple
      * cases. We don't have that available because we're testing against 1.7.
      */
+    private static String formatWarningWithoutDate(String warningBody) {
+        final String hash = new String(new byte[40], StandardCharsets.UTF_8).replace('\0', 'e');
+        return "299 Elasticsearch-1.2.2-SNAPSHOT-" + hash + " \"" + warningBody + "\"";
+    }
+
     private static String formatWarning(String warningBody) {
-        return "299 Elasticsearch-1.2.2-SNAPSHOT-eeeeeee \"" + warningBody + "\" \"Mon, 01 Jan 2001 00:00:00 GMT\"";
+        return formatWarningWithoutDate(warningBody) + " \"Mon, 01 Jan 2001 00:00:00 GMT\"";
     }
 
     private HttpUriRequest performRandomRequest(String method) throws Exception {

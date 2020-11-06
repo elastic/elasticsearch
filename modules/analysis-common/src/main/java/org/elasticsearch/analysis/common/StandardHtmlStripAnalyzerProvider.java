@@ -19,7 +19,6 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.CharArraySet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -32,7 +31,7 @@ import org.elasticsearch.index.analysis.Analysis;
 public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardHtmlStripAnalyzer> {
 
     private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(LogManager.getLogger(StandardHtmlStripAnalyzerProvider.class));
+            DeprecationLogger.getLogger(StandardHtmlStripAnalyzerProvider.class);
 
     private final StandardHtmlStripAnalyzer analyzer;
 
@@ -50,7 +49,7 @@ public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProv
             throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
                 "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
         } else {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("standard_html_strip_deprecation",
+            DEPRECATION_LOGGER.deprecate("standard_html_strip_deprecation",
                 "Deprecated analyzer [standard_html_strip] used, " +
                     "replace it with a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
         }

@@ -19,12 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -34,12 +35,13 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<MatchPhrasePrefixQueryBuilder> {
     @Override
     protected MatchPhrasePrefixQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
         Object value;
         if (isTextField(fieldName)) {
             int terms = randomIntBetween(0, 3);
@@ -65,6 +67,9 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
         if (randomBoolean()) {
             matchQuery.maxExpansions(randomIntBetween(1, 10000));
         }
+        if (randomBoolean()) {
+            matchQuery.zeroTermsQuery(randomFrom(ZeroTermsQuery.ALL, ZeroTermsQuery.NONE));
+        }
         return matchQuery;
     }
 
@@ -83,9 +88,15 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchPhrasePrefixQueryBuilder queryBuilder, Query query, SearchContext context)
+    protected void doAssertLuceneQuery(MatchPhrasePrefixQueryBuilder queryBuilder, Query query, QueryShardContext context)
             throws IOException {
         assertThat(query, notNullValue());
+
+        if (query instanceof MatchAllDocsQuery) {
+            assertThat(queryBuilder.zeroTermsQuery(), equalTo(ZeroTermsQuery.ALL));
+            return;
+        }
+
         assertThat(query, either(instanceOf(MultiPhrasePrefixQuery.class))
             .or(instanceOf(SynonymQuery.class))
             .or(instanceOf(MatchNoDocsQuery.class)));
@@ -113,7 +124,17 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     public void testPhraseOnFieldWithNoTerms() {
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(DATE_FIELD_NAME, "three term phrase");
         matchQuery.analyzer("whitespace");
-        expectThrows(IllegalArgumentException.class, () -> matchQuery.doToQuery(createShardContext()));
+        expectThrows(IllegalStateException.class, () -> matchQuery.doToQuery(createShardContext()));
+    }
+
+    public void testPhrasePrefixZeroTermsQuery() throws IOException {
+        MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
+        matchQuery.zeroTermsQuery(ZeroTermsQuery.NONE);
+        assertEquals(new MatchNoDocsQuery(), matchQuery.doToQuery(createShardContext()));
+
+        matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
+        matchQuery.zeroTermsQuery(ZeroTermsQuery.ALL);
+        assertEquals(new MatchAllDocsQuery(), matchQuery.doToQuery(createShardContext()));
     }
 
     public void testPhrasePrefixMatchQuery() throws IOException {
@@ -129,6 +150,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
                 "      \"query\" : \"this is a test\",\n" +
                 "      \"slop\" : 0,\n" +
                 "      \"max_expansions\" : 50,\n" +
+                "      \"zero_terms_query\" : \"NONE\",\n" +
                 "      \"boost\" : 1.0\n" +
                 "    }\n" +
                 "  }\n" +
@@ -150,6 +172,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
                 "      \"query\" : \"this is a test\",\n" +
                 "      \"slop\" : 0,\n" +
                 "      \"max_expansions\" : 10,\n" +
+                "      \"zero_terms_query\" : \"NONE\",\n" +
                 "      \"boost\" : 1.0\n" +
                 "    }\n" +
                 "  }\n" +

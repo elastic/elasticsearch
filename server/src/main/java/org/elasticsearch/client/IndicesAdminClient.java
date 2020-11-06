@@ -28,9 +28,8 @@ import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
@@ -71,12 +70,16 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuild
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
@@ -114,6 +117,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -343,6 +347,23 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @see org.elasticsearch.client.Requests#openIndexRequest(String)
      */
     void open(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener);
+
+    /**
+     * Adds a block to an index
+     *
+     * @param block   The block to add
+     * @param indices The name of the indices to add the block to
+     */
+    AddIndexBlockRequestBuilder prepareAddBlock(APIBlock block, String... indices);
+
+    /**
+     * Adds a block to an index
+     *
+     * @param request  The add index block request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#openIndexRequest(String)
+     */
+    void addBlock(AddIndexBlockRequest request, ActionListener<AddIndexBlockResponse> listener);
 
     /**
      * Opens one or more indices based on their index name.
@@ -672,12 +693,12 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Analyze text under the provided index.
      */
-    ActionFuture<AnalyzeResponse> analyze(AnalyzeRequest request);
+    ActionFuture<AnalyzeAction.Response> analyze(AnalyzeAction.Request request);
 
     /**
      * Analyze text under the provided index.
      */
-    void analyze(AnalyzeRequest request, ActionListener<AnalyzeResponse> listener);
+    void analyze(AnalyzeAction.Request request, ActionListener<AnalyzeAction.Response> listener);
 
     /**
      * Analyze text under the provided index.
@@ -813,10 +834,20 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied
      */
-    ActionFuture<RolloverResponse> rolloversIndex(RolloverRequest request);
+    ActionFuture<RolloverResponse> rolloverIndex(RolloverRequest request);
 
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied
      */
     void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
+
+    /**
+     * Resolves names and wildcard expressions to indices, aliases, and data streams
+     */
+    void resolveIndex(ResolveIndexAction.Request request, ActionListener<ResolveIndexAction.Response> listener);
+
+    /**
+     * Resolves names and wildcard expressions to indices, aliases, and data streams
+     */
+    ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request);
 }

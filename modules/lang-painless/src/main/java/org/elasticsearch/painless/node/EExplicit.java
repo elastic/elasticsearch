@@ -19,63 +19,41 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an explicit cast.
  */
-public final class EExplicit extends AExpression {
+public class EExplicit extends AExpression {
 
-    private final String type;
-    private AExpression child;
+    private final String canonicalTypeName;
+    private final AExpression childNode;
 
-    public EExplicit(Location location, String type, AExpression child) {
-        super(location);
+    public EExplicit(int identifier, Location location, String canonicalTypeName, AExpression childNode) {
+        super(identifier, location);
 
-        this.type = Objects.requireNonNull(type);
-        this.child = Objects.requireNonNull(child);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.childNode = Objects.requireNonNull(childNode);
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public AExpression getChildNode() {
+        return childNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        child.extractVariables(variables);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitExplicit(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        actual = locals.getPainlessLookup().canonicalTypeNameToType(type);
-
-        if (actual == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
-        }
-
-        child.expected = actual;
-        child.explicit = true;
-        child.analyze(locals);
-        child = child.cast(locals);
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    AExpression cast(Locals locals) {
-        child.expected = expected;
-        child.explicit = explicit;
-        child.internal = internal;
-
-        return child.cast(locals);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type, child);
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        childNode.visit(userTreeVisitor, scope);
     }
 }

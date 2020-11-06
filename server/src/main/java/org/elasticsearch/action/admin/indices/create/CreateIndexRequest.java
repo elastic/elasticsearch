@@ -49,7 +49,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -87,6 +86,39 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private final Set<Alias> aliases = new HashSet<>();
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+
+    public CreateIndexRequest(StreamInput in) throws IOException {
+        super(in);
+        cause = in.readString();
+        index = in.readString();
+        settings = readSettingsFromStream(in);
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            final String type = in.readString();
+            String source = in.readString();
+            if (in.getVersion().before(Version.V_6_0_0_alpha1)) { // TODO change to 5.3.0 after backport
+                // we do not know the content type that comes from earlier versions so we autodetect and convert
+                source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
+            }
+            mappings.put(type, source);
+        }
+        if (in.getVersion().before(Version.V_6_5_0)) {
+            // This used to be the size of custom metadata classes
+            int customSize = in.readVInt();
+            assert customSize == 0 : "unexpected custom metadata when none is supported";
+            if (customSize > 0) {
+                throw new IllegalStateException("unexpected custom metadata when none is supported");
+            }
+        }
+        int aliasesSize = in.readVInt();
+        for (int i = 0; i < aliasesSize; i++) {
+            aliases.add(new Alias(in));
+        }
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            in.readBoolean(); // updateAllTypes
+        }
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+    }
 
     public CreateIndexRequest() {
     }
@@ -187,13 +219,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * The settings to create the index with (either json/yaml/properties format)
      */
     public CreateIndexRequest settings(Map<String, ?> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            settings(Strings.toString(builder), XContentType.JSON);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        this.settings = Settings.builder().loadFromMap(source).build();
         return this;
     }
 
@@ -216,16 +242,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param xContentType the content type of the mapping source
      */
     private CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {
-        if (mappings.containsKey(type)) {
-            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
-        }
         Objects.requireNonNull(xContentType);
-        try {
-            mappings.put(type, XContentHelper.convertToJson(source, false, false, xContentType));
-            return this;
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert to json", e);
-        }
+        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
+        return mapping(type, mappingAsMap);
     }
 
     /**
@@ -261,9 +280,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
         }
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return mapping(type, builder);
+            mappings.put(type, Strings.toString(builder));
+            return this;
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -376,6 +396,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {
+                if (entry.getValue() instanceof Map == false) {
+                    throw new ElasticsearchParseException("key [settings] must be an object");
+                }
                 settings((Map<String, Object>) entry.getValue());
             } else if (MAPPINGS.match(name, deprecationHandler)) {
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
@@ -429,41 +452,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest waitForActiveShards(final int waitForActiveShards) {
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
-    }
-
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        cause = in.readString();
-        index = in.readString();
-        settings = readSettingsFromStream(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            final String type = in.readString();
-            String source = in.readString();
-            if (in.getVersion().before(Version.V_6_0_0_alpha1)) { // TODO change to 5.3.0 after backport
-                // we do not know the content type that comes from earlier versions so we autodetect and convert
-                source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
-            }
-            mappings.put(type, source);
-        }
-        if (in.getVersion().before(Version.V_6_5_0)) {
-            // This used to be the size of custom metadata classes
-            int customSize = in.readVInt();
-            assert customSize == 0 : "unexpected custom metadata when none is supported";
-            if (customSize > 0) {
-                throw new IllegalStateException("unexpected custom metadata when none is supported");
-            }
-        }
-        int aliasesSize = in.readVInt();
-        for (int i = 0; i < aliasesSize; i++) {
-            aliases.add(Alias.read(in));
-        }
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readBoolean(); // updateAllTypes
-        }
-        waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
     @Override

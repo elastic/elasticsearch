@@ -1,13 +1,13 @@
+[role="xpack"]
 [[actions-webhook]]
-=== Webhook Action
+=== Webhook action
 
 Use the `webhook` action to send a request to any web service. The
 webhook action supports both HTTP and HTTPS connections. See
-<<webhook-action-attributes, Webhook Action Attributes>> for the supported
-attributes.
+<<webhook-action-attributes>> for the supported attributes.
 
 [[configuring-webook-actions]]
-==== Configuring Webhook Actions
+==== Configuring webhook actions
 
 You configure webhook actions in the `actions` array. Action-specific attributes
 are specified using the `webhook` keyword.
@@ -24,7 +24,7 @@ The following snippet shows a simple webhook action definition:
       "method" : "POST", <4>
       "host" : "mylisteningserver", <5>
       "port" : 9200, <6>
-      "path": ":/{{ctx.watch_id}", <7>
+      "path": ":/{{ctx.watch_id}}", <7>
       "body" : "{{ctx.watch_id}}:{{ctx.payload.hits.total.value}}" <8>
     }
   }
@@ -32,9 +32,9 @@ The following snippet shows a simple webhook action definition:
 --------------------------------------------------
 // NOTCONSOLE
 <1> The id of the action
-<2> An optional <<transform, transform>> to transform the payload before
+<2> An optional <<transform,transform>> to transform the payload before
     executing the `webhook` action
-<3> An optional <<actions-ack-throttle, throttle period>> for the action
+<3> An optional <<actions-ack-throttle,throttle period>> for the action
     (5 minutes in this example)
 <4> The HTTP method to use when connecting to the host
 <5> The host to connect to
@@ -76,8 +76,9 @@ NOTE: By default, both the username and the password are stored in the `.watches
 You can also use PKI-based authentication when submitting requests to a cluster
 that has {es} {security-features} enabled. When you use PKI-based authentication
 instead of HTTP basic auth, you don't need to store any authentication
-information in the watch itself. To use PKI-based authentication, you {ref}/notification-settings.html#ssl-notification-settings
-[configure the SSL key settings] for {watcher} in `elasticsearch.yml`.
+information in the watch itself. To use PKI-based authentication, you
+<<ssl-notification-settings,configure the SSL key settings>> for {watcher} in
+`elasticsearch.yml`.
 
 
 [[webhook-query-parameters]]
@@ -135,7 +136,7 @@ the values serve as the header values:
 <1> The header values can contain templated strings.
 
 
-==== Webhook Action Attributes
+==== Webhook action attributes
 [[webhook-action-attributes]]
 [cols=",^,^,", options="header"]
 |======
@@ -148,23 +149,23 @@ the values serve as the header values:
 | `port`                | yes       | -           | The port the HTTP service is listening on.
 
 | `path`                | no        | -           | The URL path. The path can be static text or include Mustache
-                                                    <<templates, templates>>. URL query string parameters must be
+                                                    <<templates,templates>>. URL query string parameters must be
                                                     specified via the `request.params` attribute.
 
 | `method`              | no        | get         | The HTTP method. Valid values are: `head`, `get`, `post`, `put`
                                                     and `delete`.
 
 | `headers`             | no        | -           | The HTTP request headers. The header values can be static text
-                                                    or include Mustache <<templates, templates>>.
+                                                    or include Mustache <<templates,templates>>.
 
 | `params`              | no        | -           | The URL query string parameters. The parameter values can be
-                                                    static text or include Mustache <<templates, templates>>.
+                                                    static text or include Mustache <<templates,templates>>.
 
 | `auth`                | no        | -           | Authentication related HTTP headers. Currently, only basic
                                                     authentication is supported.
 
 | `body`                | no        | -           | The HTTP request body. The body can be static text or include
-                                                    Mustache <<templates, templates>>. When not specified, an empty
+                                                    Mustache <<templates,templates>>. When not specified, an empty
                                                     body is sent.
 
 | `proxy.host`          | no        | -           | The proxy host to use when connecting to the host.

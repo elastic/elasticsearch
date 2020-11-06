@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 
 import java.util.Locale;
+
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.ODBC_CLIENT_IDS;
 
 public enum QueryMetric {

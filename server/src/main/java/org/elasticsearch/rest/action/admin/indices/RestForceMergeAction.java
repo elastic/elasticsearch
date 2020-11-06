@@ -23,22 +23,27 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestForceMergeAction extends BaseRestHandler {
 
-    public RestForceMergeAction(final Settings settings, final RestController controller) {
-        super(settings);
-        controller.registerHandler(POST, "/_forcemerge", this);
-        controller.registerHandler(POST, "/{index}/_forcemerge", this);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestForceMergeAction.class);
+
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(POST, "/_forcemerge"),
+            new Route(POST, "/{index}/_forcemerge")));
     }
 
     @Override
@@ -53,6 +58,10 @@ public class RestForceMergeAction extends BaseRestHandler {
         mergeRequest.maxNumSegments(request.paramAsInt("max_num_segments", mergeRequest.maxNumSegments()));
         mergeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", mergeRequest.onlyExpungeDeletes()));
         mergeRequest.flush(request.paramAsBoolean("flush", mergeRequest.flush()));
+        if (mergeRequest.onlyExpungeDeletes() && mergeRequest.maxNumSegments() != ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
+            deprecationLogger.deprecate("force_merge_expunge_deletes_and_max_num_segments_deprecation",
+               "setting only_expunge_deletes and max_num_segments at the same time is deprecated and will be rejected in a future version");
+        }
         return channel -> client.admin().indices().forceMerge(mergeRequest, new RestToXContentListener<>(channel));
     }
 

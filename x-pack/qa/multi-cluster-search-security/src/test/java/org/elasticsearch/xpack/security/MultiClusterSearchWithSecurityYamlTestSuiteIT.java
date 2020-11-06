@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
 
 public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -23,6 +23,11 @@ public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends ESClientYamlS
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveDataStreamsUponCompletion() {
         return true;
     }
 

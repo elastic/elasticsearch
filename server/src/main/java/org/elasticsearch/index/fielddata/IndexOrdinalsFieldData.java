@@ -27,7 +27,7 @@ import org.apache.lucene.index.OrdinalMap;
 /**
  * Specialization of {@link IndexFieldData} for data that is indexed with ordinals.
  */
-public interface IndexOrdinalsFieldData extends IndexFieldData.Global<AtomicOrdinalsFieldData> {
+public interface IndexOrdinalsFieldData extends IndexFieldData.Global<LeafOrdinalsFieldData> {
 
     /**
      * Load a global view of the ordinals for the given {@link IndexReader},
@@ -40,11 +40,18 @@ public interface IndexOrdinalsFieldData extends IndexFieldData.Global<AtomicOrdi
      * Load a global view of the ordinals for the given {@link IndexReader}.
      */
     @Override
-    IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception;
+    IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception;
 
     /**
      * Returns the underlying {@link OrdinalMap} for this fielddata
      * or null if global ordinals are not needed (constant value or single segment).
      */
     OrdinalMap getOrdinalMap();
+
+    /**
+     * Whether this field data is able to provide a mapping between global and segment ordinals,
+     * by returning the underlying {@link OrdinalMap}. If this method returns false, then calling
+     * {@link #getOrdinalMap} will result in an {@link UnsupportedOperationException}.
+     */
+    boolean supportsGlobalOrdinalsMapping();
 }

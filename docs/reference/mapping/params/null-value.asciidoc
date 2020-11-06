@@ -8,9 +8,9 @@ field has no values.
 The `null_value` parameter allows you to replace explicit `null` values with
 the specified value so that it can be indexed and searched.  For instance:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -22,17 +22,17 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "status_code": null
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "status_code": [] <2>
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {
@@ -41,12 +41,12 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Replace explicit `null` values with the term `NULL`.
 <2> An empty array does not contain an explicit `null`, and so won't be replaced with the `null_value`.
 <3> A query for `NULL` returns document 1, but not document 2.
 
-IMPORTANT: The `null_value` needs to be the same datatype as the field.  For
+IMPORTANT: The `null_value` needs to be the same data type as the field.  For
 instance, a `long` field cannot have a string `null_value`.
 
 NOTE: The `null_value` only influences how data is indexed, it doesn't modify

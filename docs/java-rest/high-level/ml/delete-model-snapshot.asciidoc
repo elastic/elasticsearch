@@ -3,11 +3,14 @@
 :request: DeleteModelSnapshotRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Delete Model Snapshot API
+=== Delete model snapshots API
+
+Deletes an existing model snapshot.
 
 [id="{upid}-{api}-request"]
-==== Delete Model Snapshot Request
+==== Delete model snapshots request
 
 A +{request}+ object requires both a non-null `jobId` and a non-null `snapshotId`.
 
@@ -20,7 +23,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Delete Model Snapshot Response
+==== Delete model snapshots response
 
 The returned +{response}+ object indicates the acknowledgement of the request:
 ["source","java",subs="attributes,callouts,macros"]

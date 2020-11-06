@@ -1,0 +1,28 @@
+[[breaking-changes-7.5]]
+== Breaking changes in 7.5
+++++
+<titleabbrev>7.5</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 7.5.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+//end::notable-breaking-changes[]
+
+[discrete]
+[[breaking_75_search_changes]]
+=== Search Changes
+
+[discrete]
+==== Stricter checking for wildcard queries on _index
+Previously, a wildcard query on the `_index` field matched directly against the
+fully-qualified index name. Now, in order to match against remote indices like
+`cluster:index`, the query must contain a colon, as in `cl*ster:inde*`. This
+behavior aligns with the way indices are matched in the search endpoint.

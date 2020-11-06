@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -86,7 +88,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
         return PARSER.apply(parser, null);
     }
 
-    private static ObjectParser<ScoreSortBuilder, Void> PARSER = new ObjectParser<>(NAME, ScoreSortBuilder::new);
+    private static final ObjectParser<ScoreSortBuilder, Void> PARSER = new ObjectParser<>(NAME, ScoreSortBuilder::new);
 
     static {
         PARSER.declareString((builder, order) -> builder.order(SortOrder.fromString(order)), ORDER_FIELD);
@@ -99,6 +101,41 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
         } else {
             return SORT_SCORE_REVERSE;
         }
+    }
+
+    @Override
+    public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
+        return new BucketedSort.ForFloats(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra) {
+            @Override
+            public boolean needsScores() { return true; }
+
+            @Override
+            public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
+                return new BucketedSort.ForFloats.Leaf(ctx) {
+                    private Scorable scorer;
+                    private float score;
+
+                    @Override
+                    public void setScorer(Scorable scorer) {
+                        this.scorer = scorer;
+                    }
+
+                    @Override
+                    protected boolean advanceExact(int doc) throws IOException {
+                        assert doc == scorer.docID() : "expected scorer to be on [" + doc + "] but was on [" + scorer.docID() + "]";
+                        /* We will never be called by documents that don't match the
+                         * query and they'll all have a score, thus `true`. */
+                        score = scorer.score();
+                        return true;
+                    }
+
+                    @Override
+                    protected float docValue() {
+                        return score;
+                    }
+                };
+            }
+        };
     }
 
     @Override

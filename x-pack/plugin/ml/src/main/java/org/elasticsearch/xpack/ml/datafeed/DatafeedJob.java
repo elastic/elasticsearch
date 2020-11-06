@@ -8,39 +8,34 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -49,7 +44,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 class DatafeedJob {
 
@@ -57,46 +51,56 @@ class DatafeedJob {
     private static final int NEXT_TASK_DELAY_MS = 100;
     static final long MISSING_DATA_CHECK_INTERVAL_MS = 900_000; //15 minutes in ms
 
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
+    private final AnnotationPersister annotationPersister;
     private final String jobId;
     private final DataDescription dataDescription;
     private final long frequencyMs;
     private final long queryDelayMs;
     private final Client client;
     private final DataExtractorFactory dataExtractorFactory;
+    private final DatafeedTimingStatsReporter timingStatsReporter;
     private final Supplier<Long> currentTimeSupplier;
     private final DelayedDataDetector delayedDataDetector;
+    private final Integer maxEmptySearches;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
     private volatile long lastDataCheckTimeMs;
-    private volatile String lastDataCheckAnnotationId;
-    private volatile Annotation lastDataCheckAnnotation;
+    private volatile Tuple<String, Annotation> lastDataCheckAnnotationWithId;
     private volatile Long lastEndTimeMs;
     private AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
+    private volatile boolean haveEverSeenData;
 
     DatafeedJob(String jobId, DataDescription dataDescription, long frequencyMs, long queryDelayMs,
-                DataExtractorFactory dataExtractorFactory, Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
-                DelayedDataDetector delayedDataDetector, long latestFinalBucketEndTimeMs, long latestRecordTimeMs) {
+                DataExtractorFactory dataExtractorFactory, DatafeedTimingStatsReporter timingStatsReporter, Client client,
+                AnomalyDetectionAuditor auditor, AnnotationPersister annotationPersister, Supplier<Long> currentTimeSupplier,
+                DelayedDataDetector delayedDataDetector, Integer maxEmptySearches, long latestFinalBucketEndTimeMs, long latestRecordTimeMs,
+                boolean haveSeenDataPreviously) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
         this.queryDelayMs = queryDelayMs;
         this.dataExtractorFactory = dataExtractorFactory;
+        this.timingStatsReporter = timingStatsReporter;
         this.client = client;
         this.auditor = auditor;
+        this.annotationPersister = annotationPersister;
         this.currentTimeSupplier = currentTimeSupplier;
         this.delayedDataDetector = delayedDataDetector;
+        this.maxEmptySearches = maxEmptySearches;
         this.latestFinalBucketEndTimeMs = latestFinalBucketEndTimeMs;
         long lastEndTime = Math.max(latestFinalBucketEndTimeMs, latestRecordTimeMs);
         if (lastEndTime > 0) {
             lastEndTimeMs = lastEndTime;
         }
+        this.haveEverSeenData = haveSeenDataPreviously;
     }
 
     void isolate() {
         isIsolated = true;
+        timingStatsReporter.disallowPersisting();
     }
 
     boolean isIsolated() {
@@ -105,6 +109,14 @@ class DatafeedJob {
 
     public String getJobId() {
         return jobId;
+    }
+
+    public Integer getMaxEmptySearches() {
+        return maxEmptySearches;
+    }
+
+    public void finishReportingTimingStats() {
+        timingStatsReporter.finishReporting();
     }
 
     Long runLookBack(long startTime, Long endTime) throws Exception {
@@ -161,8 +173,8 @@ class DatafeedJob {
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
             FlushJobAction.Response flushResponse = flushJob(request);
-            LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().getTime());
-            return flushResponse.getLastFinalizedBucketEnd().getTime();
+            LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
+            return flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
         }
         return startTime;
     }
@@ -172,6 +184,7 @@ class DatafeedJob {
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
+        request.setWaitForNormalization(false);
         request.setCalcInterim(true);
         request.setAdvanceTime(String.valueOf(end));
         run(start, end, request);
@@ -196,14 +209,14 @@ class DatafeedJob {
                 String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing,
                     XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(lastBucket.getTimestamp().getTime()));
 
-                Annotation annotation = createAnnotation(missingDataBuckets.get(0).getBucket().getTimestamp(), endTime, msg);
+                Annotation annotation = createDelayedDataAnnotation(missingDataBuckets.get(0).getBucket().getTimestamp(), endTime, msg);
 
                 // Have we an annotation that covers the same area with the same message?
                 // Cannot use annotation.equals(other) as that checks createTime
-                if (lastDataCheckAnnotation != null
-                    && annotation.getAnnotation().equals(lastDataCheckAnnotation.getAnnotation())
-                    && annotation.getTimestamp().equals(lastDataCheckAnnotation.getTimestamp())
-                    && annotation.getEndTimestamp().equals(lastDataCheckAnnotation.getEndTimestamp())) {
+                if (lastDataCheckAnnotationWithId != null
+                    && annotation.getAnnotation().equals(lastDataCheckAnnotationWithId.v2().getAnnotation())
+                    && annotation.getTimestamp().equals(lastDataCheckAnnotationWithId.v2().getTimestamp())
+                    && annotation.getEndTimestamp().equals(lastDataCheckAnnotationWithId.v2().getEndTimestamp())) {
                     return;
                 }
 
@@ -211,65 +224,41 @@ class DatafeedJob {
                 // in the job list page.
                 auditor.warning(jobId, msg);
 
-                if (lastDataCheckAnnotationId != null) {
-                    updateAnnotation(annotation);
+                if (lastDataCheckAnnotationWithId == null) {
+                    lastDataCheckAnnotationWithId = annotationPersister.persistAnnotation(null, annotation);
                 } else {
-                    lastDataCheckAnnotationId = addAndSetDelayedDataAnnotation(annotation);
+                    String annotationId = lastDataCheckAnnotationWithId.v1();
+                    Annotation updatedAnnotation = updateAnnotation(annotation);
+                    lastDataCheckAnnotationWithId = annotationPersister.persistAnnotation(annotationId, updatedAnnotation);
                 }
             }
         }
     }
 
-    private Annotation createAnnotation(Date startTime, Date endTime, String msg) {
+    private Annotation createDelayedDataAnnotation(Date startTime, Date endTime, String msg) {
        Date currentTime = new Date(currentTimeSupplier.get());
-       return new Annotation(msg,
-           currentTime,
-           XPackUser.NAME,
-           startTime,
-           endTime,
-           jobId,
-           currentTime,
-           XPackUser.NAME,
-           "annotation");
+       return new Annotation.Builder()
+           .setAnnotation(msg)
+           .setCreateTime(currentTime)
+           .setCreateUsername(XPackUser.NAME)
+           .setTimestamp(startTime)
+           .setEndTimestamp(endTime)
+           .setJobId(jobId)
+           .setModifiedTime(currentTime)
+           .setModifiedUsername(XPackUser.NAME)
+           .setType(Annotation.Type.ANNOTATION)
+           .setEvent(Annotation.Event.DELAYED_DATA)
+           .build();
     }
 
-    private String addAndSetDelayedDataAnnotation(Annotation annotation) {
-        try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
-            request.source(xContentBuilder);
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
-                IndexResponse response = client.index(request).actionGet();
-                lastDataCheckAnnotation = annotation;
-                return response.getId();
-            }
-        } catch (IOException ex) {
-            String errorMessage = "[" + jobId + "] failed to create annotation for delayed data checker.";
-            LOGGER.error(errorMessage, ex);
-            auditor.error(jobId, errorMessage);
-            return null;
-        }
-    }
-
-    private void updateAnnotation(Annotation annotation) {
-        Annotation updatedAnnotation = new Annotation(lastDataCheckAnnotation);
-        updatedAnnotation.setModifiedUsername(XPackUser.NAME);
-        updatedAnnotation.setModifiedTime(new Date(currentTimeSupplier.get()));
-        updatedAnnotation.setAnnotation(annotation.getAnnotation());
-        updatedAnnotation.setTimestamp(annotation.getTimestamp());
-        updatedAnnotation.setEndTimestamp(annotation.getEndTimestamp());
-        try (XContentBuilder xContentBuilder = updatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
-            indexRequest.id(lastDataCheckAnnotationId);
-            indexRequest.source(xContentBuilder);
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
-                client.index(indexRequest).actionGet();
-                lastDataCheckAnnotation = updatedAnnotation;
-            }
-        } catch (IOException ex) {
-            String errorMessage = "[" + jobId + "] failed to update annotation for delayed data checker.";
-            LOGGER.error(errorMessage, ex);
-            auditor.error(jobId, errorMessage);
-        }
+    private Annotation updateAnnotation(Annotation annotation) {
+        return new Annotation.Builder(lastDataCheckAnnotationWithId.v2())
+            .setAnnotation(annotation.getAnnotation())
+            .setTimestamp(annotation.getTimestamp())
+            .setEndTimestamp(annotation.getEndTimestamp())
+            .setModifiedTime(new Date(currentTimeSupplier.get()))
+            .setModifiedUsername(XPackUser.NAME)
+            .build();
     }
 
     /**
@@ -353,6 +342,7 @@ class DatafeedJob {
                 try (InputStream in = extractedData.get()) {
                     counts = postData(in, XContentType.JSON);
                     LOGGER.trace("[{}] Processed another {} records", jobId, counts.getProcessedRecordCount());
+                    timingStatsReporter.reportDataCounts(counts);
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) {
                         Thread.currentThread().interrupt();
@@ -374,6 +364,7 @@ class DatafeedJob {
                     break;
                 }
                 recordCount += counts.getProcessedRecordCount();
+                haveEverSeenData |= (recordCount > 0);
                 if (counts.getLatestRecordTimeStamp() != null) {
                     lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
                 }
@@ -393,14 +384,14 @@ class DatafeedJob {
         // we call flush the job is closed. Thus, we don't flush unless the
         // datafeed is still running.
         if (isRunning() && !isIsolated) {
-            Date lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
+            Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
             if (lastFinalizedBucketEnd != null) {
-                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.getTime();
+                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
             }
         }
 
         if (recordCount == 0) {
-            throw new EmptyDataCountException(nextRealtimeTimestamp());
+            throw new EmptyDataCountException(nextRealtimeTimestamp(), haveEverSeenData);
         }
     }
 
@@ -408,10 +399,8 @@ class DatafeedJob {
             throws IOException {
         PostDataAction.Request request = new PostDataAction.Request(jobId);
         request.setDataDescription(dataDescription);
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        Streams.copy(inputStream, outputStream);
-        request.setContent(new BytesArray(outputStream.toByteArray()), xContentType);
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+        request.setContent(Streams.readFully(inputStream), xContentType);
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             PostDataAction.Response response = client.execute(PostDataAction.INSTANCE, request).actionGet();
             return response.getDataCounts();
         }
@@ -440,7 +429,7 @@ class DatafeedJob {
     private FlushJobAction.Response flushJob(FlushJobAction.Request flushRequest) {
         try {
             LOGGER.trace("[" + jobId + "] Sending flush request");
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 return client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
             }
         } catch (Exception e) {
@@ -465,7 +454,7 @@ class DatafeedJob {
     private void sendPersistRequest() {
         try {
             LOGGER.trace("[" + jobId + "] Sending persist request");
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 client.execute(PersistJobAction.INSTANCE, new PersistJobAction.Request(jobId));
             }
         } catch (Exception e) {
@@ -505,10 +494,11 @@ class DatafeedJob {
     static class EmptyDataCountException extends RuntimeException {
 
         final long nextDelayInMsSinceEpoch;
+        final boolean haveEverSeenData;
 
-        EmptyDataCountException(long nextDelayInMsSinceEpoch) {
+        EmptyDataCountException(long nextDelayInMsSinceEpoch, boolean haveEverSeenData) {
             this.nextDelayInMsSinceEpoch = nextDelayInMsSinceEpoch;
+            this.haveEverSeenData = haveEverSeenData;
         }
     }
-
 }

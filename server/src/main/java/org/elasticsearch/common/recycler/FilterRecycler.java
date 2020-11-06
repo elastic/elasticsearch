@@ -34,9 +34,4 @@ abstract class FilterRecycler<T> implements Recycler<T> {
         return wrap(getDelegate().obtain());
     }
 
-    @Override
-    public void close() {
-        getDelegate().close();
-    }
-
 }

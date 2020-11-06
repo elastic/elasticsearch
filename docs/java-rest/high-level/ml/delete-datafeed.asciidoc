@@ -3,11 +3,14 @@
 :request: DeleteDatafeedRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-delete-datafeed"]
-=== Delete Datafeed API
+=== Delete datafeeds API
+
+Deletes an existing datafeed.
 
 [id="{upid}-{api}-request"]
-==== Delete Datafeed Request
+==== Delete datafeeds request
 
 A +{request}+ object requires a non-null `datafeedId` and can optionally set `force`.
 
@@ -15,18 +18,17 @@ A +{request}+ object requires a non-null `datafeedId` and can optionally set `fo
 ---------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 ---------------------------------------------------
-<1> Use to forcefully delete a started datafeed;
-this method is quicker than stopping and deleting the datafeed.
-Defaults to `false`.
+<1> Use to forcefully delete a started datafeed. This method is quicker than
+stopping and deleting the datafeed. Defaults to `false`.
 
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Delete Datafeed Response
+==== Delete datafeeds response
 
 The returned +{response}+ object indicates the acknowledgement of the request:
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 ---------------------------------------------------
-<1> `isAcknowledged` was the deletion request acknowledged or not
+<1> `isAcknowledged` was the deletion request acknowledged or not.

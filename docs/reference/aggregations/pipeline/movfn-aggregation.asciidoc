@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-movfn-aggregation]]
-=== Moving Function Aggregation
+=== Moving function aggregation
+++++
+<titleabbrev>Moving function</titleabbrev>
+++++
 
 Given an ordered series of data, the Moving Function aggregation will slide a window across the data and allow the user to specify a custom
 script that is executed on each window of data.  For convenience, a number of common functions are predefined such as min/max, moving averages,
@@ -15,54 +18,57 @@ A `moving_fn` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "moving_fn": {
-        "buckets_path": "the_sum",
-        "window": 10,
-        "script": "MovingFunctions.min(values)"
-    }
+  "moving_fn": {
+    "buckets_path": "the_sum",
+    "window": 10,
+    "script": "MovingFunctions.min(values)"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
 
-.`moving_avg` Parameters
+[[moving-fn-params]]
+.`moving_fn` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |Path to the metric of interest (see <<buckets-path-syntax, `buckets_path` Syntax>> for more details |Required |
 |`window` |The size of window to "slide" across the histogram. |Required |
 |`script` |The script that should be executed on each window of data |Required |
+|`gap_policy` |The policy to apply when gaps are found in the data. See <<gap-policy>>. |Optional |`skip`
+|`shift` |<<shift-parameter, Shift>> of window position. |Optional | 0
 |===
 
 `moving_fn` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation.  They can be
 embedded like any other metric aggregation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{                <1>
-            "date_histogram":{
-                "field":"date",
-                "interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" } <2>
-                },
-                "the_movfn": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum", <3>
-                        "window": 10,
-                        "script": "MovingFunctions.unweightedAvg(values)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {                  <1>
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }   <2>
+        },
+        "the_movfn": {
+          "moving_fn": {
+            "buckets_path": "the_sum",  <3>
+            "window": 10,
+            "script": "MovingFunctions.unweightedAvg(values)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-day intervals
@@ -76,7 +82,7 @@ The `buckets_path` parameter is then used to "point" at one of the sibling metri
 
 An example response from the above aggregation may look like:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,
@@ -137,35 +143,46 @@ kind of calculation and emit a single `double` as the result.  Emitting `null` i
 
 For example, this script will simply return the first value from the window, or `NaN` if no values are available:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_movavg": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "return values.length > 0 ? values[0] : Double.NaN"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_movavg": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "return values.length > 0 ? values[0] : Double.NaN"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
+
+[[shift-parameter]]
+==== shift parameter
+
+By default (with `shift = 0`), the window that is offered for calculation is the last `n` values excluding the current bucket.
+Increasing `shift` by 1 moves starting window position by `1` to the right.
+
+- To include current bucket to the window, use `shift = 1`.
+- For center alignment (`n / 2` values before and after the current bucket), use `shift = window / 2`.
+- For right alignment (`n` values after the current bucket), use `shift = window`.
+
+If either of window edges moves outside the borders of data series, the window shrinks to include available values only.
 
 ==== Pre-built Functions
 
@@ -188,40 +205,41 @@ The functions are available from the `MovingFunctions` namespace.  E.g. `MovingF
 This function accepts a collection of doubles and returns the maximum value in that window. `null` and `NaN` values are ignored; the maximum
 is only calculated over the real values. If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
 
+[[max-params]]
 .`max(double[] values)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the maximum
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_moving_max": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.max(values)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_moving_max": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.max(values)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ===== min Function
@@ -229,40 +247,41 @@ POST /_search
 This function accepts a collection of doubles and returns the minimum value in that window.  `null` and `NaN` values are ignored; the minimum
 is only calculated over the real values. If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
 
+[[min-params]]
 .`min(double[] values)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the minimum
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_moving_min": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.min(values)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_moving_min": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.min(values)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ===== sum Function
@@ -270,40 +289,41 @@ POST /_search
 This function accepts a collection of doubles and returns the sum of the values in that window.  `null` and `NaN` values are ignored;
 the sum is only calculated over the real values.  If the window is empty, or all values are `null`/`NaN`, `0.0` is returned as the result.
 
+[[sum-params]]
 .`sum(double[] values)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_moving_sum": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.sum(values)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_moving_sum": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.sum(values)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ===== stdDev Function
@@ -312,41 +332,42 @@ This function accepts a collection of doubles and average, then returns the stan
 `null` and `NaN` values are ignored; the sum is only calculated over the real values.  If the window is empty, or all values are
 `null`/`NaN`, `0.0` is returned as the result.
 
+[[stddev-params]]
 .`stdDev(double[] values)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the standard deviation of
 |`avg` |The average of the window
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_moving_sum": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.stdDev(values, MovingFunctions.unweightedAvg(values))"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_moving_sum": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.stdDev(values, MovingFunctions.unweightedAvg(values))"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 The `avg` parameter must be provided to the standard deviation function because different styles of averages can be computed on the window
@@ -363,40 +384,41 @@ the values from a `simple` moving average tend to "lag" behind the real data.
 `null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
 values.
 
+[[unweightedavg-params]]
 .`unweightedAvg(double[] values)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_movavg": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.unweightedAvg(values)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_movavg": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.unweightedAvg(values)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ==== linearWeightedAvg Function
@@ -407,40 +429,41 @@ the "lag" behind the data's mean, since older points have less influence.
 
 If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
 
+[[linearweightedavg-params]]
 .`linearWeightedAvg(double[] values)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_movavg": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.linearWeightedAvg(values)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_movavg": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.linearWeightedAvg(values)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ==== ewma Function
@@ -456,41 +479,42 @@ moving average.  This tends to make the moving average track the data more close
 `null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
 values.
 
+[[ewma-params]]
 .`ewma(double[] values, double alpha)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
 |`alpha` |Exponential decay
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_movavg": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.ewma(values, 0.3)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_movavg": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.ewma(values, 0.3)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 
@@ -511,7 +535,9 @@ Values are produced by multiplying the level and trend components.
 `null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
 values.
 
+[[holt-params]]
 .`holt(double[] values, double alpha)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -519,34 +545,33 @@ values.
 |`beta` |Trend decay value
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_movavg": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.holt(values, 0.3, 0.1)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_movavg": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.holt(values, 0.3, 0.1)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 In practice, the `alpha` value behaves very similarly in `holtMovAvg` as `ewmaMovAvg`: small values produce more smoothing
@@ -572,7 +597,9 @@ for future enhancements.
 `null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
 values.
 
+[[holtwinters-params]]
 .`holtWinters(double[] values, double alpha)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -583,34 +610,33 @@ values.
 |`multiplicative` |True if you wish to use multiplicative holt-winters, false to use additive
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_movavg": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "if (values.length > 5*2) {MovingFunctions.holtWinters(values, 0.3, 0.1, 0.1, 5, false)}"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_movavg": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "if (values.length > 5*2) {MovingFunctions.holtWinters(values, 0.3, 0.1, 0.1, 5, false)}"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 [WARNING]

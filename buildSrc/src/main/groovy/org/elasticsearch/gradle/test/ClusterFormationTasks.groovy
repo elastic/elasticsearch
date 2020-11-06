@@ -21,10 +21,11 @@ package org.elasticsearch.gradle.test
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
 import org.gradle.api.AntBuilder
@@ -39,11 +40,13 @@ import org.gradle.api.logging.Logger
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
+import org.gradle.internal.jvm.Jvm
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
 import java.util.stream.Collectors
+
 /**
  * A helper for creating tasks to build a cluster that is used by a task, and tear down the cluster when the task is finished.
  */
@@ -219,7 +222,7 @@ class ClusterFormationTasks {
         if (distro.equals("oss")) {
             snapshotProject = "oss-" + snapshotProject
         }
-        
+
         BwcVersions.UnreleasedVersionInfo unreleasedInfo = null
 
         if (project.hasProperty('bwcVersions')) {
@@ -317,12 +320,6 @@ class ClusterFormationTasks {
         // its run after plugins have been installed, as the extra config files may belong to plugins
         setup = configureExtraConfigFilesTask(taskName(prefix, node, 'extraConfig'), project, setup, node)
 
-        // If the node runs in a FIPS 140-2 JVM, the BCFKS default keystore will be password protected
-        if (project.inFipsJvm){
-            node.config.systemProperties.put('javax.net.ssl.trustStorePassword', 'password')
-            node.config.systemProperties.put('javax.net.ssl.keyStorePassword', 'password')
-        }
-
         // extra setup commands
         for (Map.Entry<String, Object[]> command : node.config.setupCommands.entrySet()) {
             // the first argument is the actual script name, relative to home
@@ -391,7 +388,7 @@ class ClusterFormationTasks {
         Map esConfig = [
                 'cluster.name'                 : node.clusterName,
                 'node.name'                    : "node-" + node.nodeNum,
-                'pidfile'                      : node.pidFile,
+                (node.nodeVersion.onOrAfter('7.4.0') ? 'node.pidfile' : 'pidfile') : node.pidFile,
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
@@ -410,9 +407,12 @@ class ClusterFormationTasks {
             // so we need to bail quicker than the default 30s for the cluster to form in time.
             esConfig['discovery.zen.master_election.wait_for_joins_timeout'] = '5s'
         }
-        esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
-        esConfig['transport.tcp.port'] =  node.config.transportPort
+        if (node.nodeVersion.onOrAfter('6.7.0')) {
+            esConfig['transport.port'] =  node.config.transportPort
+        } else {
+            esConfig['transport.tcp.port'] =  node.config.transportPort
+        }
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         esConfig['cluster.routing.allocation.disk.watermark.low'] = '1b'
         esConfig['cluster.routing.allocation.disk.watermark.high'] = '1b'
@@ -420,23 +420,28 @@ class ClusterFormationTasks {
             esConfig['cluster.routing.allocation.disk.watermark.flood_stage'] = '1b'
         }
         // increase script compilation limit since tests can rapid-fire script compilations
-        esConfig['script.max_compilations_rate'] = '2048/1m'
+        if (node.nodeVersion.onOrAfter('7.9.0')) {
+            esConfig['script.disable_max_compilations_rate'] = 'true'
+        } else {
+            esConfig['script.max_compilations_rate'] = '2048/1m'
+        }
         // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
         // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
         // can retry on circuit breaking exceptions, we can revert again to the default configuration.
         if (node.nodeVersion.major >= 7) {
             esConfig['indices.breaker.total.use_real_memory'] = false
         }
-        for (Map.Entry<String, Object> setting : node.config.settings) {
-            if (setting.value == null) {
-                esConfig.remove(setting.key)
-            } else {
-                esConfig.put(setting.key, setting.value)
-            }
-        }
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
+            for (Map.Entry<String, Object> setting : node.config.settings) {
+                if (setting.value == null) {
+                    esConfig.remove(setting.key)
+                } else {
+                    esConfig.put(setting.key, setting.value)
+                }
+            }
+
             esConfig = configFilter.call(esConfig)
             File configFile = new File(node.pathConf, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
@@ -687,8 +692,7 @@ class ClusterFormationTasks {
     static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) { Exec exec ->
             exec.workingDir node.cwd
-            if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("7.0.0")) ||
-                node.config.distribution == 'integ-test-zip') {
+            if (useRuntimeJava(project, node)) {
                 exec.environment.put('JAVA_HOME', project.runtimeJavaHome)
             } else {
                 // force JAVA_HOME to *not* be set
@@ -706,6 +710,12 @@ class ClusterFormationTasks {
         }
     }
 
+    public static boolean useRuntimeJava(Project project, NodeInfo node) {
+        return (BuildParams.isRuntimeJavaHomeSet ||
+                (node.isBwcNode == false && node.nodeVersion.before(Version.fromString("7.0.0"))) ||
+                node.config.distribution == 'integ-test-zip')
+    }
+
     /** Adds a task to start an elasticsearch node with the given configuration */
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
         // this closure is converted into ant nodes by groovy's AntBuilder
@@ -713,8 +723,7 @@ class ClusterFormationTasks {
             ant.exec(executable: node.executable, spawn: node.config.daemonize, newenvironment: true,
                      dir: node.cwd, taskname: 'elasticsearch') {
                 node.env.each { key, value -> env(key: key, value: value) }
-                if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("7.0.0")) ||
-                    node.config.distribution == 'integ-test-zip') {
+                if (useRuntimeJava(project, node)) {
                     env(key: 'JAVA_HOME', value: project.runtimeJavaHome)
                 }
                 node.args.each { arg(value: it) }
@@ -757,6 +766,12 @@ class ClusterFormationTasks {
         }
         start.doLast(elasticsearchRunner)
         start.doFirst {
+            // If the node runs in a FIPS 140-2 JVM, the BCFKS default keystore will be password protected
+            if (BuildParams.inFipsJvm) {
+                node.config.systemProperties.put('javax.net.ssl.trustStorePassword', 'password')
+                node.config.systemProperties.put('javax.net.ssl.keyStorePassword', 'password')
+            }
+
             // Configure ES JAVA OPTS - adds system properties, assertion flags, remote debug etc
             List<String> esJavaOpts = [node.env.get('ES_JAVA_OPTS', '')]
             String collectedSystemProperties = node.config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
@@ -911,15 +926,7 @@ class ClusterFormationTasks {
             onlyIf { node.pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
             ext.pid = "${ -> node.pidFile.getText('UTF-8').trim()}"
-            File jps
-            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                jps = getJpsExecutableByName(project, "jps.exe")
-            } else {
-                jps = getJpsExecutableByName(project, "jps")
-            }
-            if (!jps.exists()) {
-                throw new GradleException("jps executable not found; ensure that you're running Gradle with the JDK rather than the JRE")
-            }
+            final File jps = Jvm.forHome(project.runtimeJavaHome).getExecutable('jps')
             commandLine jps, '-l'
             standardOutput = new ByteArrayOutputStream()
             doLast {
@@ -936,10 +943,6 @@ class ClusterFormationTasks {
                 }
             }
         }
-    }
-
-    private static File getJpsExecutableByName(Project project, String jpsExecutableName) {
-        return Paths.get(project.runtimeJavaHome.toString(), "bin/" + jpsExecutableName).toFile()
     }
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */
@@ -960,6 +963,8 @@ class ClusterFormationTasks {
             }
             doLast {
                 project.delete(node.pidFile)
+                // Large tests can exhaust disk space, clean up jdk from the distribution to save some space
+                project.delete(new File(node.homeDir, "jdk"))
             }
         }
     }

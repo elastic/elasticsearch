@@ -20,7 +20,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackBuild;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 
-import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,8 +31,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     @Inject
     public TransportXPackInfoAction(TransportService transportService, ActionFilters actionFilters, LicenseService licenseService,
                                     Set<XPackFeatureSet> featureSets) {
-        super(XPackInfoAction.NAME, transportService, actionFilters,
-            XPackInfoRequest::new);
+        super(XPackInfoAction.NAME, transportService, actionFilters, XPackInfoRequest::new);
         this.licenseService = licenseService;
         this.featureSets = featureSets;
     }
@@ -51,15 +49,25 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
         if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
             License license = licenseService.getLicense();
             if (license != null) {
-                licenseInfo = new LicenseInfo(license.uid(), license.type(), license.operationMode().name().toLowerCase(Locale.ROOT),
-                        license.status(), license.expiryDate());
+                String type = license.type();
+                License.OperationMode mode = license.operationMode();
+                if (request.getLicenseVersion() < License.VERSION_ENTERPRISE) {
+                    if (License.LicenseType.ENTERPRISE.getTypeName().equals(type)) {
+                        type = License.LicenseType.PLATINUM.getTypeName();
+                    }
+                    if (mode == License.OperationMode.ENTERPRISE) {
+                        mode = License.OperationMode.PLATINUM;
+                    }
+                }
+                licenseInfo = new LicenseInfo(license.uid(), type, mode.description(), license.status(),
+                    license.expiryDate());
             }
         }
 
         XPackInfoResponse.FeatureSetsInfo featureSetsInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.FEATURES)) {
             Set<FeatureSet> featureSets = this.featureSets.stream().map(fs ->
-                    new FeatureSet(fs.name(), request.isVerbose() ? fs.description() : null, fs.available(), fs.enabled(),
+                    new FeatureSet(fs.name(), fs.available(), fs.enabled(),
                             request.isVerbose() ? fs.nativeCodeInfo() : null))
                     .collect(Collectors.toSet());
             featureSetsInfo = new XPackInfoResponse.FeatureSetsInfo(featureSets);

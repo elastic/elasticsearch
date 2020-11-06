@@ -5,21 +5,23 @@
  */
 package org.elasticsearch.xpack.core.security;
 
-import org.apache.lucene.util.SPIClassIterator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.ServiceConfigurationError;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -29,15 +31,35 @@ import java.util.function.BiConsumer;
 public interface SecurityExtension {
 
     /**
+     * This interface provides access to components (clients and services) that may be used
+     * within custom realms and role providers.
+     */
+    interface SecurityComponents {
+        /** Global settings for the current node */
+        Settings settings();
+        /** Provides access to key filesystem paths */
+        Environment environment();
+        /** An internal client for retrieving information/data from this cluster */
+        Client client();
+        /** The Elasticsearch thread pools */
+        ThreadPool threadPool();
+        /** Provides the ability to monitor files for changes */
+        ResourceWatcherService resourceWatcherService();
+        /** Access to listen to changes in cluster state and settings  */
+        ClusterService clusterService();
+        /** Provides support for mapping users' roles from groups and metadata */
+        UserRoleMapper roleMapper();
+    }
+    /**
      * Returns authentication realm implementations added by this extension.
      *
      * The key of the returned {@link Map} is the type name of the realm, and the value
      * is a {@link Realm.Factory} which will construct
      * that realm for use in authentication when that realm type is configured.
      *
-     * @param resourceWatcherService Use to watch configuration files for changes
+     * @param components Access to components that may be used to build realms
      */
-    default Map<String, Realm.Factory> getRealms(ResourceWatcherService resourceWatcherService) {
+    default Map<String, Realm.Factory> getRealms(SecurityComponents components) {
         return Collections.emptyMap();
     }
 
@@ -46,8 +68,10 @@ public interface SecurityExtension {
      *
      * Only one installed extension may have an authentication failure handler. If more than
      * one extension returns a non-null handler, an error is raised.
+     *
+     * @param components Access to components that may be used to build the handler
      */
-    default AuthenticationFailureHandler getAuthenticationFailureHandler() {
+    default AuthenticationFailureHandler getAuthenticationFailureHandler(SecurityComponents components) {
         return null;
     }
 
@@ -72,11 +96,10 @@ public interface SecurityExtension {
      *
      * By default, an empty list is returned.
      *
-     * @param settings The configured settings for the node
-     * @param resourceWatcherService Use to watch configuration files for changes
+     * @param components Access to components that may be used to build roles
      */
     default List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
-        getRolesProviders(Settings settings, ResourceWatcherService resourceWatcherService) {
+        getRolesProviders(SecurityComponents components) {
         return Collections.emptyList();
     }
 
@@ -91,22 +114,4 @@ public interface SecurityExtension {
     default AuthorizationEngine getAuthorizationEngine(Settings settings) {
         return null;
     }
-
-    /**
-     * Loads the XPackSecurityExtensions from the given class loader
-     */
-    static List<SecurityExtension> loadExtensions(ClassLoader loader) {
-        SPIClassIterator<SecurityExtension> iterator = SPIClassIterator.get(SecurityExtension.class, loader);
-        List<SecurityExtension> extensions = new ArrayList<>();
-        while (iterator.hasNext()) {
-            final Class<? extends SecurityExtension> c = iterator.next();
-            try {
-                extensions.add(c.getConstructor().newInstance());
-            } catch (Exception e) {
-                throw new ServiceConfigurationError("failed to load security extension [" + c.getName() + "]", e);
-            }
-        }
-        return extensions;
-    }
-
 }

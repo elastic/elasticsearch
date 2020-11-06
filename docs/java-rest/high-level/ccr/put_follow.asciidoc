@@ -3,7 +3,7 @@
 :request: PutFollowRequest
 :response: PutFollowResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put Follow API
 
@@ -22,6 +22,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <3> The name of the follower index that gets created as part of the put follow API call.
 <4> The number of active shard copies to wait for before the put follow API returns a
 response, as an `ActiveShardCount`
+<5> The settings overrides for the follower index.
 
 [id="{upid}-{api}-response"]
 ==== Response

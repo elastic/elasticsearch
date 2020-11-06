@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -31,24 +30,28 @@ import java.util.Objects;
 /**
  * Response indicating if the Machine Learning Datafeed is now started or not
  */
-public class StartDatafeedResponse extends ActionResponse implements ToXContentObject {
+public class StartDatafeedResponse implements ToXContentObject {
 
     private static final ParseField STARTED = new ParseField("started");
+    private static final ParseField NODE = new ParseField("node");
 
     public static final ConstructingObjectParser<StartDatafeedResponse, Void> PARSER =
         new ConstructingObjectParser<>(
             "start_datafeed_response",
             true,
-            (a) -> new StartDatafeedResponse((Boolean)a[0]));
+            (a) -> new StartDatafeedResponse((Boolean) a[0], (String) a[1]));
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), STARTED);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), NODE);
     }
 
     private final boolean started;
+    private final String node;
 
-    public StartDatafeedResponse(boolean started) {
+    public StartDatafeedResponse(boolean started, String node) {
         this.started = started;
+        this.node = node;
     }
 
     public static StartDatafeedResponse fromXContent(XContentParser parser) throws IOException {
@@ -64,6 +67,18 @@ public class StartDatafeedResponse extends ActionResponse implements ToXContentO
         return started;
     }
 
+    /**
+     * The node that the datafeed was assigned to
+     *
+     * @return The ID of a node if the datafeed was assigned to a node.  If an empty string is returned
+     *         it means the datafeed was allowed to open lazily and has not yet been assigned to a node.
+     *         If <code>null</code> is returned it means the server version is too old to return node
+     *         information.
+     */
+    public String getNode() {
+        return node;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -75,18 +90,22 @@ public class StartDatafeedResponse extends ActionResponse implements ToXContentO
         }
 
         StartDatafeedResponse that = (StartDatafeedResponse) other;
-        return isStarted() == that.isStarted();
+        return started == started
+            && Objects.equals(node, that.node);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(isStarted());
+        return Objects.hash(started, node);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(STARTED.getPreferredName(), started);
+        if (node != null) {
+            builder.field(NODE.getPreferredName(), node);
+        }
         builder.endObject();
         return builder;
     }

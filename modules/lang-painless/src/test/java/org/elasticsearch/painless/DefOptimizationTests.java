@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 public class DefOptimizationTests extends ScriptTestCase {
+
     public void testIntBraceArrayOptiLoad() {
         final String script = "int x = 0; def y = new int[1]; y[0] = 5; x = y[0]; return x;";
         assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;I)I");
@@ -459,11 +460,11 @@ public class DefOptimizationTests extends ScriptTestCase {
     
     public void testLambdaReturnType() {
         assertBytecodeExists("List l = new ArrayList(); l.removeIf(x -> x < 10)",
-                             "synthetic lambda$0(Ljava/lang/Object;)Z");
+                             "synthetic lambda$synthetic$0(Ljava/lang/Object;)Z");
     }
     
     public void testLambdaArguments() {
         assertBytecodeExists("List l = new ArrayList(); l.stream().mapToDouble(Double::valueOf).map(x -> x + 1)",
-                             "synthetic lambda$0(D)D");
+                             "synthetic lambda$synthetic$0(D)D");
     }
 }

@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -44,6 +46,8 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
                 randomAlphaOfLength(4),
                 leaderPatterns,
                 randomAlphaOfLength(4),
+                Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build(),
+                true,
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),

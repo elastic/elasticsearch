@@ -1,0 +1,56 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: latency
+        body:
+          mappings:
+            properties:
+              load_time:
+                type: double
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: "latency"
+          - load_time: 2
+
+          - index:
+              _index: "latency"
+          - load_time: 3
+
+          - index:
+              _index: "latency"
+          - load_time: 5
+
+          - index:
+              _index: "latency"
+          - load_time: 10
+
+          - index:
+              _index: "latency"
+          - load_time: 15
+---
+"Basic Search":
+
+  - do:
+      search:
+        index: "latency"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time"
+
+  - match: { aggregations.plot.min: 2.0 }
+  - match: { aggregations.plot.max: 15.0 }
+  - match: { aggregations.plot.q1: 2.75 }
+  - match: { aggregations.plot.q2: 5.0 }
+  - match: { aggregations.plot.q3: 11.25 }
+

@@ -22,19 +22,24 @@ package org.elasticsearch.rest.action.ingest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetPipelineAction extends BaseRestHandler {
-    public RestGetPipelineAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline/{id}", this);
+
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_ingest/pipeline"),
+            new Route(GET, "/_ingest/pipeline/{id}")));
     }
 
     @Override

@@ -20,7 +20,7 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
@@ -56,7 +56,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .put(ThreadContext.PREFIX + ".key2", "val 2")
             .build();
 
-    private static final Action<?>[] ACTIONS = new Action[] {
+    private static final ActionType<?>[] ACTIONS = new ActionType[] {
                 // client actions
                 GetAction.INSTANCE, SearchAction.INSTANCE, DeleteAction.INSTANCE, DeleteStoredScriptAction.INSTANCE,
                 IndexAction.INSTANCE,
@@ -92,7 +92,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         terminate(threadPool);
     }
 
-    protected abstract Client buildClient(Settings headersSettings, Action<?>[] testedActions);
+    protected abstract Client buildClient(Settings headersSettings, ActionType<?>[] testedActions);
 
 
     public void testActions() {

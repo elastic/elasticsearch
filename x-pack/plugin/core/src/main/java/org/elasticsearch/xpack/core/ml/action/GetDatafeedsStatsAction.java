@@ -6,14 +6,13 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,35 +22,40 @@ import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Response> {
+import static org.elasticsearch.Version.V_7_4_0;
+
+public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.Response> {
 
     public static final GetDatafeedsStatsAction INSTANCE = new GetDatafeedsStatsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/datafeeds/stats/get";
 
     public static final String ALL = "_all";
     private static final String STATE = "state";
+    private static final String NODE = "node";
+    private static final String ASSIGNMENT_EXPLANATION = "assignment_explanation";
+    private static final String TIMING_STATS = "timing_stats";
 
     private GetDatafeedsStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+        @Deprecated
+        public static final String ALLOW_NO_DATAFEEDS = "allow_no_datafeeds";
+        public static final String ALLOW_NO_MATCH = "allow_no_match";
 
         private String datafeedId;
-        private boolean allowNoDatafeeds = true;
+        private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
@@ -63,7 +67,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
             super(in);
             datafeedId = in.readString();
             if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoDatafeeds = in.readBoolean();
+                allowNoMatch = in.readBoolean();
             }
         }
 
@@ -72,7 +76,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
             super.writeTo(out);
             out.writeString(datafeedId);
             if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoDatafeeds);
+                out.writeBoolean(allowNoMatch);
             }
         }
 
@@ -80,12 +84,12 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
             return datafeedId;
         }
 
-        public boolean allowNoDatafeeds() {
-            return allowNoDatafeeds;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
-        public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-            this.allowNoDatafeeds = allowNoDatafeeds;
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         @Override
@@ -94,13 +98,8 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, allowNoDatafeeds);
+            return Objects.hash(datafeedId, allowNoMatch);
         }
 
         @Override
@@ -112,7 +111,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoDatafeeds, other.allowNoDatafeeds);
+            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoMatch, other.allowNoMatch);
         }
     }
 
@@ -133,13 +132,16 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
             private DiscoveryNode node;
             @Nullable
             private String assignmentExplanation;
+            @Nullable
+            private DatafeedTimingStats timingStats;
 
             public DatafeedStats(String datafeedId, DatafeedState datafeedState, @Nullable DiscoveryNode node,
-                          @Nullable String assignmentExplanation) {
+                          @Nullable String assignmentExplanation, @Nullable DatafeedTimingStats timingStats) {
                 this.datafeedId = Objects.requireNonNull(datafeedId);
                 this.datafeedState = Objects.requireNonNull(datafeedState);
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
+                this.timingStats = timingStats;
             }
 
             DatafeedStats(StreamInput in) throws IOException {
@@ -147,6 +149,11 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
                 datafeedState = DatafeedState.fromStream(in);
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
+                if (in.getVersion().onOrAfter(V_7_4_0)) {
+                    timingStats = in.readOptionalWriteable(DatafeedTimingStats::new);
+                } else {
+                    timingStats = null;
+                }
             }
 
             public String getDatafeedId() {
@@ -165,13 +172,17 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
                 return assignmentExplanation;
             }
 
+            public DatafeedTimingStats getTimingStats() {
+                return timingStats;
+            }
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
                 builder.field(STATE, datafeedState.toString());
                 if (node != null) {
-                    builder.startObject("node");
+                    builder.startObject(NODE);
                     builder.field("id", node.getId());
                     builder.field("name", node.getName());
                     builder.field("ephemeral_id", node.getEphemeralId());
@@ -187,7 +198,13 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
                     builder.endObject();
                 }
                 if (assignmentExplanation != null) {
-                    builder.field("assignment_explanation", assignmentExplanation);
+                    builder.field(ASSIGNMENT_EXPLANATION, assignmentExplanation);
+                }
+                if (timingStats != null) {
+                    builder.field(
+                        TIMING_STATS,
+                        timingStats,
+                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true")));
                 }
                 builder.endObject();
                 return builder;
@@ -199,11 +216,14 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
                 datafeedState.writeTo(out);
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
+                if (out.getVersion().onOrAfter(V_7_4_0)) {
+                    out.writeOptionalWriteable(timingStats);
+                }
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(datafeedId, datafeedState, node, assignmentExplanation);
+                return Objects.hash(datafeedId, datafeedState, node, assignmentExplanation, timingStats);
             }
 
             @Override
@@ -215,10 +235,11 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
                     return false;
                 }
                 DatafeedStats other = (DatafeedStats) obj;
-                return Objects.equals(datafeedId, other.datafeedId) &&
+                return Objects.equals(this.datafeedId, other.datafeedId) &&
                         Objects.equals(this.datafeedState, other.datafeedState) &&
                         Objects.equals(this.node, other.node) &&
-                        Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
+                        Objects.equals(this.assignmentExplanation, other.assignmentExplanation) &&
+                        Objects.equals(this.timingStats, other.timingStats);
             }
         }
 
@@ -226,7 +247,9 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
             super(datafeedsStats);
         }
 
-        public Response() {}
+        public Response(StreamInput in) throws IOException {
+            super(in);
+        }
 
         public QueryPage<DatafeedStats> getResponse() {
             return getResources();
@@ -237,5 +260,4 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
             return DatafeedStats::new;
         }
     }
-
 }

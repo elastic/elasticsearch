@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,7 +34,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A response to _count API request.
  */
-public final class CountResponse extends ActionResponse {
+public final class CountResponse {
 
     static final ParseField COUNT = new ParseField("count");
     static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
@@ -102,9 +101,9 @@ public final class CountResponse extends ActionResponse {
     }
 
     public static CountResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         String currentName = parser.currentName();
         Boolean terminatedEarly = null;
         long count = 0;

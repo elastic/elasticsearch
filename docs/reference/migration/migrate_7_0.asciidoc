@@ -32,7 +32,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_70_node_changes>>
 * <<breaking_70_java_time_changes>>
 
-[float]
+[discrete]
 === Indices created before 7.0
 
 Elasticsearch 7.0 can read indices created in version 6.0 or above.  An

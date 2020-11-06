@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An authenticated user
@@ -50,7 +51,7 @@ public class User implements ToXContentObject {
 
     private User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled,
                 User authenticatedUser) {
-        this.username = username;
+        this.username = Objects.requireNonNull(username);
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
         this.fullName = fullName;
@@ -209,6 +210,10 @@ public class User implements ToXContentObject {
         output.writeBoolean(false); // last user written, regardless of bwc, does not have an inner user
     }
 
+    public static boolean isInternal(User user) {
+        return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user) || AsyncSearchUser.is(user);
+    }
+
     /** Write just the given {@link User}, but not the inner {@link #authenticatedUser}. */
     private static void writeUser(User user, StreamOutput output) throws IOException {
         output.writeBoolean(false); // not a system user
@@ -234,6 +239,7 @@ public class User implements ToXContentObject {
         ParseField LOOKUP_REALM = new ParseField("lookup_realm");
         ParseField REALM_TYPE = new ParseField("type");
         ParseField REALM_NAME = new ParseField("name");
+        ParseField AUTHENTICATION_TYPE = new ParseField("authentication_type");
     }
 }
 

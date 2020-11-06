@@ -17,6 +17,7 @@
  * under the License.
  */
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   name 'example-rescore'
@@ -25,4 +26,3 @@ esplugin {
   licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
-

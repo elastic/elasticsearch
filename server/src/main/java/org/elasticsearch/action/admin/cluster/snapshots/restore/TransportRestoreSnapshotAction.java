@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.RestoreService.RestoreCompletionResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -43,19 +42,11 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     public TransportRestoreSnapshotAction(TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, RestoreService restoreService, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver) {
+        // Using the generic instead of the snapshot threadpool here as the snapshot threadpool might be blocked on long running tasks
+        // which would block the request from getting an error response because of the ongoing task
         super(RestoreSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              RestoreSnapshotRequest::new,indexNameExpressionResolver);
+              RestoreSnapshotRequest::new, indexNameExpressionResolver, RestoreSnapshotResponse::new, ThreadPool.Names.GENERIC);
         this.restoreService = restoreService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SNAPSHOT;
-    }
-
-    @Override
-    protected RestoreSnapshotResponse newResponse() {
-        return new RestoreSnapshotResponse();
     }
 
     @Override
@@ -73,20 +64,13 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     @Override
     protected void masterOperation(final RestoreSnapshotRequest request, final ClusterState state,
                                    final ActionListener<RestoreSnapshotResponse> listener) {
-        restoreService.restoreSnapshot(request, new ActionListener<RestoreCompletionResponse>() {
-            @Override
-            public void onResponse(RestoreCompletionResponse restoreCompletionResponse) {
+        restoreService.restoreSnapshot(request, ActionListener.delegateFailure(listener,
+            (delegatedListener, restoreCompletionResponse) -> {
                 if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
-                    RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, listener);
+                    RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, delegatedListener);
                 } else {
-                    listener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
+                    delegatedListener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
                 }
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                listener.onFailure(t);
-            }
-        });
+            }));
     }
 }

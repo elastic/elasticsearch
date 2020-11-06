@@ -1,0 +1,80 @@
+[[breaking-changes-7.3]]
+== Breaking changes in 7.3
+++++
+<titleabbrev>7.3</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 7.3.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+[discrete]
+[[breaking_73_api_changes]]
+=== API changes
+
+[discrete]
+==== {dataframe-transform-cap} API changes
+
+It is no longer possible to supply the `format` parameter when you define a
+`date_histogram` {dataframe-transform} pivot. Previously constructed transforms 
+will still run but the configured `format` will be ignored.
+
+[discrete]
+[[breaking_73_mapping_changes]]
+=== Mapping changes
+`dense_vector` field now requires `dims` parameter, specifying the number of
+dimensions for document and query vectors for this field.
+
+[discrete]
+==== Defining multi-fields within multi-fields
+
+Previously, it was possible to define a multi-field within a multi-field.
+Defining chained multi-fields is now deprecated and will no longer be supported
+in 8.0. To resolve the issue, all instances of `fields` that occur within a
+`fields` block should be removed from the mappings, either by flattening the
+chained `fields` blocks into a single level, or by switching to `copy_to` if
+appropriate.
+
+[discrete]
+[[breaking_73_plugin_changes]]
+=== Plugins changes
+
+[discrete]
+==== IndexStorePlugin changes
+
+IndexStore and DirectoryService have been replaced by a stateless and simple
+DirectoryFactory interface to create custom Lucene directory instances per shard.
+
+
+[discrete]
+[[breaking_73_search_changes]]
+=== Search changes
+
+[discrete]
+==== Deprecation of queries
+
+The `common` query has been deprecated. The same functionality can be achieved
+by the `match` query if the total number of hits is not tracked.
+
+[discrete]
+===== Deprecation of query parameters
+
+The `cutoff_frequency` parameter has been deprecated for `match` and `multi_match`
+queries. The same functionality can be achieved without any configuration provided
+that the total number of hits is not tracked.
+
+[discrete]
+[[breaking_73_ccr_changes]]
+=== CCR changes
+
+[discrete]
+==== Directly modifying aliases of follower indices is no longer allowed
+
+Aliases are now replicated to a follower from its leader, so directly modifying
+aliases on follower indices is no longer allowed.
+// end::notable-breaking-changes[]

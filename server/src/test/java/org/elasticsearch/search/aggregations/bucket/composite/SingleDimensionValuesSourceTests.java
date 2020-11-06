@@ -41,8 +41,7 @@ import static org.mockito.Mockito.when;
 
 public class SingleDimensionValuesSourceTests extends ESTestCase {
     public void testBinarySorted() {
-        MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType();
-        keyword.setName("keyword");
+        MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("keyword");
         BinaryValuesSource source = new BinaryValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             (b) -> {},
@@ -86,8 +85,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         );
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
 
-        MappedFieldType ip = new IpFieldMapper.IpFieldType();
-        ip.setName("ip");
+        MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
         source = new BinaryValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             (b) -> {},
@@ -101,8 +99,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
     }
 
     public void testGlobalOrdinalsSorted() {
-        final MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType();
-        keyword.setName("keyword");
+        final MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("keyword");
         GlobalOrdinalValuesSource source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             keyword, context -> null,
@@ -144,8 +141,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
 
-        final MappedFieldType ip = new IpFieldMapper.IpFieldType();
-        ip.setName("ip");
+        final MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
         source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             ip,
@@ -161,8 +157,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
 
     public void testNumericSorted() {
         for (NumberFieldMapper.NumberType numberType : NumberFieldMapper.NumberType.values()) {
-            MappedFieldType number = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-            number.setName("number");
+            MappedFieldType number = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
             final SingleDimensionValuesSource<?> source;
             if (numberType == NumberFieldMapper.NumberType.BYTE ||
                     numberType == NumberFieldMapper.NumberType.SHORT ||

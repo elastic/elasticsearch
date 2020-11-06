@@ -297,13 +297,38 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
 
-        private final Runnable connectActivity = () -> threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
+        private final Runnable connectActivity = new AbstractRunnable() {
+
+            final AbstractRunnable abstractRunnable = this;
+
             @Override
             protected void doRun() {
                 assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                transportService.connectToNode(discoveryNode);
+                if (transportService.nodeConnected(discoveryNode)) {
+                    // transportService.connectToNode is a no-op if already connected, but we don't want any DEBUG logging in this case
+                    // since we run this for every node on every cluster state update.
+                    logger.trace("still connected to {}", discoveryNode);
+                    onConnected();
+                } else {
+                    logger.debug("connecting to {}", discoveryNode);
+                    transportService.connectToNode(discoveryNode, new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void aVoid) {
+                            assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+                            logger.debug("connected to {}", discoveryNode);
+                            onConnected();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            abstractRunnable.onFailure(e);
+                        }
+                    });
+                }
+            }
+
+            private void onConnected() {
                 consecutiveFailureCount.set(0);
-                logger.debug("connected to {}", discoveryNode);
                 onCompletion(ActivityType.CONNECTING, null, disconnectActivity);
             }
 
@@ -322,7 +347,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             public String toString() {
                 return "connect to " + discoveryNode;
             }
-        });
+        };
 
         private final Runnable disconnectActivity = new AbstractRunnable() {
             @Override

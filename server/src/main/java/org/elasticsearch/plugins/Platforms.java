@@ -38,6 +38,15 @@ public class Platforms {
      * The path to the native controller for a plugin with native components.
      */
     public static Path nativeControllerPath(Path plugin) {
+        if (Constants.MAC_OS_X) {
+            return plugin
+                .resolve("platform")
+                .resolve(PLATFORM_NAME)
+                .resolve(PROGRAM_NAME + ".app")
+                .resolve("Contents")
+                .resolve("MacOS")
+                .resolve(PROGRAM_NAME);
+        }
         return plugin
                 .resolve("platform")
                 .resolve(PLATFORM_NAME)
@@ -46,7 +55,7 @@ public class Platforms {
     }
 
     /**
-     * Return the platform name based on the OS name and
+     * Return the platform name based on the OS name and architecture, for example:
      * - darwin-x86_64
      * - linux-x86-64
      * - windows-x86_64

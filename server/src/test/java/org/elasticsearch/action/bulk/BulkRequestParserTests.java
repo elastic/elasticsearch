@@ -19,12 +19,16 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class BulkRequestParserTests extends ESTestCase {
@@ -38,10 +42,31 @@ public class BulkRequestParserTests extends ESTestCase {
                     assertFalse(parsed.get());
                     assertEquals("foo", indexRequest.index());
                     assertEquals("bar", indexRequest.id());
+                    assertFalse(indexRequest.isRequireAlias());
                     parsed.set(true);
                 },
                 req -> fail(), req -> fail());
         assertTrue(parsed.get());
+
+        parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON,
+            indexRequest -> {
+                assertTrue(indexRequest.isRequireAlias());
+            },
+            req -> fail(), req -> fail());
+
+        request = new BytesArray("{ \"index\":{ \"_id\": \"bar\", \"require_alias\": true } }\n{}\n");
+        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON,
+            indexRequest -> {
+                assertTrue(indexRequest.isRequireAlias());
+            },
+            req -> fail(), req -> fail());
+
+        request = new BytesArray("{ \"index\":{ \"_id\": \"bar\", \"require_alias\": false } }\n{}\n");
+        parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON,
+            indexRequest -> {
+                assertFalse(indexRequest.isRequireAlias());
+            },
+            req -> fail(), req -> fail());
     }
 
     public void testDeleteRequest() throws IOException {
@@ -69,13 +94,37 @@ public class BulkRequestParserTests extends ESTestCase {
                     assertFalse(parsed.get());
                     assertEquals("foo", updateRequest.index());
                     assertEquals("bar", updateRequest.id());
+                    assertFalse(updateRequest.isRequireAlias());
                     parsed.set(true);
                 },
                 req -> fail());
         assertTrue(parsed.get());
+
+        parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON,
+            req -> fail(),
+            updateRequest -> {
+                assertTrue(updateRequest.isRequireAlias());
+            },
+            req -> fail());
+
+        request = new BytesArray("{ \"update\":{ \"_id\": \"bar\", \"require_alias\": true } }\n{}\n");
+        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON,
+            req -> fail(),
+            updateRequest -> {
+                assertTrue(updateRequest.isRequireAlias());
+            },
+            req -> fail());
+
+        request = new BytesArray("{ \"update\":{ \"_id\": \"bar\", \"require_alias\": false } }\n{}\n");
+        parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON,
+            req -> fail(),
+            updateRequest -> {
+                assertFalse(updateRequest.isRequireAlias());
+            },
+            req -> fail());
     }
 
-    public void testBarfOnLackOfTrailingNewline() throws IOException {
+    public void testBarfOnLackOfTrailingNewline() {
         BytesArray request = new BytesArray("{ \"index\":{ \"_id\": \"bar\" } }\n{}");
         BulkRequestParser parser = new BulkRequestParser(randomBoolean());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -84,10 +133,10 @@ public class BulkRequestParserTests extends ESTestCase {
         assertEquals("The bulk request must be terminated by a newline [\\n]", e.getMessage());
     }
 
-    public void testFailOnExplicitIndex() throws IOException {
+    public void testFailOnExplicitIndex() {
         BytesArray request = new BytesArray("{ \"index\":{ \"_index\": \"foo\", \"_id\": \"bar\" } }\n{}\n");
         BulkRequestParser parser = new BulkRequestParser(randomBoolean());
-        
+
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> parser.parse(request, null, null, null, null, null, false, XContentType.JSON,
                         req -> fail(), req -> fail(), req -> fail()));
@@ -111,4 +160,20 @@ public class BulkRequestParserTests extends ESTestCase {
         assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
+    public void testParseDeduplicatesParameterStrings() throws IOException {
+        BytesArray request = new BytesArray(
+                "{ \"index\":{ \"_index\": \"bar\", \"pipeline\": \"foo\", \"routing\": \"blub\"} }\n{}\n"
+                + "{ \"index\":{ \"_index\": \"bar\", \"pipeline\": \"foo\", \"routing\": \"blub\" } }\n{}\n");
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean());
+        final List<IndexRequest> indexRequests = new ArrayList<>();
+        parser.parse(request, null, null, null, null, null, true, XContentType.JSON,
+                indexRequests::add,
+                req -> fail(), req -> fail());
+        assertThat(indexRequests, Matchers.hasSize(2));
+        final IndexRequest first = indexRequests.get(0);
+        final IndexRequest second = indexRequests.get(1);
+        assertSame(first.index(), second.index());
+        assertSame(first.getPipeline(), second.getPipeline());
+        assertSame(first.routing(), second.routing());
+    }
 }

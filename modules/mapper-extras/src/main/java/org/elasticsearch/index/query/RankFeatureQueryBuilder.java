@@ -27,10 +27,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RankFeatureFieldMapper.RankFeatureFieldType;
 import org.elasticsearch.index.mapper.RankFeatureMetaFieldMapper;
 import org.elasticsearch.index.mapper.RankFeaturesFieldMapper.RankFeaturesFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -260,7 +260,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
         }
     }
 
-    public static ConstructingObjectParser<RankFeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<RankFeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
             "feature", args -> {
                 final String field = (String) args[0];
                 final float boost = args[1] == null ? DEFAULT_BOOST : (Float) args[1];
@@ -299,6 +299,11 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
     private final String field;
     private final ScoreFunction scoreFunction;
 
+    /**
+     *
+     * @param field  The field name.
+     * @param scoreFunction Scoring function for the rank_feature field.
+     */
     public RankFeatureQueryBuilder(String field, ScoreFunction scoreFunction) {
         this.field = Objects.requireNonNull(field);
         this.scoreFunction = Objects.requireNonNull(scoreFunction);
@@ -332,7 +337,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        final MappedFieldType ft = context.fieldMapper(field);
+        final MappedFieldType ft = context.getFieldType(field);
 
         if (ft instanceof RankFeatureFieldType) {
             final RankFeatureFieldType fft = (RankFeatureFieldType) ft;
@@ -341,7 +346,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
             final int lastDotIndex = field.lastIndexOf('.');
             if (lastDotIndex != -1) {
                 final String parentField = field.substring(0, lastDotIndex);
-                final MappedFieldType parentFt = context.fieldMapper(parentField);
+                final MappedFieldType parentFt = context.getFieldType(parentField);
                 if (parentFt instanceof RankFeaturesFieldType) {
                     return scoreFunction.toQuery(parentField, field.substring(lastDotIndex + 1), true);
                 }

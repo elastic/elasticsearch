@@ -19,49 +19,25 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-
-import java.util.Set;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 /**
  * Represents a continue statement.
  */
-public final class SContinue extends AStatement {
+public class SContinue extends AStatement {
 
-    public SContinue(Location location) {
-        super(location);
+    public SContinue(int identifier, Location location) {
+        super(identifier, location);
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitContinue(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        if (!inLoop) {
-            throw createError(new IllegalArgumentException("Continue statement outside of a loop."));
-        }
-
-        if (lastLoop) {
-            throw createError(new IllegalArgumentException("Extraneous continue statement."));
-        }
-
-        allEscape = true;
-        anyContinue = true;
-        statementCount = 1;
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.goTo(continu);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString();
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

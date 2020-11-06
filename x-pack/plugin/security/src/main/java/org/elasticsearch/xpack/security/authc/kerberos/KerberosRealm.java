@@ -21,9 +21,9 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.support.CachingRealm;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.ietf.jgss.GSSException;
 
@@ -216,10 +216,12 @@ public final class KerberosRealm extends Realm implements CachingRealm {
             if (user != null) {
                 listener.onResponse(AuthenticationResult.success(user));
             } else {
-                final String realmName = (userAndRealmName.length > 1) ? userAndRealmName[1] : null;
                 final Map<String, Object> metadata = new HashMap<>();
-                metadata.put(KRB_METADATA_REALM_NAME_KEY, realmName);
                 metadata.put(KRB_METADATA_UPN_KEY, userPrincipalName);
+                if (userAndRealmName.length > 1) {
+                    final String realmName = userAndRealmName[1];
+                    metadata.put(KRB_METADATA_REALM_NAME_KEY, realmName);
+                }
                 buildUser(username, metadata, listener);
             }
         }

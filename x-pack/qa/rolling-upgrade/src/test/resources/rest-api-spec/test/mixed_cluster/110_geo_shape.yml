@@ -1,0 +1,46 @@
+---
+"Test mixed geo_shape indexing":
+  - skip:
+      version: "7.8.0 -"
+      reason: This is meant to run on 7.7 indices or earlier
+
+  - do:
+      indices.get_field_mapping:
+        index: old_locations
+        fields: location
+        include_defaults: true
+  - is_false: old_locations.mappings.location.mapping.location.doc_values
+
+  - do:
+      index:
+        index:  old_locations
+        id:     mixed_point_without_doc_value
+        body:   { location: "POINT(11.25 43.24)" }
+
+  - do:
+      indices.refresh:
+        index: old_locations
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: old_locations
+        size: 10
+        body:
+          query:
+            match_all: {}
+  - match: {hits.total:      2    }
+  - length: {hits.hits:      2    }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: old_locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              geo_bounds:
+                field: location
+                wrap_longitude: true

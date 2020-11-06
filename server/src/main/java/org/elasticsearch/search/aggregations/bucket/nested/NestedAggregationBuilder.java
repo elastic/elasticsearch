@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -56,14 +56,14 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         this.path = path;
     }
 
-    protected NestedAggregationBuilder(NestedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected NestedAggregationBuilder(NestedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.path = clone.path;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new NestedAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new NestedAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -87,23 +87,30 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
-            throws IOException {
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
+    protected AggregatorFactory doBuild(AggregationContext context,
+                                            AggregatorFactory parent,
+                                            Builder subFactoriesBuilder) throws IOException {
         ObjectMapper childObjectMapper = context.getObjectMapper(path);
         if (childObjectMapper == null) {
             // in case the path has been unmapped:
-            return new NestedAggregatorFactory(name, null, null, context, parent, subFactoriesBuilder, metaData);
+            return new NestedAggregatorFactory(name, null, null, context,
+                parent, subFactoriesBuilder, metadata);
         }
 
         if (childObjectMapper.nested().isNested() == false) {
             throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
         }
         try {
-            ObjectMapper parentObjectMapper = context.getQueryShardContext().nestedScope().nextLevel(childObjectMapper);
-            return new NestedAggregatorFactory(name, parentObjectMapper, childObjectMapper, context, parent, subFactoriesBuilder,
-                    metaData);
+            ObjectMapper parentObjectMapper = context.nestedScope().nextLevel(childObjectMapper);
+            return new NestedAggregatorFactory(name, parentObjectMapper, childObjectMapper, context,
+                parent, subFactoriesBuilder, metadata);
         } finally {
-            context.getQueryShardContext().nestedScope().previousLevel();
+            context.nestedScope().previousLevel();
         }
     }
 
@@ -143,14 +150,16 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         return new NestedAggregationBuilder(aggregationName, path);
     }
 
-
     @Override
-    protected int doHashCode() {
-        return Objects.hash(path);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), path);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         NestedAggregationBuilder other = (NestedAggregationBuilder) obj;
         return Objects.equals(path, other.path);
     }

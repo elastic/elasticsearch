@@ -7,6 +7,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -30,11 +32,13 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
@@ -57,6 +61,11 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     public static final String TEST_PASSWORD_HASHED =
         new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt8", "bcrypt")).
             hash(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+    public static final RequestOptions SECURITY_REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .addHeader("Authorization",
+            "Basic " + Base64.getEncoder().encodeToString(
+                (TEST_USER_NAME + ":" + SecuritySettingsSourceField.TEST_PASSWORD).getBytes(StandardCharsets.UTF_8)))
+        .build();
     public static final String TEST_ROLE = "user";
     public static final String TEST_SUPERUSER = "test_superuser";
 
@@ -125,12 +134,12 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         writeFile(xpackConf, "users_roles", configUsersRoles());
 
         Settings.Builder builder = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), home)
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
                 .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
-                //TODO: for now isolate security tests from watcher & monitoring (randomize this later)
+                //TODO: for now isolate security tests from watcher (randomize this later)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-                .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
                 .put(XPackSettings.AUDIT_ENABLED.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
@@ -139,6 +148,9 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                 .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
                 .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1")
                 .put("xpack.license.self_generated.type", "trial");
+        if (inFipsJvm()) {
+            builder.put("xpack.security.ssl.diagnose.trust", false);
+        }
         addNodeSSLSettings(builder);
         return builder.build();
     }
@@ -218,7 +230,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"),
             hostnameVerificationEnabled, false);
     }
 
@@ -244,7 +257,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem", "testclient",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
                 Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                              "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"),
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"),
                 hostnameVerificationEnabled, true);
         } else {
             addSSLSettingsForStore(builder, prefix, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks",

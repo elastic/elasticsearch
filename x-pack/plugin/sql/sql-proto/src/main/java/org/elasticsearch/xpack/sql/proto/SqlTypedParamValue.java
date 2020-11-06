@@ -10,6 +10,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -37,10 +38,33 @@ public class SqlTypedParamValue implements ToXContentObject {
 
     public final Object value;
     public final String type;
+    private boolean hasExplicitType;        // the type is explicitly set in the request or inferred by the parser
+    private XContentLocation tokenLocation; // location of the token failing the parsing rules
 
     public SqlTypedParamValue(String type, Object value) {
+        this(type, value, true);
+    }
+    
+    public SqlTypedParamValue(String type, Object value, boolean hasExplicitType) {
         this.value = value;
         this.type = type;
+        this.hasExplicitType = hasExplicitType;
+    }
+    
+    public boolean hasExplicitType() {
+        return hasExplicitType;
+    }
+    
+    public void hasExplicitType(boolean hasExplicitType) {
+        this.hasExplicitType = hasExplicitType;
+    }
+    
+    public XContentLocation tokenLocation() {
+        return tokenLocation;
+    }
+    
+    public void tokenLocation(XContentLocation tokenLocation) {
+        this.tokenLocation = tokenLocation;
     }
 
     @Override
@@ -65,16 +89,18 @@ public class SqlTypedParamValue implements ToXContentObject {
             return false;
         }
         SqlTypedParamValue that = (SqlTypedParamValue) o;
-        return Objects.equals(value, that.value) && Objects.equals(type, that.type);
+        return Objects.equals(value, that.value)
+                && Objects.equals(type, that.type)
+                && Objects.equals(hasExplicitType, that.hasExplicitType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value, type);
+        return Objects.hash(value, type, hasExplicitType);
     }
 
     @Override
     public String toString() {
-        return String.valueOf(value) + "[" + type + "]";
+        return String.valueOf(value) + " [" + type + "][" + hasExplicitType + "][" + tokenLocation + "]";
     }
 }

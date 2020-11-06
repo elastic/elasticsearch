@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-diversified-sampler-aggregation]]
-=== Diversified Sampler Aggregation
+=== Diversified sampler aggregation
+++++
+<titleabbrev>Diversified sampler</titleabbrev>
+++++
 
 Like the `sampler` aggregation this is a filtering aggregation used to limit any sub aggregations' processing to a sample of the top-scoring documents.
 The `diversified_sampler` aggregation adds the ability to limit the number of matches that share a common value such as an "author".
@@ -26,59 +29,58 @@ Example:
 We might want to see which tags are strongly associated with `#elasticsearch` on StackOverflow
 forum posts but ignoring the effects of some prolific users with a tendency to misspell #Kibana as #Cabana.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /stackoverflow/_search?size=0
 {
-    "query": {
-        "query_string": {
-            "query": "tags:elasticsearch"
-        }
-    },
-    "aggs": {
-        "my_unbiased_sample": {
-            "diversified_sampler": {
-                "shard_size": 200,
-                "field" : "author"
-            },
-            "aggs": {
-                "keywords": {
-                    "significant_terms": {
-                        "field": "tags",
-                        "exclude": ["elasticsearch"]
-                    }
-                }
-            }
-        }
+  "query": {
+    "query_string": {
+      "query": "tags:elasticsearch"
     }
+  },
+  "aggs": {
+    "my_unbiased_sample": {
+      "diversified_sampler": {
+        "shard_size": 200,
+        "field": "author"
+      },
+      "aggs": {
+        "keywords": {
+          "significant_terms": {
+            "field": "tags",
+            "exclude": [ "elasticsearch" ]
+          }
+        }
+      }
+    }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:stackoverflow]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "my_unbiased_sample": {
-            "doc_count": 151,<1>
-            "keywords": {<2>
-                "doc_count": 151,
-                "bg_count": 650,
-                "buckets": [
-                    {
-                        "key": "kibana",
-                        "doc_count": 150,
-                        "score": 2.213,
-                        "bg_count": 200
-                    }
-                ]
-            }
-        }
+  ...
+  "aggregations": {
+    "my_unbiased_sample": {
+      "doc_count": 151,           <1>
+      "keywords": {               <2>
+        "doc_count": 151,
+        "bg_count": 650,
+        "buckets": [
+          {
+            "key": "kibana",
+            "doc_count": 150,
+            "score": 2.213,
+            "bg_count": 200
+          }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -92,69 +94,68 @@ Response:
 In this scenario we might want to diversify on a combination of field values. We can use a `script` to produce a hash of the
 multiple values in a tags field to ensure we don't have a sample that consists of the same repeated combinations of tags.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /stackoverflow/_search?size=0
 {
-    "query": {
-        "query_string": {
-            "query": "tags:kibana"
-        }
-    },
-    "aggs": {
-        "my_unbiased_sample": {
-            "diversified_sampler": {
-                "shard_size": 200,
-                "max_docs_per_value" : 3,
-                "script" : {
-                    "lang": "painless",
-                    "source": "doc['tags'].hashCode()"
-                }
-            },
-            "aggs": {
-                "keywords": {
-                    "significant_terms": {
-                        "field": "tags",
-                        "exclude": ["kibana"]
-                    }
-                }
-            }
-        }
+  "query": {
+    "query_string": {
+      "query": "tags:kibana"
     }
+  },
+  "aggs": {
+    "my_unbiased_sample": {
+      "diversified_sampler": {
+        "shard_size": 200,
+        "max_docs_per_value": 3,
+        "script": {
+          "lang": "painless",
+          "source": "doc['tags'].hashCode()"
+        }
+      },
+      "aggs": {
+        "keywords": {
+          "significant_terms": {
+            "field": "tags",
+            "exclude": [ "kibana" ]
+          }
+        }
+      }
+    }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:stackoverflow]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "my_unbiased_sample": {
-            "doc_count": 6,
-            "keywords": {
-                "doc_count": 6,
-                "bg_count": 650,
-                "buckets": [
-                    {
-                        "key": "logstash",
-                        "doc_count": 3,
-                        "score": 2.213,
-                        "bg_count": 50
-                    },
-                    {
-                        "key": "elasticsearch",
-                        "doc_count": 3,
-                        "score": 1.34,
-                        "bg_count": 200
-                    }
-                ]
-            }
-        }
+  ...
+  "aggregations": {
+    "my_unbiased_sample": {
+      "doc_count": 6,
+      "keywords": {
+        "doc_count": 6,
+        "bg_count": 650,
+        "buckets": [
+          {
+            "key": "logstash",
+            "doc_count": 3,
+            "score": 2.213,
+            "bg_count": 50
+          },
+          {
+            "key": "elasticsearch",
+            "doc_count": 3,
+            "score": 1.34,
+            "bg_count": 200
+          }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -186,6 +187,7 @@ Please note that Elasticsearch will ignore the choice of execution hint if it is
 
 ==== Limitations
 
+[[div-sampler-breadth-first-nested-agg]]
 ===== Cannot be nested under `breadth_first` aggregations
 Being a quality-based filter the diversified_sampler aggregation needs access to the relevance score produced for each document.
 It therefore cannot be nested under a `terms` aggregation which has the `collect_mode` switched from the default `depth_first` mode to `breadth_first` as this discards scores.
@@ -194,6 +196,7 @@ In this situation an error will be thrown.
 ===== Limited de-dup logic.
 The de-duplication logic applies only at a shard level so will not apply across shards.
 
+[[spec-syntax-geo-date-fields]]
 ===== No specialized syntax for geo/date fields
 Currently the syntax for defining the diversifying values is defined by a choice of `field` or
 `script` - there is no added syntactical sugar for expressing geo or date units such as "7d" (7

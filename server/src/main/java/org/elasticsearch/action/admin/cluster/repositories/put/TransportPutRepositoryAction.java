@@ -22,9 +22,8 @@ package org.elasticsearch.action.admin.cluster.repositories.put;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -37,7 +36,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport action for register repository operation
  */
-public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutRepositoryRequest, AcknowledgedResponse> {
+public class TransportPutRepositoryAction extends AcknowledgedTransportMasterNodeAction<PutRepositoryRequest> {
 
     private final RepositoriesService repositoriesService;
 
@@ -46,18 +45,8 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
                                         RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              indexNameExpressionResolver, PutRepositoryRequest::new);
+              PutRepositoryRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.repositoriesService = repositoriesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
     }
 
     @Override
@@ -68,17 +57,7 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
     @Override
     protected void masterOperation(final PutRepositoryRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        repositoriesService.registerRepository(request, new ActionListener<ClusterStateUpdateResponse>() {
-
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        repositoriesService.registerRepository(request, ActionListener.delegateFailure(listener,
+            (delegatedListener, response) -> delegatedListener.onResponse(AcknowledgedResponse.of(response.isAcknowledged()))));
     }
 }

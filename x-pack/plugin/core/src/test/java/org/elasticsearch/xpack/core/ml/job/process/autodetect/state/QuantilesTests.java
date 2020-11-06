@@ -28,6 +28,13 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
         assertThat(Quantiles.extractJobId("_quantiles_quantiles"), equalTo("_quantiles"));
     }
 
+    public void testExtractJobId_GivenV54DocId() {
+        assertThat(Quantiles.extractJobId("foo-quantiles"), equalTo("foo"));
+        assertThat(Quantiles.extractJobId("bar-quantiles"), equalTo("bar"));
+        assertThat(Quantiles.extractJobId("foo-bar-quantiles"), equalTo("foo-bar"));
+        assertThat(Quantiles.extractJobId("-quantiles-quantiles"), equalTo("-quantiles"));
+    }
+
     public void testExtractJobId_GivenInvalidDocId() {
         assertThat(Quantiles.extractJobId(""), is(nullValue()));
         assertThat(Quantiles.extractJobId("foo"), is(nullValue()));

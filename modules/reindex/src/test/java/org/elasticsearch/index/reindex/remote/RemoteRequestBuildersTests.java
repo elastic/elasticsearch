@@ -37,9 +37,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.DEPRECATED_URL_ENCODED_INDEX_WARNING;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScroll;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearch;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scroll;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -82,6 +84,8 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         // pass-through if already escaped.
         searchRequest.indices("%2f", "%3a");
         assertEquals("/%2f,%3a/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+
+        assertWarnings(DEPRECATED_URL_ENCODED_INDEX_WARNING);
 
         // do not allow , and / if already escaped.
         searchRequest.indices("%2fcat,");
@@ -138,7 +142,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         // Test request without any fields
         Version remoteVersion = Version.fromId(between(2000099, Version.CURRENT.id));
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(),
-                not(either(hasKey("stored_fields")).or(hasKey("fields"))));
+            not(either(hasKey("stored_fields")).or(hasKey("fields"))));
 
         // Test stored_fields for versions that support it
         searchRequest = new SearchRequest().source(new SearchSourceBuilder());
@@ -159,14 +163,14 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         searchRequest.source().storedField("_source").storedField("_id");
         remoteVersion = Version.fromId(between(0, 2000099 - 1));
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(),
-                hasEntry("fields", "_source,_id,_parent,_routing,_ttl"));
+            hasEntry("fields", "_source,_id,_parent,_routing,_ttl"));
 
         // But only versions before 1.0 force _source to be in the list
         searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         searchRequest.source().storedField("_id");
         remoteVersion = Version.fromId(between(1000099, 2000099 - 1));
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(),
-                hasEntry("fields", "_id,_parent,_routing,_ttl"));
+            hasEntry("fields", "_id,_parent,_routing,_ttl"));
     }
 
     public void testInitialSearchParamsMisc() {
@@ -186,7 +190,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
             fetchVersion = randomBoolean();
             searchRequest.source().version(fetchVersion);
         }
-        
+
         Map<String, String> params = initialSearch(searchRequest, query, remoteVersion).getParameters();
 
         if (scroll == null) {
@@ -195,7 +199,28 @@ public class RemoteRequestBuildersTests extends ESTestCase {
             assertScroll(remoteVersion, params, scroll);
         }
         assertThat(params, hasEntry("size", Integer.toString(size)));
-        assertThat(params, fetchVersion == null || fetchVersion == true ? hasEntry("version", null) : not(hasEntry("version", null)));
+        if (fetchVersion != null) {
+            assertThat(params, fetchVersion ? hasEntry("version", Boolean.TRUE.toString()) :
+                hasEntry("version", Boolean.FALSE.toString()));
+        } else {
+            assertThat(params, hasEntry("version", Boolean.FALSE.toString()));
+        }
+    }
+
+    public void testInitialSearchDisallowPartialResults() {
+        final String allowPartialParamName = "allow_partial_search_results";
+        final int v6_3 = 6030099;
+
+        BytesReference query = new BytesArray("{}");
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+
+        Version disallowVersion = Version.fromId(between(v6_3, Version.CURRENT.id));
+        Map<String, String> params = initialSearch(searchRequest, query, disallowVersion).getParameters();
+        assertEquals("false", params.get(allowPartialParamName));
+
+        Version allowVersion = Version.fromId(between(0, v6_3-1));
+        params = initialSearch(searchRequest, query, allowVersion).getParameters();
+        assertThat(params.keySet(), not(contains(allowPartialParamName)));
     }
 
     private void assertScroll(Version remoteVersion, Map<String, String> params, TimeValue requested) {
@@ -222,22 +247,22 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
         if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
             assertEquals("{\"query\":" + query + ",\"_source\":true}",
-                    Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+                Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
         } else {
             assertEquals("{\"query\":" + query + "}",
-                    Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+                Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
         }
 
         // Source filtering is included if set up
-        searchRequest.source().fetchSource(new String[] {"in1", "in2"}, new String[] {"out"});
+        searchRequest.source().fetchSource(new String[]{"in1", "in2"}, new String[]{"out"});
         entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
         assertEquals("{\"query\":" + query + ",\"_source\":{\"includes\":[\"in1\",\"in2\"],\"excludes\":[\"out\"]}}",
-                Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+            Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
 
         // Invalid XContent fails
         RuntimeException e = expectThrows(RuntimeException.class,
-                () -> initialSearch(searchRequest, new BytesArray("{}, \"trailing\": {}"), remoteVersion));
+            () -> initialSearch(searchRequest, new BytesArray("{}, \"trailing\": {}"), remoteVersion));
         assertThat(e.getCause().getMessage(), containsString("Unexpected character (',' (code 44))"));
         e = expectThrows(RuntimeException.class, () -> initialSearch(searchRequest, new BytesArray("{"), remoteVersion));
         assertThat(e.getCause().getMessage(), containsString("Unexpected end-of-input"));

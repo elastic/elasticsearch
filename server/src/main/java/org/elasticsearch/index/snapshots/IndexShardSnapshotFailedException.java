@@ -32,10 +32,6 @@ public class IndexShardSnapshotFailedException extends IndexShardSnapshotExcepti
         super(shardId, msg);
     }
 
-    public IndexShardSnapshotFailedException(ShardId shardId, Throwable cause) {
-        super(shardId, cause);
-    }
-
     public IndexShardSnapshotFailedException(ShardId shardId, String msg, Throwable cause) {
         super(shardId, msg, cause);
     }

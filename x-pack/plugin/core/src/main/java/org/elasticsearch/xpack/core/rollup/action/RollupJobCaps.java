@@ -146,7 +146,8 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
             final DateHistogramGroupConfig dateHistogram = groupConfig.getDateHistogram();
             final Map<String, Object> dateHistogramAggCap = new HashMap<>();
             dateHistogramAggCap.put("agg", DateHistogramAggregationBuilder.NAME);
-            dateHistogramAggCap.put(DateHistogramGroupConfig.INTERVAL, dateHistogram.getInterval().toString());
+            dateHistogramAggCap.put(dateHistogram.getIntervalTypeName(), dateHistogram.getInterval().toString());
+
             if (dateHistogram.getDelay() != null) {
                 dateHistogramAggCap.put(DateHistogramGroupConfig.DELAY, dateHistogram.getDelay().toString());
             }

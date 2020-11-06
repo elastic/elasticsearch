@@ -19,22 +19,22 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -42,19 +42,18 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Rest action for computing a score explanation for specific documents.
  */
 public class RestExplainAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestExplainAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestExplainAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
         "Specifying a type in explain requests is deprecated.";
 
-    public RestExplainAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/{index}/_explain/{id}", this);
-        controller.registerHandler(POST, "/{index}/_explain/{id}", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/{index}/_explain/{id}"),
+            new Route(POST, "/{index}/_explain/{id}"),
+            // Deprecated typed endpoints.
+            new Route(GET, "/{index}/{type}/{id}/_explain"),
+            new Route(POST, "/{index}/{type}/{id}/_explain")));
     }
 
     @Override
@@ -66,7 +65,7 @@ public class RestExplainAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ExplainRequest explainRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("explain_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("explain_with_types", TYPES_DEPRECATION_MESSAGE);
             explainRequest = new ExplainRequest(request.param("index"),
                 request.param("type"),
                 request.param("id"));

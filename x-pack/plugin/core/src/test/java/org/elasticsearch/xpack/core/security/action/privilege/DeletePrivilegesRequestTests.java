@@ -29,8 +29,7 @@ public class DeletePrivilegesRequestTests extends ESTestCase {
         final BytesStreamOutput output = new BytesStreamOutput();
         original.writeTo(output);
         output.flush();
-        final DeletePrivilegesRequest copy = new DeletePrivilegesRequest();
-        copy.readFrom(output.bytes().streamInput());
+        final DeletePrivilegesRequest copy = new DeletePrivilegesRequest(output.bytes().streamInput());
         assertThat(copy.application(), equalTo(original.application()));
         assertThat(copy.privileges(), equalTo(original.privileges()));
         assertThat(copy.getRefreshPolicy(), equalTo(original.getRefreshPolicy()));

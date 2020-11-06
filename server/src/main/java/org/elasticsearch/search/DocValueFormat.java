@@ -22,18 +22,22 @@ package org.elasticsearch.search;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.joda.JodaDateFormatter;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -48,6 +52,8 @@ import java.util.function.LongSupplier;
 
 /** A formatter for values as returned by the fielddata/doc-values APIs. */
 public interface DocValueFormat extends NamedWriteable {
+    long MASK_2_63 = 0x8000000000000000L;
+    BigInteger BIGINTEGER_2_64_MINUS_ONE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE); // 2^64 -1
 
     /** Format a long value. This is used by terms and histogram aggregations
      *  to format keys for fields that use longs as a doc value representation
@@ -116,6 +122,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
+            try {
+                // Prefer parsing as a long to avoid losing precision
+                return Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                // retry as a double
+            }
             double d = Double.parseDouble(value);
             if (roundUp) {
                 d = Math.ceil(d);
@@ -133,6 +145,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(value);
+        }
+
+        @Override
+        public String toString() {
+            return "raw";
         }
     };
 
@@ -186,8 +203,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         public DateTime(StreamInput in) throws IOException {
-            this.formatter = DateFormatter.forPattern(in.readString());
-            this.parser = formatter.toDateMathParser();
+            String datePattern = in.readString();
+
             String zoneId = in.readString();
             if (in.getVersion().before(Version.V_7_0_0)) {
                 this.timeZone = DateUtils.of(zoneId);
@@ -196,6 +213,25 @@ public interface DocValueFormat extends NamedWriteable {
                 this.timeZone = ZoneId.of(zoneId);
                 this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             }
+            final boolean isJoda;
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                //if stream is from 7.7 Node it will have a flag indicating if format is joda
+                isJoda = in.readBoolean();
+            } else {
+                /*
+                 When received a stream from 6.0-6.latest Node it can be java if starts with 8 otherwise joda.
+
+                 If a stream is from [7.0 - 7.7) the boolean indicating that this is joda is not present.
+                 This means that if an index was created in 6.x using joda pattern and then cluster was upgraded to
+                 7.x but earlier then 7.0, there is no information that can tell that the index is using joda style pattern.
+                 It will be assumed that clusters upgrading from [7.0 - 7.7) are using java style patterns.
+                 */
+                isJoda = Joda.isJodaPattern(in.getVersion(), datePattern);
+            }
+            this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);
+
+            this.parser = formatter.toDateMathParser();
+
         }
 
         @Override
@@ -212,6 +248,14 @@ public interface DocValueFormat extends NamedWriteable {
                 out.writeString(timeZone.getId());
                 out.writeVInt(resolution.ordinal());
             }
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                //in order not to loose information if the formatter is a joda we send a flag
+                out.writeBoolean(formatter instanceof JodaDateFormatter);//todo pg consider refactor to isJoda method..
+            }
+        }
+
+        public DateMathParser getDateMathParser() {
+            return parser;
         }
 
         @Override
@@ -233,6 +277,11 @@ public interface DocValueFormat extends NamedWriteable {
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
             return parseLong(value, roundUp, now);
         }
+
+        @Override
+        public String toString() {
+            return "DocValueFormat.DateTime(" + formatter + ", " + timeZone + ", " + resolution + ")";
+        }
     }
 
     DocValueFormat GEOHASH = new DocValueFormat() {
@@ -248,7 +297,29 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(long value) {
-            return GeoHashUtils.stringEncode(value);
+            return Geohash.stringEncode(value);
+        }
+
+        @Override
+        public String format(double value) {
+            return format((long) value);
+        }
+    };
+
+    DocValueFormat GEOTILE = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "geo_tile";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+        }
+
+        @Override
+        public String format(long value) {
+            return GeoTileUtils.stringEncode(value);
         }
 
         @Override
@@ -316,6 +387,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+        }
+
+        @Override
+        public String toString() {
+            return "ip";
         }
     };
 
@@ -420,5 +496,66 @@ public interface DocValueFormat extends NamedWriteable {
         public int hashCode() {
             return Objects.hash(pattern);
         }
-    }
+    };
+
+    /**
+     * DocValues format for unsigned 64 bit long values,
+     * that are stored as shifted signed 64 bit long values.
+     */
+    DocValueFormat UNSIGNED_LONG_SHIFTED = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "unsigned_long_shifted";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+        }
+
+        @Override
+        public String toString() {
+            return "unsigned_long_shifted";
+        }
+
+        /**
+         * Formats the unsigned long to the shifted long format
+         */
+        @Override
+        public long parseLong(String value, boolean roundUp, LongSupplier now) {
+            long parsedValue = Long.parseUnsignedLong(value);
+            // subtract 2^63 or 10000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+            // equivalent to flipping the first bit
+            return parsedValue ^ MASK_2_63;
+        }
+
+        /**
+         * Formats a raw docValue that is stored in the shifted long format to the unsigned long representation.
+         */
+        @Override
+        public Object format(long value) {
+            // add 2^63 or 10000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000,
+            // equivalent to flipping the first bit
+            long formattedValue = value ^ MASK_2_63;
+            if (formattedValue >= 0) {
+                return formattedValue;
+            } else {
+                return BigInteger.valueOf(formattedValue).and(BIGINTEGER_2_64_MINUS_ONE);
+            }
+        }
+
+        /**
+         * Double docValues of the unsigned_long field type are already in the formatted representation,
+         * so we don't need to do anything here
+         */
+        @Override
+        public Double format(double value) {
+            return value;
+        }
+
+        @Override
+        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
+            return Double.parseDouble(value);
+        }
+    };
 }

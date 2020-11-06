@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -44,7 +45,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.tasks.Task;
@@ -88,7 +89,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(), indicesAndAliases);
         request.request().filteringAlias(aliasFilter);
         // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {
+        if (request.request().routing() == null && state.getMetadata().routingRequired(request.concreteIndex())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
         }
     }
@@ -115,7 +116,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         } else {
             types = new String[] { request.type() };
         }
-        ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(shardId,
+        ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shardId,
                 types, request.nowInMillis, request.filteringAlias());
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;
@@ -152,8 +153,8 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected ExplainResponse newResponse() {
-        return new ExplainResponse();
+    protected Writeable.Reader<ExplainResponse> getResponseReader() {
+        return ExplainResponse::new;
     }
 
     @Override

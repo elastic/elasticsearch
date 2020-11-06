@@ -1,75 +1,105 @@
 [[query-dsl-fuzzy-query]]
-=== Fuzzy Query
+=== Fuzzy query
+++++
+<titleabbrev>Fuzzy</titleabbrev>
+++++
 
-The fuzzy query uses similarity based on Levenshtein edit distance.
+Returns documents that contain terms similar to the search term, as measured by
+a {wikipedia}/Levenshtein_distance[Levenshtein edit distance].
 
-==== String fields
+An edit distance is the number of one-character changes needed to turn one term
+into another. These changes can include:
 
-The `fuzzy` query generates matching terms that are within the
-maximum edit distance specified in `fuzziness` and then checks the term
-dictionary to find out which of those generated terms actually exist in the
-index. The final query uses up to `max_expansions` matching terms.
+* Changing a character (**b**ox → **f**ox)
+* Removing a character (**b**lack → lack)
+* Inserting a character (sic → sic**k**)
+* Transposing two adjacent characters (**ac**t → **ca**t)
 
-Here is a simple example:
+To find similar terms, the `fuzzy` query creates a set of all possible
+variations, or expansions, of the search term within a specified edit distance.
+The query then returns exact matches for each expansion.
 
-[source,js]
---------------------------------------------------
+[[fuzzy-query-ex-request]]
+==== Example requests
+
+[[fuzzy-query-ex-simple]]
+===== Simple example
+
+[source,console]
+----
 GET /_search
 {
-    "query": {
-       "fuzzy" : { "user" : "ki" }
+  "query": {
+    "fuzzy": {
+      "user.id": {
+        "value": "ki"
+      }
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
 
-Or with more advanced settings:
+[[fuzzy-query-ex-advanced]]
+===== Example using advanced parameters
 
-[source,js]
---------------------------------------------------
+[source,console]
+----
 GET /_search
 {
-    "query": {
-        "fuzzy" : {
-            "user" : {
-                "value": "ki",
-                "boost": 1.0,
-                "fuzziness": 2,
-                "prefix_length": 0,
-                "max_expansions": 100
-            }
-        }
+  "query": {
+    "fuzzy": {
+      "user.id": {
+        "value": "ki",
+        "fuzziness": "AUTO",
+        "max_expansions": 50,
+        "prefix_length": 0,
+        "transpositions": true,
+        "rewrite": "constant_score"
+      }
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
 
-[float]
-===== Parameters
+[[fuzzy-query-top-level-params]]
+==== Top-level parameters for `fuzzy`
+`<field>`::
+(Required, object) Field you wish to search.
 
-[horizontal]
+[[fuzzy-query-field-params]]
+==== Parameters for `<field>`
+`value`::
+(Required, string) Term you wish to find in the provided `<field>`.
+
 `fuzziness`::
+(Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
+for valid values and more information.
 
-    The maximum edit distance. Defaults to `AUTO`. See <<fuzziness>>.
-
-`prefix_length`::
-
-    The number of initial characters which will not be ``fuzzified''. This
-    helps to reduce the number of terms which must be examined. Defaults
-    to `0`.
 
 `max_expansions`::
++
+--
+(Optional, integer) Maximum number of variations created. Defaults to `50`.
 
-    The maximum number of terms that the `fuzzy` query will expand to.
-    Defaults to `50`.
+WARNING: Avoid using a high value in the `max_expansions` parameter, especially
+if the `prefix_length` parameter value is `0`. High values in the
+`max_expansions` parameter can cause poor performance due to the high number of
+variations examined.
+--
+
+`prefix_length`::
+(Optional, integer) Number of beginning characters left unchanged when creating
+expansions. Defaults to `0`.
 
 `transpositions`::
+(Optional, Boolean) Indicates whether edits include transpositions of two
+adjacent characters (ab → ba). Defaults to `true`.
 
-    Whether fuzzy transpositions (`ab` -> `ba`) are supported.
-    Default is `true`.
+`rewrite`::
+(Optional, string) Method used to rewrite the query. For valid values and more
+information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 
-WARNING: This query can be very heavy if `prefix_length` is set to `0` and if
-`max_expansions` is set to a high number. It could result in every term in the
-index being examined!
-
-
+[[fuzzy-query-notes]]
+==== Notes
+Fuzzy queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.

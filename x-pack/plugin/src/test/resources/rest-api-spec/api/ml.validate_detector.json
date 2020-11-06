@@ -1,14 +1,24 @@
 {
-  "ml.validate_detector": {
-    "methods": [ "POST" ],
-    "url": {
-      "path": "/_ml/anomaly_detectors/_validate/detector",
-      "paths": [ "/_ml/anomaly_detectors/_validate/detector" ],
-      "params": {}
+  "ml.validate_detector":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/machine-learning/current/ml-jobs.html",
+      "description":"Validates an anomaly detection detector."
     },
-    "body": {
-      "description" : "The detector",
-      "required" : true
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/_validate/detector",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The detector",
+      "required":true
     }
   }
 }

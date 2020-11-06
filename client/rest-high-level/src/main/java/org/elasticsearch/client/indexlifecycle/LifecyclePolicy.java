@@ -44,7 +44,7 @@ public class LifecyclePolicy implements ToXContentObject {
     static final ParseField PHASES_FIELD = new ParseField("phases");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", true,
+    public static final ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", true,
         (a, name) -> {
             List<Phase> phases = (List<Phase>) a[0];
             Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
@@ -58,10 +58,11 @@ public class LifecyclePolicy implements ToXContentObject {
         }, PHASES_FIELD);
 
         ALLOWED_ACTIONS.put("hot", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, RolloverAction.NAME));
-        ALLOWED_ACTIONS.put("warm", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME, ForceMergeAction.NAME,
-            ReadOnlyAction.NAME, ShrinkAction.NAME));
-        ALLOWED_ACTIONS.put("cold", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME, FreezeAction.NAME));
-        ALLOWED_ACTIONS.put("delete", Sets.newHashSet(DeleteAction.NAME));
+        ALLOWED_ACTIONS.put("warm", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, MigrateAction.NAME, AllocateAction.NAME,
+            ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME));
+        ALLOWED_ACTIONS.put("cold", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, MigrateAction.NAME, AllocateAction.NAME,
+            FreezeAction.NAME, SearchableSnapshotAction.NAME));
+        ALLOWED_ACTIONS.put("delete", Sets.newHashSet(DeleteAction.NAME, WaitForSnapshotAction.NAME));
     }
 
     private final String name;

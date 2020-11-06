@@ -2,7 +2,7 @@
 === Field context
 
 Use a Painless script to create a
-{ref}/search-request-script-fields.html[script field] to return
+{ref}/search-fields.html#script-fields[script field] to return
 a customized value for each document in the results of a query.
 
 *Variables*
@@ -59,26 +59,25 @@ params['_source']['actors'].length;                        <1>
 
 Submit the following request:
 
-[source,js]
+[source,console]
 ----
 GET seats/_search
 {
-    "query" : {
-        "match_all": {}
+  "query": {
+    "match_all": {}
+  },
+  "script_fields": {
+    "day-of-week": {
+      "script": {
+        "source": "doc['datetime'].value.getDayOfWeek()"
+      }
     },
-    "script_fields" : {
-        "day-of-week" : {
-            "script" : {
-                "source": "doc['datetime'].value.getDayOfWeek()"
-            }
-        },
-        "number-of-actors" : {
-            "script" : {
-                "source": "params['_source']['actors'].length"
-            }
-        }
+    "number-of-actors": {
+      "script": {
+        "source": "params['_source']['actors'].length"
+      }
     }
+  }
 }
 ----
-// CONSOLE
 // TEST[skip: requires setup from other pages]

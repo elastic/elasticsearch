@@ -3,7 +3,11 @@
 
 The store module allows you to control how index data is stored and accessed on disk.
 
-[float]
+NOTE: This is a low-level setting. Some store implementations have poor
+concurrency or disable optimizations for heap memory usage. We recommend
+sticking to the defaults.
+
+[discrete]
 [[file-system]]
 === File system storage types
 
@@ -11,27 +15,26 @@ There are different file system implementations or _storage types_. By default,
 Elasticsearch will pick the best implementation based on the operating
 environment.
 
-This can be overridden for all indices by adding this to the
-`config/elasticsearch.yml` file:
+The storage type can also be explicitly set for all indices by configuring the
+store type in the `config/elasticsearch.yml` file:
 
 [source,yaml]
 ---------------------------------
-index.store.type: niofs
+index.store.type: hybridfs
 ---------------------------------
 
 It is a _static_ setting that can be set on a per-index basis at index
 creation time:
 
-[source,js]
+[source,console]
 ---------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
-    "index.store.type": "niofs"
+    "index.store.type": "hybridfs"
   }
 }
 ---------------------------------
-// CONSOLE
 
 WARNING: This is an expert-only setting and may be removed in the future.
 
@@ -48,15 +51,15 @@ supported systems but is subject to change.
 The Simple FS type is a straightforward implementation of file system
 storage (maps to Lucene `SimpleFsDirectory`) using a random access file.
 This implementation has poor concurrent performance (multiple threads
-will bottleneck). It is usually better to use the `niofs` when you need
-index persistence.
+will bottleneck) and disables some optimizations for heap memory usage.
 
 [[niofs]]`niofs`::
 
 The NIO FS type stores the shard index on the file system (maps to
 Lucene `NIOFSDirectory`) using NIO. It allows multiple threads to read
 from the same file concurrently. It is not recommended on Windows
-because of a bug in the SUN Java implementation.
+because of a bug in the SUN Java implementation and disables some
+optimizations for heap memory usage.
 
 [[mmapfs]]`mmapfs`::
 
@@ -84,7 +87,8 @@ setting is useful, for example, if you are in an environment where you can not
 control the ability to create a lot of memory maps so you need disable the
 ability to use memory-mapping.
 
-=== Pre-loading data into the file system cache
+[[preload-data-to-file-system-cache]]
+=== Preloading data into the file system cache
 
 NOTE: This is an expert setting, the details of which may change in the future.
 
@@ -112,16 +116,15 @@ index.store.preload: ["nvd", "dvd"]
 
 or in the index settings at index creation time:
 
-[source,js]
+[source,console]
 ---------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "index.store.preload": ["nvd", "dvd"]
   }
 }
 ---------------------------------
-// CONSOLE
 
 The default value is the empty array, which means that nothing will be loaded
 into the file-system cache eagerly. For indices that are actively searched,

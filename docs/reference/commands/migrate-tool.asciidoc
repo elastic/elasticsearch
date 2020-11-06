@@ -3,12 +3,14 @@
 [[migrate-tool]]
 == elasticsearch-migrate
 
+deprecated:[7.2.0, "This tool is deprecated. Use the native realm directly."]
+
 The `elasticsearch-migrate` command migrates existing file-based users and roles
 to the native realm. From 5.0 onward, you should use the `native` realm to
 manage roles and local users.
 
 
-[float]
+[discrete]
 === Synopsis
 
 [source,shell]
@@ -21,7 +23,7 @@ bin/elasticsearch-migrate
 [-s, --silent] [-v, --verbose])
 --------------------------------------------------
 
-[float]
+[discrete]
 === Description
 
 NOTE: When migrating from Shield 2.x, the `elasticsearch-migrate` tool should be
@@ -36,7 +38,7 @@ roles that already exist in the `native` realm are not replaced or
 overridden. If the names you specify with the `--users` and `--roles` options
 don't exist in the `file` realm, they are skipped.
 
-[float]
+[discrete]
 [[migrate-tool-options]]
 === Parameters
 The `native` subcommand supports the following options:
@@ -71,7 +73,7 @@ Username to use for authentication with {es}.
 
 `-v, --verbose`:: Shows verbose output.
 
-[float]
+[discrete]
 === Examples
 
 Run the `elasticsearch-migrate` tool when {xpack} is installed. For example:

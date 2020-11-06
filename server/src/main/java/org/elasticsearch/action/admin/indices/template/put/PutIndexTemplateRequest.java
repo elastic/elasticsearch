@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -39,7 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -49,7 +48,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -67,9 +65,9 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContent {
+public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContentObject {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(PutIndexTemplateRequest.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PutIndexTemplateRequest.class);
 
     private String name;
 
@@ -88,6 +86,40 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     private final Set<Alias> aliases = new HashSet<>();
 
     private Integer version;
+
+    public PutIndexTemplateRequest(StreamInput in) throws IOException {
+        super(in);
+        cause = in.readString();
+        name = in.readString();
+
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            indexPatterns = in.readStringList();
+        } else {
+            indexPatterns = Collections.singletonList(in.readString());
+        }
+        order = in.readInt();
+        create = in.readBoolean();
+        settings = readSettingsFromStream(in);
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            final String type = in.readString();
+            String mappingSource = in.readString();
+            mappings.put(type, mappingSource);
+        }
+        if (in.getVersion().before(Version.V_6_5_0)) {
+            // Used to be used for custom index metadata
+            int customSize = in.readVInt();
+            assert customSize == 0 : "expected not to have any custom metadata";
+            if (customSize > 0) {
+                throw new IllegalStateException("unexpected custom metadata when none is supported");
+            }
+        }
+        int aliasesSize = in.readVInt();
+        for (int i = 0; i < aliasesSize; i++) {
+            aliases.add(new Alias(in));
+        }
+        version = in.readOptionalVInt();
+    }
 
     public PutIndexTemplateRequest() {
     }
@@ -194,13 +226,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The settings to create the index template with (either json or yaml format).
      */
     public PutIndexTemplateRequest settings(Map<String, Object> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            settings(Strings.toString(builder), XContentType.JSON);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        this.settings = Settings.builder().loadFromMap(source).build();
         return this;
     }
 
@@ -250,12 +276,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest mapping(String type, BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
-        try {
-            mappings.put(type, XContentHelper.convertToJson(source, false, false, xContentType));
-            return this;
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert source to json", e);
-        }
+        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
+        return mapping(type, mappingAsMap);
     }
 
     /**
@@ -270,9 +292,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
         }
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return mapping(type, builder);
+            mappings.put(type, Strings.toString(builder));
+            return this;
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -313,7 +336,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             if (name.equals("template")) {
                 // This is needed to allow for bwc (beats, logstash) with pre-5.0 templates (#21009)
                 if(entry.getValue() instanceof String) {
-                    deprecationLogger.deprecated("Deprecated field [template] used, replaced by [index_patterns]");
+                    deprecationLogger.deprecate("put_index_template_field",
+                        "Deprecated field [template] used, replaced by [index_patterns]");
                     patterns(Collections.singletonList((String) entry.getValue()));
                 }
             } else if (name.equals("index_patterns")) {
@@ -455,41 +479,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        cause = in.readString();
-        name = in.readString();
-
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            indexPatterns = in.readStringList();
-        } else {
-            indexPatterns = Collections.singletonList(in.readString());
-        }
-        order = in.readInt();
-        create = in.readBoolean();
-        settings = readSettingsFromStream(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            final String type = in.readString();
-            String mappingSource = in.readString();
-            mappings.put(type, mappingSource);
-        }
-        if (in.getVersion().before(Version.V_6_5_0)) {
-            // Used to be used for custom index metadata
-            int customSize = in.readVInt();
-            assert customSize == 0 : "expected not to have any custom metadata";
-            if (customSize > 0) {
-                throw new IllegalStateException("unexpected custom metadata when none is supported");
-            }
-        }
-        int aliasesSize = in.readVInt();
-        for (int i = 0; i < aliasesSize; i++) {
-            aliases.add(Alias.read(in));
-        }
-        version = in.readOptionalVInt();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(cause);
@@ -519,32 +508,35 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("index_patterns", indexPatterns);
-        builder.field("order", order);
-        if (version != null) {
-            builder.field("version", version);
-        }
-
-        builder.startObject("settings");
-        settings.toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject("mappings");
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            builder.field(entry.getKey());
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entry.getValue())) {
-                builder.copyCurrentStructure(parser);
+        builder.startObject();
+        {
+            builder.field("index_patterns", indexPatterns);
+            builder.field("order", order);
+            if (version != null) {
+                builder.field("version", version);
             }
+
+            builder.startObject("settings");
+            settings.toXContent(builder, params);
+            builder.endObject();
+
+            builder.startObject("mappings");
+            for (Map.Entry<String, String> entry : mappings.entrySet()) {
+                builder.field(entry.getKey());
+                try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entry.getValue())) {
+                    builder.copyCurrentStructure(parser);
+                }
+            }
+            builder.endObject();
+
+            builder.startObject("aliases");
+            for (Alias alias : aliases) {
+                alias.toXContent(builder, params);
+            }
+            builder.endObject();
         }
         builder.endObject();
-
-        builder.startObject("aliases");
-        for (Alias alias : aliases) {
-            alias.toXContent(builder, params);
-        }
-        builder.endObject();
-
         return builder;
     }
 }

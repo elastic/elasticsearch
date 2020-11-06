@@ -19,70 +19,35 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents the top-level node for an expression as a statement.
  */
-public final class SExpression extends AStatement {
+public class SExpression extends AStatement {
 
-    private AExpression expression;
+    private final AExpression statementNode;
 
-    public SExpression(Location location, AExpression expression) {
-        super(location);
+    public SExpression(int identifier, Location location, AExpression statementNode) {
+        super(identifier, location);
 
-        this.expression = Objects.requireNonNull(expression);
+        this.statementNode = Objects.requireNonNull(statementNode);
+    }
+
+    public AExpression getStatementNode() {
+        return statementNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        expression.extractVariables(variables);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitExpression(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        Class<?> rtnType = locals.getReturnType();
-        boolean isVoid = rtnType == void.class;
-
-        expression.read = lastSource && !isVoid;
-        expression.analyze(locals);
-
-        if (!lastSource && !expression.statement) {
-            throw createError(new IllegalArgumentException("Not a statement."));
-        }
-
-        boolean rtn = lastSource && !isVoid && expression.actual != void.class;
-
-        expression.expected = rtn ? rtnType : expression.actual;
-        expression.internal = rtn;
-        expression = expression.cast(locals);
-
-        methodEscape = rtn;
-        loopEscape = rtn;
-        allEscape = rtn;
-        statementCount = 1;
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
-        expression.write(writer, globals);
-
-        if (methodEscape) {
-            writer.returnValue();
-        } else {
-            writer.writePop(MethodWriter.getType(expression.expected).getSize());
-        }
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(expression);
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        statementNode.visit(userTreeVisitor, scope);
     }
 }

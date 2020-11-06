@@ -23,11 +23,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -49,7 +48,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 type = randomAlphaOfLengthBetween(1, 10);
             }
         } else if (randomBoolean()) {
-            type = MetaData.ALL;
+            type = Metadata.ALL;
         } else {
             type = null;
         }
@@ -70,15 +69,15 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     }
 
     @Override
-    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         boolean allTypes = queryBuilder.types().length == 0 ||
                 queryBuilder.types().length == 1 && "_all".equals(queryBuilder.types()[0]);
         if (queryBuilder.ids().size() == 0
-                // no types
-                || context.getQueryShardContext().fieldMapper(IdFieldMapper.NAME) == null
-                // there are types, but disjoint from the query
-                || (allTypes == false &&
-                    Arrays.asList(queryBuilder.types()).indexOf(context.mapperService().documentMapper().type()) == -1)) {
+            // no types
+            || context.getFieldType(IdFieldMapper.NAME) == null
+            // there are types, but disjoint from the query
+            || (allTypes == false &&
+            Arrays.asList(queryBuilder.types()).indexOf(context.getType()) == -1)) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(TermInSetQuery.class));
@@ -164,5 +163,15 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
             assertWarnings(IdsQueryBuilder.TYPES_DEPRECATION_MESSAGE);
         }
         return query;
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContextWithNoType();
+        context.setAllowUnmappedFields(true);
+        IdsQueryBuilder queryBuilder = createTestQueryBuilder();
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

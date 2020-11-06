@@ -4,7 +4,7 @@
 :request: PutRoleRequest
 :response: PutRoleResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put Role API
 

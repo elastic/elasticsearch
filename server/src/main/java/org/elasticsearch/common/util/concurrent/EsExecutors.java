@@ -21,13 +21,13 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
@@ -42,27 +42,58 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
+import java.util.function.Function;
 
 public class EsExecutors {
 
-    /**
-     * Settings key to manually set the number of available processors.
-     * This is used to adjust thread pools sizes etc. per node.
-     */
-    public static final Setting<Integer> PROCESSORS_SETTING =
-        Setting.intSetting("processors", Runtime.getRuntime().availableProcessors(), 1, Property.NodeScope);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EsExecutors.class);
 
     /**
-     * Returns the number of available processors. Defaults to
-     * {@link Runtime#availableProcessors()} but can be overridden by passing a {@link Settings}
-     * instance with the key "processors" set to the desired value.
-     *
-     * @param settings a {@link Settings} instance from which to derive the available processors
-     * @return the number of available processors
+     * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
      */
-    public static int numberOfProcessors(final Settings settings) {
-        return PROCESSORS_SETTING.get(settings);
+    public static final Setting<Integer> PROCESSORS_SETTING = new Setting<>(
+        "processors",
+        s -> Integer.toString(Runtime.getRuntime().availableProcessors()),
+        processorsParser("processors"),
+        Property.Deprecated,
+        Property.NodeScope);
+
+    /**
+     * Setting to manually control the number of allocated processors. This setting is used to adjust thread pool sizes per node. The
+     * default value is {@link Runtime#availableProcessors()} but should be manually controlled if not all processors on the machine are
+     * available to Elasticsearch (e.g., because of CPU limits).
+     */
+    public static final Setting<Integer> NODE_PROCESSORS_SETTING = new Setting<>(
+        "node.processors",
+        PROCESSORS_SETTING,
+        processorsParser("node.processors"),
+        Property.NodeScope);
+
+    private static Function<String, Integer> processorsParser(final String name) {
+        return s -> {
+            final int value = Setting.parseInt(s, 1, name);
+            final int availableProcessors = Runtime.getRuntime().availableProcessors();
+            if (value > availableProcessors) {
+                deprecationLogger.deprecate(
+                    "processors",
+                    "setting [{}] to value [{}] which is more than available processors [{}] is deprecated",
+                    name,
+                    value,
+                    availableProcessors);
+            }
+            return value;
+        };
+    }
+
+    /**
+     * Returns the number of allocated processors. Defaults to {@link Runtime#availableProcessors()} but can be overridden by passing a
+     * {@link Settings} instance with the key {@code node.processors} set to the desired value.
+     *
+     * @param settings a {@link Settings} instance from which to derive the allocated processors
+     * @return the number of allocated processors
+     */
+    public static int allocatedProcessors(final Settings settings) {
+        return NODE_PROCESSORS_SETTING.get(settings);
     }
 
     public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory,
@@ -124,6 +155,7 @@ public class EsExecutors {
      */
     public static Throwable rethrowErrors(Runnable runnable) {
         if (runnable instanceof RunnableFuture) {
+            assert ((RunnableFuture) runnable).isDone();
             try {
                 ((RunnableFuture) runnable).get();
             } catch (final Exception e) {
@@ -206,15 +238,6 @@ public class EsExecutors {
         return DIRECT_EXECUTOR_SERVICE;
     }
 
-    public static String threadName(Settings settings, String ... names) {
-        String namePrefix =
-                Arrays
-                        .stream(names)
-                        .filter(name -> name != null)
-                        .collect(Collectors.joining(".", "[", "]"));
-        return threadName(settings, namePrefix);
-    }
-
     public static String threadName(Settings settings, String namePrefix) {
         if (Node.NODE_NAME_SETTING.exists(settings)) {
             return threadName(Node.NODE_NAME_SETTING.get(settings), namePrefix);
@@ -236,10 +259,6 @@ public class EsExecutors {
     public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
         assert nodeName != null && false == nodeName.isEmpty();
         return daemonThreadFactory(threadName(nodeName, namePrefix));
-    }
-
-    public static ThreadFactory daemonThreadFactory(Settings settings, String ... names) {
-        return daemonThreadFactory(threadName(settings, names));
     }
 
     public static ThreadFactory daemonThreadFactory(String namePrefix) {

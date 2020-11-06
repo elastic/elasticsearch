@@ -33,6 +33,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class GroupedActionListenerTests extends ESTestCase {
 
@@ -133,4 +136,21 @@ public class GroupedActionListenerTests extends ESTestCase {
         assertThat(exception, instanceOf(IOException.class));
         assertEquals(numGroups - 1, exception.getSuppressed().length);
     }
+
+    /*
+     * It can happen that the same exception causes a grouped listener to be notified of the failure multiple times. Since we suppress
+     * additional exceptions into the first exception, we have to guard against suppressing into the same exception, which could occur if we
+     * are notified of with the same failure multiple times. This test verifies that the guard against self-suppression remains.
+     */
+    public void testRepeatNotificationForTheSameException() {
+        final AtomicReference<Exception> finalException = new AtomicReference<>();
+        final GroupedActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(r -> {}, finalException::set), 2);
+        final Exception e = new Exception();
+        // repeat notification for the same exception
+        listener.onFailure(e);
+        listener.onFailure(e);
+        assertThat(finalException.get(), not(nullValue()));
+        assertThat(finalException.get(), equalTo(e));
+    }
+
 }

@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCountsTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStatsTests;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStatsTests;
 
@@ -38,35 +40,19 @@ public class GetJobStatsActionResponseTests extends AbstractWireSerializingTestC
         List<Response.JobStats> jobStatsList = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
             String jobId = randomAlphaOfLength(10);
-
             DataCounts dataCounts = new DataCountsTests().createTestInstance();
-
-            ModelSizeStats sizeStats = null;
-            if (randomBoolean()) {
-                sizeStats = new ModelSizeStats.Builder("foo").build();
-            }
-
-            ForecastStats forecastStats = null;
-            if (randomBoolean()) {
-                forecastStats = new ForecastStatsTests().createTestInstance();
-            }
-
+            ModelSizeStats sizeStats = randomBoolean() ? null : new ModelSizeStats.Builder("foo").build();
+            ForecastStats forecastStats = randomBoolean() ? null : new ForecastStatsTests().createTestInstance();
             JobState jobState = randomFrom(EnumSet.allOf(JobState.class));
-
-            DiscoveryNode node = null;
-            if (randomBoolean()) {
-                node = new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
-            }
-            String explanation = null;
-            if (randomBoolean()) {
-                explanation = randomAlphaOfLength(3);
-            }
-            TimeValue openTime = null;
-            if (randomBoolean()) {
-                openTime = parseTimeValue(randomPositiveTimeValue(), "open_time-Test");
-            }
-            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, forecastStats, jobState, node, explanation,
-                    openTime);
+            DiscoveryNode node =
+                randomBoolean()
+                    ? null
+                    : new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
+            String explanation = randomBoolean() ? null : randomAlphaOfLength(3);
+            TimeValue openTime = randomBoolean() ? null : parseTimeValue(randomPositiveTimeValue(), "open_time-Test");
+            TimingStats timingStats = randomBoolean() ? null : TimingStatsTests.createTestInstance("foo");
+            Response.JobStats jobStats =
+                new Response.JobStats(jobId, dataCounts, sizeStats, forecastStats, jobState, node, explanation, openTime, timingStats);
             jobStatsList.add(jobStats);
         }
 

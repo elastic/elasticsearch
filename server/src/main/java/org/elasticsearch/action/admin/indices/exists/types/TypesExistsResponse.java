@@ -31,7 +31,9 @@ public class TypesExistsResponse extends ActionResponse {
 
     private boolean exists;
 
-    TypesExistsResponse() {
+    TypesExistsResponse(StreamInput in) throws IOException {
+        super(in);
+        exists = in.readBoolean();
     }
 
     public TypesExistsResponse(boolean exists) {
@@ -43,14 +45,7 @@ public class TypesExistsResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        exists = in.readBoolean();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(exists);
     }
 }

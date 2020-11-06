@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -61,9 +62,9 @@ public class NodeJoinController {
 
 
     public NodeJoinController(Settings settings, MasterService masterService, AllocationService allocationService,
-                              ElectMasterService electMaster) {
+                              ElectMasterService electMaster, RerouteService rerouteService) {
         this.masterService = masterService;
-        joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger) {
+        joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
             @Override
             public void clusterStatePublished(ClusterChangedEvent event) {
                 electMaster.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());

@@ -19,9 +19,12 @@
 
 package org.elasticsearch.painless.spi;
 
+import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Class represents the equivalent of a Java class in Painless complete with super classes,
@@ -46,11 +49,6 @@ public final class WhitelistClass {
     /** The Java class name this class represents. */
     public final String javaClassName;
 
-    /**
-     * Allow the Java class name to only be specified as the fully-qualified name.
-     */
-    public final boolean noImport;
-
     /** The {@link List} of whitelisted ({@link WhitelistConstructor}s) available to this class. */
     public final List<WhitelistConstructor> whitelistConstructors;
 
@@ -60,17 +58,27 @@ public final class WhitelistClass {
     /** The {@link List} of whitelisted ({@link WhitelistField}s) available to this class. */
     public final List<WhitelistField> whitelistFields;
 
+    /** The {@link Map} of annotations for this class. */
+    public final Map<Class<?>, Object> painlessAnnotations;
+
     /** Standard constructor. All values must be not {@code null}. */
-    public WhitelistClass(String origin, String javaClassName, boolean noImport,
-            List<WhitelistConstructor> whitelistConstructors, List<WhitelistMethod> whitelistMethods, List<WhitelistField> whitelistFields)
-    {
+    public WhitelistClass(String origin, String javaClassName,
+            List<WhitelistConstructor> whitelistConstructors, List<WhitelistMethod> whitelistMethods, List<WhitelistField> whitelistFields,
+            List<Object> painlessAnnotations) {
 
         this.origin = Objects.requireNonNull(origin);
         this.javaClassName = Objects.requireNonNull(javaClassName);
-        this.noImport = noImport;
 
         this.whitelistConstructors = Collections.unmodifiableList(Objects.requireNonNull(whitelistConstructors));
         this.whitelistMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistMethods));
         this.whitelistFields = Collections.unmodifiableList(Objects.requireNonNull(whitelistFields));
+
+        if (painlessAnnotations.isEmpty()) {
+            this.painlessAnnotations = Collections.emptyMap();
+        } else {
+            this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations).stream()
+                    .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        }
     }
 }

@@ -49,8 +49,6 @@ public class CollectorResult implements ToXContentObject, Writeable {
     public static final String REASON_SEARCH_POST_FILTER = "search_post_filter";
     public static final String REASON_SEARCH_MIN_SCORE = "search_min_score";
     public static final String REASON_SEARCH_MULTI = "search_multi";
-    public static final String REASON_SEARCH_TIMEOUT = "search_timeout";
-    public static final String REASON_SEARCH_CANCELLED = "search_cancelled";
     public static final String REASON_AGGREGATION = "aggregation";
     public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
 
@@ -164,7 +162,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
 
     public static CollectorResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         String currentFieldName = null;
         String name = null, reason = null;
         long time = -1;

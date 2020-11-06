@@ -19,13 +19,15 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.Request;
+import com.amazonaws.Response;
+import com.amazonaws.metrics.RequestMetricCollector;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.DeleteObjectsRequest;
-import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import com.amazonaws.util.AWSRequestMetrics;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -33,10 +35,14 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 class S3BlobStore implements BlobStore {
+
+    private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
     private final S3Service service;
 
@@ -50,18 +56,64 @@ class S3BlobStore implements BlobStore {
 
     private final StorageClass storageClass;
 
-    private final RepositoryMetaData repositoryMetaData;
+    private final RepositoryMetadata repositoryMetadata;
+
+    private final Stats stats = new Stats();
+
+    final RequestMetricCollector getMetricCollector;
+    final RequestMetricCollector listMetricCollector;
+    final RequestMetricCollector putMetricCollector;
+    final RequestMetricCollector multiPartUploadMetricCollector;
 
     S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass,
-                RepositoryMetaData repositoryMetaData) {
+                RepositoryMetadata repositoryMetadata) {
         this.service = service;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
-        this.repositoryMetaData = repositoryMetaData;
+        this.repositoryMetadata = repositoryMetadata;
+        this.getMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("GET");
+                stats.getCount.addAndGet(getRequestCount(request));
+            }
+        };
+        this.listMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("GET");
+                stats.listCount.addAndGet(getRequestCount(request));
+            }
+        };
+        this.putMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("PUT");
+                stats.putCount.addAndGet(getRequestCount(request));
+            }
+        };
+        this.multiPartUploadMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("PUT")
+                    || request.getHttpMethod().name().equals("POST");
+                stats.postCount.addAndGet(getRequestCount(request));
+            }
+        };
+    }
+
+    private long getRequestCount(Request<?> request) {
+        Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
+            .getCounter(AWSRequestMetrics.Field.RequestCount.name());
+        if (requestCount == null) {
+            logger.warn("Expected request count to be tracked for request [{}] but found not count.", request);
+            return 0L;
+        }
+        return requestCount.longValue();
     }
 
     @Override
@@ -70,7 +122,11 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
-        return service.client(repositoryMetaData);
+        return service.client(repositoryMetadata);
+    }
+
+    int getMaxRetries() {
+        return service.settings(repositoryMetadata).maxRetries;
     }
 
     public String bucket() {
@@ -91,52 +147,13 @@ class S3BlobStore implements BlobStore {
     }
 
     @Override
-    public void delete(BlobPath path) {
-        try (AmazonS3Reference clientReference = clientReference()) {
-            ObjectListing prevListing = null;
-            // From
-            // http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html
-            // we can do at most 1K objects per delete
-            // We don't know the bucket name until first object listing
-            DeleteObjectsRequest multiObjectDeleteRequest = null;
-            final ArrayList<KeyVersion> keys = new ArrayList<>();
-            while (true) {
-                ObjectListing list;
-                if (prevListing != null) {
-                    final ObjectListing finalPrevListing = prevListing;
-                    list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
-                } else {
-                    list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(bucket, path.buildAsString()));
-                    multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
-                }
-                for (final S3ObjectSummary summary : list.getObjectSummaries()) {
-                    keys.add(new KeyVersion(summary.getKey()));
-                    // Every 500 objects batch the delete request
-                    if (keys.size() > 500) {
-                        multiObjectDeleteRequest.setKeys(keys);
-                        final DeleteObjectsRequest finalMultiObjectDeleteRequest = multiObjectDeleteRequest;
-                        SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(finalMultiObjectDeleteRequest));
-                        multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
-                        keys.clear();
-                    }
-                }
-                if (list.isTruncated()) {
-                    prevListing = list;
-                } else {
-                    break;
-                }
-            }
-            if (!keys.isEmpty()) {
-                multiObjectDeleteRequest.setKeys(keys);
-                final DeleteObjectsRequest finalMultiObjectDeleteRequest = multiObjectDeleteRequest;
-                SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(finalMultiObjectDeleteRequest));
-            }
-        }
+    public void close() throws IOException {
+        this.service.close();
     }
 
     @Override
-    public void close() throws IOException {
-        this.service.close();
+    public Map<String, Long> stats() {
+        return stats.toMap();
     }
 
     public CannedAccessControlList getCannedACL() {
@@ -179,5 +196,25 @@ class S3BlobStore implements BlobStore {
         }
 
         throw new BlobStoreException("cannedACL is not valid: [" + cannedACL + "]");
+    }
+
+    static class Stats {
+
+        final AtomicLong listCount = new AtomicLong();
+
+        final AtomicLong getCount = new AtomicLong();
+
+        final AtomicLong putCount = new AtomicLong();
+
+        final AtomicLong postCount = new AtomicLong();
+
+        Map<String, Long> toMap() {
+            final Map<String, Long> results = new HashMap<>();
+            results.put("GetObject", getCount.get());
+            results.put("ListObjects", listCount.get());
+            results.put("PutObject", putCount.get());
+            results.put("PutMultipartObject", postCount.get());
+            return results;
+        }
     }
 }

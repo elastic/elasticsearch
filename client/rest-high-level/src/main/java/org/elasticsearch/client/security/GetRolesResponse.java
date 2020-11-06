@@ -59,12 +59,12 @@ public final class GetRolesResponse {
     }
 
     public static GetRolesResponse fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         final List<Role> roles = new ArrayList<>();
         final Map<String, Map<String, Object>> transientMetadata = new HashMap<>();
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             final Tuple<Role, Map<String, Object>> roleAndTransientMetadata = Role.PARSER.parse(parser, parser.currentName());
             roles.add(roleAndTransientMetadata.v1());
             transientMetadata.put(roleAndTransientMetadata.v1().getName(), roleAndTransientMetadata.v2());

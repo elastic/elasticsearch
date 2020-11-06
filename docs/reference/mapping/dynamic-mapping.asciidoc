@@ -7,14 +7,14 @@ To index a document, you don't have to first create an index, define a mapping
 type, and define your fields -- you can just index a document and the index,
 type, and fields will spring to life automatically:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT data/_doc/1 <1>
 { "count": 5 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Creates the `data` index, the `_doc` mapping type, and a field
-    called `count` with datatype `long`.
+    called `count` with data type `long`.
 
 The automatic detection and addition of new fields is called
 _dynamic mapping_. The dynamic mapping rules can be customised to suit your

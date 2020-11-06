@@ -32,12 +32,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -66,7 +66,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TemplateUpgradeService.class);
 
-    private final UnaryOperator<Map<String, IndexTemplateMetaData>> indexTemplateMetaDataUpgraders;
+    private final UnaryOperator<Map<String, IndexTemplateMetadata>> indexTemplateMetadataUpgraders;
 
     public final ClusterService clusterService;
 
@@ -76,26 +76,31 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
     final AtomicInteger upgradesInProgress = new AtomicInteger();
 
-    private ImmutableOpenMap<String, IndexTemplateMetaData> lastTemplateMetaData;
+    private ImmutableOpenMap<String, IndexTemplateMetadata> lastTemplateMetadata;
 
     public TemplateUpgradeService(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                  Collection<UnaryOperator<Map<String, IndexTemplateMetaData>>> indexTemplateMetaDataUpgraders) {
+                                  Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders) {
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.indexTemplateMetaDataUpgraders = templates -> {
-            Map<String, IndexTemplateMetaData> upgradedTemplates = new HashMap<>(templates);
-            for (UnaryOperator<Map<String, IndexTemplateMetaData>> upgrader : indexTemplateMetaDataUpgraders) {
+        this.indexTemplateMetadataUpgraders = templates -> {
+            Map<String, IndexTemplateMetadata> upgradedTemplates = new HashMap<>(templates);
+            for (UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader : indexTemplateMetadataUpgraders) {
                 upgradedTemplates = upgrader.apply(upgradedTemplates);
             }
             return upgradedTemplates;
         };
-        clusterService.addListener(this);
+        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+            clusterService.addListener(this);
+        }
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState state = event.state();
+        if (state.nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we think may not have the index templates,
             // while they actually do exist
@@ -107,20 +112,16 @@ public class TemplateUpgradeService implements ClusterStateListener {
             return;
         }
 
-        ImmutableOpenMap<String, IndexTemplateMetaData> templates = state.getMetaData().getTemplates();
+        ImmutableOpenMap<String, IndexTemplateMetadata> templates = state.getMetadata().getTemplates();
 
-        if (templates == lastTemplateMetaData) {
+        if (templates == lastTemplateMetadata) {
             // we already checked these sets of templates - no reason to check it again
             // we can do identity check here because due to cluster state diffs the actual map will not change
             // if there were no changes
             return;
         }
 
-        if (state.nodes().isLocalNodeElectedMaster() == false) {
-            return;
-        }
-
-        lastTemplateMetaData = templates;
+        lastTemplateMetadata = templates;
         Optional<Tuple<Map<String, BytesReference>, Set<String>>> changes = calculateTemplateChanges(templates);
         if (changes.isPresent()) {
             if (upgradesInProgress.compareAndSet(0, changes.get().v1().size() + changes.get().v2().size() + 1)) {
@@ -129,11 +130,8 @@ public class TemplateUpgradeService implements ClusterStateListener {
                     changes.get().v1().size(),
                     changes.get().v2().size());
 
-                final ThreadContext threadContext = threadPool.getThreadContext();
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    threadContext.markAsSystemContext();
-                    threadPool.generic().execute(() -> upgradeTemplates(changes.get().v1(), changes.get().v2()));
-                }
+                assert threadPool.getThreadContext().isSystemContext();
+                threadPool.generic().execute(() -> upgradeTemplates(changes.get().v1(), changes.get().v2()));
             }
         }
     }
@@ -207,8 +205,8 @@ public class TemplateUpgradeService implements ClusterStateListener {
                 // Check upgraders are satisfied after the update completed. If they still
                 // report that changes are required, this might indicate a bug or that something
                 // else tinkering with the templates during the upgrade.
-                final ImmutableOpenMap<String, IndexTemplateMetaData> upgradedTemplates =
-                        clusterService.state().getMetaData().getTemplates();
+                final ImmutableOpenMap<String, IndexTemplateMetadata> upgradedTemplates =
+                        clusterService.state().getMetadata().getTemplates();
                 final boolean changesRequired = calculateTemplateChanges(upgradedTemplates).isPresent();
                 if (changesRequired) {
                     logger.warn("Templates are still reported as out of date after the upgrade. The template upgrade will be retried.");
@@ -221,14 +219,14 @@ public class TemplateUpgradeService implements ClusterStateListener {
     }
 
     Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(
-        ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
+        ImmutableOpenMap<String, IndexTemplateMetadata> templates) {
         // collect current templates
-        Map<String, IndexTemplateMetaData> existingMap = new HashMap<>();
-        for (ObjectObjectCursor<String, IndexTemplateMetaData> customCursor : templates) {
+        Map<String, IndexTemplateMetadata> existingMap = new HashMap<>();
+        for (ObjectObjectCursor<String, IndexTemplateMetadata> customCursor : templates) {
             existingMap.put(customCursor.key, customCursor.value);
         }
         // upgrade global custom meta data
-        Map<String, IndexTemplateMetaData> upgradedMap = indexTemplateMetaDataUpgraders.apply(existingMap);
+        Map<String, IndexTemplateMetadata> upgradedMap = indexTemplateMetadataUpgraders.apply(existingMap);
         if (upgradedMap.equals(existingMap) == false) {
             Set<String> deletes = new HashSet<>();
             Map<String, BytesReference> changes = new HashMap<>();
@@ -250,14 +248,14 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
     private static final ToXContent.Params PARAMS = new ToXContent.MapParams(singletonMap("reduce_mappings", "true"));
 
-    private BytesReference toBytesReference(IndexTemplateMetaData templateMetaData) {
+    private BytesReference toBytesReference(IndexTemplateMetadata templateMetadata) {
         try {
             return XContentHelper.toXContent((builder, params) -> {
-                IndexTemplateMetaData.Builder.toInnerXContentWithTypes(templateMetaData, builder, params);
+                IndexTemplateMetadata.Builder.toInnerXContentWithTypes(templateMetadata, builder, params);
                 return builder;
             }, XContentType.JSON, PARAMS, false);
         } catch (IOException ex) {
-            throw new IllegalStateException("Cannot serialize template [" + templateMetaData.getName() + "]", ex);
+            throw new IllegalStateException("Cannot serialize template [" + templateMetadata.getName() + "]", ex);
         }
     }
 }

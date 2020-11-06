@@ -29,11 +29,12 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpInfo;
@@ -52,8 +53,8 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
+import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.monitor.process.ProcessStats;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
@@ -61,15 +62,21 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesAction extends AbstractCatAction {
-    public RestNodesAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_cat/nodes", this);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestNodesAction.class);
+    static final String LOCAL_DEPRECATED_MESSAGE = "Deprecated parameter [local] used. This parameter does not cause this API to act " +
+            "locally, and should not be used. It will be unsupported in version 8.0.";
+
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(GET, "/_cat/nodes"));
     }
 
     @Override
@@ -86,6 +93,9 @@ public class RestNodesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
+        if (request.hasParam("local")) {
+            deprecationLogger.deprecate("cat_nodes_local_parameter", LOCAL_DEPRECATED_MESSAGE);
+        }
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         final boolean fullId = request.paramAsBoolean("full_id", false);
@@ -93,12 +103,22 @@ public class RestNodesAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().jvm(true).os(true).process(true).http(true);
+                nodesInfoRequest.clear().addMetrics(
+                        NodesInfoRequest.Metric.JVM.metricName(),
+                        NodesInfoRequest.Metric.OS.metricName(),
+                        NodesInfoRequest.Metric.PROCESS.metricName(),
+                        NodesInfoRequest.Metric.HTTP.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().jvm(true).os(true).fs(true).indices(true).process(true).script(true);
+                        nodesStatsRequest.clear().indices(true).addMetrics(
+                            NodesStatsRequest.Metric.JVM.metricName(),
+                            NodesStatsRequest.Metric.OS.metricName(),
+                            NodesStatsRequest.Metric.FS.metricName(),
+                            NodesStatsRequest.Metric.PROCESS.metricName(),
+                            NodesStatsRequest.Metric.SCRIPT.metricName()
+                        );
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
@@ -159,6 +179,9 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("query_cache.memory_size", "alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
         table.addCell("query_cache.evictions", "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("query_cache.hit_count", "alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:query cache hit counts");
+        table.addCell("query_cache.miss_count",
+            "alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:query cache miss counts");
 
         table.addCell("request_cache.memory_size", "alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
         table.addCell("request_cache.evictions",
@@ -254,7 +277,7 @@ public class RestNodesAction extends AbstractCatAction {
             NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
             NodeStats stats = nodesStats.getNodesMap().get(node.getId());
 
-            JvmInfo jvmInfo = info == null ? null : info.getJvm();
+            JvmInfo jvmInfo = info == null ? null : info.getInfo(JvmInfo.class);
             JvmStats jvmStats = stats == null ? null : stats.getJvm();
             FsInfo fsInfo = stats == null ? null : stats.getFs();
             OsStats osStats = stats == null ? null : stats.getOs();
@@ -264,10 +287,10 @@ public class RestNodesAction extends AbstractCatAction {
             table.startRow();
 
             table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
-            table.addCell(info == null ? null : info.getProcess().getId());
+            table.addCell(info == null ? null : info.getInfo(ProcessInfo.class).getId());
             table.addCell(node.getHostAddress());
             table.addCell(node.getAddress().address().getPort());
-            final HttpInfo httpInfo = info == null ? null : info.getHttp();
+            final HttpInfo httpInfo = info == null ? null : info.getInfo(HttpInfo.class);
             if (httpInfo != null) {
                 TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
                 table.addCell(NetworkAddress.format(transportAddress.address()));
@@ -278,7 +301,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(node.getVersion().toString());
             table.addCell(info == null ? null : info.getBuild().flavor().displayName());
             table.addCell(info == null ? null : info.getBuild().type().displayName());
-            table.addCell(info == null ? null : info.getBuild().shortHash());
+            table.addCell(info == null ? null : info.getBuild().hash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
 
 
@@ -298,7 +321,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(diskUsed);
             table.addCell(diskAvailable);
             table.addCell(diskUsedPercent);
-            
+
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsed());
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsedPercent());
             table.addCell(jvmInfo == null ? null : jvmInfo.getMem().getHeapMax());
@@ -324,7 +347,7 @@ public class RestNodesAction extends AbstractCatAction {
             if (node.getRoles().isEmpty()) {
                 roles = "-";
             } else {
-                roles = node.getRoles().stream().map(DiscoveryNode.Role::getAbbreviation).collect(Collectors.joining());
+                roles = node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
             }
             table.addCell(roles);
             table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
@@ -340,6 +363,8 @@ public class RestNodesAction extends AbstractCatAction {
             QueryCacheStats fcStats = indicesStats == null ? null : indicesStats.getQueryCache();
             table.addCell(fcStats == null ? null : fcStats.getMemorySize());
             table.addCell(fcStats == null ? null : fcStats.getEvictions());
+            table.addCell(fcStats == null ? null : fcStats.getHitCount());
+            table.addCell(fcStats == null ? null : fcStats.getMissCount());
 
             RequestCacheStats qcStats = indicesStats == null ? null : indicesStats.getRequestCache();
             table.addCell(qcStats == null ? null : qcStats.getMemorySize());

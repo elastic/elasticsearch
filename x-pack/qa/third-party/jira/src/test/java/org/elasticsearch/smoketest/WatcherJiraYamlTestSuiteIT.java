@@ -17,6 +17,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -37,7 +38,7 @@ public class WatcherJiraYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Before
     public void startWatcher() throws Exception {
-        final List<String> watcherTemplates = Arrays.asList(WatcherIndexTemplateRegistryField.TEMPLATE_NAMES);
+        final List<String> watcherTemplates = Arrays.asList(WatcherIndexTemplateRegistryField.TEMPLATE_NAMES_NO_ILM);
         assertBusy(() -> {
             try {
                 getAdminExecutionContext().callApi("watcher.start", emptyMap(), emptyList(), emptyMap());
@@ -70,6 +71,6 @@ public class WatcherJiraYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 }

@@ -19,86 +19,118 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.script.DynamicMap;
+import org.elasticsearch.script.IngestConditionalScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import org.elasticsearch.script.DeprecationMap;
-import org.elasticsearch.script.IngestConditionalScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
-public class ConditionalProcessor extends AbstractProcessor {
+public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
 
-    private static final Map<String, String> DEPRECATIONS;
-    static {
-        Map<String, String> deprecations = new HashMap<>();
-        deprecations.put(
-                "_type",
-                "[types removal] Looking up doc types [_type] in scripts is deprecated."
-        );
-        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-    }
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
+    private static final Map<String, Function<Object, Object>> FUNCTIONS = org.elasticsearch.common.collect.Map.of(
+            "_type", value -> {
+                deprecationLogger.deprecate("conditional-processor__type",
+                        "[types removal] Looking up doc types [_type] in scripts is deprecated.");
+                return value;
+            });
 
     static final String TYPE = "conditional";
 
     private final Script condition;
-
     private final ScriptService scriptService;
-
     private final Processor processor;
     private final IngestMetric metric;
     private final LongSupplier relativeTimeProvider;
+    private final IngestConditionalScript precompiledConditionScript;
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
-        this(tag, script, scriptService, processor, System::nanoTime);
+    ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor) {
+        this(tag, description, script, scriptService, processor, System::nanoTime);
     }
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor, LongSupplier relativeTimeProvider) {
-        super(tag);
+    ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor,
+                         LongSupplier relativeTimeProvider) {
+        super(tag, description);
         this.condition = script;
         this.scriptService = scriptService;
         this.processor = processor;
         this.metric = new IngestMetric();
         this.relativeTimeProvider = relativeTimeProvider;
+
+        try {
+            final IngestConditionalScript.Factory factory = scriptService.compile(script, IngestConditionalScript.CONTEXT);
+            if (ScriptType.INLINE.equals(script.getType())) {
+                precompiledConditionScript = factory.newInstance(script.getParams());
+            } else {
+                // stored script, so will have to compile at runtime
+                precompiledConditionScript = null;
+            }
+        } catch (ScriptException e) {
+            throw newConfigurationException(TYPE, tag, null, e);
+        }
+    }
+
+    @Override
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        final boolean matches;
+        try {
+            matches = evaluate(ingestDocument);
+        } catch (Exception e) {
+            handler.accept(null, e);
+            return;
+        }
+
+        if (matches) {
+            final long startTimeInNanos = relativeTimeProvider.getAsLong();
+            metric.preIngest();
+            processor.execute(ingestDocument, (result, e) -> {
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.postIngest(ingestTimeInNanos);
+                if (e != null) {
+                    metric.ingestFailed();
+                    handler.accept(null, e);
+                } else {
+                    handler.accept(result, null);
+                }
+            });
+        } else {
+            handler.accept(ingestDocument, null);
+        }
     }
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        if (evaluate(ingestDocument)) {
-            long startTimeInNanos = relativeTimeProvider.getAsLong();
-            try {
-                metric.preIngest();
-                return processor.execute(ingestDocument);
-            } catch (Exception e) {
-                metric.ingestFailed();
-                throw e;
-            } finally {
-                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-                metric.postIngest(ingestTimeInMillis);
-            }
-        }
-        return ingestDocument;
+        throw new UnsupportedOperationException("this method should not get executed");
     }
 
     boolean evaluate(IngestDocument ingestDocument) {
-        IngestConditionalScript script =
-            scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
-        return script.execute(new UnmodifiableIngestData(
-                new DeprecationMap(ingestDocument.getSourceAndMetadata(), DEPRECATIONS, "conditional-processor")));
+        IngestConditionalScript script = precompiledConditionScript;
+        if (script == null) {
+            IngestConditionalScript.Factory factory = scriptService.compile(condition, IngestConditionalScript.CONTEXT);
+            script = factory.newInstance(condition.getParams());
+        }
+        return script.execute(new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS)));
     }
 
-    Processor getProcessor() {
+    public Processor getInnerProcessor() {
         return processor;
     }
 
@@ -109,6 +141,10 @@ public class ConditionalProcessor extends AbstractProcessor {
     @Override
     public String getType() {
         return TYPE;
+    }
+
+    public String getCondition(){
+        return condition.getIdOrCode();
     }
 
     private static Object wrapUnmodifiable(Object raw) {

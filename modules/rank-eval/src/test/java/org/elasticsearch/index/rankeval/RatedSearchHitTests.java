@@ -34,7 +34,6 @@ import java.util.Collections;
 import java.util.OptionalInt;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class RatedSearchHitTests extends ESTestCase {
 
@@ -42,7 +41,7 @@ public class RatedSearchHitTests extends ESTestCase {
         OptionalInt rating = randomBoolean() ? OptionalInt.empty()
                 : OptionalInt.of(randomIntBetween(0, 5));
         SearchHit searchHit = new SearchHit(randomIntBetween(0, 10), randomAlphaOfLength(10),
-                new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+                new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap(), Collections.emptyMap());
         RatedSearchHit ratedSearchHit = new RatedSearchHit(searchHit, rating);
         return ratedSearchHit;
     }
@@ -56,7 +55,7 @@ public class RatedSearchHitTests extends ESTestCase {
             break;
         case 1:
             hit = new SearchHit(hit.docId(), hit.getId() + randomAlphaOfLength(10),
-                    new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+                    new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap(), Collections.emptyMap());
             break;
         default:
             throw new IllegalStateException("The test should only allow two parameters mutated");
@@ -76,8 +75,7 @@ public class RatedSearchHitTests extends ESTestCase {
         RatedSearchHit testItem = randomRatedSearchHit();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
-        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
-        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             RatedSearchHit parsedItem = RatedSearchHit.parse(parser);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);

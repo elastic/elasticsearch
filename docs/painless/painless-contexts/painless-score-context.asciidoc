@@ -36,23 +36,24 @@ To run this example, first follow the steps in
 The following query finds all unsold seats, with lower 'row' values
 scored higher.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /seats/_search
 {
-    "query": {
-        "function_score": {
-            "query": {
-                "match": { "sold": "false" }
-            },
-            "script_score" : {
-                "script" : {
-                  "source": "1.0 / doc['row'].value"
-                }
-            }
+  "query": {
+    "function_score": {
+      "query": {
+        "match": {
+          "sold": "false"
         }
+      },
+      "script_score": {
+        "script": {
+          "source": "1.0 / doc['row'].value"
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:seats]

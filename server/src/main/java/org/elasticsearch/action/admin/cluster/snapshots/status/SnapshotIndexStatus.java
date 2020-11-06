@@ -58,7 +58,7 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         stats = new SnapshotStats();
         for (SnapshotIndexShardStatus shard : shards) {
             indexShards.put(shard.getShardId().getId(), shard);
-            stats.add(shard.getStats());
+            stats.add(shard.getStats(), true);
         }
         shardsStats = new SnapshotShardsStats(shards);
         this.indexShards = unmodifiableMap(indexShards);
@@ -154,7 +154,7 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
     }
 
     public static SnapshotIndexStatus fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         return PARSER.parse(parser, null, parser.currentName());
     }
 

@@ -10,7 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetWatchResponse extends ActionResponse implements ToXContent {
+public class GetWatchResponse extends ActionResponse implements ToXContentObject {
 
     private String id;
     private WatchStatus status;
@@ -29,7 +29,23 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
     private long seqNo;
     private long primaryTerm;
 
-    public GetWatchResponse() {
+    public GetWatchResponse(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+        found = in.readBoolean();
+        if (found) {
+            status = new WatchStatus(in);
+            source = XContentSource.readFrom(in);
+            version = in.readZLong();
+            seqNo = in.readZLong();
+            primaryTerm = in.readVLong();
+        } else {
+            status = null;
+            source = null;
+            version = Versions.NOT_FOUND;
+            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+        }
     }
 
     /**
@@ -87,28 +103,7 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readString();
-        found = in.readBoolean();
-        if (found) {
-            status = new WatchStatus(in);
-            source = XContentSource.readFrom(in);
-            version = in.readZLong();
-            seqNo = in.readZLong();
-            primaryTerm = in.readVLong();
-        } else {
-            status = null;
-            source = null;
-            version = Versions.NOT_FOUND;
-            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(id);
         out.writeBoolean(found);
         if (found) {
@@ -122,6 +117,7 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field("found", found);
         builder.field("_id", id);
         if (found) {
@@ -131,6 +127,7 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
             builder.field("status", status,  params);
             builder.field("watch", source, params);
         }
+        builder.endObject();
         return builder;
     }
 

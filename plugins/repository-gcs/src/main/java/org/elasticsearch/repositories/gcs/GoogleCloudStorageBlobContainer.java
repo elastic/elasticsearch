@@ -19,14 +19,18 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
@@ -49,18 +53,28 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetadata> listBlobs() throws IOException {
         return blobStore.listBlobs(path);
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(String prefix) throws IOException {
+    public Map<String, BlobContainer> children() throws IOException {
+        return blobStore.listChildren(path());
+    }
+
+    @Override
+    public Map<String, BlobMetadata> listBlobsByPrefix(String prefix) throws IOException {
         return blobStore.listBlobsByPrefix(path, prefix);
     }
 
     @Override
     public InputStream readBlob(String blobName) throws IOException {
         return blobStore.readBlob(buildKey(blobName));
+    }
+
+    @Override
+    public InputStream readBlob(final String blobName, final long position, final long length) throws IOException {
+        return blobStore.readBlob(buildKey(blobName), position, length);
     }
 
     @Override
@@ -74,11 +88,16 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlob(String blobName) throws IOException {
-        blobStore.deleteBlob(buildKey(blobName));
+    public DeleteResult delete() throws IOException {
+        return blobStore.deleteDirectory(path().buildAsString());
     }
 
-    protected String buildKey(String blobName) {
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        blobStore.deleteBlobsIgnoringIfNotExists(blobNames.stream().map(this::buildKey).collect(Collectors.toList()));
+    }
+
+    private String buildKey(String blobName) {
         assert blobName != null;
         return path + blobName;
     }

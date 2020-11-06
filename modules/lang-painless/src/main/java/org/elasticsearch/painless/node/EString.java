@@ -19,46 +19,35 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a string constant.
  */
-public final class EString extends AExpression {
+public class EString extends AExpression {
 
-    public EString(Location location, String string) {
-        super(location);
+    private final String string;
 
-        this.constant = Objects.requireNonNull(string);
+    public EString(int identifier, Location location, String string) {
+        super(identifier, location);
+
+        this.string = Objects.requireNonNull(string);
+    }
+
+    public String getString() {
+        return string;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitString(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        if (!read) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
-        }
-
-        actual = String.class;
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString("'" + constant.toString() + "'");
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

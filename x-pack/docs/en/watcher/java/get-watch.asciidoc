@@ -1,6 +1,6 @@
-[float]
+[discrete]
 [[api-java-get-watch]]
-=== Get Watch API
+=== Get watch API
 
 This API retrieves a watch by its id.
 

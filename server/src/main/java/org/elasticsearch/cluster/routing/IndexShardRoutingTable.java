@@ -59,7 +59,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     final ShardId shardId;
 
     final ShardRouting primary;
-    final List<ShardRouting> primaryAsList;
     final List<ShardRouting> replicas;
     final List<ShardRouting> shards;
     final List<ShardRouting> activeShards;
@@ -105,6 +104,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 // create the target initializing shard routing on the node the shard is relocating to
                 allInitializingShards.add(shard.getTargetRelocatingShard());
                 allAllocationIds.add(shard.getTargetRelocatingShard().allocationId().getId());
+
+                assert shard.assignedToNode() : "relocating from unassigned " + shard;
+                assert shard.getTargetRelocatingShard().assignedToNode() : "relocating to unassigned " + shard.getTargetRelocatingShard();
+                assignedShards.add(shard.getTargetRelocatingShard());
             }
             if (shard.assignedToNode()) {
                 assignedShards.add(shard);
@@ -116,11 +119,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
         this.allShardsStarted = allShardsStarted;
         this.primary = primary;
-        if (primary != null) {
-            this.primaryAsList = Collections.singletonList(primary);
-        } else {
-            this.primaryAsList = Collections.emptyList();
-        }
         this.replicas = Collections.unmodifiableList(replicas);
         this.activeShards = Collections.unmodifiableList(activeShards);
         this.assignedShards = Collections.unmodifiableList(assignedShards);
@@ -211,7 +209,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
-     * Returns a {@link List} of assigned shards
+     * Returns a {@link List} of assigned shards, including relocation targets
      *
      * @return a {@link List} of shards
      */
@@ -414,7 +412,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      * Returns an iterator only on the primary shard.
      */
     public ShardIterator primaryShardIt() {
-        return new PlainShardIterator(shardId, primaryAsList);
+        if (primary != null) {
+            return new PlainShardIterator(shardId, Collections.singletonList(primary));
+        }
+        return new PlainShardIterator(shardId, Collections.emptyList());
     }
 
     public ShardIterator onlyNodeActiveInitializingShardsIt(String nodeId) {
@@ -517,11 +518,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         for (ShardRouting shardRouting : assignedShards()) {
             if (shardRouting.allocationId().getId().equals(allocationId)) {
                 return shardRouting;
-            }
-            if (shardRouting.relocating()) {
-                if (shardRouting.getTargetRelocatingShard().allocationId().getId().equals(allocationId)) {
-                    return shardRouting.getTargetRelocatingShard();
-                }
             }
         }
         return null;

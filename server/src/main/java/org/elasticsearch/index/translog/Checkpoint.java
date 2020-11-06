@@ -20,6 +20,9 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
@@ -33,6 +36,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 
@@ -47,7 +51,6 @@ final class Checkpoint {
     final long minTranslogGeneration;
     final long trimmedAboveSeqNo;
 
-    private static final int INITIAL_VERSION = 1; // start with 1, just to recognize there was some magic serialization logic before
     private static final int VERSION_6_0_0 = 2; // introduction of global checkpoints
     private static final int CURRENT_VERSION = 3; // introduction of trimmed above seq#
 
@@ -59,10 +62,10 @@ final class Checkpoint {
         + Integer.BYTES  // ops
         + Long.BYTES // offset
         + Long.BYTES // generation
-        + Long.BYTES // minimum sequence number, introduced in 6.0.0
-        + Long.BYTES // maximum sequence number, introduced in 6.0.0
-        + Long.BYTES // global checkpoint, introduced in 6.0.0
-        + Long.BYTES // minimum translog generation in the translog - introduced in 6.0.0
+        + Long.BYTES // minimum sequence number
+        + Long.BYTES // maximum sequence number
+        + Long.BYTES // global checkpoint
+        + Long.BYTES // minimum translog generation in the translog
         + Long.BYTES // maximum reachable (trimmed) sequence number, introduced in 6.4.0
         + CodecUtil.footerLength();
 
@@ -71,17 +74,10 @@ final class Checkpoint {
         + Integer.BYTES  // ops
         + Long.BYTES // offset
         + Long.BYTES // generation
-        + Long.BYTES // minimum sequence number, introduced in 6.0.0
-        + Long.BYTES // maximum sequence number, introduced in 6.0.0
-        + Long.BYTES // global checkpoint, introduced in 6.0.0
-        + Long.BYTES // minimum translog generation in the translog - introduced in 6.0.0
-        + CodecUtil.footerLength();
-
-    // size of 5.0.0 checkpoint
-    static final int V1_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
-        + Integer.BYTES  // ops
-        + Long.BYTES // offset
-        + Long.BYTES // generation
+        + Long.BYTES // minimum sequence number
+        + Long.BYTES // maximum sequence number
+        + Long.BYTES // global checkpoint
+        + Long.BYTES // minimum translog generation in the translog
         + CodecUtil.footerLength();
 
     /**
@@ -124,6 +120,17 @@ final class Checkpoint {
         out.writeLong(trimmedAboveSeqNo);
     }
 
+    /**
+     * Returns the maximum sequence number of operations in this checkpoint after applying {@link #trimmedAboveSeqNo}.
+     */
+    long maxEffectiveSeqNo() {
+        if (trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            return maxSeqNo;
+        } else {
+            return Math.min(trimmedAboveSeqNo, maxSeqNo);
+        }
+    }
+
     static Checkpoint emptyTranslogCheckpoint(final long offset, final long generation, final long globalCheckpoint,
                                               long minTranslogGeneration) {
         final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
@@ -132,7 +139,7 @@ final class Checkpoint {
         return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }
 
-    static Checkpoint readCheckpointV6_4_0(final DataInput in) throws IOException {
+    static Checkpoint readCheckpointV3(final DataInput in) throws IOException {
         final long offset = in.readLong();
         final int numOps = in.readInt();
         final long generation = in.readLong();
@@ -144,7 +151,7 @@ final class Checkpoint {
         return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }
 
-    static Checkpoint readCheckpointV6_0_0(final DataInput in) throws IOException {
+    static Checkpoint readCheckpointV2(final DataInput in) throws IOException {
         final long offset = in.readLong();
         final int numOps = in.readInt();
         final long generation = in.readLong();
@@ -152,19 +159,6 @@ final class Checkpoint {
         final long maxSeqNo = in.readLong();
         final long globalCheckpoint = in.readLong();
         final long minTranslogGeneration = in.readLong();
-        final long trimmedAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
-    }
-
-    // reads a checksummed checkpoint introduced in ES 5.0.0
-    static Checkpoint readCheckpointV5_0_0(final DataInput in) throws IOException {
-        final long offset = in.readLong();
-        final int numOps = in.readInt();
-        final long generation = in.readLong();
-        final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-        final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-        final long globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        final long minTranslogGeneration = -1;
         final long trimmedAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }
@@ -188,23 +182,42 @@ final class Checkpoint {
             try (IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
-                final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, INITIAL_VERSION, CURRENT_VERSION);
-                if (fileVersion == INITIAL_VERSION) {
-                    assert indexInput.length() == V1_FILE_SIZE : indexInput.length();
-                    return Checkpoint.readCheckpointV5_0_0(indexInput);
-                } else if (fileVersion == VERSION_6_0_0) {
+                final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, VERSION_6_0_0, CURRENT_VERSION);
+                if (fileVersion == VERSION_6_0_0) {
                     assert indexInput.length() == V2_FILE_SIZE : indexInput.length();
-                    return Checkpoint.readCheckpointV6_0_0(indexInput);
+                    return Checkpoint.readCheckpointV2(indexInput);
                 } else {
                     assert fileVersion == CURRENT_VERSION : fileVersion;
                     assert indexInput.length() == V3_FILE_SIZE : indexInput.length();
-                    return Checkpoint.readCheckpointV6_4_0(indexInput);
+                    return Checkpoint.readCheckpointV3(indexInput);
                 }
+            } catch (CorruptIndexException | NoSuchFileException | IndexFormatTooOldException | IndexFormatTooNewException e) {
+                throw new TranslogCorruptedException(path.toString(), e);
             }
         }
     }
 
     public static void write(ChannelFactory factory, Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
+        byte[] bytes = createCheckpointBytes(checkpointFile, checkpoint);
+
+        // now go and write to the channel, in one go.
+        try (FileChannel channel = factory.open(checkpointFile, options)) {
+            Channels.writeToChannel(bytes, channel);
+            // no need to force metadata, file size stays the same and we did the full fsync
+            // when we first created the file, so the directory entry doesn't change as well
+            channel.force(false);
+        }
+    }
+
+    public static void write(FileChannel fileChannel, Path checkpointFile, Checkpoint checkpoint) throws IOException {
+        byte[] bytes = createCheckpointBytes(checkpointFile, checkpoint);
+        Channels.writeToChannel(bytes, fileChannel, 0);
+        // no need to force metadata, file size stays the same and we did the full fsync
+        // when we first created the file, so the directory entry doesn't change as well
+        fileChannel.force(false);
+    }
+
+    private static byte[] createCheckpointBytes(Path checkpointFile, Checkpoint checkpoint) throws IOException {
         final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(V3_FILE_SIZE) {
             @Override
             public synchronized byte[] toByteArray() {
@@ -223,15 +236,8 @@ final class Checkpoint {
                 "get you numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + V3_FILE_SIZE;
             assert indexOutput.getFilePointer() < 512 :
                 "checkpoint files have to be smaller than 512 bytes for atomic writes; size: " + indexOutput.getFilePointer();
-
         }
-        // now go and write to the channel, in one go.
-        try (FileChannel channel = factory.open(checkpointFile, options)) {
-            Channels.writeToChannel(byteOutputStream.toByteArray(), channel);
-            // no need to force metadata, file size stays the same and we did the full fsync
-            // when we first created the file, so the directory entry doesn't change as well
-            channel.force(false);
-        }
+        return byteOutputStream.toByteArray();
     }
 
     @Override

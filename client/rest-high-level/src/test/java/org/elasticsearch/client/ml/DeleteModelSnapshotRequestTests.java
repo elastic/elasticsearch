@@ -33,8 +33,4 @@ public class DeleteModelSnapshotRequestTests extends ESTestCase {
             -> new DeleteModelSnapshotRequest(randomAlphaOfLength(10), null));
         assertEquals("[snapshot_id] must not be null", ex.getMessage());
     }
-
-    private DeleteModelSnapshotRequest createTestInstance() {
-        return new DeleteModelSnapshotRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
-    }
 }

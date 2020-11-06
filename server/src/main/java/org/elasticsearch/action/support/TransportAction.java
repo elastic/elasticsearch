@@ -24,7 +24,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 
@@ -32,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> {
 
-    protected final String actionName;
+    public final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
     /**
@@ -45,6 +49,14 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;
+    }
+
+    private Releasable registerChildNode(TaskId parentTask) {
+        if (parentTask.isSet()) {
+            return taskManager.registerChildNode(parentTask.getId(), taskManager.localNode());
+        } else {
+            return () -> {};
+        }
     }
 
     /**
@@ -60,18 +72,31 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
          * task. That just seems like too many objects. Thus the two versions of
          * this method.
          */
-        Task task = taskManager.register("transport", actionName, request);
+        final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
+        final Task task;
+        try {
+            task = taskManager.register("transport", actionName, request);
+        } catch (TaskCancelledException e) {
+            unregisterChildNode.close();
+            throw e;
+        }
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
-                taskManager.unregister(task);
-                listener.onResponse(response);
+                try {
+                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                } finally {
+                    listener.onResponse(response);
+                }
             }
 
             @Override
             public void onFailure(Exception e) {
-                taskManager.unregister(task);
-                listener.onFailure(e);
+                try {
+                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                } finally {
+                    listener.onFailure(e);
+                }
             }
         });
         return task;
@@ -82,22 +107,31 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * {@link TaskListener} which listens for the completion of the action.
      */
     public final Task execute(Request request, TaskListener<Response> listener) {
-        Task task = taskManager.register("transport", actionName, request);
+        final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
+        final Task task;
+        try {
+            task = taskManager.register("transport", actionName, request);
+        } catch (TaskCancelledException e) {
+            unregisterChildNode.close();
+            throw e;
+        }
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
-                if (task != null) {
-                    taskManager.unregister(task);
+                try {
+                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                } finally {
+                    listener.onResponse(task, response);
                 }
-                listener.onResponse(task, response);
             }
 
             @Override
             public void onFailure(Exception e) {
-                if (task != null) {
-                    taskManager.unregister(task);
+                try {
+                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                } finally {
+                    listener.onFailure(task, e);
                 }
-                listener.onFailure(task, e);
             }
         });
         return task;

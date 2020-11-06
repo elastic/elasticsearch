@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,26 +37,15 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
-    private final MetaDataCreateIndexService createIndexService;
+    private final MetadataCreateIndexService createIndexService;
 
     @Inject
     public TransportCreateIndexAction(TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
+                                      ThreadPool threadPool, MetadataCreateIndexService createIndexService,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            CreateIndexRequest::new);
+        super(CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new,
+            indexNameExpressionResolver, CreateIndexResponse::new, ThreadPool.Names.SAME);
         this.createIndexService = createIndexService;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected CreateIndexResponse newResponse() {
-        return new CreateIndexResponse();
     }
 
     @Override
@@ -74,7 +63,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
 
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
         final CreateIndexClusterStateUpdateRequest updateRequest =
-            new CreateIndexClusterStateUpdateRequest(request, cause, indexName, request.index())
+            new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index())
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .settings(request.settings()).mappings(request.mappings())
                 .aliases(request.aliases())

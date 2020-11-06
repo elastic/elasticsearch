@@ -1,5 +1,6 @@
+[role="xpack"]
 [[watching-meetup-data]]
-=== Watching Event Data
+=== Watching event data
 
 If you are indexing event data, such as log messages, network traffic, or a web feed, you can create a watch to email notifications when certain events occur.
 For example, if you index a feed of RSVPs for meetup events happening around the world, you can create a watch that alerts you to interesting events.
@@ -40,7 +41,7 @@ output { <2>
 
 ----------------------------------------------------------
 // NOTCONSOLE
-<1> The meetup data stream is formatted in JSON.
+<1> The meetup data is formatted in JSON.
 <2> Index the meetup data into Elasticsearch.
 --
 
@@ -82,8 +83,7 @@ To set up the watch:
     "search": {
       "request": {
         "indices": [
-          "<logstash-{now-1h}>", <1>
-          "<logstash-{now}>"
+          "logstash" <1>
         ],
         "body": {
           "size": 0,
@@ -108,13 +108,13 @@ To set up the watch:
           "aggs": {
             "group_by_city": {
               "terms": {
-                "field": "group.group_city.raw", <3>
+                "field": "group.group_city.keyword", <3>
                 "size": 5
               },
               "aggs": {
                 "group_by_event": {
                   "terms": {
-                    "field": "event.event_url.raw", <4>
+                    "field": "event.event_url.keyword", <4>
                     "size": 5
                   },
                   "aggs": {
@@ -129,7 +129,7 @@ To set up the watch:
                       "aggs": {
                         "group_by_event_name": {
                           "terms": {
-                            "field": "event.event_name.raw" <6>
+                            "field": "event.event_name.keyword" <6>
                           }
                         }
                       }
@@ -145,7 +145,13 @@ To set up the watch:
   },
 -------------------------------------------------
 // NOTCONSOLE
-<1> Elasticsearch Date math is used to select the Logstash indices that contain the meetup data. The second pattern is needed in case the previous hour crosses days.
+<1> `logstash` is the default <<indices-add-alias,index alias>> for the {ls}
+indices containing the meetup data. By default, the {ls}
+<<index-lifecycle-management,{ilm} ({ilm-init})>> policy rolls this alias to a
+new index when the index size reaches 50GB or becomes 30 days old. For more
+information, see
+{logstash-ref}/plugins-outputs-elasticsearch.html#plugins-outputs-elasticsearch-ilm[{ilm-init}
+defaults in Logstash].
 <2> Find all of the RSVPs with `Open Source` as a topic.
 <3> Group the RSVPs by city.
 <4> Consolidate multiple RSVPs for the same event.
@@ -158,7 +164,7 @@ To set up the watch:
 --
 [source,js]
 --------------------------------------------------
-"compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }}
+"compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
 --------------------------------------------------
 // NOTCONSOLE
 --
@@ -188,11 +194,12 @@ To set up the watch:
 // NOTCONSOLE
 --
 
-NOTE: To enable Watcher to send emails, you must configure an email account in `elasticsearch.yml`. For more information, see <<configuring-email, Working with Various Email Services>>.
+NOTE: To enable Watcher to send emails, you must configure an email account in `elasticsearch.yml`. For more information, see <<configuring-email>>.
 
 
 The complete watch looks like this:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/meetup
 {
@@ -205,8 +212,7 @@ PUT _watcher/watch/meetup
     "search": {
       "request": {
         "indices": [
-          "<logstash-{now-1h}>",
-          "<logstash-{now}>"
+          "logstash"
         ],
         "body": {
           "size": 0,
@@ -231,13 +237,13 @@ PUT _watcher/watch/meetup
           "aggs": {
             "group_by_city": {
               "terms": {
-                "field": "group.group_city.raw",
+                "field": "group.group_city.keyword",
                 "size": 5
               },
               "aggs": {
                 "group_by_event": {
                   "terms": {
-                    "field": "event.event_url.raw",
+                    "field": "event.event_url.keyword",
                     "size": 5
                   },
                   "aggs": {
@@ -252,7 +258,7 @@ PUT _watcher/watch/meetup
                       "aggs": {
                         "group_by_event_name": {
                           "terms": {
-                            "field": "event.event_name.raw"
+                            "field": "event.event_name.keyword"
                           }
                         }
                       }
@@ -268,7 +274,7 @@ PUT _watcher/watch/meetup
   },
   "condition": {
     "compare": {
-      "ctx.payload.hits.total.value": {
+      "ctx.payload.hits.total": {
         "gt": 0
       }
     }
@@ -288,9 +294,8 @@ PUT _watcher/watch/meetup
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-<1> The email body can include Mustache templates to reference data in the watch payload. By default,it will be <<email-html-sanitization, sanitized>> to block dangerous content.
+<1> The email body can include Mustache templates to reference data in the watch payload. By default,it will be <<email-html-sanitization,sanitized>> to block dangerous content.
 <2> Replace the `from` address with the email address you configured in `elasticsearch.yml`.
 <3> Replace the `to` address with your email address to receive notifications.
 
@@ -298,9 +303,8 @@ PUT _watcher/watch/meetup
 Now that you've created your watch, you can use the
 {ref}/watcher-api-execute-watch.html[`_execute` API] to run it without waiting for the schedule to trigger execution:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/meetup/_execute
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]

@@ -1,8 +1,8 @@
-[float]
+[discrete]
 [[api-java-put-watch]]
-=== PUT Watch API
+=== Put watch API
 
-The PUT watch API either registers a new watch in {watcher} or update an
+The put watch API either registers a new watch in {watcher} or update an
 existing one. Once registered, a new document will be added to the `.watches`
 index, representing the watch, and the watch trigger will immediately be
 registered with the relevant trigger engine (typically the scheduler, for the

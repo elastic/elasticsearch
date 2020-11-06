@@ -51,24 +51,10 @@ public class SqlFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        SqlFeatureSet featureSet = new SqlFeatureSet(Settings.EMPTY, licenseState, client);
+        SqlFeatureSet featureSet = new SqlFeatureSet(licenseState, client);
         boolean available = randomBoolean();
-        when(licenseState.isSqlAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SQL)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
-    }
-
-    public void testEnabled() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        if (enabled) {
-            if (randomBoolean()) {
-                settings.put("xpack.sql.enabled", enabled);
-            }
-        } else {
-            settings.put("xpack.sql.enabled", enabled);
-        }
-        SqlFeatureSet featureSet = new SqlFeatureSet(settings.build(), licenseState, client);
-        assertThat(featureSet.enabled(), is(enabled));
     }
 
     @SuppressWarnings("unchecked")
@@ -99,13 +85,13 @@ public class SqlFeatureSetTests extends ESTestCase {
         }).when(client).execute(eq(SqlStatsAction.INSTANCE), any(), any());
 
         PlainActionFuture<SqlFeatureSet.Usage> future = new PlainActionFuture<>();
-        new SqlFeatureSet(Settings.EMPTY, licenseState, client).usage(future);
+        new SqlFeatureSet(licenseState, client).usage(future);
         SqlFeatureSetUsage sqlUsage = (SqlFeatureSetUsage) future.get();
-        
+
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", sqlUsage.stats());
         long fooFoo = ObjectPath.eval("foo.foo", sqlUsage.stats());
         long spam = ObjectPath.eval("spam", sqlUsage.stats());
-        
+
         assertThat(sqlUsage.stats().keySet(), containsInAnyOrder("foo", "spam"));
         assertThat(fooBarBaz, is(5L));
         assertThat(fooFoo, is(1L));

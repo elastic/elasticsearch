@@ -8,7 +8,11 @@ setup:
 
 ---
 "Test old and mixed cluster datafeeds without aggs":
+  - skip:
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+         - "index [airline-data] matches multiple legacy templates [global, template], composable templates will only match a single template"
       indices.create:
         index: airline-data
         body:
@@ -105,7 +109,11 @@ setup:
 
 ---
 "Test old and mixed cluster datafeeds with aggs":
+  - skip:
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+         - "index [airline-data] matches multiple legacy templates [global, template], composable templates will only match a single template"
       indices.create:
         index: airline-data
         body:
@@ -115,6 +123,8 @@ setup:
                 type: date
 
   - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.get_datafeeds:
         datafeed_id: old-cluster-datafeed-with-aggs
   - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed-with-aggs"}
@@ -125,12 +135,16 @@ setup:
   - match: { datafeeds.0.aggregations.buckets.aggregations.time.max.field: time }
 
   - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.get_datafeed_stats:
         datafeed_id: old-cluster-datafeed-with-aggs
   - match: { datafeeds.0.state: "stopped"}
   - is_false: datafeeds.0.node
 
   - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.get_datafeeds:
         datafeed_id: mixed-cluster-datafeed-with-aggs
   - match: { datafeeds.0.datafeed_id: "mixed-cluster-datafeed-with-aggs"}
@@ -141,6 +155,8 @@ setup:
   - match: { datafeeds.0.aggregations.buckets.aggregations.time.max.field: time }
 
   - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.get_datafeed_stats:
         datafeed_id: mixed-cluster-datafeed-with-aggs
   - match: { datafeeds.0.state: "stopped"}
@@ -151,11 +167,15 @@ setup:
         job_id: old-cluster-datafeed-job-with-aggs
 
   - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.start_datafeed:
         datafeed_id: old-cluster-datafeed-with-aggs
         start: 0
 
   - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.stop_datafeed:
         datafeed_id: old-cluster-datafeed-with-aggs
 
@@ -164,6 +184,8 @@ setup:
         job_id: old-cluster-datafeed-job-with-aggs
 
   - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.delete_datafeed:
         datafeed_id: old-cluster-datafeed-with-aggs
 
@@ -177,11 +199,15 @@ setup:
         job_id: mixed-cluster-datafeed-job-with-aggs
 
   - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.start_datafeed:
         datafeed_id: mixed-cluster-datafeed-with-aggs
         start: 0
 
   - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.stop_datafeed:
         datafeed_id: mixed-cluster-datafeed-with-aggs
 
@@ -190,6 +216,8 @@ setup:
         job_id: mixed-cluster-datafeed-job-with-aggs
 
   - do:
+      allowed_warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.delete_datafeed:
         datafeed_id: mixed-cluster-datafeed-with-aggs
 

@@ -27,19 +27,9 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
     public TransportPutLicenseAction(TransportService transportService, ClusterService clusterService,
                                      LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PutLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                PutLicenseRequest::new);
+        super(PutLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, PutLicenseRequest::new,
+            indexNameExpressionResolver, PutLicenseResponse::new, ThreadPool.Names.MANAGEMENT);
         this.licenseService = licenseService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected PutLicenseResponse newResponse() {
-        return new PutLicenseResponse();
     }
 
     @Override

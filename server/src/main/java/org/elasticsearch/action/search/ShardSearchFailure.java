@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,7 +54,15 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     private SearchShardTarget shardTarget;
 
-    ShardSearchFailure() {
+    ShardSearchFailure(StreamInput in) throws IOException {
+        shardTarget = in.readOptionalWriteable(SearchShardTarget::new);
+        if (shardTarget != null) {
+            index = shardTarget.getFullyQualifiedIndexName();
+            shardId = shardTarget.getShardId().getId();
+        }
+        reason = in.readString();
+        status = RestStatus.readFrom(in);
+        cause = in.readException();
     }
 
     public ShardSearchFailure(Exception e) {
@@ -91,21 +99,8 @@ public class ShardSearchFailure extends ShardOperationFailedException {
     }
 
     public static ShardSearchFailure readShardSearchFailure(StreamInput in) throws IOException {
-        ShardSearchFailure shardSearchFailure = new ShardSearchFailure();
-        shardSearchFailure.readFrom(in);
-        return shardSearchFailure;
-    }
+        return new ShardSearchFailure(in);
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        shardTarget = in.readOptionalWriteable(SearchShardTarget::new);
-        if (shardTarget != null) {
-            index = shardTarget.getFullyQualifiedIndexName();
-            shardId = shardTarget.getShardId().getId();
-        }
-        reason = in.readString();
-        status = RestStatus.readFrom(in);
-        cause = in.readException();
     }
 
     @Override
@@ -118,21 +113,25 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(SHARD_FIELD, shardId());
-        builder.field(INDEX_FIELD, index());
-        if (shardTarget != null) {
-            builder.field(NODE_FIELD, shardTarget.getNodeId());
-        }
-        builder.field(REASON_FIELD);
         builder.startObject();
-        ElasticsearchException.generateThrowableXContent(builder, params, cause);
+        {
+            builder.field(SHARD_FIELD, shardId());
+            builder.field(INDEX_FIELD, index());
+            if (shardTarget != null) {
+                builder.field(NODE_FIELD, shardTarget.getNodeId());
+            }
+            builder.field(REASON_FIELD);
+            builder.startObject();
+            ElasticsearchException.generateThrowableXContent(builder, params, cause);
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
     }
 
     public static ShardSearchFailure fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         String currentFieldName = null;
         int shardId = -1;
         String indexName = null;
@@ -170,7 +169,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         SearchShardTarget searchShardTarget = null;
         if (nodeId != null) {
             searchShardTarget = new SearchShardTarget(nodeId,
-                new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
+                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
         }
         return new ShardSearchFailure(exception, searchShardTarget);
     }

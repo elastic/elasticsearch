@@ -56,7 +56,8 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals(versionMap.get("lucene_version"), info.getVersion().getLuceneVersion());
     }
 
-    public void testXPackInfo() throws IOException {
+    public void testXPackInfo() throws Exception {
+        waitForActiveLicense(client());
         XPackInfoRequest request = new XPackInfoRequest();
         request.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
         request.setVerbose(true);
@@ -71,17 +72,14 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals(LicenseStatus.ACTIVE, info.getLicenseInfo().getStatus());
 
         FeatureSet graph = info.getFeatureSetsInfo().getFeatureSets().get("graph");
-        assertNotNull(graph.description());
         assertTrue(graph.available());
         assertTrue(graph.enabled());
         assertNull(graph.nativeCodeInfo());
         FeatureSet monitoring = info.getFeatureSetsInfo().getFeatureSets().get("monitoring");
-        assertNotNull(monitoring.description());
         assertTrue(monitoring.available());
         assertTrue(monitoring.enabled());
         assertNull(monitoring.nativeCodeInfo());
         FeatureSet ml = info.getFeatureSetsInfo().getFeatureSets().get("ml");
-        assertNotNull(ml.description());
         assertTrue(ml.available());
         assertTrue(ml.enabled());
         assertEquals(mainResponse.getVersion().getNumber(), ml.nativeCodeInfo().get("version").toString());

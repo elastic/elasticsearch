@@ -22,7 +22,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -40,7 +39,7 @@ import java.util.Objects;
  * <p>
  * Returned as part of {@link org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse}
  */
-public class RestoreInfo implements ToXContentObject, Streamable {
+public class RestoreInfo implements ToXContentObject, Writeable {
 
     private String name;
 
@@ -50,15 +49,20 @@ public class RestoreInfo implements ToXContentObject, Streamable {
 
     private int successfulShards;
 
-    RestoreInfo() {
-
-    }
+    RestoreInfo() {}
 
     public RestoreInfo(String name, List<String> indices, int totalShards, int successfulShards) {
         this.name = name;
         this.indices = indices;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
+    }
+
+    public RestoreInfo(StreamInput in) throws IOException {
+        name = in.readString();
+        indices = Collections.unmodifiableList(in.readStringList());
+        totalShards = in.readVInt();
+        successfulShards = in.readVInt();
     }
 
     /**
@@ -161,25 +165,9 @@ public class RestoreInfo implements ToXContentObject, Streamable {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        int size = in.readVInt();
-        List<String> indicesListBuilder = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            indicesListBuilder.add(in.readString());
-        }
-        indices = Collections.unmodifiableList(indicesListBuilder);
-        totalShards = in.readVInt();
-        successfulShards = in.readVInt();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeVInt(indices.size());
-        for (String index : indices) {
-            out.writeString(index);
-        }
+        out.writeStringCollection(indices);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
     }
@@ -191,7 +179,7 @@ public class RestoreInfo implements ToXContentObject, Streamable {
      * @return restore info
      */
     public static RestoreInfo readOptionalRestoreInfo(StreamInput in) throws IOException {
-        return in.readOptionalStreamable(RestoreInfo::new);
+        return in.readOptionalWriteable(RestoreInfo::new);
     }
 
     @Override

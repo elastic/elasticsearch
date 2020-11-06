@@ -14,19 +14,16 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 
-import java.util.function.Supplier;
-
 public class TransportValidateDetectorAction extends HandledTransportAction<ValidateDetectorAction.Request, AcknowledgedResponse> {
 
     @Inject
     public TransportValidateDetectorAction(TransportService transportService, ActionFilters actionFilters) {
-        super(ValidateDetectorAction.NAME, transportService, actionFilters,
-            (Supplier<ValidateDetectorAction.Request>) ValidateDetectorAction.Request::new);
+        super(ValidateDetectorAction.NAME, transportService, actionFilters, ValidateDetectorAction.Request::new);
     }
 
     @Override
     protected void doExecute(Task task, ValidateDetectorAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        listener.onResponse(new AcknowledgedResponse(true));
+        listener.onResponse(AcknowledgedResponse.TRUE);
     }
 
 }

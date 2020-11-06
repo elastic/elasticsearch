@@ -31,4 +31,8 @@ public class CancelTasksRequestBuilder extends TasksRequestBuilder<CancelTasksRe
         super(client, action, new CancelTasksRequest());
     }
 
+    public CancelTasksRequestBuilder waitForCompletion(boolean waitForCompletion) {
+        request.setWaitForCompletion(waitForCompletion);
+        return this;
+    }
 }

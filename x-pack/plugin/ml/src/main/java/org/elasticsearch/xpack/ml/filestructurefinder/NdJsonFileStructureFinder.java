@@ -11,7 +11,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
-import org.elasticsearch.xpack.ml.filestructurefinder.TimestampFormatFinder.TimestampMatch;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,26 +52,28 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
             .setNumLinesAnalyzed(sampleMessages.size())
             .setNumMessagesAnalyzed(sampleRecords.size());
 
-        Tuple<String, TimestampMatch> timeField =
+        Tuple<String, TimestampFormatFinder> timeField =
             FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides, timeoutChecker);
         if (timeField != null) {
             boolean needClientTimeZone = timeField.v2().hasTimezoneDependentParsing();
 
             structureBuilder.setTimestampField(timeField.v1())
-                .setJodaTimestampFormats(timeField.v2().jodaTimestampFormats)
-                .setJavaTimestampFormats(timeField.v2().javaTimestampFormats)
+                .setJodaTimestampFormats(timeField.v2().getJodaTimestampFormats())
+                .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
-                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, timeField.v1(),
-                    timeField.v2().javaTimestampFormats, needClientTimeZone));
+                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null,
+                    // Note: no convert processors are added based on mappings for NDJSON input
+                    // because it's reasonable that _source matches the supplied JSON precisely
+                    Collections.emptyMap(), timeField.v1(), timeField.v2().getJavaTimestampFormats(), needClientTimeZone,
+                    timeField.v2().needNanosecondPrecision()));
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
             FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
 
-        SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
+        Map<String, Object> fieldMappings = mappingsAndFieldStats.v1();
         if (timeField != null) {
-            mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD,
-                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+            fieldMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
         }
 
         if (mappingsAndFieldStats.v2() != null) {
@@ -80,7 +81,7 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
         }
 
         FileStructure structure = structureBuilder
-            .setMappings(mappings)
+            .setMappings(Collections.singletonMap(FileStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings))
             .setExplanation(explanation)
             .build();
 

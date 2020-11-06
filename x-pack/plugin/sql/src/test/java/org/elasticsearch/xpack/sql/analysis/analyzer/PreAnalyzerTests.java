@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.hasSize;
@@ -24,8 +24,8 @@ public class PreAnalyzerTests extends ESTestCase {
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));
         assertThat(result.indices, hasSize(1));
-        assertThat(result.indices.get(0).cluster(), nullValue());
-        assertThat(result.indices.get(0).index(), is("index"));
+        assertThat(result.indices.get(0).id().cluster(), nullValue());
+        assertThat(result.indices.get(0).id().index(), is("index"));
     }
 
     public void testBasicIndexWithCatalog() {
@@ -33,8 +33,8 @@ public class PreAnalyzerTests extends ESTestCase {
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));
         assertThat(result.indices, hasSize(1));
-        assertThat(result.indices.get(0).cluster(), is("elastic"));
-        assertThat(result.indices.get(0).index(), is("index"));
+        assertThat(result.indices.get(0).id().cluster(), is("elastic"));
+        assertThat(result.indices.get(0).id().index(), is("index"));
     }
 
     public void testWildIndexWithCatalog() {
@@ -42,8 +42,8 @@ public class PreAnalyzerTests extends ESTestCase {
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));
         assertThat(result.indices, hasSize(1));
-        assertThat(result.indices.get(0).cluster(), is("elastic"));
-        assertThat(result.indices.get(0).index(), is("index*"));
+        assertThat(result.indices.get(0).id().cluster(), is("elastic"));
+        assertThat(result.indices.get(0).id().index(), is("index*"));
     }
 
     public void testQuotedIndex() {
@@ -51,8 +51,8 @@ public class PreAnalyzerTests extends ESTestCase {
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));
         assertThat(result.indices, hasSize(1));
-        assertThat(result.indices.get(0).cluster(), nullValue());
-        assertThat(result.indices.get(0).index(), is("aaa"));
+        assertThat(result.indices.get(0).id().cluster(), nullValue());
+        assertThat(result.indices.get(0).id().index(), is("aaa"));
     }
 
     public void testQuotedCatalog() {
@@ -60,8 +60,8 @@ public class PreAnalyzerTests extends ESTestCase {
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));
         assertThat(result.indices, hasSize(1));
-        assertThat(result.indices.get(0).cluster(), is("elastic"));
-        assertThat(result.indices.get(0).index(), is("aaa"));
+        assertThat(result.indices.get(0).id().cluster(), is("elastic"));
+        assertThat(result.indices.get(0).id().index(), is("aaa"));
     }
 
     public void testComplicatedQuery() {
@@ -69,7 +69,7 @@ public class PreAnalyzerTests extends ESTestCase {
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));
         assertThat(result.indices, hasSize(1));
-        assertThat(result.indices.get(0).cluster(), nullValue());
-        assertThat(result.indices.get(0).index(), is("aaa"));
+        assertThat(result.indices.get(0).id().cluster(), nullValue());
+        assertThat(result.indices.get(0).id().index(), is("aaa"));
     }
 }

@@ -6,9 +6,9 @@ purposes.  This is the purpose of _multi-fields_. For instance, a `string`
 field could be mapped as a `text` field for full-text
 search, and as a `keyword` field for sorting or aggregations:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -24,17 +24,17 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "city": "New York"
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "city": "York"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -53,15 +53,14 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `city.raw` field is a `keyword` version of the `city` field.
 <2> The `city` field can be used for full text search.
 <3> The `city.raw` field can be used for sorting and aggregations
 
 NOTE: Multi-fields do not change the original `_source` field.
 
-TIP: The `fields` setting is allowed to have different settings for fields of
-the same name in the same index.  New multi-fields can be added to existing
+TIP: New multi-fields can be added to existing
 fields using the <<indices-put-mapping,PUT mapping API>>.
 
 ==== Multi-fields with multiple analyzers
@@ -72,9 +71,9 @@ ways for better relevance. For instance we could index a field with the
 words, and again with the <<english-analyzer,`english` analyzer>>
 which stems words into their root form:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -91,13 +90,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 { "text": "quick brown fox" } <3>
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 { "text": "quick brown foxes" } <3>
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "multi_match": {
@@ -111,7 +110,6 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The `text` field uses the `standard` analyzer.
 <2> The `text.english` field uses the `english` analyzer.

@@ -5,14 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -24,20 +20,25 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteJobAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestDeleteJobAction.class));
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
 
-    public RestDeleteJobAction(Settings settings, RestController controller) {
-        super(settings);
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this,
-            DELETE, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRoute(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}",
+                DELETE, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}")
+        );
     }
 
     @Override
@@ -73,13 +74,13 @@ public class RestDeleteJobAction extends BaseRestHandler {
     // We do not want to log anything due to a delete action
     // The response or error will be returned to the client when called synchronously
     // or it will be stored in the task result when called asynchronously
-    private static TaskListener nullTaskListener() {
-        return new TaskListener() {
+    private static <T> TaskListener<T> nullTaskListener() {
+        return new TaskListener<T>() {
             @Override
-            public void onResponse(Task task, Object o) {}
+            public void onResponse(Task task, T o) {}
 
             @Override
-            public void onFailure(Task task, Throwable e) {}
+            public void onFailure(Task task, Exception e) {}
         };
     }
 }

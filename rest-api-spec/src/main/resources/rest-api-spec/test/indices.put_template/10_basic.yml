@@ -142,7 +142,7 @@
         body: >
           {
             "version": 10,
-            "index_patterns": "*",
+            "index_patterns": "foo*",
             "settings": { "number_of_shards": 1 }
           }
   - match: { acknowledged: true }
@@ -159,7 +159,7 @@
         body: >
           {
             "version": 9,
-            "index_patterns": "*",
+            "index_patterns": "foo*",
             "settings": { "number_of_shards": 1 }
           }
   - match: { acknowledged: true }
@@ -176,7 +176,7 @@
         body: >
           {
             "version": 6789,
-            "index_patterns": "*",
+            "index_patterns": "foo*",
             "settings": { "number_of_shards": 1 }
           }
   - match: { acknowledged: true }
@@ -192,7 +192,7 @@
         name: "my_template"
         body: >
           {
-            "index_patterns": "*",
+            "index_patterns": "foo*",
             "settings": { "number_of_shards": 1 }
           }
   - match: { acknowledged: true }
@@ -209,7 +209,7 @@
         body: >
           {
             "version": 5385,
-            "index_patterns": "*",
+            "index_patterns": "foo*",
             "settings": { "number_of_shards": 1 }
           }
   - match: { acknowledged: true }

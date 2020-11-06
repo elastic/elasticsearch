@@ -31,7 +31,7 @@ public class SimplePatternSplitTokenizerFactory extends AbstractTokenizerFactory
     private final String pattern;
 
     public SimplePatternSplitTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings);
+        super(indexSettings, settings, name);
 
         pattern = settings.get("pattern", "");
     }

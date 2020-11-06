@@ -1,13 +1,16 @@
 [[analysis-keyword-analyzer]]
-=== Keyword Analyzer
+=== Keyword analyzer
+++++
+<titleabbrev>Keyword</titleabbrev>
+++++
 
 The `keyword` analyzer is a ``noop'' analyzer which returns the entire input
 string as a single token.
 
-[float]
+[discrete]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -15,11 +18,10 @@ POST _analyze
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -33,7 +35,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -45,12 +46,12 @@ The above sentence would produce the following single term:
 [ The 2 QUICK Brown-Foxes jumped over the lazy dog's bone. ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `keyword` analyzer is not configurable.
 
-[float]
+[discrete]
 === Definition
 
 The `keyword` analyzer consists of:
@@ -66,7 +67,7 @@ into tokens, but just in case you need it, this would recreate the
 built-in `keyword` analyzer and you can use it as a starting point
 for further customization:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /keyword_example
 {
@@ -83,6 +84,6 @@ PUT /keyword_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: keyword_example, first: keyword, second: rebuilt_keyword}\nendyaml\n/]
+
 <1> You'd add any token filters here.

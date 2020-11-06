@@ -149,9 +149,4 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
     public boolean ignoreUnavailable() {
         return ignoreUnavailable;
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
 }

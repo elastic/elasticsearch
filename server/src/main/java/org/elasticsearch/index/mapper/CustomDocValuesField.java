@@ -34,6 +34,7 @@ public abstract class CustomDocValuesField implements IndexableField {
     public static final FieldType TYPE = new FieldType();
     static {
       TYPE.setDocValuesType(DocValuesType.BINARY);
+      TYPE.setOmitNorms(true);
       TYPE.freeze();
     }
 

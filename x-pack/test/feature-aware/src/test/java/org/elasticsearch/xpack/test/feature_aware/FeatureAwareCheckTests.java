@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.test.feature_aware;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -46,21 +46,21 @@ public class FeatureAwareCheckTests extends ESTestCase {
                 XPackPlugin.XPackClusterStateCustom.class);
     }
 
-    public void testMetaDataCustomViolation() throws IOException {
-        runCustomViolationTest(MetaDataCustomViolation.class, getClass(), MetaData.Custom.class, XPackPlugin.XPackMetaDataCustom.class);
+    public void testMetadataCustomViolation() throws IOException {
+        runCustomViolationTest(MetadataCustomViolation.class, getClass(), Metadata.Custom.class, XPackPlugin.XPackMetadataCustom.class);
     }
 
-    public void testMetaDataCustom() throws IOException {
-        runCustomTest(XPackMetaDataCustom.class, getClass(), MetaData.Custom.class, XPackPlugin.XPackMetaDataCustom.class);
+    public void testMetadataCustom() throws IOException {
+        runCustomTest(XPackMetadataCustom.class, getClass(), Metadata.Custom.class, XPackPlugin.XPackMetadataCustom.class);
     }
 
-    public void testMetaDataCustomMarkerInterface() throws IOException {
+    public void testMetadataCustomMarkerInterface() throws IOException {
         // marker interfaces do not implement the marker interface but should not fail the feature aware check
         runCustomTest(
-                XPackPlugin.XPackMetaDataCustom.class,
+                XPackPlugin.XPackMetadataCustom.class,
                 XPackPlugin.class,
-                MetaData.Custom.class,
-                XPackPlugin.XPackMetaDataCustom.class);
+                Metadata.Custom.class,
+                XPackPlugin.XPackMetadataCustom.class);
     }
 
     public void testPersistentTaskParamsViolation() throws IOException {
@@ -134,21 +134,21 @@ public class FeatureAwareCheckTests extends ESTestCase {
 
     }
 
-    abstract class MetaDataCustomFeatureAware implements MetaData.Custom {
+    abstract class MetadataCustomFeatureAware implements Metadata.Custom {
 
         private final String writeableName;
 
-        MetaDataCustomFeatureAware(final String writeableName) {
+        MetadataCustomFeatureAware(final String writeableName) {
             this.writeableName = writeableName;
         }
 
         @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return MetaData.ALL_CONTEXTS;
+        public EnumSet<Metadata.XContentContext> context() {
+            return Metadata.ALL_CONTEXTS;
         }
 
         @Override
-        public Diff<MetaData.Custom> diff(MetaData.Custom previousState) {
+        public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
             return null;
         }
 
@@ -174,17 +174,17 @@ public class FeatureAwareCheckTests extends ESTestCase {
 
     }
 
-    class MetaDataCustomViolation extends MetaDataCustomFeatureAware {
+    class MetadataCustomViolation extends MetadataCustomFeatureAware {
 
-        MetaDataCustomViolation() {
+        MetadataCustomViolation() {
             super("meta_data_custom_violation");
         }
 
     }
 
-    class XPackMetaDataCustom extends MetaDataCustomFeatureAware implements XPackPlugin.XPackMetaDataCustom {
+    class XPackMetadataCustom extends MetadataCustomFeatureAware implements XPackPlugin.XPackMetadataCustom {
 
-        XPackMetaDataCustom() {
+        XPackMetadataCustom() {
             super("x_pack_meta_data_custom");
         }
 

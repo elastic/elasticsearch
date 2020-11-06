@@ -32,14 +32,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine.Searcher;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesRequestCache.Key;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
@@ -50,11 +49,13 @@ import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class IndicesServiceCloseTests extends ESTestCase {
@@ -68,10 +69,9 @@ public class IndicesServiceCloseTests extends ESTestCase {
             .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
-            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m")
-            .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())
-            .put(Node.NODE_DATA_SETTING.getKey(), true)
+            .put(dataNode())
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
             // default the watermarks low values to prevent tests from failing on nodes without enough disk space
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
@@ -95,8 +95,10 @@ public class IndicesServiceCloseTests extends ESTestCase {
         Node node = startNode();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
         assertEquals(1, indicesService.indicesRefCount.refCount());
+        assertFalse(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
         node.close();
         assertEquals(0, indicesService.indicesRefCount.refCount());
+        assertTrue(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
     }
 
     public void testCloseNonEmptyIndicesService() throws Exception {
@@ -108,9 +110,11 @@ public class IndicesServiceCloseTests extends ESTestCase {
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
+        assertFalse(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
 
         node.close();
         assertEquals(0, indicesService.indicesRefCount.refCount());
+        assertTrue(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
     }
 
     public void testCloseWithIncedRefStore() throws Exception {
@@ -126,12 +130,15 @@ public class IndicesServiceCloseTests extends ESTestCase {
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         shard.store().incRef();
+        assertFalse(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
 
         node.close();
         assertEquals(1, indicesService.indicesRefCount.refCount());
+        assertFalse(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
 
         shard.store().decRef();
         assertEquals(0, indicesService.indicesRefCount.refCount());
+        assertTrue(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
     }
 
     public void testCloseWhileOngoingRequest() throws Exception {
@@ -148,8 +155,8 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Searcher searcher = shard.acquireSearcher("test");
-        assertEquals(1, searcher.reader().maxDoc());
+        Engine.Searcher searcher = shard.acquireSearcher("test");
+        assertEquals(1, searcher.getIndexReader().maxDoc());
 
         node.close();
         assertEquals(1, indicesService.indicesRefCount.refCount());
@@ -176,12 +183,12 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Searcher searcher = shard.acquireSearcher("test");
-        assertEquals(1, searcher.reader().maxDoc());
+        Engine.Searcher searcher = shard.acquireSearcher("test");
+        assertEquals(1, searcher.getIndexReader().maxDoc());
 
         Query query = LongPoint.newRangeQuery("foo", 0, 5);
         assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
-        searcher.searcher().count(query);
+        searcher.count(query);
         assertEquals(1L, cache.getStats(shard.shardId()).getCacheSize());
 
         searcher.close();
@@ -211,15 +218,15 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Searcher searcher = shard.acquireSearcher("test");
-        assertEquals(1, searcher.reader().maxDoc());
+        Engine.Searcher searcher = shard.acquireSearcher("test");
+        assertEquals(1, searcher.getIndexReader().maxDoc());
 
         node.close();
         assertEquals(1, indicesService.indicesRefCount.refCount());
 
         Query query = LongPoint.newRangeQuery("foo", 0, 5);
         assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
-        searcher.searcher().count(query);
+        searcher.count(query);
         assertEquals(1L, cache.getStats(shard.shardId()).getCacheSize());
 
         searcher.close();
@@ -245,8 +252,8 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Searcher searcher = shard.acquireSearcher("test");
-        assertEquals(1, searcher.reader().maxDoc());
+        Engine.Searcher searcher = shard.acquireSearcher("test");
+        assertEquals(1, searcher.getIndexReader().maxDoc());
 
         node.close();
         assertEquals(1, indicesService.indicesRefCount.refCount());
@@ -280,7 +287,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
             @Override
             public void onRemoval(RemovalNotification<Key, BytesReference> notification) {}
         };
-        cache.getOrCompute(cacheEntity, () -> new BytesArray("bar"), searcher.getDirectoryReader(), new BytesArray("foo"), () -> "foo");
+        cache.getOrCompute(cacheEntity, () -> new BytesArray("bar"), searcher.getDirectoryReader(), new BytesArray("foo"));
         assertEquals(1L, cache.count());
 
         searcher.close();

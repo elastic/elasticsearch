@@ -17,7 +17,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
-import org.elasticsearch.xpack.test.rest.XPackRestIT;
+import org.elasticsearch.xpack.test.rest.AbstractXPackRestTest;
 import org.junit.After;
 
 import java.util.List;
@@ -29,7 +29,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 
-public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
+public class XDocsClientYamlTestSuiteIT extends AbstractXPackRestTest {
     private static final String USER_TOKEN = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
 
     public XDocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -103,7 +103,6 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
         }
     }
 
-    @Override
     protected boolean isWatcherTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("watcher/") || testName.contains("watcher\\"));
@@ -130,8 +129,8 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
         @SuppressWarnings("unchecked")
         Map<String, Object> users = (Map<String, Object>) response.getBody();
         for (String user: users.keySet()) {
-            Map<?, ?> metaDataMap = (Map<?, ?>) ((Map<?, ?>) users.get(user)).get("metadata");
-            Boolean reserved = metaDataMap == null ? null : (Boolean) metaDataMap.get("_reserved");
+            Map<?, ?> metadataMap = (Map<?, ?>) ((Map<?, ?>) users.get(user)).get("metadata");
+            Boolean reserved = metadataMap == null ? null : (Boolean) metadataMap.get("_reserved");
             if (reserved == null || reserved == false) {
                 logger.warn("Deleting leftover user {}", user);
                 getAdminExecutionContext().callApi("security.delete_user", singletonMap("username", user), emptyList(), emptyMap());

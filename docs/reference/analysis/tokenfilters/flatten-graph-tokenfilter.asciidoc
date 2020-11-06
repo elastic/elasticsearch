@@ -1,20 +1,227 @@
 [[analysis-flatten-graph-tokenfilter]]
-=== Flatten Graph Token Filter
+=== Flatten graph token filter
+++++
+<titleabbrev>Flatten graph</titleabbrev>
+++++
 
-experimental[This functionality is marked as experimental in Lucene]
+Flattens a <<token-graphs,token graph>> produced by a graph token filter, such
+as <<analysis-synonym-graph-tokenfilter,`synonym_graph`>> or
+<<analysis-word-delimiter-graph-tokenfilter,`word_delimiter_graph`>>.
 
-The `flatten_graph` token filter accepts an arbitrary graph token
-stream, such as that produced by
-<<analysis-synonym-graph-tokenfilter>>, and flattens it into a single
-linear chain of tokens suitable for indexing.
+Flattening a token graph containing
+<<token-graphs-multi-position-tokens,multi-position tokens>> makes the graph
+suitable for <<analysis-index-search-time,indexing>>. Otherwise, indexing does
+not support token graphs containing multi-position tokens.
 
-This is a lossy process, as separate side paths are squashed on top of
-one another, but it is necessary if you use a graph token stream
-during indexing because a Lucene index cannot currently represent a
-graph.  For this reason, it's best to apply graph analyzers only at
-search time because that preserves the full graph structure and gives
-correct matches for proximity queries.
+[WARNING]
+====
+Flattening graphs is a lossy process.
 
-For more information on this topic and its various complexities,
-please read the http://blog.mikemccandless.com/2012/04/lucenes-tokenstreams-are-actually.html[Lucene's
-TokenStreams are actually graphs] blog post.
+If possible, avoid using the `flatten_graph` filter. Instead, use graph token
+filters in <<analysis-index-search-time,search analyzers>> only. This eliminates
+the need for the `flatten_graph` filter.
+====
+
+The `flatten_graph` filter uses Lucene's
+{lucene-analysis-docs}/core/FlattenGraphFilter.html[FlattenGraphFilter].
+
+[[analysis-flatten-graph-tokenfilter-analyze-ex]]
+==== Example
+
+To see how the `flatten_graph` filter works, you first need to produce a token
+graph containing multi-position tokens.
+
+The following <<indices-analyze,analyze API>> request uses the `synonym_graph`
+filter to add `dns` as a multi-position synonym for `domain name system` in the
+text `domain name system is fragile`:
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer": "standard",
+  "filter": [
+    {
+      "type": "synonym_graph",
+      "synonyms": [ "dns, domain name system" ]
+    }
+  ],
+  "text": "domain name system is fragile"
+}
+----
+
+The filter produces the following token graph with `dns` as a multi-position
+token.
+
+image::images/analysis/token-graph-dns-synonym-ex.svg[align="center"]
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "dns",
+      "start_offset": 0,
+      "end_offset": 18,
+      "type": "SYNONYM",
+      "position": 0,
+      "positionLength": 3
+    },
+    {
+      "token": "domain",
+      "start_offset": 0,
+      "end_offset": 6,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "name",
+      "start_offset": 7,
+      "end_offset": 11,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "system",
+      "start_offset": 12,
+      "end_offset": 18,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "is",
+      "start_offset": 19,
+      "end_offset": 21,
+      "type": "<ALPHANUM>",
+      "position": 3
+    },
+    {
+      "token": "fragile",
+      "start_offset": 22,
+      "end_offset": 29,
+      "type": "<ALPHANUM>",
+      "position": 4
+    }
+  ]
+}
+----
+////
+
+Indexing does not support token graphs containing multi-position tokens. To make
+this token graph suitable for indexing, it needs to be flattened.
+
+To flatten the token graph, add the `flatten_graph` filter after the
+`synonym_graph` filter in the previous analyze API request.
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer": "standard",
+  "filter": [
+    {
+      "type": "synonym_graph",
+      "synonyms": [ "dns, domain name system" ]
+    },
+    "flatten_graph"
+  ],
+  "text": "domain name system is fragile"
+}
+----
+
+The filter produces the following flattened token graph, which is suitable for
+indexing.
+
+image::images/analysis/token-graph-dns-invalid-ex.svg[align="center"]
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "dns",
+      "start_offset": 0,
+      "end_offset": 18,
+      "type": "SYNONYM",
+      "position": 0,
+      "positionLength": 3
+    },
+    {
+      "token": "domain",
+      "start_offset": 0,
+      "end_offset": 6,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "name",
+      "start_offset": 7,
+      "end_offset": 11,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "system",
+      "start_offset": 12,
+      "end_offset": 18,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "is",
+      "start_offset": 19,
+      "end_offset": 21,
+      "type": "<ALPHANUM>",
+      "position": 3
+    },
+    {
+      "token": "fragile",
+      "start_offset": 22,
+      "end_offset": 29,
+      "type": "<ALPHANUM>",
+      "position": 4
+    }
+  ]
+}
+----
+////
+
+[[analysis-keyword-marker-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+`flatten_graph` token filter to configure a new
+<<analysis-custom-analyzer,custom analyzer>>.
+
+In this analyzer, a custom `word_delimiter_graph` filter produces token graphs
+containing catenated, multi-position tokens. The `flatten_graph` filter flattens
+these token graphs, making them suitable for indexing.
+
+[source,console]
+----
+PUT /my-index-000001
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_custom_index_analyzer": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "my_custom_word_delimiter_graph_filter",
+            "flatten_graph"
+          ]
+        }
+      },
+      "filter": {
+        "my_custom_word_delimiter_graph_filter": {
+          "type": "word_delimiter_graph",
+          "catenate_all": true
+        }
+      }
+    }
+  }
+}
+----

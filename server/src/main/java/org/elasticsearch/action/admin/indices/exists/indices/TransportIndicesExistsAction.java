@@ -43,18 +43,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadAction<
                                         ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
         super(IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesExistsRequest::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        // lightweight in memory check
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected IndicesExistsResponse newResponse() {
-        return new IndicesExistsResponse();
+            indexNameExpressionResolver, IndicesExistsResponse::new, ThreadPool.Names.SAME);
     }
 
     @Override

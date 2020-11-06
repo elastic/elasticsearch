@@ -27,10 +27,8 @@ import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.function.Supplier;
-
 /**
- * Synced flush Action.
+ * Synced flush ActionType.
  */
 public class TransportSyncedFlushAction extends HandledTransportAction<SyncedFlushRequest, SyncedFlushResponse> {
 
@@ -39,8 +37,7 @@ public class TransportSyncedFlushAction extends HandledTransportAction<SyncedFlu
     @Inject
     public TransportSyncedFlushAction(TransportService transportService, ActionFilters actionFilters,
                                       SyncedFlushService syncedFlushService) {
-        super(SyncedFlushAction.NAME, transportService, actionFilters,
-            (Supplier<SyncedFlushRequest>) SyncedFlushRequest::new);
+        super(SyncedFlushAction.NAME, transportService, actionFilters, SyncedFlushRequest::new);
         this.syncedFlushService = syncedFlushService;
     }
 

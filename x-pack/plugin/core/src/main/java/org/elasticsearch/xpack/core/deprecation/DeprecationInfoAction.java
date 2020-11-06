@@ -6,17 +6,17 @@
 package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,13 +41,13 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response> {
+public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Response> {
 
     public static final DeprecationInfoAction INSTANCE = new DeprecationInfoAction();
     public static final String NAME = "cluster:admin/xpack/deprecation/info";
 
     private DeprecationInfoAction() {
-        super(NAME);
+        super(NAME, DeprecationInfoAction.Response::new);
     }
 
     /**
@@ -79,18 +79,22 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
             }).collect(Collectors.toList());
     }
 
-    @Override
-    public Response newResponse() {
-        return new Response();
-    }
-
     public static class Response extends ActionResponse implements ToXContentObject {
         private List<DeprecationIssue> clusterSettingsIssues;
         private List<DeprecationIssue> nodeSettingsIssues;
         private Map<String, List<DeprecationIssue>> indexSettingsIssues;
         private List<DeprecationIssue> mlSettingsIssues;
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            clusterSettingsIssues = in.readList(DeprecationIssue::new);
+            nodeSettingsIssues = in.readList(DeprecationIssue::new);
+            indexSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+                mlSettingsIssues = in.readList(DeprecationIssue::new);
+            } else {
+                mlSettingsIssues = Collections.emptyList();
+            }
         }
 
         public Response(List<DeprecationIssue> clusterSettingsIssues,
@@ -120,21 +124,7 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            clusterSettingsIssues = in.readList(DeprecationIssue::new);
-            nodeSettingsIssues = in.readList(DeprecationIssue::new);
-            indexSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
-            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                mlSettingsIssues = in.readList(DeprecationIssue::new);
-            } else {
-                mlSettingsIssues = Collections.emptyList();
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeList(clusterSettingsIssues);
             out.writeList(nodeSettingsIssues);
             out.writeMapOfLists(indexSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
@@ -178,8 +168,7 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
          *
          * @param state The cluster state
          * @param indexNameExpressionResolver Used to resolve indices into their concrete names
-         * @param indices The list of index expressions to evaluate using `indexNameExpressionResolver`
-         * @param indicesOptions The options to use when resolving and filtering which indices to check
+         * @param request The originating request containing the index expressions to evaluate
          * @param datafeeds The ml datafeed configurations
          * @param nodeDeprecationResponse The response containing the deprecation issues found on each node
          * @param indexSettingsChecks The list of index-level checks that will be run across all specified
@@ -191,10 +180,9 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
         public static DeprecationInfoAction.Response from(ClusterState state,
                                                           NamedXContentRegistry xContentRegistry,
                                                           IndexNameExpressionResolver indexNameExpressionResolver,
-                                                          String[] indices, IndicesOptions indicesOptions,
-                                                          List<DatafeedConfig> datafeeds,
+                                                          Request request, List<DatafeedConfig> datafeeds,
                                                           NodesDeprecationCheckResponse nodeDeprecationResponse,
-                                                          List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks,
+                                                          List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks,
                                                           List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
                                                           List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>>
                                                               mlSettingsCheck) {
@@ -206,13 +194,13 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
                 mlSettingsIssues.addAll(filterChecks(mlSettingsCheck, (c) -> c.apply(config, xContentRegistry)));
             }
 
-            String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, indices);
+            String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
 
             Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
             for (String concreteIndex : concreteIndexNames) {
-                IndexMetaData indexMetaData = state.getMetaData().index(concreteIndex);
+                IndexMetadata indexMetadata = state.getMetadata().index(concreteIndex);
                 List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks,
-                    c -> c.apply(indexMetaData));
+                    c -> c.apply(indexMetadata));
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);
                 }
@@ -263,17 +251,17 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
         }
 
         @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
+        @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (indices == null) {
                 validationException = addValidationError("index/indices is missing", validationException);
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

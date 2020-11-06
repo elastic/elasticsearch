@@ -10,18 +10,20 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.nio.file.Path;
 
 public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
+    final Monitoring monitoring;
+
     public LocalStateMonitoring(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
         LocalStateMonitoring thisVar = this;
 
-        plugins.add(new Monitoring(settings) {
+        monitoring = new Monitoring(settings) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();
@@ -36,7 +38,8 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
             protected XPackLicenseState getLicenseState() {
                 return thisVar.getLicenseState();
             }
-        });
+        };
+        plugins.add(monitoring);
         plugins.add(new Watcher(settings) {
             @Override
             protected SSLService getSslService() {
@@ -50,4 +53,9 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
         });
         plugins.add(new IndexLifecycle(settings));
     }
+
+    public Monitoring getMonitoring() {
+        return monitoring;
+    }
+
 }

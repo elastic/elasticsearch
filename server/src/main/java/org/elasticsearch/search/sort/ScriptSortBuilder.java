@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,8 +49,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.NumberSortScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringSortScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -60,13 +60,14 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.search.sort.FieldSortBuilder.validateMaxChildrenExistOnlyInTopLevelNestedSort;
 import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
  * Script sort builder allows to sort based on a custom script expression.
  */
 public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptSortBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ScriptSortBuilder.class);
 
     public static final String NAME = "_script";
     public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -269,7 +270,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return builder;
     }
 
-    private static ConstructingObjectParser<ScriptSortBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    private static final ConstructingObjectParser<ScriptSortBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
             a -> new ScriptSortBuilder((Script) a[0], (ScriptSortType) a[1]));
 
     static {
@@ -279,11 +280,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
         PARSER.declareString((fieldSortBuilder, nestedPath) -> {
-            deprecationLogger.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
+            deprecationLogger.deprecate("script_nested_path",
+                "[nested_path] has been deprecated in favor of the [nested] parameter");
             fieldSortBuilder.setNestedPath(nestedPath);
         }, NESTED_PATH_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedFilter, (p, c) -> {
-            deprecationLogger.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
+            deprecationLogger.deprecate("script_nested_filter",
+                "[nested_filter] has been deprecated in favour for the [nested] parameter");
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
@@ -305,13 +308,23 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
+        return new SortFieldAndFormat(
+                new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC),
+                DocValueFormat.RAW);
+    }
+
+    @Override
+    public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
+        return fieldComparatorSource(context).newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra);
+    }
+
+    private IndexFieldData.XFieldComparatorSource fieldComparatorSource(QueryShardContext context) throws IOException {
         MultiValueMode valueMode = null;
         if (sortMode != null) {
             valueMode = MultiValueMode.fromString(sortMode.toString());
         }
-        boolean reverse = (order == SortOrder.DESC);
         if (valueMode == null) {
-            valueMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
+            valueMode = order == SortOrder.DESC ? MultiValueMode.MAX : MultiValueMode.MIN;
         }
 
         final Nested nested;
@@ -320,22 +333,18 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 throw new QueryShardException(context,
                     "max_children is only supported on v6.5.0 or higher");
             }
-            if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
-                throw new QueryShardException(context,
-                    "max_children is only supported on last level of nested sort");
-            }
             // new nested sorts takes priority
+            validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
             nested = resolveNested(context, nestedSort);
         } else {
             nested = resolveNested(context, nestedPath, nestedFilter);
         }
 
-        final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         switch (type) {
             case STRING:
-                final StringSortScript.Factory factory = context.getScriptService().compile(script, StringSortScript.CONTEXT);
+                final StringSortScript.Factory factory = context.compile(script, StringSortScript.CONTEXT);
                 final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
-                fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
+                return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
                     StringSortScript leafScript;
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
@@ -359,12 +368,18 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     protected void setScorer(Scorable scorer) {
                         leafScript.setScorer(scorer);
                     }
+
+                    @Override
+                    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+                            int bucketSize, BucketedSort.ExtraData extra) {
+                        throw new IllegalArgumentException("error building sort for [_script]: "
+                                + "script sorting only supported on [numeric] scripts but was [" + type + "]");
+                    }
                 };
-                break;
             case NUMBER:
-                final NumberSortScript.Factory numberSortFactory = context.getScriptService().compile(script, NumberSortScript.CONTEXT);
+                final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
                 final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), context.lookup());
-                fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
+                return new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
                     NumberSortScript leafScript;
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
@@ -387,12 +402,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         leafScript.setScorer(scorer);
                     }
                 };
-                break;
             default:
             throw new QueryShardException(context, "custom script sort type [" + type + "] not supported");
         }
-
-        return new SortFieldAndFormat(new SortField("_script", fieldComparatorSource, reverse), DocValueFormat.RAW);
     }
 
     @Override

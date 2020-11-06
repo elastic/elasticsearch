@@ -39,15 +39,18 @@ import java.util.Set;
  */
 public class DiffableStringMap extends AbstractMap<String, String> implements Diffable<DiffableStringMap> {
 
+    public static final DiffableStringMap EMPTY = new DiffableStringMap(Collections.emptyMap());
+
     private final Map<String, String> innerMap;
+
+    @SuppressWarnings("unchecked")
+    public static DiffableStringMap readFrom(StreamInput in) throws IOException {
+        final Map<String, String> map = (Map) in.readMap();
+        return map.isEmpty() ? EMPTY : new DiffableStringMap(map);
+    }
 
     DiffableStringMap(final Map<String, String> map) {
         this.innerMap = Collections.unmodifiableMap(map);
-    }
-
-    @SuppressWarnings("unchecked")
-    DiffableStringMap(final StreamInput in) throws IOException {
-        this((Map<String, String>) (Map) in.readMap());
     }
 
     @Override
@@ -75,6 +78,8 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
      */
     public static class DiffableStringMapDiff implements Diff<DiffableStringMap> {
 
+        public static final DiffableStringMapDiff EMPTY = new DiffableStringMapDiff(DiffableStringMap.EMPTY, DiffableStringMap.EMPTY);
+
         private final List<String> deletes;
         private final Map<String, String> upserts; // diffs also become upserts
 
@@ -100,18 +105,8 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
         }
 
         private DiffableStringMapDiff(StreamInput in) throws IOException {
-            deletes = new ArrayList<>();
-            upserts = new HashMap<>();
-            int deletesCount = in.readVInt();
-            for (int i = 0; i < deletesCount; i++) {
-                deletes.add(in.readString());
-            }
-            int upsertsCount = in.readVInt();
-            for (int i = 0; i < upsertsCount; i++) {
-                String key = in.readString();
-                String newValue = in.readString();
-                upserts.put(key, newValue);
-            }
+            deletes = in.readStringList();
+            upserts = in.readMap(StreamInput::readString, StreamInput::readString);
         }
 
         public List<String> getDeletes() {
@@ -128,15 +123,8 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(deletes.size());
-            for (String delete : deletes) {
-                out.writeString(delete);
-            }
-            out.writeVInt(upserts.size());
-            for (Map.Entry<String, String> entry : upserts.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeString(entry.getValue());
-            }
+            out.writeStringCollection(deletes);
+            out.writeMap(upserts, StreamOutput::writeString, StreamOutput::writeString);
         }
 
         @Override

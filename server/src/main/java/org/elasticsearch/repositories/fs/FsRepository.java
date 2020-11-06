@@ -21,15 +21,18 @@ package org.elasticsearch.repositories.fs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -73,9 +76,9 @@ public class FsRepository extends BlobStoreRepository {
     /**
      * Constructs a shared file system repository.
      */
-    public FsRepository(RepositoryMetaData metadata, Environment environment,
-                        NamedXContentRegistry namedXContentRegistry) {
-        super(metadata, environment.settings(), calculateCompress(metadata, environment), namedXContentRegistry);
+    public FsRepository(RepositoryMetadata metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
+                        ClusterService clusterService, BigArrays bigArrays, RecoverySettings recoverySettings) {
+        super(metadata, calculateCompress(metadata, environment), namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
@@ -106,16 +109,16 @@ public class FsRepository extends BlobStoreRepository {
         this.basePath = BlobPath.cleanPath();
     }
 
-    private static boolean calculateCompress(RepositoryMetaData metadata, Environment environment) {
+    private static boolean calculateCompress(RepositoryMetadata metadata, Environment environment) {
         return COMPRESS_SETTING.exists(metadata.settings())
             ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(environment.settings());
     }
 
     @Override
     protected BlobStore createBlobStore() throws Exception {
-        final String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
+        final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
         final Path locationFile = environment.resolveRepoFile(location);
-        return new FsBlobStore(environment.settings(), locationFile);
+        return new FsBlobStore(bufferSize, locationFile, isReadOnly());
     }
 
     @Override
@@ -124,7 +127,7 @@ public class FsRepository extends BlobStoreRepository {
     }
 
     @Override
-    protected BlobPath basePath() {
+    public BlobPath basePath() {
         return basePath;
     }
 }

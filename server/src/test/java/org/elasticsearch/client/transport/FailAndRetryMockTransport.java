@@ -28,17 +28,14 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportMessageListener;
@@ -61,7 +58,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
     private final Random random;
     private final ClusterName clusterName;
-    private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
+    private final RequestHandlers requestHandlers = new RequestHandlers();
     private final Object requestHandlerMutex = new Object();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private TransportMessageListener listener;
@@ -81,7 +78,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     protected abstract ClusterState getMockClusterState(DiscoveryNode node);
 
     @Override
-    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> connectionListener) {
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> connectionListener) {
         connectionListener.onResponse(new CloseableConnection() {
 
             @Override
@@ -137,8 +134,6 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                 }
             }
         });
-
-        return () -> {};
     }
 
     protected abstract Response newResponse();
@@ -170,7 +165,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
+    public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
         throw new UnsupportedOperationException();
     }
 
@@ -209,24 +204,14 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
-        synchronized (requestHandlerMutex) {
-            if (requestHandlers.containsKey(reg.getAction())) {
-                throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
-            }
-            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
-        }
-    }
-    @Override
     public ResponseHandlers getResponseHandlers() {
         return responseHandlers;
     }
 
     @Override
-    public RequestHandlerRegistry getRequestHandler(String action) {
-        return requestHandlers.get(action);
+    public RequestHandlers getRequestHandlers() {
+        return requestHandlers;
     }
-
 
     @Override
     public void setMessageListener(TransportMessageListener listener) {

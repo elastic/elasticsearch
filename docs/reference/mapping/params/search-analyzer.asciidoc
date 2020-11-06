@@ -12,9 +12,9 @@ tokenizer for autocomplete.
 By default, queries will use the `analyzer` defined in the field mapping, but
 this can be overridden with the `search_analyzer` setting:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -48,12 +48,12 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "text": "Quick Brown Fox" <3>
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -66,7 +66,6 @@ GET my_index/_search
 }
 
 --------------------------------------------------
-// CONSOLE
 
 <1> Analysis settings to define the custom `autocomplete` analyzer.
 <2> The `text` field uses the `autocomplete` analyzer at index time, but the `standard` analyzer at search time.

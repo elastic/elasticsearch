@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -17,13 +17,12 @@ import java.util.Objects;
 
 public class LocateFunctionPipe extends Pipe {
 
-    private final Pipe pattern, source, start;
+    private final Pipe pattern, input, start;
 
-    public LocateFunctionPipe(Source source, Expression expression, Pipe pattern,
-            Pipe src, Pipe start) {
-        super(source, expression, start == null ? Arrays.asList(pattern, src) : Arrays.asList(pattern, src, start));
+    public LocateFunctionPipe(Source source, Expression expression, Pipe pattern, Pipe input, Pipe start) {
+        super(source, expression, start == null ? Arrays.asList(pattern, input) : Arrays.asList(pattern, input, start));
         this.pattern = pattern;
-        this.source = src;
+        this.input = input;
         this.start = start;
     }
 
@@ -39,34 +38,33 @@ public class LocateFunctionPipe extends Pipe {
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
         Pipe newPattern = pattern.resolveAttributes(resolver);
-        Pipe newSource = source.resolveAttributes(resolver);
+        Pipe newInput = input.resolveAttributes(resolver);
         Pipe newStart = start == null ? start : start.resolveAttributes(resolver);
-        if (newPattern == pattern && newSource == source && newStart == start) {
+        if (newPattern == pattern && newInput == input && newStart == start) {
             return this;
         }
-        return replaceChildren(newPattern, newSource, newStart);
+        return replaceChildren(newPattern, newInput, newStart);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return pattern.supportedByAggsOnlyQuery() && source.supportedByAggsOnlyQuery()
+        return pattern.supportedByAggsOnlyQuery() && input.supportedByAggsOnlyQuery()
                 && (start == null || start.supportedByAggsOnlyQuery());
     }
 
     @Override
     public boolean resolved() {
-        return pattern.resolved() && source.resolved() && (start == null || start.resolved());
+        return pattern.resolved() && input.resolved() && (start == null || start.resolved());
     }
 
-    protected Pipe replaceChildren(Pipe newPattern, Pipe newSource,
-            Pipe newStart) {
-        return new LocateFunctionPipe(source(), expression(), newPattern, newSource, newStart);
+    protected Pipe replaceChildren(Pipe newPattern, Pipe newInput, Pipe newStart) {
+        return new LocateFunctionPipe(source(), expression(), newPattern, newInput, newStart);
     }
 
     @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+    public final void collectFields(QlSourceBuilder sourceBuilder) {
         pattern.collectFields(sourceBuilder);
-        source.collectFields(sourceBuilder);
+        input.collectFields(sourceBuilder);
         if (start != null) {
             start.collectFields(sourceBuilder);
         }
@@ -74,16 +72,16 @@ public class LocateFunctionPipe extends Pipe {
 
     @Override
     protected NodeInfo<LocateFunctionPipe> info() {
-        return NodeInfo.create(this, LocateFunctionPipe::new, expression(), pattern, source, start);
+        return NodeInfo.create(this, LocateFunctionPipe::new, expression(), pattern, input, start);
     }
 
     @Override
     public LocateFunctionProcessor asProcessor() {
-        return new LocateFunctionProcessor(pattern.asProcessor(), source.asProcessor(), start == null ? null : start.asProcessor());
+        return new LocateFunctionProcessor(pattern.asProcessor(), input.asProcessor(), start == null ? null : start.asProcessor());
     }
     
-    public Pipe src() {
-        return source;
+    public Pipe input() {
+        return input;
     }
     
     public Pipe start() {
@@ -96,7 +94,7 @@ public class LocateFunctionPipe extends Pipe {
 
     @Override
     public int hashCode() {
-        return Objects.hash(pattern, source, start);
+        return Objects.hash(pattern, input, start);
     }
 
     @Override
@@ -110,6 +108,6 @@ public class LocateFunctionPipe extends Pipe {
         }
 
         LocateFunctionPipe other = (LocateFunctionPipe) obj;
-        return Objects.equals(pattern, other.pattern) && Objects.equals(source, other.source) && Objects.equals(start, other.start);
+        return Objects.equals(pattern, other.pattern) && Objects.equals(input, other.input) && Objects.equals(start, other.start);
     }
 }

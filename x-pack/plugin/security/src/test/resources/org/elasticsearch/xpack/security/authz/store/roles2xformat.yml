@@ -5,7 +5,7 @@ role1:
       privileges:
         - READ
       query:
-        match_all:
+        match_all: {}
       fields:
         - foo
         - boo

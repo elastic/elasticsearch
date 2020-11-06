@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -44,7 +45,7 @@ public interface BlobContainer {
      *          The name of the blob whose existence is to be determined.
      * @return  {@code true} if a blob exists in the {@link BlobContainer} with the given name, and {@code false} otherwise.
      */
-    boolean blobExists(String blobName);
+    boolean blobExists(String blobName) throws IOException;
 
     /**
      * Creates a new {@link InputStream} for the given blob name.
@@ -56,6 +57,38 @@ public interface BlobContainer {
      * @throws  IOException if the blob can not be read.
      */
     InputStream readBlob(String blobName) throws IOException;
+
+    /**
+     * Creates a new {@link InputStream} that can be used to read the given blob starting from
+     * a specific {@code position} in the blob. The {@code length} is an indication of the
+     * number of bytes that are expected to be read from the {@link InputStream}.
+     *
+     * @param blobName The name of the blob to get an {@link InputStream} for.
+     * @param position The position in the blob where the next byte will be read.
+     * @param length   An indication of the number of bytes to be read.
+     * @return The {@code InputStream} to read the blob.
+     * @throws NoSuchFileException if the blob does not exist
+     * @throws IOException         if the blob can not be read.
+     */
+    InputStream readBlob(String blobName, long position, long length) throws IOException;
+
+    /**
+     * Provides a hint to clients for a suitable length to use with {@link BlobContainer#readBlob(String, long, long)}.
+     *
+     * Some blob containers have nontrivial costs attached to each readBlob call, so it is a good idea for consumers to speculatively
+     * request more data than they need right now and to re-use this stream for future needs if possible.
+     *
+     * Also, some blob containers return streams that are expensive to close before the stream has been fully consumed, and the cost may
+     * depend on the length of the data that was left unconsumed. For these containers it's best to bound the cost of a partial read by
+     * bounding the length of the data requested.
+     *
+     * @return a hint to consumers regarding the length of data to request if there is a good chance that future reads can be satisfied from
+     * the same stream.
+     *
+     */
+    default long readBlobPreferredLength() {
+        throw new UnsupportedOperationException(); // NORELEASE
+    }
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name.
@@ -96,40 +129,42 @@ public interface BlobContainer {
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
     void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
-    /**
-     * Deletes a blob with giving name, if the blob exists. If the blob does not exist,
-     * this method throws a NoSuchFileException.
-     *
-     * @param   blobName
-     *          The name of the blob to delete.
-     * @throws  NoSuchFileException if the blob does not exist
-     * @throws  IOException if the blob exists but could not be deleted.
-     */
-    void deleteBlob(String blobName) throws IOException;
 
     /**
-     * Deletes a blob with giving name, ignoring if the blob does not exist.
+     * Deletes this container and all its contents from the repository.
      *
-     * @param   blobName
-     *          The name of the blob to delete.
-     * @throws  IOException if the blob exists but could not be deleted.
+     * @return delete result
+     * @throws IOException on failure
      */
-    default void deleteBlobIgnoringIfNotExists(String blobName) throws IOException {
-        try {
-            deleteBlob(blobName);
-        } catch (final NoSuchFileException ignored) {
-            // This exception is ignored
-        }
-    }
+    DeleteResult delete() throws IOException;
+
+    /**
+     * Deletes the blobs with given names. This method will not throw an exception
+     * when one or multiple of the given blobs don't exist and simply ignore this case.
+     *
+     * @param   blobNames  The names of the blob to delete.
+     * @throws  IOException if a subset of blob exists but could not be deleted.
+     */
+    void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException;
 
     /**
      * Lists all blobs in the container.
      *
      * @return  A map of all the blobs in the container.  The keys in the map are the names of the blobs and
-     *          the values are {@link BlobMetaData}, containing basic information about each blob.
+     *          the values are {@link BlobMetadata}, containing basic information about each blob.
      * @throws  IOException if there were any failures in reading from the blob container.
      */
-    Map<String, BlobMetaData> listBlobs() throws IOException;
+    Map<String, BlobMetadata> listBlobs() throws IOException;
+
+    /**
+     * Lists all child containers under this container. A child container is defined as a container whose {@link #path()} method returns
+     * a path that has this containers {@link #path()} return as its prefix and has one more path element than the current
+     * container's path.
+     *
+     * @return Map of name of the child container to child container
+     * @throws IOException on failure to list child containers
+     */
+    Map<String, BlobContainer> children() throws IOException;
 
     /**
      * Lists all blobs in the container that match the specified prefix.
@@ -137,8 +172,8 @@ public interface BlobContainer {
      * @param   blobNamePrefix
      *          The prefix to match against blob names in the container.
      * @return  A map of the matching blobs in the container.  The keys in the map are the names of the blobs
-     *          and the values are {@link BlobMetaData}, containing basic information about each blob.
+     *          and the values are {@link BlobMetadata}, containing basic information about each blob.
      * @throws  IOException if there were any failures in reading from the blob container.
      */
-    Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException;
+    Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
 }

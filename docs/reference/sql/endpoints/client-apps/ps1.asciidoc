@@ -3,18 +3,13 @@
 [[sql-client-apps-ps1]]
 === Microsoft PowerShell
 
-[quote, https://docs.microsoft.com/en-us/powershell/scripting/powershell-scripting]
-____
-https://docs.microsoft.com/en-us/powershell/[PowerShell] is a task-based command-line shell and scripting language built on .NET.
-____
-
-PowerShell is available on all recent Windows Desktop OSes. It also has embedded ODBC support, thus offering a quick and accessible way to connect to {es}.
+You can use the {es} ODBC driver to access {es} data from Microsoft PowerShell.
 
 IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 
-* Microsoft PowerShell
+* https://docs.microsoft.com/en-us/powershell/[Microsoft PowerShell]
 * {es-sql} <<sql-odbc, ODBC driver>>
 * A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
 

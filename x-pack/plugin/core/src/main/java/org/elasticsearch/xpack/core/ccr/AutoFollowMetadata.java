@@ -8,15 +8,17 @@ package org.elasticsearch.xpack.core.ccr;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -34,7 +36,7 @@ import java.util.stream.Collectors;
 /**
  * Custom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
  */
-public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> implements XPackPlugin.XPackMetaDataCustom {
+public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> implements XPackPlugin.XPackMetadataCustom {
 
     public static final String TYPE = "ccr_auto_follow";
 
@@ -108,9 +110,9 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
+    public EnumSet<Metadata.XContentContext> context() {
         // No XContentContext.API, because the headers should not be serialized as part of clusters state api
-        return EnumSet.of(MetaData.XContentContext.SNAPSHOT, MetaData.XContentContext.GATEWAY);
+        return EnumSet.of(Metadata.XContentContext.SNAPSHOT, Metadata.XContentContext.GATEWAY);
     }
 
     @Override
@@ -174,68 +176,119 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         return Objects.hash(patterns, followedLeaderIndexUUIDs, headers);
     }
 
-    public static class AutoFollowPattern extends ImmutableFollowParameters implements ToXContentObject {
+    public static class AutoFollowPattern extends ImmutableFollowParameters implements ToXContentFragment {
 
+        public static final ParseField ACTIVE = new ParseField("active");
         public static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         public static final ParseField LEADER_PATTERNS_FIELD = new ParseField("leader_index_patterns");
         public static final ParseField FOLLOW_PATTERN_FIELD = new ParseField("follow_index_pattern");
+        public static final ParseField SETTINGS_FIELD = new ParseField("settings");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<AutoFollowPattern, Void> PARSER =
             new ConstructingObjectParser<>("auto_follow_pattern",
-                args -> new AutoFollowPattern((String) args[0], (List<String>) args[1], (String) args[2], (Integer) args[3],
-                    (Integer) args[4], (Integer) args[5], (Integer) args[6], (ByteSizeValue) args[7], (ByteSizeValue) args[8],
-                    (Integer) args[9], (ByteSizeValue) args[10], (TimeValue) args[11], (TimeValue) args[12]));
+                args -> new AutoFollowPattern(
+                    (String) args[0],
+                    (List<String>) args[1],
+                    (String) args[2],
+                    args[3] == null ? Settings.EMPTY : (Settings) args[3],
+                    args[4] == null || (boolean) args[4],
+                    (Integer) args[5],
+                    (Integer) args[6],
+                    (Integer) args[7],
+                    (Integer) args[8],
+                    (ByteSizeValue) args[9],
+                    (ByteSizeValue) args[10],
+                    (Integer) args[11],
+                    (ByteSizeValue) args[12],
+                    (TimeValue) args[13],
+                    (TimeValue) args[14])
+            );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), REMOTE_CLUSTER_FIELD);
             PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LEADER_PATTERNS_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FOLLOW_PATTERN_FIELD);
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> Settings.fromXContent(p),
+                SETTINGS_FIELD
+            );
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ACTIVE);
             ImmutableFollowParameters.initParser(PARSER);
         }
 
         private final String remoteCluster;
         private final List<String> leaderIndexPatterns;
         private final String followIndexPattern;
+        private final Settings settings;
+        private final boolean active;
 
-        public AutoFollowPattern(String remoteCluster,
-                                 List<String> leaderIndexPatterns,
-                                 String followIndexPattern,
-                                 Integer maxReadRequestOperationCount,
-                                 Integer maxWriteRequestOperationCount,
-                                 Integer maxOutstandingReadRequests,
-                                 Integer maxOutstandingWriteRequests,
-                                 ByteSizeValue maxReadRequestSize,
-                                 ByteSizeValue maxWriteRequestSize,
-                                 Integer maxWriteBufferCount,
-                                 ByteSizeValue maxWriteBufferSize,
-                                 TimeValue maxRetryDelay,
-                                 TimeValue pollTimeout) {
+        public AutoFollowPattern(
+            String remoteCluster,
+            List<String> leaderIndexPatterns,
+            String followIndexPattern,
+            Settings settings,
+            boolean active,
+            Integer maxReadRequestOperationCount,
+            Integer maxWriteRequestOperationCount,
+            Integer maxOutstandingReadRequests,
+            Integer maxOutstandingWriteRequests,
+            ByteSizeValue maxReadRequestSize,
+            ByteSizeValue maxWriteRequestSize,
+            Integer maxWriteBufferCount,
+            ByteSizeValue maxWriteBufferSize,
+            TimeValue maxRetryDelay,
+            TimeValue pollTimeout
+        ) {
             super(maxReadRequestOperationCount, maxWriteRequestOperationCount, maxOutstandingReadRequests, maxOutstandingWriteRequests,
                 maxReadRequestSize, maxWriteRequestSize, maxWriteBufferCount, maxWriteBufferSize, maxRetryDelay, pollTimeout);
             this.remoteCluster = remoteCluster;
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
+            this.settings = Objects.requireNonNull(settings);
+            this.active = active;
         }
 
         public static AutoFollowPattern readFrom(StreamInput in) throws IOException {
-            return new AutoFollowPattern(in.readString(), in.readStringList(), in.readOptionalString(), in);
+            final String remoteCluster = in.readString();
+            final List<String> leaderIndexPatterns = in.readStringList();
+            final String followIndexPattern = in.readOptionalString();
+            final Settings settings;
+            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+                settings = Settings.readSettingsFromStream(in);
+            } else {
+                settings = Settings.EMPTY;
+            }
+            return new AutoFollowPattern(remoteCluster, leaderIndexPatterns, followIndexPattern, settings, in);
         }
 
         private AutoFollowPattern(String remoteCluster, List<String> leaderIndexPatterns,
-                                  String followIndexPattern, StreamInput in) throws IOException {
+                                  String followIndexPattern, Settings settings, StreamInput in) throws IOException {
             super(in);
             this.remoteCluster = remoteCluster;
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
+            this.settings = Objects.requireNonNull(settings);
+            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+                this.active = in.readBoolean();
+            } else {
+                this.active = true;
+            }
         }
 
-        public boolean match(String indexName) {
-            return match(leaderIndexPatterns, indexName);
+        public boolean match(IndexAbstraction indexAbstraction) {
+            return match(leaderIndexPatterns, indexAbstraction);
         }
 
-        public static boolean match(List<String> leaderIndexPatterns, String indexName) {
-            return Regex.simpleMatch(leaderIndexPatterns, indexName);
+        public static boolean match(List<String> leaderIndexPatterns, IndexAbstraction indexAbstraction) {
+            boolean matches = Regex.simpleMatch(leaderIndexPatterns, indexAbstraction.getName());
+            if (matches) {
+                return true;
+            } else {
+                return indexAbstraction.getParentDataStream() != null &&
+                    Regex.simpleMatch(leaderIndexPatterns, indexAbstraction.getParentDataStream().getName());
+            }
         }
 
         public String getRemoteCluster() {
@@ -250,28 +303,45 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             return followIndexPattern;
         }
 
+        public Settings getSettings() {
+            return settings;
+        }
+
+        public boolean isActive() {
+            return active;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
+            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+                Settings.writeSettingsToStream(settings, out);
+            }
             super.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+                out.writeBoolean(active);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(ACTIVE.getPreferredName(), active);
             builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
             builder.array(LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns.toArray(new String[0]));
             if (followIndexPattern != null) {
                 builder.field(FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexPattern);
             }
+            if (settings.isEmpty() == false) {
+                builder.startObject(SETTINGS_FIELD.getPreferredName());
+                {
+                    settings.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
             toXContentFragment(builder);
             return builder;
-        }
-
-        @Override
-        public boolean isFragment() {
-            return true;
         }
 
         @Override
@@ -280,14 +350,16 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             if (o == null || getClass() != o.getClass()) return false;
             if (!super.equals(o)) return false;
             AutoFollowPattern pattern = (AutoFollowPattern) o;
-            return remoteCluster.equals(pattern.remoteCluster) &&
+            return active == pattern.active &&
+                remoteCluster.equals(pattern.remoteCluster) &&
                 leaderIndexPatterns.equals(pattern.leaderIndexPatterns) &&
-                followIndexPattern.equals(pattern.followIndexPattern);
+                followIndexPattern.equals(pattern.followIndexPattern) &&
+                settings.equals(pattern.settings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), remoteCluster, leaderIndexPatterns, followIndexPattern);
+            return Objects.hash(super.hashCode(), remoteCluster, leaderIndexPatterns, followIndexPattern, settings, active);
         }
     }
 

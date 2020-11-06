@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -128,7 +129,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             threadPool = new TestThreadPool("transport-client-nodes-service-tests");
             transport = new FailAndRetryMockTransport<TestResponse>(random(), clusterName) {
                 @Override
-                public List<String> getLocalAddresses() {
+                public List<String> getDefaultSeedAddresses() {
                     return Collections.emptyList();
                 }
 
@@ -165,7 +166,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 assert addr == null : "boundAddress: " + addr;
                 return DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID());
             }, null, Collections.emptySet());
-            transportService.addNodeConnectedBehavior((connectionManager, discoveryNode) -> false);
+            transportService.addNodeConnectedBehavior((cm, dn) -> false);
             transportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> {
                 // The FailAndRetryTransport does not use the connection profile
                 PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
@@ -363,19 +364,11 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 final List<Transport.Connection> establishedConnections = new CopyOnWriteArrayList<>();
 
                 clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile, listener) ->
-                    transport.openConnection(discoveryNode, profile, new ActionListener<Transport.Connection>() {
-                        @Override
-                        public void onResponse(Transport.Connection connection) {
+                    transport.openConnection(discoveryNode, profile,
+                        ActionListener.delegateFailure(listener, (delegatedListener, connection) -> {
                             establishedConnections.add(connection);
-                            listener.onResponse(connection);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }));
-
+                            delegatedListener.onResponse(connection);
+                        })));
 
                 clientService.start();
                 clientService.acceptIncomingRequests();
@@ -445,5 +438,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
         private TestResponse() {}
         private TestResponse(StreamInput in) {}
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

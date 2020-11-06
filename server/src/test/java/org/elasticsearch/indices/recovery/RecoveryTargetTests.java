@@ -24,12 +24,11 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.RecoveryState.File;
+import org.elasticsearch.indices.recovery.RecoveryState.FileDetail;
 import org.elasticsearch.indices.recovery.RecoveryState.Index;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.RecoveryState.Timer;
@@ -55,6 +54,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class RecoveryTargetTests extends ESTestCase {
     abstract class Streamer<T extends Writeable> extends Thread {
@@ -180,8 +180,8 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testIndex() throws Throwable {
-        File[] files = new File[randomIntBetween(1, 20)];
-        ArrayList<File> filesToRecover = new ArrayList<>();
+        FileDetail[] files = new FileDetail[randomIntBetween(1, 20)];
+        ArrayList<FileDetail> filesToRecover = new ArrayList<>();
         long totalFileBytes = 0;
         long totalReusedBytes = 0;
         int totalReused = 0;
@@ -189,7 +189,7 @@ public class RecoveryTargetTests extends ESTestCase {
             final int fileLength = randomIntBetween(1, 1000);
             final boolean reused = randomBoolean();
             totalFileBytes += fileLength;
-            files[i] = new RecoveryState.File("f_" + i, fileLength, reused);
+            files[i] = new FileDetail("f_" + i, fileLength, reused);
             if (reused) {
                 totalReused++;
                 totalReusedBytes += fileLength;
@@ -200,6 +200,7 @@ public class RecoveryTargetTests extends ESTestCase {
 
         Collections.shuffle(Arrays.asList(files), random());
         final RecoveryState.Index index = new RecoveryState.Index();
+        assertThat(index.bytesStillToRecover(), equalTo(-1L));
 
         if (randomBoolean()) {
             // initialize with some data and then reset
@@ -214,11 +215,13 @@ public class RecoveryTargetTests extends ESTestCase {
                 }
             }
             if (randomBoolean()) {
+                index.setFileDetailsComplete();
+            }
+            if (randomBoolean()) {
                 index.stop();
             }
             index.reset();
         }
-
 
         // before we start we must report 0
         assertThat(index.recoveredFilesPercent(), equalTo((float) 0.0));
@@ -227,7 +230,7 @@ public class RecoveryTargetTests extends ESTestCase {
         assertThat(index.targetThrottling().nanos(), equalTo(Index.UNKNOWN));
 
         index.start();
-        for (File file : files) {
+        for (FileDetail file : files) {
             index.addFileDetail(file.name(), file.length(), file.reused());
         }
 
@@ -242,7 +245,10 @@ public class RecoveryTargetTests extends ESTestCase {
         assertThat(index.recoveredBytes(), equalTo(0L));
         assertThat(index.recoveredFilesPercent(), equalTo(filesToRecover.size() == 0 ? 100.0f : 0.0f));
         assertThat(index.recoveredBytesPercent(), equalTo(filesToRecover.size() == 0 ? 100.0f : 0.0f));
+        assertThat(index.bytesStillToRecover(), equalTo(-1L));
 
+        index.setFileDetailsComplete();
+        assertThat(index.bytesStillToRecover(), equalTo(totalFileBytes - totalReusedBytes));
 
         long bytesToRecover = totalFileBytes - totalReusedBytes;
         boolean completeRecovery = bytesToRecover == 0 || randomBoolean();
@@ -265,7 +271,7 @@ public class RecoveryTargetTests extends ESTestCase {
         long sourceThrottling = Index.UNKNOWN;
         long targetThrottling = Index.UNKNOWN;
         while (bytesToRecover > 0) {
-            File file = randomFrom(filesToRecover);
+            FileDetail file = randomFrom(filesToRecover);
             final long toRecover = Math.min(bytesToRecover, randomIntBetween(1, (int) (file.length() - file.recovered())));
             final long throttledOnSource = rarely() ? randomIntBetween(10, 200) : 0;
             index.addSourceThrottling(throttledOnSource);
@@ -322,6 +328,7 @@ public class RecoveryTargetTests extends ESTestCase {
         assertThat(index.recoveredBytes(), equalTo(recoveredBytes));
         assertThat(index.targetThrottling().nanos(), equalTo(targetThrottling));
         assertThat(index.sourceThrottling().nanos(), equalTo(sourceThrottling));
+        assertThat(index.bytesStillToRecover(), equalTo(totalFileBytes - totalReusedBytes - recoveredBytes));
         if (index.totalRecoverFiles() == 0) {
             assertThat((double) index.recoveredFilesPercent(), equalTo(100.0));
             assertThat((double) index.recoveredBytesPercent(), equalTo(100.0));
@@ -336,31 +343,28 @@ public class RecoveryTargetTests extends ESTestCase {
     public void testStageSequenceEnforcement() {
         final DiscoveryNode discoveryNode = new DiscoveryNode("1", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
             Version.CURRENT);
-        Stage[] stages = Stage.values();
-        int i = randomIntBetween(0, stages.length - 1);
-        int j;
-        do {
-            j = randomIntBetween(0, stages.length - 1);
-        } while (j == i);
-        Stage t = stages[i];
-        stages[i] = stages[j];
-        stages[j] = t;
-        try {
+        final AssertionError error = expectThrows(AssertionError.class, () -> {
+            Stage[] stages = Stage.values();
+            int i = randomIntBetween(0, stages.length - 1);
+            int j = randomValueOtherThan(i, () -> randomIntBetween(0, stages.length - 1));
+            Stage t = stages[i];
+            stages[i] = stages[j];
+            stages[j] = t;
             ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("bla", "_na_", 0), discoveryNode.getId(),
                 randomBoolean(), ShardRoutingState.INITIALIZING);
             RecoveryState state = new RecoveryState(shardRouting, discoveryNode,
                 shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null);
             for (Stage stage : stages) {
+                if (stage == Stage.FINALIZE) {
+                    state.getIndex().setFileDetailsComplete();
+                }
                 state.setStage(stage);
             }
-            fail("succeeded in performing the illegal sequence [" + Strings.arrayToCommaDelimitedString(stages) + "]");
-        } catch (IllegalStateException e) {
-            // cool
-        }
-
+        });
+        assertThat(error.getMessage(), startsWith("can't move recovery to stage"));
         // but reset should be always possible.
-        stages = Stage.values();
-        i = randomIntBetween(1, stages.length - 1);
+        Stage[] stages = Stage.values();
+        int i = randomIntBetween(1, stages.length - 1);
         ArrayList<Stage> list = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(stages, 0, i)));
         list.addAll(Arrays.asList(stages));
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("bla", "_na_", 0), discoveryNode.getId(),
@@ -369,6 +373,9 @@ public class RecoveryTargetTests extends ESTestCase {
             shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null);
         for (Stage stage : list) {
             state.setStage(stage);
+            if (stage == Stage.INDEX) {
+                state.getIndex().setFileDetailsComplete();
+            }
         }
 
         assertThat(state.getStage(), equalTo(Stage.DONE));
@@ -527,14 +534,14 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testFileHashCodeAndEquals() {
-        File f = new File("foo", randomIntBetween(0, 100), randomBoolean());
-        File anotherFile = new File(f.name(), f.length(), f.reused());
+        FileDetail f = new FileDetail("foo", randomIntBetween(0, 100), randomBoolean());
+        FileDetail anotherFile = new FileDetail(f.name(), f.length(), f.reused());
         assertEquals(f, anotherFile);
         assertEquals(f.hashCode(), anotherFile.hashCode());
         int iters = randomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {
-            f = new File("foo", randomIntBetween(0, 100), randomBoolean());
-            anotherFile = new File(f.name(), randomIntBetween(0, 100), randomBoolean());
+            f = new FileDetail("foo", randomIntBetween(0, 100), randomBoolean());
+            anotherFile = new FileDetail(f.name(), randomIntBetween(0, 100), randomBoolean());
             if (f.equals(anotherFile)) {
                 assertEquals(f.hashCode(), anotherFile.hashCode());
             } else if (f.hashCode() != anotherFile.hashCode()) {

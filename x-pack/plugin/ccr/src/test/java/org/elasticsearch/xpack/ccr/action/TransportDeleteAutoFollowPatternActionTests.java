@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.Request;
@@ -32,8 +33,25 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
         {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("transactions-*");
-            existingAutoFollowPatterns.put("name1",
-                new AutoFollowPattern("eu_cluster", existingPatterns, null, null, null, null, null, null, null, null, null, null, null));
+            existingAutoFollowPatterns.put(
+                "name1",
+                new AutoFollowPattern(
+                    "eu_cluster",
+                    existingPatterns,
+                    null,
+                    Settings.EMPTY, true,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            );
 
             List<String> existingUUIDS = new ArrayList<>();
             existingUUIDS.add("_val");
@@ -43,8 +61,26 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
         {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("logs-*");
-            existingAutoFollowPatterns.put("name2",
-                new AutoFollowPattern("asia_cluster", existingPatterns, null, null, null, null, null, null, null, null, null, null, null));
+            existingAutoFollowPatterns.put(
+                "name2",
+                new AutoFollowPattern(
+                    "asia_cluster",
+                    existingPatterns,
+                    null,
+                    Settings.EMPTY,
+                    true,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            );
 
             List<String> existingUUIDS = new ArrayList<>();
             existingUUIDS.add("_val");
@@ -52,13 +88,13 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             existingHeaders.put("name2", Collections.singletonMap("key", "val"));
         }
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
-            .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
+            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
                 new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
             .build();
 
         Request request = new Request("name1");
         AutoFollowMetadata result = TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState)
-            .getMetaData()
+            .getMetadata()
             .custom(AutoFollowMetadata.TYPE);
         assertThat(result.getPatterns().size(), equalTo(1));
         assertThat(result.getPatterns().get("name2"), notNullValue());
@@ -76,12 +112,30 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
         {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("transactions-*");
-            existingAutoFollowPatterns.put("name1",
-                new AutoFollowPattern("eu_cluster", existingPatterns, null, null, null, null, null, null, null, null, null, null, null));
+            existingAutoFollowPatterns.put(
+                "name1",
+                new AutoFollowPattern(
+                    "eu_cluster",
+                    existingPatterns,
+                    null,
+                    Settings.EMPTY,
+                    true,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            );
             existingHeaders.put("key", Collections.singletonMap("key", "val"));
         }
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
-            .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
+            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
                 new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
             .build();
 
@@ -93,7 +147,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerDeleteNoAutoFollowMetadata() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
-            .metaData(MetaData.builder())
+            .metadata(Metadata.builder())
             .build();
 
         Request request = new Request("name1");

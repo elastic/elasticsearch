@@ -178,12 +178,13 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
     public void testWriteUpdateModelPlotMessage() throws IOException {
         AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
 
-        writer.writeUpdateModelPlotMessage(new ModelPlotConfig(true, "foo,bar"));
+        writer.writeUpdateModelPlotMessage(new ModelPlotConfig(true, "foo,bar", false));
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u[modelPlotConfig]\nboundspercentile = 95.0\nterms = foo,bar\n");
+        inOrder.verify(lengthEncodedWriter)
+            .writeField("u[modelPlotConfig]\nboundspercentile = 95.0\nterms = foo,bar\nannotations_enabled = false\n");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 

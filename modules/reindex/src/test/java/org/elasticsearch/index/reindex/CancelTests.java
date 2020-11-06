@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -36,8 +37,8 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -60,7 +61,6 @@ import static org.hamcrest.Matchers.hasSize;
  * different cancellation places - that is the responsibility of AsyncBulkByScrollActionTests which have more precise control to
  * simulate failures but does not exercise important portion of the stack like transport and task management.
  */
-@TestLogging("org.elasticsearch.index.reindex:DEBUG,org.elasticsearch.action.bulk:DEBUG")
 public class CancelTests extends ReindexTestCase {
 
     protected static final String INDEX = "reindex-cancel-index";
@@ -120,10 +120,9 @@ public class CancelTests extends ReindexTestCase {
          * exhausted their slice while others might have quite a bit left
          * to work on. We can't control that. */
         logger.debug("waiting for updates to be blocked");
-        boolean blocked = awaitBusy(
-            () -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0,
+        assertBusy(
+            () -> assertTrue("updates blocked", ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0),
             1, TimeUnit.MINUTES); // 10 seconds is usually fine but on heavily loaded machines this can take a while
-        assertTrue("updates blocked", blocked);
 
         // Status should show the task running
         TaskInfo mainTask = findTaskToCancel(action, builder.request().getSlices());
@@ -179,6 +178,9 @@ public class CancelTests extends ReindexTestCase {
         try {
             response = future.get(30, TimeUnit.SECONDS);
         } catch (Exception e) {
+            if (ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof TaskCancelledException).isPresent()) {
+                return; // the scroll request was cancelled
+            }
             String tasks = client().admin().cluster().prepareListTasks().setParentTaskId(mainTask.getTaskId())
                         .setDetailed(true).get().toString();
             throw new RuntimeException("Exception while waiting for the response. Running tasks: " + tasks, e);

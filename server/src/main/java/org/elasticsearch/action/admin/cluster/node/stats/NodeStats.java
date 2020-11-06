@@ -22,14 +22,15 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.ingest.IngestStats;
@@ -38,6 +39,7 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
+import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
@@ -83,6 +85,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     private ScriptStats scriptStats;
 
     @Nullable
+    private ScriptCacheStats scriptCacheStats;
+
+    @Nullable
     private DiscoveryStats discoveryStats;
 
     @Nullable
@@ -91,7 +96,44 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AdaptiveSelectionStats adaptiveSelectionStats;
 
-    NodeStats() {
+    @Nullable
+    private IndexingPressureStats indexingPressureStats;
+
+    public NodeStats(StreamInput in) throws IOException {
+        super(in);
+        timestamp = in.readVLong();
+        if (in.readBoolean()) {
+            indices = new NodeIndicesStats(in);
+        }
+        os = in.readOptionalWriteable(OsStats::new);
+        process = in.readOptionalWriteable(ProcessStats::new);
+        jvm = in.readOptionalWriteable(JvmStats::new);
+        threadPool = in.readOptionalWriteable(ThreadPoolStats::new);
+        fs = in.readOptionalWriteable(FsInfo::new);
+        transport = in.readOptionalWriteable(TransportStats::new);
+        http = in.readOptionalWriteable(HttpStats::new);
+        breaker = in.readOptionalWriteable(AllCircuitBreakerStats::new);
+        scriptStats = in.readOptionalWriteable(ScriptStats::new);
+        discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
+        ingestStats = in.readOptionalWriteable(IngestStats::new);
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
+        } else {
+            adaptiveSelectionStats = null;
+        }
+        scriptCacheStats = null;
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            if (in.getVersion().before(Version.V_7_9_0)) {
+                scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
+            } else if (scriptStats != null) {
+                scriptCacheStats = scriptStats.toScriptCacheStats();
+            }
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
+        } else {
+            indexingPressureStats = null;
+        }
     }
 
     public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
@@ -101,7 +143,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
                      @Nullable ScriptStats scriptStats,
                      @Nullable DiscoveryStats discoveryStats,
                      @Nullable IngestStats ingestStats,
-                     @Nullable AdaptiveSelectionStats adaptiveSelectionStats) {
+                     @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
+                     @Nullable ScriptCacheStats scriptCacheStats,
+                     @Nullable IndexingPressureStats indexingPressureStats) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -117,6 +161,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.discoveryStats = discoveryStats;
         this.ingestStats = ingestStats;
         this.adaptiveSelectionStats = adaptiveSelectionStats;
+        this.scriptCacheStats = scriptCacheStats;
+        this.indexingPressureStats = indexingPressureStats;
     }
 
     public long getTimestamp() {
@@ -211,35 +257,14 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return adaptiveSelectionStats;
     }
 
-    public static NodeStats readNodeStats(StreamInput in) throws IOException {
-        NodeStats nodeInfo = new NodeStats();
-        nodeInfo.readFrom(in);
-        return nodeInfo;
+    @Nullable
+    public ScriptCacheStats getScriptCacheStats() {
+        return scriptCacheStats;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        timestamp = in.readVLong();
-        if (in.readBoolean()) {
-            indices = NodeIndicesStats.readIndicesStats(in);
-        }
-        os = in.readOptionalWriteable(OsStats::new);
-        process = in.readOptionalWriteable(ProcessStats::new);
-        jvm = in.readOptionalWriteable(JvmStats::new);
-        threadPool = in.readOptionalWriteable(ThreadPoolStats::new);
-        fs = in.readOptionalWriteable(FsInfo::new);
-        transport = in.readOptionalWriteable(TransportStats::new);
-        http = in.readOptionalWriteable(HttpStats::new);
-        breaker = in.readOptionalWriteable(AllCircuitBreakerStats::new);
-        scriptStats = in.readOptionalWriteable(ScriptStats::new);
-        discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
-        ingestStats = in.readOptionalWriteable(IngestStats::new);
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
-        } else {
-            adaptiveSelectionStats = null;
-        }
+    @Nullable
+    public IndexingPressureStats getIndexingPressureStats() {
+        return indexingPressureStats;
     }
 
     @Override
@@ -265,6 +290,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(ingestStats);
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalWriteable(adaptiveSelectionStats);
+        } if (out.getVersion().onOrAfter(Version.V_7_8_0) && out.getVersion().before(Version.V_7_9_0)) {
+            out.writeOptionalWriteable(scriptCacheStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeOptionalWriteable(indexingPressureStats);
         }
     }
 
@@ -277,8 +307,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         builder.field("ip", getNode().getAddress());
 
         builder.startArray("roles");
-        for (DiscoveryNode.Role role : getNode().getRoles()) {
-            builder.value(role.getRoleName());
+        for (DiscoveryNodeRole role : getNode().getRoles()) {
+            builder.value(role.roleName());
         }
         builder.endArray();
 
@@ -328,6 +358,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getAdaptiveSelectionStats() != null) {
             getAdaptiveSelectionStats().toXContent(builder, params);
+        }
+        if (getScriptCacheStats() != null) {
+            getScriptCacheStats().toXContent(builder, params);
+        }
+        if (getIndexingPressureStats() != null) {
+            getIndexingPressureStats().toXContent(builder, params);
         }
         return builder;
     }

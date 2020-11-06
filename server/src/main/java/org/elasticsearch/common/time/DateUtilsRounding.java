@@ -1,4 +1,4 @@
-/*
+/* @notice
  *  Copyright 2001-2014 Stephen Colebourne
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -92,8 +92,27 @@ class DateUtilsRounding {
         return (year * 365L + (leapYears - DAYS_0000_TO_1970)) * MILLIS_PER_DAY; // millis per day
     }
 
-    private static boolean isLeapYear(final int year) {
-        return ((year & 3) == 0) && ((year % 100) != 0 || (year % 400) == 0);
+    static boolean isLeapYear(final int year) {
+        // Joda had
+        // return ((year & 3) == 0) && ((year % 100) != 0 || (year % 400) == 0);
+        // But we've replaced that with this:
+        if ((year & 3) != 0) {
+            return false;
+        }
+        if (year % 100 != 0) {
+            return true;
+        }
+        return ((year / 100) & 3) == 0;
+        /*
+         * It is a little faster because it saves a division. We don't have good
+         * measurements for this method on its own, but this change speeds up
+         * rounding the nearest month by about 8%.
+         *
+         * Note: If you decompile this method to x86 assembly you won't see the
+         * division you'd expect from % 100 and / 100. Instead you'll see a funny
+         * sequence of bit twiddling operations which the jvm thinks is faster.
+         * Division is slow so it almost certainly is.
+         */
     }
 
     private static final long AVERAGE_MILLIS_PER_YEAR_DIVIDED_BY_TWO = MILLIS_PER_YEAR / 2;

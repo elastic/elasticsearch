@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -29,10 +28,13 @@ public class RestGetActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestGetAction(Settings.EMPTY, controller());
+        controller().registerHandler(new RestGetAction());
     }
 
     public void testTypeInPathWithGet() {
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withPath("/some_index/some_type/some_id");
         dispatchRequest(deprecatedRequest.withMethod(Method.GET).build());
@@ -44,6 +46,9 @@ public class RestGetActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPathWithHead() {
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withPath("/some_index/some_type/some_id");
         dispatchRequest(deprecatedRequest.withMethod(Method.HEAD).build());

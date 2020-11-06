@@ -5,37 +5,36 @@
  */
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
+import org.elasticsearch.rest.RestRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  * Rest handler for handling access token invalidation requests
  */
-public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
+public final class RestInvalidateTokenAction extends TokenBaseRestHandler implements RestRequestFilter {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestInvalidateTokenAction.class));
     static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER =
         new ConstructingObjectParser<>("invalidate_token", a -> {
             final String token = (String) a[0];
@@ -64,12 +63,21 @@ public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
     }
 
-    public RestInvalidateTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
+    public RestInvalidateTokenAction(Settings settings, XPackLicenseState xPackLicenseState) {
         super(settings, xPackLicenseState);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            DELETE, "/_security/oauth2/token", this,
-            DELETE, "/_xpack/security/oauth2/token", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRoute(DELETE, "/_security/oauth2/token", DELETE, "/_xpack/security/oauth2/token")
+        );
     }
 
     @Override
@@ -87,9 +95,16 @@ public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
                     public RestResponse buildResponse(InvalidateTokenResponse invalidateResp,
                                                       XContentBuilder builder) throws Exception {
                         invalidateResp.toXContent(builder, channel.request());
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new BytesRestResponse(invalidateResp.getResult().getRestStatus(), builder);
                     }
                 });
         }
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(Sets.newHashSet("token", "refresh_token"));
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

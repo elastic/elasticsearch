@@ -17,9 +17,9 @@ up prefix searches.  It accepts the following optional settings:
 
 This example creates a text field using the default prefix length settings:
 
-[source,js]
+[source,console]
 --------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -31,16 +31,15 @@ PUT my_index
   }
 }
 --------------------------------
-// CONSOLE
 
 <1> An empty settings object will use the default `min_chars` and `max_chars`
 settings
 
 This example uses custom prefix length settings:
 
-[source,js]
+[source,console]
 --------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -55,4 +54,3 @@ PUT my_index
   }
 }
 --------------------------------
-// CONSOLE

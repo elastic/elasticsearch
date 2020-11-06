@@ -26,13 +26,16 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Objects;
 
 /**
@@ -43,18 +46,13 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     protected final String name;
     private String field = null;
     private Script script = null;
-    private ValueType valueType = null;
+    private ValueType userValueTypeHint = null;
     private boolean missingBucket = false;
     private SortOrder order = SortOrder.ASC;
     private String format = null;
 
     CompositeValuesSourceBuilder(String name) {
-        this(name, null);
-    }
-
-    CompositeValuesSourceBuilder(String name, ValueType valueType) {
         this.name = name;
-        this.valueType = valueType;
     }
 
     CompositeValuesSourceBuilder(StreamInput in) throws IOException {
@@ -64,7 +62,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             this.script = new Script(in);
         }
         if (in.readBoolean()) {
-            this.valueType = ValueType.readFromStream(in);
+            this.userValueTypeHint = ValueType.readFromStream(in);
         }
         if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             this.missingBucket = in.readBoolean();
@@ -92,10 +90,10 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (hasScript) {
             script.writeTo(out);
         }
-        boolean hasValueType = valueType != null;
+        boolean hasValueType = userValueTypeHint != null;
         out.writeBoolean(hasValueType);
         if (hasValueType) {
-            valueType.writeTo(out);
+            userValueTypeHint.writeTo(out);
         }
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeBoolean(missingBucket);
@@ -125,8 +123,8 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             builder.field("script", script);
         }
         builder.field("missing_bucket", missingBucket);
-        if (valueType != null) {
-            builder.field("value_type", valueType.getPreferredName());
+        if (userValueTypeHint != null) {
+            builder.field("value_type", userValueTypeHint.getPreferredName());
         }
         if (format != null) {
             builder.field("format", format);
@@ -138,11 +136,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     @Override
-    public final int hashCode() {
-        return Objects.hash(field, missingBucket, script, valueType, order, format, innerHashCode());
+    public int hashCode() {
+        return Objects.hash(field, missingBucket, script, userValueTypeHint, order, format);
     }
-
-    protected abstract int innerHashCode();
 
     @Override
     public boolean equals(Object o) {
@@ -153,14 +149,11 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         AB that = (AB) o;
         return Objects.equals(field, that.field()) &&
             Objects.equals(script, that.script()) &&
-            Objects.equals(valueType, that.valueType()) &&
+            Objects.equals(userValueTypeHint, that.userValuetypeHint()) &&
             Objects.equals(missingBucket, that.missingBucket()) &&
             Objects.equals(order, that.order()) &&
-            Objects.equals(format, that.format()) &&
-            innerEquals(that);
+            Objects.equals(format, that.format());
     }
-
-    protected abstract boolean innerEquals(AB builder);
 
     public String name() {
         return name;
@@ -210,23 +203,23 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
      * Sets the {@link ValueType} for the value produced by this source
      */
     @SuppressWarnings("unchecked")
-    public AB valueType(ValueType valueType) {
+    public AB userValuetypeHint(ValueType valueType) {
         if (valueType == null) {
-            throw new IllegalArgumentException("[valueType] must not be null");
+            throw new IllegalArgumentException("[userValueTypeHint] must not be null");
         }
-        this.valueType = valueType;
+        this.userValueTypeHint = valueType;
         return (AB) this;
     }
 
     /**
      * Gets the {@link ValueType} for the value produced by this source
      */
-    public ValueType valueType() {
-        return valueType;
+    public ValueType userValuetypeHint() {
+        return userValueTypeHint;
     }
 
     /**
-     * If true an explicit `null bucket will represent documents with missing values.
+     * If <code>true</code> an explicit <code>null</code> bucket will represent documents with missing values.
      */
     @SuppressWarnings("unchecked")
     public AB missingBucket(boolean missingBucket) {
@@ -293,16 +286,24 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
-     * Creates a {@link CompositeValuesSourceConfig} for this source.
-     *
-     * @param context   The search context for this source.
-     * @param config    The {@link ValuesSourceConfig} for this source.
+     * Actually build the values source and its associated configuration.
      */
-    protected abstract CompositeValuesSourceConfig innerBuild(SearchContext context, ValuesSourceConfig<?> config) throws IOException;
+    protected abstract CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry,
+                                                                ValuesSourceConfig config) throws IOException;
 
-    public final CompositeValuesSourceConfig build(SearchContext context) throws IOException {
-        ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(context.getQueryShardContext(),
-            valueType, field, script, null,null, format);
-        return innerBuild(context, config);
+    protected abstract ValuesSourceType getDefaultValuesSourceType();
+
+    public final CompositeValuesSourceConfig build(AggregationContext context) throws IOException {
+        ValuesSourceConfig config = ValuesSourceConfig.resolve(context,
+            userValueTypeHint, field, script, null, timeZone(), format, getDefaultValuesSourceType());
+        return innerBuild(context.getValuesSourceRegistry(), config);
+    }
+
+    /**
+     * The time zone for this value source. Default implementation returns {@code null}
+     * because most value source types don't support time zone.
+     */
+    protected ZoneId timeZone() {
+        return null;
     }
 }

@@ -20,10 +20,10 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -38,20 +38,19 @@ import java.util.Map;
 
 public abstract class AbstractBaseReindexRestHandler<
                 Request extends AbstractBulkByScrollRequest<Request>,
-                A extends Action<BulkByScrollResponse>
+                A extends ActionType<BulkByScrollResponse>
             > extends BaseRestHandler {
 
     private final A action;
 
-    protected AbstractBaseReindexRestHandler(Settings settings, A action) {
-        super(settings);
+    protected AbstractBaseReindexRestHandler(A action) {
         this.action = action;
     }
 
     protected RestChannelConsumer doPrepareRequest(RestRequest request, NodeClient client,
                                                    boolean includeCreated, boolean includeUpdated) throws IOException {
         // Build the internal request
-        Request internal = setCommonOptions(request, buildRequest(request));
+        Request internal = setCommonOptions(request, buildRequest(request, client.getNamedWriteableRegistry()));
 
         // Executes the request and waits for completion
         if (request.paramAsBoolean("wait_for_completion", true)) {
@@ -79,7 +78,7 @@ public abstract class AbstractBaseReindexRestHandler<
     /**
      * Build the Request based on the RestRequest.
      */
-    protected abstract Request buildRequest(RestRequest request) throws IOException;
+    protected abstract Request buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException;
 
     /**
      * Sets common options of {@link AbstractBulkByScrollRequest} requests.
@@ -105,10 +104,15 @@ public abstract class AbstractBaseReindexRestHandler<
         if (requestsPerSecond != null) {
             request.setRequestsPerSecond(requestsPerSecond);
         }
+
+        if (restRequest.hasParam("max_docs")) {
+            setMaxDocsValidateIdentical(request, restRequest.paramAsInt("max_docs", -1));
+        }
+
         return request;
     }
 
-    private RestChannelConsumer sendTask(String localNodeId, Task task) throws IOException {
+    private RestChannelConsumer sendTask(String localNodeId, Task task) {
         return channel -> {
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();
@@ -169,5 +173,14 @@ public abstract class AbstractBaseReindexRestHandler<
                     "[requests_per_second] must be a float greater than 0. Use -1 to disable throttling.");
         }
         return requestsPerSecond;
+    }
+
+    static void setMaxDocsValidateIdentical(AbstractBulkByScrollRequest<?> request, int maxDocs) {
+        if (request.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
+            throw new IllegalArgumentException("[max_docs] set to two different values [" + request.getMaxDocs() + "]" +
+                " and [" + maxDocs + "]");
+        } else {
+            request.setMaxDocs(maxDocs);
+        }
     }
 }

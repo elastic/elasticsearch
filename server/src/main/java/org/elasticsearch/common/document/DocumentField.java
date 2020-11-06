@@ -21,12 +21,11 @@ package org.elasticsearch.common.document;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
@@ -44,12 +43,14 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsV
  * @see SearchHit
  * @see GetResult
  */
-public class DocumentField implements Streamable, ToXContentFragment, Iterable<Object> {
+public class DocumentField implements Writeable, ToXContentFragment, Iterable<Object> {
 
-    private String name;
-    private List<Object> values;
+    private final String name;
+    private final List<Object> values;
 
-    private DocumentField() {
+    public DocumentField(StreamInput in) throws IOException {
+        name = in.readString();
+        values = in.readList(StreamInput::readGenericValue);
     }
 
     public DocumentField(String name, List<Object> values) {
@@ -81,51 +82,24 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
         return values;
     }
 
-    /**
-     * @return The field is a metadata field
-     */
-    public boolean isMetadataField() {
-        return MapperService.isMetadataField(name);
-    }
-
     @Override
     public Iterator<Object> iterator() {
         return values.iterator();
     }
 
-    public static DocumentField readDocumentField(StreamInput in) throws IOException {
-        DocumentField result = new DocumentField();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        int size = in.readVInt();
-        values = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            values.add(in.readGenericValue());
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeVInt(values.size());
-        for (Object obj : values) {
-            out.writeGenericValue(obj);
-        }
+        out.writeCollection(values, StreamOutput::writeGenericValue);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(name);
         for (Object value : values) {
-            // this call doesn't really need to support writing any kind of object.
-            // Stored fields values are converted using MappedFieldType#valueForDisplay.
-            // As a result they can either be Strings, Numbers, or Booleans, that's
-            // all.
+            // This call doesn't really need to support writing any kind of object, since the values
+            // here are always serializable to xContent. Each value could be a leaf types like a string,
+            // number, or boolean, a list of such values, or a map of such values with string keys.
             builder.value(value);
         }
         builder.endArray();
@@ -133,10 +107,10 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
     }
 
     public static DocumentField fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         String fieldName = parser.currentName();
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
         List<Object> values = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             values.add(parseFieldsValue(parser));

@@ -126,10 +126,10 @@ public class BaseClassTests extends ScriptTestCase {
 
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("testNoArgs2", "doc", NoArgs.CONTEXT, emptyMap()));
-        assertEquals("Variable [doc] is not defined.", e.getMessage());
+        assertEquals("cannot resolve symbol [doc]", e.getMessage());
         e = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("testNoArgs3", "_score", NoArgs.CONTEXT, emptyMap()));
-        assertEquals("Variable [_score] is not defined.", e.getMessage());
+        assertEquals("cannot resolve symbol [_score]", e.getMessage());
 
         String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings());
         assertThat(debug, containsString("ACONST_NULL"));
@@ -396,15 +396,15 @@ public class BaseClassTests extends ScriptTestCase {
         }
 
         public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("returnsprimitiveint", Factory.class);
-        
+
         public static final String[] PARAMETERS = new String[] {};
         public abstract int execute();
     }
     public void testReturnsPrimitiveInt() throws Exception {
-        assertEquals(1, 
+        assertEquals(1,
                 scriptEngine.compile("testReturnsPrimitiveInt0", "1", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
-        assertEquals(1, 
+        assertEquals(1,
                 scriptEngine.compile("testReturnsPrimitiveInt1", "(int) 1L", ReturnsPrimitiveInt.CONTEXT, emptyMap())
                         .newInstance().execute());
         assertEquals(1, scriptEngine.compile("testReturnsPrimitiveInt2", "(int) 1.1d", ReturnsPrimitiveInt.CONTEXT, emptyMap())
@@ -460,7 +460,7 @@ public class BaseClassTests extends ScriptTestCase {
         }
 
         public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("returnsprimitivefloat", Factory.class);
-        
+
         public static final String[] PARAMETERS = new String[] {};
         public abstract float execute();
     }
@@ -509,7 +509,7 @@ public class BaseClassTests extends ScriptTestCase {
        }
 
        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("returnsprimitivedouble", Factory.class);
-        
+
         public static final String[] PARAMETERS = new String[] {};
         public abstract double execute();
     }
@@ -557,7 +557,6 @@ public class BaseClassTests extends ScriptTestCase {
                         .newInstance().execute(), 0);
 
         String debug = Debugger.toString(ReturnsPrimitiveDouble.class, "1", new CompilerSettings());
-        assertThat(debug, containsString("DCONST_1"));
         // The important thing here is that we have the bytecode for returning a double instead of an object
         assertThat(debug, containsString("DRETURN"));
 

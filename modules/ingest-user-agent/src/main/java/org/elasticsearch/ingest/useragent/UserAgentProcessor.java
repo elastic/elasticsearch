@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.useragent;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -44,7 +43,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public class UserAgentProcessor extends AbstractProcessor {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(UserAgentProcessor.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(UserAgentProcessor.class);
 
     public static final String TYPE = "user_agent";
 
@@ -55,9 +54,9 @@ public class UserAgentProcessor extends AbstractProcessor {
     private final boolean ignoreMissing;
     private final boolean useECS;
 
-    public UserAgentProcessor(String tag, String field, String targetField, UserAgentParser parser, Set<Property> properties,
-                              boolean ignoreMissing, boolean useECS) {
-        super(tag);
+    public UserAgentProcessor(String tag, String description, String field, String targetField, UserAgentParser parser,
+                              Set<Property> properties, boolean ignoreMissing, boolean useECS) {
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.parser = parser;
@@ -286,7 +285,7 @@ public class UserAgentProcessor extends AbstractProcessor {
 
         @Override
         public UserAgentProcessor create(Map<String, Processor.Factory> factories, String processorTag,
-                                         Map<String, Object> config) throws Exception {
+                                         String description, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
@@ -315,11 +314,12 @@ public class UserAgentProcessor extends AbstractProcessor {
             }
 
             if (useECS == false) {
-                deprecationLogger.deprecated("setting [ecs] to false for non-common schema " +
+                deprecationLogger.deprecate("ecs_false_non_common_schema",
+                    "setting [ecs] to false for non-common schema " +
                     "format is deprecated and will be removed in 8.0, set to true or remove to use the non-deprecated format");
             }
 
-            return new UserAgentProcessor(processorTag, field, targetField, parser, properties, ignoreMissing, useECS);
+            return new UserAgentProcessor(processorTag, description, field, targetField, parser, properties, ignoreMissing, useECS);
         }
     }
 
@@ -356,7 +356,9 @@ public class UserAgentProcessor extends AbstractProcessor {
             try {
                 Property value = valueOf(propertyName.toUpperCase(Locale.ROOT));
                 if (DEPRECATED_PROPERTIES.contains(value)) {
-                    deprecationLogger.deprecated("the [{}] property is deprecated for the user-agent processor", propertyName);
+                    final String key = "user_agent_processor_property_" + propertyName.replaceAll("[^\\w_]+", "_");
+                        deprecationLogger.deprecate(key,
+                        "the [{}] property is deprecated for the user-agent processor", propertyName);
                 }
                 return value;
             }

@@ -21,49 +21,55 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class BinaryRangeAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Bytes, BinaryRangeAggregatorFactory> {
+public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(IpRangeAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.IP, BinaryRangeAggregator::new, true);
+    }
 
     private final List<BinaryRangeAggregator.Range> ranges;
     private final boolean keyed;
 
     public BinaryRangeAggregatorFactory(String name,
-            ValuesSourceConfig<ValuesSource.Bytes> config,
+            ValuesSourceConfig config,
             List<BinaryRangeAggregator.Range> ranges, boolean keyed,
-            SearchContext context,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+            AggregationContext context,
+            AggregatorFactory parent, Builder subFactoriesBuilder,
+            Map<String, Object> metadata) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.ranges = ranges;
         this.keyed = keyed;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent,
+            Map<String, Object> metadata) throws IOException {
         return new BinaryRangeAggregator(name, factories, null, config.format(),
-                ranges, keyed, context, parent, pipelineAggregators, metaData);
+                ranges, keyed, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Bytes valuesSource,
-            Aggregator parent,
-            boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
-        return new BinaryRangeAggregator(name, factories, valuesSource, config.format(),
-                ranges, keyed, context, parent, pipelineAggregators, metaData);
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return context.getValuesSourceRegistry()
+            .getAggregator(IpRangeAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, factories, config.getValuesSource(), config.format(), ranges, keyed, searchContext, parent, cardinality, metadata);
     }
 
 }

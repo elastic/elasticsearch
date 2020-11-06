@@ -103,7 +103,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
     private DateIndexNameProcessor createProcessor(String field, List<Function<String, ZonedDateTime>> dateFormats,
                                                    ZoneId timezone, String indexNamePrefix, String dateRounding,
                                                    String indexNameFormat) {
-        return new DateIndexNameProcessor(randomAlphaOfLength(10), field, dateFormats, timezone,
+        return new DateIndexNameProcessor(randomAlphaOfLength(10), null, field, dateFormats, timezone,
             new TestTemplateService.MockTemplateScript.Factory(indexNamePrefix),
             new TestTemplateService.MockTemplateScript.Factory(dateRounding),
             new TestTemplateService.MockTemplateScript.Factory(indexNameFormat)

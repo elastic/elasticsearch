@@ -22,42 +22,51 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.TransportShardBulkAction.ReplicaItemExecutionMode;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.action.bulk.TransportShardBulkAction.replicaItemExecutionMode;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -75,6 +84,8 @@ import static org.mockito.Mockito.when;
 
 public class TransportShardBulkActionTests extends IndexShardTestCase {
 
+    private static final ActionListener<Void> ASSERTING_DONE_LISTENER = ActionTestUtils.assertNoFailureListener(r -> {});
+
     private final ShardId shardId = new ShardId("index", "_na_", 0);
     private final Settings idxSettings = Settings.builder()
         .put("index.number_of_shards", 1)
@@ -82,54 +93,13 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         .put("index.version.created", Version.CURRENT.id)
         .build();
 
-    private IndexMetaData indexMetaData() throws IOException {
-        return IndexMetaData.builder("index")
+    private IndexMetadata indexMetadata() throws IOException {
+        return IndexMetadata.builder("index")
             .putMapping("_doc",
                 "{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":" +
                     "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}")
             .settings(idxSettings)
             .primaryTerm(0, 1).build();
-    }
-
-    public void testShouldExecuteReplicaItem() throws Exception {
-        // Successful index request should be replicated
-        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id")
-            .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
-        DocWriteResponse response = new IndexResponse(shardId, "type", "id", 1, 17, 1, randomBoolean());
-        BulkItemRequest request = new BulkItemRequest(0, writeRequest);
-        request.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, response));
-        assertThat(replicaItemExecutionMode(request, 0),
-            equalTo(ReplicaItemExecutionMode.NORMAL));
-
-        // Failed index requests without sequence no should not be replicated
-        writeRequest = new IndexRequest("index", "_doc", "id")
-            .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
-        request = new BulkItemRequest(0, writeRequest);
-        request.setPrimaryResponse(
-            new BulkItemResponse(0, DocWriteRequest.OpType.INDEX,
-                new BulkItemResponse.Failure("index", "type", "id",
-                    new IllegalArgumentException("i died"))));
-        assertThat(replicaItemExecutionMode(request, 0),
-            equalTo(ReplicaItemExecutionMode.NOOP));
-
-        // Failed index requests with sequence no should be replicated
-        request = new BulkItemRequest(0, writeRequest);
-        request.setPrimaryResponse(
-            new BulkItemResponse(0, DocWriteRequest.OpType.INDEX,
-                new BulkItemResponse.Failure("index", "type", "id",
-                    new IllegalArgumentException(
-                        "i died after sequence no was generated"),
-                    1)));
-        assertThat(replicaItemExecutionMode(request, 0),
-            equalTo(ReplicaItemExecutionMode.FAILURE));
-        // NOOP requests should not be replicated
-        DocWriteRequest<UpdateRequest> updateRequest = new UpdateRequest("index", "type", "id");
-        response = new UpdateResponse(shardId, "type", "id", 1, DocWriteResponse.Result.NOOP);
-        request = new BulkItemRequest(0, updateRequest);
-        request.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.UPDATE,
-            response));
-        assertThat(replicaItemExecutionMode(request, 0),
-            equalTo(ReplicaItemExecutionMode.NOOP));
     }
 
     public void testExecuteBulkIndexRequest() throws Exception {
@@ -146,10 +116,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
 
-        UpdateHelper updateHelper = null;
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), () -> {});
+        TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog should change, since there were no problems
@@ -174,8 +143,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext secondContext = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        TransportShardBulkAction.executeBulkItemRequest(secondContext, updateHelper,
-            threadPool::absoluteTimeInMillis, new ThrowingMappingUpdatePerformer(new RuntimeException("fail")), () -> {});
+        TransportShardBulkAction.executeBulkItemRequest(secondContext, null,
+            threadPool::absoluteTimeInMillis, new ThrowingMappingUpdatePerformer(new RuntimeException("fail")),
+            listener -> {}, ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(secondContext.getLocationToSync());
@@ -224,37 +194,44 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         final ElasticsearchStatusException rejectionCause = new ElasticsearchStatusException("testing rejection", rejectionStatus);
         rejectItem.abort("index", rejectionCause);
 
-        UpdateHelper updateHelper = null;
-        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
-            bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
-            () -> {});
+        final CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest, shard, null, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
+            listener -> {}, ActionListener.runAfter(
+                ActionTestUtils.assertNoFailureListener(result -> {
+                    // since at least 1 item passed, the tran log location should exist,
+                    assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, notNullValue());
+                    // and the response should exist and match the item count
+                    assertThat(result.finalResponseIfSuccessful, notNullValue());
+                    assertThat(result.finalResponseIfSuccessful.getResponses(), arrayWithSize(items.length));
 
-        // since at least 1 item passed, the tran log location should exist,
-        assertThat(result.location, notNullValue());
-        // and the response should exist and match the item count
-        assertThat(result.finalResponseIfSuccessful, notNullValue());
-        assertThat(result.finalResponseIfSuccessful.getResponses(), arrayWithSize(items.length));
+                    // check each response matches the input item, including the rejection
+                    for (int i = 0; i < items.length; i++) {
+                        BulkItemResponse response = result.finalResponseIfSuccessful.getResponses()[i];
+                        assertThat(response.getItemId(), equalTo(i));
+                        assertThat(response.getIndex(), equalTo("index"));
+                        assertThat(response.getType(), equalTo("_doc"));
+                        assertThat(response.getId(), equalTo("id_" + i));
+                        assertThat(response.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+                        if (response.getItemId() == rejectItem.id()) {
+                            assertTrue(response.isFailed());
+                            assertThat(response.getFailure().getCause(), equalTo(rejectionCause));
+                            assertThat(response.status(), equalTo(rejectionStatus));
+                        } else {
+                            assertFalse(response.isFailed());
+                        }
+                    }
 
-        // check each response matches the input item, including the rejection
-        for (int i = 0; i < items.length; i++) {
-            BulkItemResponse response = result.finalResponseIfSuccessful.getResponses()[i];
-            assertThat(response.getItemId(), equalTo(i));
-            assertThat(response.getIndex(), equalTo("index"));
-            assertThat(response.getType(), equalTo("_doc"));
-            assertThat(response.getId(), equalTo("id_" + i));
-            assertThat(response.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
-            if (response.getItemId() == rejectItem.id()) {
-                assertTrue(response.isFailed());
-                assertThat(response.getFailure().getCause(), equalTo(rejectionCause));
-                assertThat(response.status(), equalTo(rejectionStatus));
-            } else {
-                assertFalse(response.isFailed());
-            }
-        }
+                    // Check that the non-rejected updates made it to the shard
+                    try {
+                        assertDocCount(shard, items.length - 1);
+                        closeShards(shard);
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                }), latch::countDown), threadPool, Names.WRITE);
 
-        // Check that the non-rejected updates made it to the shard
-        assertDocCount(shard, items.length - 1);
-        closeShards(shard);
+        latch.await();
     }
 
     public void testExecuteBulkIndexRequestWithMappingUpdates() throws Exception {
@@ -267,13 +244,15 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         Engine.IndexResult mappingUpdate =
-            new Engine.IndexResult(new Mapping(null, null, new MetadataFieldMapper[0], Collections.emptyMap()));
+            new Engine.IndexResult(new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()));
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
 
         IndexShard shard = mock(IndexShard.class);
+        when(shard.shardId()).thenReturn(shardId);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
             .thenReturn(mappingUpdate);
+        when(shard.mapperService()).thenReturn(mock(MapperService.class));
 
         randomlySetIgnoredPrimaryResponse(items[0]);
 
@@ -281,11 +260,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         AtomicInteger updateCalled = new AtomicInteger();
         TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
-            (update, shardId, type) -> {
+            (update, shardId, type, listener) -> {
                 // There should indeed be a mapping update
                 assertNotNull(update);
                 updateCalled.incrementAndGet();
-            }, () -> {});
+                listener.onResponse(null);
+            }, listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER);
         assertTrue(context.isInitial());
         assertTrue(context.hasMoreOperationsToExecute());
 
@@ -298,7 +278,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             .thenReturn(success);
 
         TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
-            (update, shardId, type) -> fail("should not have had to update the mappings"), () -> {});
+            (update, shardId, type, listener) -> fail("should not have had to update the mappings"), listener -> {},
+            ASSERTING_DONE_LISTENER);
 
 
         // Verify that the shard "executed" the operation only once (1 for previous invocations plus
@@ -325,8 +306,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         items[0] = new BulkItemRequest(0, writeRequest);
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        UpdateHelper updateHelper = null;
-
         // Return an exception when trying to update the mapping, or when waiting for it to come
         RuntimeException err = new RuntimeException("some kind of exception");
 
@@ -335,9 +314,22 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         randomlySetIgnoredPrimaryResponse(items[0]);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
+        final CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.executeBulkItemRequest(
+            context, null, threadPool::absoluteTimeInMillis,
             errorOnWait == false ? new ThrowingMappingUpdatePerformer(err) : new NoopMappingUpdatePerformer(),
-            errorOnWait ? () -> { throw err; } : () -> {});
+            errorOnWait ? listener -> listener.onFailure(err) : listener -> listener.onResponse(null),
+            new LatchedActionListener<>(new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void aVoid) {
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    assertEquals(err, e);
+                }
+            }, latch));
+        latch.await();
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog shouldn't be synced, as there were conflicting mappings
@@ -371,13 +363,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         Translog.Location location = new Translog.Location(0, 0, 0);
-        UpdateHelper updateHelper = null;
 
         randomlySetIgnoredPrimaryResponse(items[0]);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), () -> {});
+        TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog changes, even though the document didn't exist
@@ -418,8 +409,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         randomlySetIgnoredPrimaryResponse(items[0]);
 
         context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), () -> {});
+        TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog changes, because the document was deleted
@@ -457,8 +448,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
-        DocWriteResponse noopUpdateResponse = new UpdateResponse(shardId, "_doc", "id", 0,
-            DocWriteResponse.Result.NOOP);
+        DocWriteResponse noopUpdateResponse = new UpdateResponse(shardId, "_doc", "id", 0, 2, 1, DocWriteResponse.Result.NOOP);
 
         IndexShard shard = mock(IndexShard.class);
 
@@ -475,7 +465,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), () -> {});
+            new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
 
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -490,11 +480,11 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             equalTo(DocWriteResponse.Result.NOOP));
         assertThat(bulkShardRequest.items().length, equalTo(1));
         assertEquals(primaryRequest, bulkShardRequest.items()[0]); // check that bulk item was not mutated
-        assertThat(primaryResponse.getResponse().getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+        assertThat(primaryResponse.getResponse().getSeqNo(), equalTo(0L));
     }
 
     public void testUpdateRequestWithFailure() throws Exception {
-        IndexSettings indexSettings = new IndexSettings(indexMetaData(), Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "_doc", "id")
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
@@ -521,7 +511,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), () -> {});
+            new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Since this was not a conflict failure, the primary response
@@ -543,7 +533,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
 
     public void testUpdateRequestWithConflictFailure() throws Exception {
-        IndexSettings indexSettings = new IndexSettings(indexMetaData(), Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "_doc", "id")
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
@@ -571,7 +561,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), () -> {});
+            new NoopMappingUpdatePerformer(), listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(context.getLocationToSync());
@@ -590,7 +580,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testUpdateRequestWithSuccess() throws Exception {
-        IndexSettings indexSettings = new IndexSettings(indexMetaData(), Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "_doc", "id")
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
@@ -604,6 +594,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
             .thenReturn(indexResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
@@ -618,7 +609,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), () -> {});
+            new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Check that the translog is successfully advanced
@@ -636,7 +627,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testUpdateWithDelete() throws Exception {
-        IndexSettings indexSettings = new IndexSettings(indexMetaData(), Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "_doc", "id")
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
@@ -650,6 +641,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), any(), anyLong(), anyLong())).thenReturn(deleteResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
@@ -664,7 +656,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), () -> {});
+            new NoopMappingUpdatePerformer(), listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Check that the translog is successfully advanced
@@ -698,7 +690,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), () -> {});
+            new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(context.getLocationToSync());
@@ -731,7 +723,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         while (context.hasMoreOperationsToExecute()) {
             TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
-                new NoopMappingUpdatePerformer(), () -> {});
+                new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
         }
 
         assertTrue(shard.isSyncNeeded());
@@ -762,20 +754,19 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 DocWriteRequest.OpType.DELETE,
                 DocWriteRequest.OpType.INDEX
             ),
-            new BulkItemResponse.Failure("index", "_doc", "1",
-                exception, 1L)
+            new BulkItemResponse.Failure("index", "_doc", "1", exception, 1L, 1L)
         ));
         BulkItemRequest[] itemRequests = new BulkItemRequest[1];
         itemRequests[0] = itemRequest;
         BulkShardRequest bulkShardRequest = new BulkShardRequest(
             shard.shardId(), RefreshPolicy.NONE, itemRequests);
         TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
-        verify(shard, times(1)).markSeqNoAsNoop(1, exception.toString());
+        verify(shard, times(1)).markSeqNoAsNoop(1, 1, exception.toString());
         closeShards(shard);
     }
 
     public void testRetries() throws Exception {
-        IndexSettings indexSettings = new IndexSettings(indexMetaData(), Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         UpdateRequest writeRequest = new UpdateRequest("index", "_doc", "id")
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         // the beating will continue until success has come.
@@ -786,9 +777,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         Exception err = new VersionConflictEngineException(shardId, "id",
             "I'm conflicted <(;_;)>");
-        Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0, 0);
+        Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0);
         Engine.IndexResult mappingUpdate =
-            new Engine.IndexResult(new Mapping(null, null, new MetadataFieldMapper[0], Collections.emptyMap()));
+            new Engine.IndexResult(new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()));
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
 
@@ -804,6 +795,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             }
         });
         when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.mapperService()).thenReturn(mock(MapperService.class));
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
@@ -814,24 +807,128 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
+        final CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
             bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
-            () -> {});
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(
+                ActionTestUtils.assertNoFailureListener(result -> {
+                    assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, equalTo(resultLocation));
+                    BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();
+                    assertThat(primaryResponse.getItemId(), equalTo(0));
+                    assertThat(primaryResponse.getId(), equalTo("id"));
+                    assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
+                    DocWriteResponse response = primaryResponse.getResponse();
+                    assertThat(response.status(), equalTo(RestStatus.CREATED));
+                    assertThat(response.getSeqNo(), equalTo(13L));
+                }), latch), threadPool, Names.WRITE);
+        latch.await();
+    }
 
-        assertThat(result.location, equalTo(resultLocation));
-        BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();
-        assertThat(primaryResponse.getItemId(), equalTo(0));
-        assertThat(primaryResponse.getId(), equalTo("id"));
-        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
-        DocWriteResponse response = primaryResponse.getResponse();
-        assertThat(response.status(), equalTo(RestStatus.CREATED));
-        assertThat(response.getSeqNo(), equalTo(13L));
+    public void testForceExecutionOnRejectionAfterMappingUpdate() throws Exception {
+        TestThreadPool rejectingThreadPool = new TestThreadPool(
+            "TransportShardBulkActionTests#testForceExecutionOnRejectionAfterMappingUpdate",
+            Settings.builder()
+                .put("thread_pool." + ThreadPool.Names.WRITE + ".size", 1)
+                .put("thread_pool." + ThreadPool.Names.WRITE + ".queue_size", 1)
+                .build());
+        CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
+        rejectingThreadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
+            try {
+                cyclicBarrier.await();
+                logger.info("blocking the write executor");
+                cyclicBarrier.await();
+                logger.info("unblocked the write executor");
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        try {
+            cyclicBarrier.await();
+            // Place a task in the queue to block next enqueue
+            rejectingThreadPool.executor(ThreadPool.Names.WRITE).execute(() -> {});
+
+            BulkItemRequest[] items = new BulkItemRequest[2];
+            DocWriteRequest<IndexRequest> writeRequest1 = new IndexRequest("index").id("id")
+                .source(Requests.INDEX_CONTENT_TYPE, "foo", 1);
+            DocWriteRequest<IndexRequest> writeRequest2 = new IndexRequest("index").id("id")
+                .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
+            items[0] = new BulkItemRequest(0, writeRequest1);
+            items[1] = new BulkItemRequest(1, writeRequest2);
+            BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+            Engine.IndexResult mappingUpdate =
+                new Engine.IndexResult(new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()));
+            Translog.Location resultLocation1 = new Translog.Location(42, 36, 36);
+            Translog.Location resultLocation2 = new Translog.Location(42, 42, 42);
+            Engine.IndexResult success1 = new FakeIndexResult(1, 1, 10, true, resultLocation1);
+            Engine.IndexResult success2 = new FakeIndexResult(1, 1, 13, true, resultLocation2);
+
+            IndexShard shard = mock(IndexShard.class);
+            when(shard.shardId()).thenReturn(shardId);
+            when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
+                .thenReturn(success1, mappingUpdate, success2);
+            when(shard.getFailedIndexResult(any(EsRejectedExecutionException.class), anyLong())).thenCallRealMethod();
+            when(shard.mapperService()).thenReturn(mock(MapperService.class));
+
+            randomlySetIgnoredPrimaryResponse(items[0]);
+
+            AtomicInteger updateCalled = new AtomicInteger();
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            TransportShardBulkAction.performOnPrimary(
+                bulkShardRequest, shard, null, rejectingThreadPool::absoluteTimeInMillis, (update, shardId, type, listener) -> {
+                    // There should indeed be a mapping update
+                    assertNotNull(update);
+                    updateCalled.incrementAndGet();
+                    listener.onResponse(null);
+                    try {
+                        // Release blocking task now that the continue write execution has been rejected and
+                        // the finishRequest execution has been force enqueued
+                        cyclicBarrier.await();
+                    } catch (InterruptedException | BrokenBarrierException e) {
+                        throw new IllegalStateException(e);
+                    }
+                }, listener -> listener.onResponse(null), new LatchedActionListener<>(
+                    ActionTestUtils.assertNoFailureListener(result ->
+                        // Assert that we still need to fsync the location that was successfully written
+                        assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location,
+                            equalTo(resultLocation1))), latch),
+                rejectingThreadPool,
+                Names.WRITE);
+            latch.await();
+
+            assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));
+
+            verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+
+            BulkItemResponse primaryResponse1 = bulkShardRequest.items()[0].getPrimaryResponse();
+            assertThat(primaryResponse1.getItemId(), equalTo(0));
+            assertThat(primaryResponse1.getId(), equalTo("id"));
+            assertThat(primaryResponse1.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+            assertFalse(primaryResponse1.isFailed());
+            assertThat(primaryResponse1.getResponse().status(), equalTo(RestStatus.CREATED));
+            assertThat(primaryResponse1.getResponse().getSeqNo(), equalTo(10L));
+
+            BulkItemResponse primaryResponse2 = bulkShardRequest.items()[1].getPrimaryResponse();
+            assertThat(primaryResponse2.getItemId(), equalTo(1));
+            assertThat(primaryResponse2.getId(), equalTo("id"));
+            assertThat(primaryResponse2.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+            assertTrue(primaryResponse2.isFailed());
+            assertNull(primaryResponse2.getResponse());
+            assertEquals(primaryResponse2.status(), RestStatus.TOO_MANY_REQUESTS);
+            assertThat(primaryResponse2.getFailure().getCause(), instanceOf(EsRejectedExecutionException.class));
+
+            closeShards(shard);
+        } finally {
+            rejectingThreadPool.shutdownNow();
+        }
     }
 
     private void randomlySetIgnoredPrimaryResponse(BulkItemRequest primaryRequest) {
         if (randomBoolean()) {
             // add a response to the request and thereby check that it is ignored for the primary.
-            primaryRequest.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, new IndexResponse(null, "_doc",
+            primaryRequest.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, new IndexResponse(shardId, "_doc",
                 "ignore-primary-response-on-primary", 42, 42, 42, false)));
         }
     }
@@ -875,7 +972,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     /** Doesn't perform any mapping updates */
     public static class NoopMappingUpdatePerformer implements MappingUpdatePerformer {
         @Override
-        public void updateMappings(Mapping update, ShardId shardId, String type) {
+        public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
     }
 
@@ -888,8 +986,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         }
 
         @Override
-        public void updateMappings(Mapping update, ShardId shardId, String type) {
-            throw e;
+        public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener) {
+            listener.onFailure(e);
         }
     }
 }

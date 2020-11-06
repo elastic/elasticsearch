@@ -23,14 +23,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 
 import java.io.IOException;
@@ -313,17 +311,6 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
         public float getBoost() {
             return boost;
         }
-
-        void readFrom(StreamInput in) throws IOException {
-            this.term = in.readString();
-            this.boost = in.readFloat();
-        }
-
-        void writeTo(StreamOutput out) throws IOException {
-            out.writeString(term);
-            out.writeFloat(boost);
-        }
-
     }
 
     @Override

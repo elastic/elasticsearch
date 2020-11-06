@@ -19,26 +19,31 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
-
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
+    private static final Logger logger = LogManager.getLogger(RestAddVotingConfigExclusionAction.class);
 
-    public RestAddVotingConfigExclusionAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "/_cluster/voting_config_exclusions/{node_name}", this);
-    }
+    private static final String DEPRECATION_MESSAGE = "POST /_cluster/voting_config_exclusions/{node_name} " +
+        "will be removed in a future version. " +
+        "Please use POST /_cluster/voting_config_exclusions?node_ids=... " +
+        "or POST /_cluster/voting_config_exclusions?node_names=... instead.";
 
     @Override
     public String getName() {
@@ -46,16 +51,46 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     }
 
     @Override
+    public List<Route> routes() {
+        return Arrays.asList(
+            new DeprecatedRoute(POST, "/_cluster/voting_config_exclusions/{node_name}", DEPRECATION_MESSAGE),
+            new Route(POST, "/_cluster/voting_config_exclusions"));
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String nodeName = request.param("node_name");
-        AddVotingConfigExclusionsRequest votingConfigExclusionsRequest = new AddVotingConfigExclusionsRequest(
-            new String[]{nodeName},
-            TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
-        );
+        AddVotingConfigExclusionsRequest votingConfigExclusionsRequest = resolveVotingConfigExclusionsRequest(request);
         return channel -> client.execute(
             AddVotingConfigExclusionsAction.INSTANCE,
             votingConfigExclusionsRequest,
             new RestToXContentListener<>(channel)
         );
     }
+
+    AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
+        String deprecatedNodeDescription = null;
+        String nodeIds = null;
+        String nodeNames = null;
+
+        if (request.hasParam("node_name")) {
+            deprecatedNodeDescription = request.param("node_name");
+        }
+
+        if (request.hasParam("node_ids")){
+            nodeIds = request.param("node_ids");
+        }
+
+        if (request.hasParam("node_names")){
+            nodeNames =  request.param("node_names");
+        }
+
+        return new AddVotingConfigExclusionsRequest(
+            Strings.splitStringByCommaToArray(deprecatedNodeDescription),
+            Strings.splitStringByCommaToArray(nodeIds),
+            Strings.splitStringByCommaToArray(nodeNames),
+            TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
+        );
+    }
+
+
 }

@@ -31,15 +31,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -58,10 +59,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction.IncomingClusterStateListener;
-import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -164,7 +163,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                         NamedWriteableRegistry namedWriteableRegistry, MasterService masterService, ClusterApplier clusterApplier,
                         ClusterSettings clusterSettings, SeedHostsProvider hostsProvider, AllocationService allocationService,
-                        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, GatewayMetaState gatewayMetaState) {
+                        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, RerouteService rerouteService) {
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.masterService = masterService;
         this.clusterApplier = clusterApplier;
@@ -225,17 +224,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.membership = new MembershipAction(transportService, new MembershipListener(), onJoinValidators);
         this.joinThreadControl = new JoinThreadControl();
 
-        this.nodeJoinController = new NodeJoinController(settings, masterService, allocationService, electMaster);
+        this.nodeJoinController = new NodeJoinController(settings, masterService, allocationService, electMaster, rerouteService);
         this.nodeRemovalExecutor = new ZenNodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::submitRejoin, logger);
 
         masterService.setClusterStateSupplier(this::clusterState);
 
         transportService.registerRequestHandler(
-            DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
-
-        if (clusterApplier instanceof ClusterApplierService) {
-            ((ClusterApplierService) clusterApplier).addLowPriorityApplier(gatewayMetaState);
-        }
+            DISCOVERY_REJOIN_ACTION_NAME, ThreadPool.Names.SAME, RejoinClusterRequest::new, new RejoinClusterRequestHandler());
     }
 
     // protected to allow overriding in tests
@@ -1095,13 +1090,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             this.fromNodeId = fromNodeId;
         }
 
-        public RejoinClusterRequest() {
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public RejoinClusterRequest(StreamInput in) throws IOException {
+            super(in);
             fromNodeId = in.readOptionalString();
+
         }
 
         @Override

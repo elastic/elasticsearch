@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -36,13 +36,29 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> implements ToXContent {
+public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> implements ToXContentFragment {
 
     private String id;
     private String context;
     private BytesReference content;
     private XContentType xContentType;
     private StoredScriptSource source;
+
+    public PutStoredScriptRequest(StreamInput in) throws IOException {
+        super(in);
+        if (in.getVersion().before(Version.V_6_0_0_alpha2)) {
+            in.readString(); // read lang from previous versions
+        }
+        id = in.readOptionalString();
+        content = in.readBytesReference();
+        xContentType = in.readEnum(XContentType.class);
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
+            context = in.readOptionalString();
+            source = new StoredScriptSource(in);
+        } else {
+            source = StoredScriptSource.parse(content, xContentType == null ? XContentType.JSON : xContentType);
+        }
+    }
 
     public PutStoredScriptRequest() {
         super();
@@ -112,24 +128,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         this.xContentType = Objects.requireNonNull(xContentType);
         this.source = StoredScriptSource.parse(content, xContentType);
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-
-        if (in.getVersion().before(Version.V_6_0_0_alpha2)) {
-            in.readString(); // read lang from previous versions
-        }
-        id = in.readOptionalString();
-        content = in.readBytesReference();
-        xContentType = in.readEnum(XContentType.class);
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
-            context = in.readOptionalString();
-            source = new StoredScriptSource(in);
-        } else {
-            source = StoredScriptSource.parse(content, xContentType == null ? XContentType.JSON : xContentType);
-        }
     }
 
     @Override

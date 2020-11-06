@@ -52,25 +52,28 @@ Math.min(params['num_terms'], params['min_actors_to_see'])
 The following request finds seats to performances with at least
 two of the three specified actors.
 
-[source,js]
+[source,console]
 ----
 GET seats/_search
 {
-    "query" : {
-        "terms_set": {
-            "actors" : {
-                "terms" : ["smith", "earns", "black"],
-                "minimum_should_match_script": {
-                    "source": "Math.min(params['num_terms'], params['min_actors_to_see'])",
-                    "params" : {
-                        "min_actors_to_see" : 2
-                    }
-                }
-            }
+  "query": {
+    "terms_set": {
+      "actors": {
+        "terms": [
+          "smith",
+          "earns",
+          "black"
+        ],
+        "minimum_should_match_script": {
+          "source": "Math.min(params['num_terms'], params['min_actors_to_see'])",
+          "params": {
+            "min_actors_to_see": 2
+          }
         }
+      }
     }
+  }
 }
 ----
-// CONSOLE
 // TEST[skip: requires setup from other pages]
 

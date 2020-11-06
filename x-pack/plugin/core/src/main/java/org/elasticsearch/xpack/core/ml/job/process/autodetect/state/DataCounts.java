@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.Date;
@@ -24,7 +24,7 @@ import java.util.Objects;
  * Job processed record counts.
  * <p>
  * The getInput... methods return the actual number of
- * fields/records sent the the API including invalid records.
+ * fields/records sent the API including invalid records.
  * The getProcessed... methods are the number sent to the
  * Engine.
  * <p>

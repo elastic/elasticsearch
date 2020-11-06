@@ -51,7 +51,7 @@ public class JoinProcessorTests extends ESTestCase {
             }
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, separator, fieldName);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), null, fieldName, separator, fieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(expectedResult));
     }
@@ -71,7 +71,7 @@ public class JoinProcessorTests extends ESTestCase {
             }
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, separator, fieldName);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), null, fieldName, separator, fieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(expectedResult));
     }
@@ -80,7 +80,7 @@ public class JoinProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, randomAlphaOfLengthBetween(1, 10));
-        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, "-", fieldName);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), null, fieldName, "-", fieldName);
         try {
             processor.execute(ingestDocument);
         } catch(IllegalArgumentException e) {
@@ -91,7 +91,7 @@ public class JoinProcessorTests extends ESTestCase {
     public void testJoinNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, "-", fieldName);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), null, fieldName, "-", fieldName);
         try {
             processor.execute(ingestDocument);
         } catch(IllegalArgumentException e) {
@@ -101,7 +101,7 @@ public class JoinProcessorTests extends ESTestCase {
 
     public void testJoinNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
-        Processor processor = new JoinProcessor(randomAlphaOfLength(10), "field", "-", "field");
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), null, "field", "-", "field");
         try {
             processor.execute(ingestDocument);
         } catch(IllegalArgumentException e) {
@@ -125,7 +125,7 @@ public class JoinProcessorTests extends ESTestCase {
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         String targetFieldName = fieldName + randomAlphaOfLength(5);
-        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, separator, targetFieldName);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), null, fieldName, separator, targetFieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(targetFieldName, String.class), equalTo(expectedResult));
     }

@@ -49,7 +49,7 @@ public class PutRollupJobRequestTests extends AbstractXContentTestCase<PutRollup
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 
     public void testRequireConfiguration() {

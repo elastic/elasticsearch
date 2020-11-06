@@ -6,14 +6,10 @@
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -22,22 +18,27 @@ import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetLicenseAction extends XPackRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetLicenseAction.class));
+    RestGetLicenseAction() {}
 
-    RestGetLicenseAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                GET, "/_license", this,
-                GET,  URI_BASE + "/license", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        return singletonList(new ReplacedRoute(GET, "/_license", GET,  URI_BASE + "/license"));
     }
 
     @Override
@@ -53,9 +54,15 @@ public class RestGetLicenseAction extends XPackRestHandler {
      */
     @Override
     public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
-        final Map<String, String> overrideParams = new HashMap<>(2);
+        // Hide enterprise licenses by default, there is an opt-in flag to show them
+        final boolean hideEnterprise = request.paramAsBoolean("accept_enterprise", false) == false;
+        final int licenseVersion = hideEnterprise ? License.VERSION_CRYPTO_ALGORITHMS : License.VERSION_CURRENT;
+
+        final Map<String, String> overrideParams = new HashMap<>(3);
         overrideParams.put(License.REST_VIEW_MODE, "true");
-        overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(License.VERSION_CURRENT));
+        overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(licenseVersion));
+        overrideParams.put(License.XCONTENT_HIDE_ENTERPRISE, String.valueOf(hideEnterprise));
+
         final ToXContent.Params params = new ToXContent.DelegatingMapParams(overrideParams, request);
         GetLicenseRequest getLicenseRequest = new GetLicenseRequest();
         getLicenseRequest.local(request.paramAsBoolean("local", getLicenseRequest.local()));

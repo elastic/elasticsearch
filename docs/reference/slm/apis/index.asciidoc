@@ -1,0 +1,71 @@
+[role="xpack"]
+[testenv="basic"]
+[[snapshot-lifecycle-management]]
+== Manage the snapshot lifecycle
+
+You can set up snapshot lifecycle policies to automate the timing, frequency, and retention of snapshots.
+Snapshot policies can apply to multiple data streams and indices.
+
+The snapshot lifecycle management (SLM) <<snapshot-lifecycle-management-api, CRUD APIs>> provide
+the building blocks for the snapshot policy features that are part of the Management application in {kib}.
+The Snapshot and Restore UI makes it easy to set up policies, register snapshot repositories,
+view and manage snapshots, and restore data streams or indices.
+
+You can stop and restart SLM to temporarily pause automatic backups while performing
+upgrades or other maintenance.
+
+[discrete]
+[[slm-and-security]]
+=== Security and SLM
+
+Two built-in cluster privileges control access to the SLM actions when
+{es} {security-features} are enabled:
+
+`manage_slm`:: Allows a user to perform all SLM actions, including creating and updating policies
+and starting and stopping SLM.
+
+`read_slm`:: Allows a user to perform all read-only SLM actions,
+such as getting policies and checking the SLM status.
+
+`cluster:admin/snapshot/*`:: Allows a user to take and delete snapshots of any
+index, whether or not they have access to that index.
+
+For example, the following request configures an `slm-admin` role that grants the privileges
+necessary for administering SLM.
+
+[source,console]
+-----------------------------------
+POST /_security/role/slm-admin
+{
+  "cluster": ["manage_slm", "cluster:admin/snapshot/*"],
+  "indices": [
+    {
+      "names": [".slm-history-*"],
+      "privileges": ["all"]
+    }
+  ]
+}
+-----------------------------------
+// TEST[skip:security is not enabled here]
+
+Or, for a read-only role that can retrieve policies (but not update, execute, or
+delete them), as well as only view the history index:
+
+[source,console]
+-----------------------------------
+POST /_security/role/slm-read-only
+{
+  "cluster": ["read_slm"],
+  "indices": [
+    {
+      "names": [".slm-history-*"],
+      "privileges": ["read"]
+    }
+  ]
+}
+-----------------------------------
+// TEST[skip:security is not enabled here]
+
+include::getting-started-slm.asciidoc[]
+
+include::slm-retention.asciidoc[]

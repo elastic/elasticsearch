@@ -1,0 +1,52 @@
+--
+:api: get-transform
+:request: GetTransformRequest
+:response: GetTransformResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get {transform} API
+
+Retrieves configuration information about one or more {transforms}.
+The API accepts a +{request}+ object and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Get {transform} request
+
+A +{request}+ requires either a {transform} ID, a comma separated list
+of ids or the special wildcard `_all` to get all {transforms}.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new GET request referencing an existing {transform}
+
+==== Optional arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of
+{transforms} to skip. `size` specifies the maximum number of
+{transforms} to get. Defaults to `0` and `100` respectively.
+<2> Whether to ignore if a wildcard expression matches no {transforms}.
+<3> Optional boolean value for requesting the {transform} in a format that can
+then be put into another cluster. Certain fields that can only be set when
+the {transform} is created are removed.
+
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the requested {transforms}.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

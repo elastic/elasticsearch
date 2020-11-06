@@ -10,8 +10,6 @@ import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 import org.apache.http.client.HttpClient;
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.Logger;
@@ -52,7 +50,7 @@ import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.criterion.EntityRoleCriterion;
@@ -154,6 +152,7 @@ public final class SamlRealm extends Realm implements Releasable {
     private final SamlLogoutRequestHandler logoutHandler;
     private final UserRoleMapper roleMapper;
 
+    private final SamlLogoutResponseHandler logoutResponseHandler;
     private final Supplier<EntityDescriptor> idpDescriptor;
 
     private final SpConfiguration serviceProvider;
@@ -197,8 +196,11 @@ public final class SamlRealm extends Realm implements Releasable {
         final SamlAuthenticator authenticator = new SamlAuthenticator(clock, idpConfiguration, serviceProvider, maxSkew);
         final SamlLogoutRequestHandler logoutHandler =
                 new SamlLogoutRequestHandler(clock, idpConfiguration, serviceProvider, maxSkew);
+        final SamlLogoutResponseHandler logoutResponseHandler =
+            new SamlLogoutResponseHandler(clock, idpConfiguration, serviceProvider, maxSkew);
 
-        final SamlRealm realm = new SamlRealm(config, roleMapper, authenticator, logoutHandler, idpDescriptor, serviceProvider);
+        final SamlRealm realm = new SamlRealm(config, roleMapper, authenticator, logoutHandler,
+            logoutResponseHandler, idpDescriptor, serviceProvider);
 
         // the metadata resolver needs to be destroyed since it runs a timer task in the background and destroying stops it!
         realm.releasables.add(() -> metadataResolver.destroy());
@@ -207,13 +209,20 @@ public final class SamlRealm extends Realm implements Releasable {
     }
 
     // For testing
-    SamlRealm(RealmConfig config, UserRoleMapper roleMapper, SamlAuthenticator authenticator, SamlLogoutRequestHandler logoutHandler,
-              Supplier<EntityDescriptor> idpDescriptor, SpConfiguration spConfiguration) throws Exception {
+    SamlRealm(
+        RealmConfig config,
+        UserRoleMapper roleMapper,
+        SamlAuthenticator authenticator,
+        SamlLogoutRequestHandler logoutHandler,
+        SamlLogoutResponseHandler logoutResponseHandler,
+        Supplier<EntityDescriptor> idpDescriptor,
+        SpConfiguration spConfiguration) throws Exception {
         super(config);
 
         this.roleMapper = roleMapper;
         this.authenticator = authenticator;
         this.logoutHandler = logoutHandler;
+        this.logoutResponseHandler = logoutResponseHandler;
 
         this.idpDescriptor = idpDescriptor;
         this.serviceProvider = spConfiguration;
@@ -384,6 +393,14 @@ public final class SamlRealm extends Realm implements Releasable {
         return token instanceof SamlToken;
     }
 
+    private boolean isTokenForRealm(SamlToken samlToken) {
+        if (samlToken.getAuthenticatingRealm() == null) {
+            return true;
+        } else {
+            return samlToken.getAuthenticatingRealm().equals(this.name());
+        }
+    }
+
     /**
      * Always returns {@code null} as there is no support for reading a SAML token out of a request
      *
@@ -396,7 +413,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
     @Override
     public void authenticate(AuthenticationToken authenticationToken, ActionListener<AuthenticationResult> listener) {
-        if (authenticationToken instanceof SamlToken) {
+        if (authenticationToken instanceof SamlToken && isTokenForRealm((SamlToken) authenticationToken)) {
             try {
                 final SamlToken token = (SamlToken) authenticationToken;
                 final SamlAttributes attributes = authenticator.authenticate(token);
@@ -450,7 +467,9 @@ public final class SamlRealm extends Realm implements Releasable {
         }
         if (attributes.name() != null) {
             userMeta.put(USER_METADATA_NAMEID_VALUE, attributes.name().value);
-            userMeta.put(USER_METADATA_NAMEID_FORMAT, attributes.name().format);
+            if (attributes.name().format != null) {
+                userMeta.put(USER_METADATA_NAMEID_FORMAT, attributes.name().format);
+            }
         }
 
 
@@ -528,8 +547,7 @@ public final class SamlRealm extends Realm implements Releasable {
         // ssl setup
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
-        boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
-        HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
+        final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         builder.setSSLSocketFactory(factory);
 
@@ -649,7 +667,7 @@ public final class SamlRealm extends Realm implements Releasable {
                 .forceAuthn(forceAuthn)
                 .build();
         if (logger.isTraceEnabled()) {
-            logger.trace("Constructed SAML Authentication Request: {}", SamlUtils.samlObjectToString(authnRequest));
+            logger.trace("Constructed SAML Authentication Request: {}", SamlUtils.getXmlContent(authnRequest, true));
         }
         return authnRequest;
     }
@@ -665,7 +683,7 @@ public final class SamlRealm extends Realm implements Releasable {
             final LogoutRequest logoutRequest = new SamlLogoutRequestMessageBuilder(
                     Clock.systemUTC(), serviceProvider, idpDescriptor.get(), nameId, session).build();
             if (logoutRequest != null && logger.isTraceEnabled()) {
-                logger.trace("Constructed SAML Logout Request: {}", SamlUtils.samlObjectToString(logoutRequest));
+                logger.trace("Constructed SAML Logout Request: {}", SamlUtils.getXmlContent(logoutRequest, true));
             }
             return logoutRequest;
         } else {
@@ -681,7 +699,7 @@ public final class SamlRealm extends Realm implements Releasable {
         final LogoutResponse logoutResponse = new SamlLogoutResponseBuilder(
                 Clock.systemUTC(), serviceProvider, idpDescriptor.get(), inResponseTo, StatusCode.SUCCESS).build();
         if (logoutResponse != null && logger.isTraceEnabled()) {
-            logger.trace("Constructed SAML Logout Response: {}", SamlUtils.samlObjectToString(logoutResponse));
+            logger.trace("Constructed SAML Logout Response: {}", SamlUtils.getXmlContent(logoutResponse, true));
         }
         return logoutResponse;
     }
@@ -692,6 +710,10 @@ public final class SamlRealm extends Realm implements Releasable {
 
     public SamlLogoutRequestHandler getLogoutHandler() {
         return this.logoutHandler;
+    }
+
+    public SamlLogoutResponseHandler getLogoutResponseHandler() {
+        return logoutResponseHandler;
     }
 
     private static class FileListener implements FileChangesListener {
@@ -719,7 +741,7 @@ public final class SamlRealm extends Realm implements Releasable {
             try {
                 onChange.run();
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("An error occurred while reloading file {}", file), e);
+                logger.warn(new ParameterizedMessage("An error occurred while reloading file [{}]", file), e);
             }
         }
     }

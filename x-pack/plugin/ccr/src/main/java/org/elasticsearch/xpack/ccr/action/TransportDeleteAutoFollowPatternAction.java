@@ -9,13 +9,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,25 +28,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TransportDeleteAutoFollowPatternAction extends
-    TransportMasterNodeAction<DeleteAutoFollowPatternAction.Request, AcknowledgedResponse> {
+public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTransportMasterNodeAction<DeleteAutoFollowPatternAction.Request> {
 
     @Inject
     public TransportDeleteAutoFollowPatternAction(TransportService transportService, ClusterService clusterService,
                                                   ThreadPool threadPool, ActionFilters actionFilters,
                                                   IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteAutoFollowPatternAction.Request::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+            DeleteAutoFollowPatternAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
     }
 
     @Override
@@ -58,7 +47,7 @@ public class TransportDeleteAutoFollowPatternAction extends
 
             @Override
             protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return new AcknowledgedResponse(acknowledged);
+                return AcknowledgedResponse.of(acknowledged);
             }
 
             @Override
@@ -69,7 +58,7 @@ public class TransportDeleteAutoFollowPatternAction extends
     }
 
     static ClusterState innerDelete(DeleteAutoFollowPatternAction.Request request, ClusterState currentState) {
-        AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
         if (currentAutoFollowMetadata == null) {
             throw new ResourceNotFoundException("auto-follow pattern [{}] is missing",
                 request.getName());
@@ -91,7 +80,7 @@ public class TransportDeleteAutoFollowPatternAction extends
 
         AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(patternsCopy, followedLeaderIndexUUIDSCopy, headers);
         ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metaData(MetaData.builder(currentState.getMetaData())
+        newState.metadata(Metadata.builder(currentState.getMetadata())
             .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)
             .build());
         return newState.build();

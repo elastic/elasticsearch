@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -63,8 +62,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * required.
  */
 public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(TermVectorsRequest.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TermVectorsRequest.class);
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -158,6 +156,48 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             Flag.FieldStatistics);
 
     public TermVectorsRequest() {
+    }
+
+    TermVectorsRequest(StreamInput in) throws IOException {
+        super(in);
+        type = in.readString();
+        id = in.readString();
+
+        if (in.readBoolean()) {
+            doc = in.readBytesReference();
+            xContentType = in.readEnum(XContentType.class);
+        }
+        routing = in.readOptionalString();
+
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            in.readOptionalString(); // _parent
+        }
+        preference = in.readOptionalString();
+        long flags = in.readVLong();
+
+        flagsEnum.clear();
+        for (Flag flag : Flag.values()) {
+            if ((flags & (1 << flag.ordinal())) != 0) {
+                flagsEnum.add(flag);
+            }
+        }
+        int numSelectedFields = in.readVInt();
+        if (numSelectedFields > 0) {
+            selectedFields = new HashSet<>();
+            for (int i = 0; i < numSelectedFields; i++) {
+                selectedFields.add(in.readString());
+            }
+        }
+        if (in.readBoolean()) {
+            perFieldAnalyzer = readPerFieldAnalyzer(in.readMap());
+        }
+        if (in.readBoolean()) {
+            filterSettings = new FilterSettings();
+            filterSettings.readFrom(in);
+        }
+        realtime = in.readBoolean();
+        versionType = VersionType.fromValue(in.readByte());
+        version = in.readLong();
     }
 
     /**
@@ -445,7 +485,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      * Sets the settings for filtering out terms.
      */
     public TermVectorsRequest filterSettings(FilterSettings settings) {
-        this.filterSettings = settings != null ? settings : null;
+        this.filterSettings = settings;
         return this;
     }
 
@@ -488,56 +528,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         return validationException;
     }
 
-    public static TermVectorsRequest readTermVectorsRequest(StreamInput in) throws IOException {
-        TermVectorsRequest termVectorsRequest = new TermVectorsRequest();
-        termVectorsRequest.readFrom(in);
-        return termVectorsRequest;
-    }
-
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        type = in.readString();
-        id = in.readString();
-
-        if (in.readBoolean()) {
-            doc = in.readBytesReference();
-            xContentType = in.readEnum(XContentType.class);
-        }
-        routing = in.readOptionalString();
-
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalString(); // _parent
-        }
-        preference = in.readOptionalString();
-        long flags = in.readVLong();
-
-        flagsEnum.clear();
-        for (Flag flag : Flag.values()) {
-            if ((flags & (1 << flag.ordinal())) != 0) {
-                flagsEnum.add(flag);
-            }
-        }
-        int numSelectedFields = in.readVInt();
-        if (numSelectedFields > 0) {
-            selectedFields = new HashSet<>();
-            for (int i = 0; i < numSelectedFields; i++) {
-                selectedFields.add(in.readString());
-            }
-        }
-        if (in.readBoolean()) {
-            perFieldAnalyzer = readPerFieldAnalyzer(in.readMap());
-        }
-        if (in.readBoolean()) {
-            filterSettings = new FilterSettings();
-            filterSettings.readFrom(in);
-        }
-        realtime = in.readBoolean();
-        versionType = VersionType.fromValue(in.readByte());
-        version = in.readLong();
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -560,10 +550,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         }
         out.writeVLong(longFlags);
         if (selectedFields != null) {
-            out.writeVInt(selectedFields.size());
-            for (String selectedField : selectedFields) {
-                out.writeString(selectedField);
-            }
+            out.writeStringCollection(selectedFields);
         } else {
             out.writeVInt(0);
         }
@@ -626,7 +613,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.index = parser.text();
                 } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.type = parser.text();
-                    deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types",
+                    deprecationLogger.deprecate("termvectors_with_types",
                         RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {

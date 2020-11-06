@@ -20,6 +20,7 @@ package org.elasticsearch.common.regex;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Locale;
 import java.util.Random;
 import java.util.regex.Pattern;
 
@@ -54,13 +55,39 @@ public class RegexTests extends ESTestCase {
 
     public void testDoubleWildcardMatch() {
         assertTrue(Regex.simpleMatch("ddd", "ddd"));
+        assertTrue(Regex.simpleMatch("ddd", "Ddd", true));
+        assertFalse(Regex.simpleMatch("ddd", "Ddd"));
         assertTrue(Regex.simpleMatch("d*d*d", "dadd"));
         assertTrue(Regex.simpleMatch("**ddd", "dddd"));
+        assertTrue(Regex.simpleMatch("**ddD", "dddd", true));
         assertFalse(Regex.simpleMatch("**ddd", "fff"));
         assertTrue(Regex.simpleMatch("fff*ddd", "fffabcddd"));
         assertTrue(Regex.simpleMatch("fff**ddd", "fffabcddd"));
         assertFalse(Regex.simpleMatch("fff**ddd", "fffabcdd"));
         assertTrue(Regex.simpleMatch("fff*******ddd", "fffabcddd"));
+        assertTrue(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", true));
         assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
+    }
+
+    public void testSimpleMatch() {
+        for (int i = 0; i < 1000; i++) {
+            final String matchingString = randomAlphaOfLength(between(0, 50));
+
+            // construct a pattern that matches this string by repeatedly replacing random substrings with '*' characters
+            String pattern = matchingString;
+            for (int shrink = between(0, 5); shrink > 0; shrink--) {
+                final int shrinkStart = between(0, pattern.length());
+                final int shrinkEnd = between(shrinkStart, pattern.length());
+                pattern = pattern.substring(0, shrinkStart) + "*" + pattern.substring(shrinkEnd);
+            }
+            assertTrue("[" + pattern + "] should match [" + matchingString + "]", Regex.simpleMatch(pattern, matchingString));
+            assertTrue("[" + pattern + "] should match [" + matchingString.toUpperCase(Locale.ROOT) + "]", 
+                Regex.simpleMatch(pattern, matchingString.toUpperCase(Locale.ROOT), true));
+
+            // construct a pattern that does not match this string by inserting a non-matching character (a digit)
+            final int insertPos = between(0, pattern.length());
+            pattern = pattern.substring(0, insertPos) + between(0, 9) + pattern.substring(insertPos);
+            assertFalse("[" + pattern + "] should not match [" + matchingString + "]", Regex.simpleMatch(pattern, matchingString));
+        }
     }
 }

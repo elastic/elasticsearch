@@ -17,19 +17,18 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 public final class MonitoringTemplateUtils {
 
     private static final String TEMPLATE_FILE = "/monitoring-%s.json";
-    private static final String TEMPLATE_VERSION_PROPERTY = Pattern.quote("${monitoring.template.version}");
+    private static final String TEMPLATE_VERSION_PROPERTY = "monitoring.template.version";
 
     /**
      * The last version of X-Pack that updated the templates and pipelines.
      * <p>
      * It may be possible for this to diverge between templates and pipelines, but for now they're the same.
      */
-    public static final int LAST_UPDATED_VERSION = Version.V_7_0_0.id;
+    public static final int LAST_UPDATED_VERSION = Version.V_7_0_1.id;
 
     /**
      * Current version of templates used in their name to differentiate from breaking changes (separate from product version).

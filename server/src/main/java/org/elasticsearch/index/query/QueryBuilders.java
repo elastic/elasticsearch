@@ -24,10 +24,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
@@ -66,7 +67,10 @@ public final class QueryBuilders {
      *
      * @param fieldName The field name.
      * @param text The query text (to be analyzed).
+     *
+     * @deprecated See {@link CommonTermsQueryBuilder}
      */
+    @Deprecated
     public static CommonTermsQueryBuilder commonTermsQuery(String fieldName, Object text) {
         return new CommonTermsQueryBuilder(fieldName, text);
     }
@@ -80,7 +84,17 @@ public final class QueryBuilders {
     public static MultiMatchQueryBuilder multiMatchQuery(Object text, String... fieldNames) {
         return new MultiMatchQueryBuilder(text, fieldNames); // BOOLEAN is the default
     }
-
+    
+    /**
+     * Creates a text query with type "BOOL_PREFIX" for the provided field name and text.
+     *
+     * @param name The field name.
+     * @param text The query text (to be analyzed).
+     */
+    public static MatchBoolPrefixQueryBuilder matchBoolPrefixQuery(String name, Object text) {
+        return new MatchBoolPrefixQueryBuilder(name, text);
+    }
+    
     /**
      * Creates a text query with type "PHRASE" for the provided field name and text.
      *
@@ -108,6 +122,16 @@ public final class QueryBuilders {
      */
     public static DisMaxQueryBuilder disMaxQuery() {
         return new DisMaxQueryBuilder();
+    }
+
+    /**
+     * A query to boost scores based on their proximity to the given origin for date, date_nanos and geo_point field types.
+     * @param name The field name
+     * @param origin The origin of the distance calculation. Can be a long, string or {@link GeoPoint}, depending on field type.
+     * @param pivot The distance from the origin at which relevance scores receive half of the boost value.
+     */
+    public static DistanceFeatureQueryBuilder distanceFeatureQuery(String name, Origin origin, String pivot) {
+        return new DistanceFeatureQueryBuilder(name, origin, pivot);
     }
 
     /**
@@ -250,7 +274,7 @@ public final class QueryBuilders {
      * which matches any single character. Note this query can be slow, as it
      * needs to iterate over many terms. In order to prevent extremely slow WildcardQueries,
      * a Wildcard term should not start with one of the wildcards {@code *} or
-     * {@code ?}.
+     * {@code ?}. (The wildcard field type however, is optimised for leading wildcards)
      *
      * @param name  The field name
      * @param query The wildcard query string
@@ -444,10 +468,10 @@ public final class QueryBuilders {
      * A query that allows to define a custom scoring function through script.
      *
      * @param queryBuilder The query to custom score
-     * @param function     The script score function builder used to custom score
+     * @param script       The script used to score the query
      */
-    public static ScriptScoreQueryBuilder scriptScoreQuery(QueryBuilder queryBuilder, ScriptScoreFunctionBuilder function) {
-        return new ScriptScoreQueryBuilder(queryBuilder, function);
+    public static ScriptScoreQueryBuilder scriptScoreQuery(QueryBuilder queryBuilder, Script script) {
+        return new ScriptScoreQueryBuilder(queryBuilder, script);
     }
 
 
@@ -496,7 +520,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -506,7 +530,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -516,7 +540,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -526,7 +550,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -536,7 +560,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -546,7 +570,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -556,7 +580,7 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
+     * A filter for a field based on several terms matching on any of them.
      *
      * @param name   The field name
      * @param values The terms
@@ -645,6 +669,14 @@ public final class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
+    public static GeoShapeQueryBuilder geoShapeQuery(String name, Geometry shape) throws IOException {
+        return new GeoShapeQueryBuilder(name, shape);
+    }
+
+    /**
+     * @deprecated use {@link #geoShapeQuery(String, Geometry)} instead
+     */
+    @Deprecated
     public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) throws IOException {
         return new GeoShapeQueryBuilder(name, shape);
     }
@@ -667,6 +699,16 @@ public final class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
+    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, Geometry shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.INTERSECTS);
+        return builder;
+    }
+
+    /**
+     * @deprecated use {@link #geoIntersectionQuery(String, Geometry)} instead
+     */
+    @Deprecated
     public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.INTERSECTS);
@@ -695,6 +737,16 @@ public final class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
+    public static GeoShapeQueryBuilder geoWithinQuery(String name, Geometry shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.WITHIN);
+        return builder;
+    }
+
+    /**
+     * @deprecated use {@link #geoWithinQuery(String, Geometry)} instead
+     */
+    @Deprecated
     public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.WITHIN);
@@ -723,6 +775,16 @@ public final class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
+    public static GeoShapeQueryBuilder geoDisjointQuery(String name, Geometry shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.DISJOINT);
+        return builder;
+    }
+
+    /**
+     * @deprecated use {@link #geoDisjointQuery(String, Geometry)} instead
+     */
+    @Deprecated
     public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.DISJOINT);

@@ -22,7 +22,6 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -33,9 +32,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class IndexingStats implements Streamable, Writeable, ToXContentFragment {
+public class IndexingStats implements Writeable, ToXContentFragment {
 
-    public static class Stats implements Streamable, Writeable, ToXContentFragment {
+    public static class Stats implements Writeable, ToXContentFragment {
 
         private long indexCount;
         private long indexTimeInMillis;
@@ -134,7 +133,9 @@ public class IndexingStats implements Streamable, Writeable, ToXContentFragment 
         /**
          * The total amount of time spend on executing delete operations.
          */
-        public TimeValue getDeleteTime() { return new TimeValue(deleteTimeInMillis); }
+        public TimeValue getDeleteTime() {
+            return new TimeValue(deleteTimeInMillis);
+        }
 
         /**
          * Returns the currently in-flight delete operations
@@ -145,11 +146,6 @@ public class IndexingStats implements Streamable, Writeable, ToXContentFragment 
 
         public long getNoopUpdateCount() {
             return noopUpdateCount;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -280,11 +276,6 @@ public class IndexingStats implements Streamable, Writeable, ToXContentFragment 
         static final String IS_THROTTLED = "is_throttled";
         static final String THROTTLED_TIME_IN_MILLIS = "throttle_time_in_millis";
         static final String THROTTLED_TIME = "throttle_time";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

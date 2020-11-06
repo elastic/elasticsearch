@@ -1,64 +1,59 @@
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
-    testCompile project(':x-pack:plugin:ccr:qa')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('ccr'))
+  testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
-task leaderClusterTest(type: RestIntegTestTask) {
-    mustRunAfter(precommit)
+task "leader-cluster"(type: RestIntegTestTask) {
+  mustRunAfter(precommit)
+  systemProperty 'tests.target_cluster', 'leader'
 }
 
-leaderClusterTestCluster {
-    numNodes = 1
-    clusterName = 'leader-cluster'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'node.name', 'leader'
+testClusters."leader-cluster" {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
 }
 
-leaderClusterTestRunner {
-    systemProperty 'tests.target_cluster', 'leader'
+
+task "middle-cluster"(type: RestIntegTestTask) {
+  dependsOn "leader-cluster"
+  useCluster testClusters."leader-cluster"
+  systemProperty 'tests.target_cluster', 'middle'
+  nonInputProperties.systemProperty 'tests.leader_host',
+    "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
+}
+testClusters."middle-cluster" {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'cluster.remote.leader_cluster.seeds',
+    { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
 }
 
-task middleClusterTest(type: RestIntegTestTask) {}
-
-middleClusterTestCluster {
-    dependsOn leaderClusterTestRunner
-    numNodes = 1
-    clusterName = 'middle-cluster'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
-    setting 'node.name', 'middle'
-}
-
-middleClusterTestRunner {
-    systemProperty 'tests.target_cluster', 'middle'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-}
-
-task followClusterTest(type: RestIntegTestTask) {}
-
-followClusterTestCluster {
-    dependsOn middleClusterTestRunner
-    numNodes = 1
-    clusterName = 'follow-cluster'
-    setting 'xpack.monitoring.collection.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
-    setting 'cluster.remote.middle_cluster.seeds', "\"${-> middleClusterTest.nodes.get(0).transportUri()}\""
-    setting 'node.name', 'follow'
-}
-
-followClusterTestRunner {
+task 'follow-cluster'(type: RestIntegTestTask) {
+  dependsOn "leader-cluster", "middle-cluster"
+    useCluster testClusters."leader-cluster"
+    useCluster testClusters."middle-cluster"
     systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-    nonInputProperties.systemProperty 'tests.middle_host', "${-> middleClusterTest.nodes.get(0).httpUri()}"
-    finalizedBy 'leaderClusterTestCluster#stop'
-    finalizedBy 'middleClusterTestCluster#stop'
+    nonInputProperties.systemProperty 'tests.leader_host',
+      "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
+    nonInputProperties.systemProperty 'tests.middle_host',
+      "${-> testClusters."middle-cluster".getAllHttpSocketURI().get(0)}"
 }
 
-check.dependsOn followClusterTest
+testClusters."follow-cluster" {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'cluster.remote.leader_cluster.seeds',
+    { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
+  setting 'cluster.remote.middle_cluster.seeds',
+    { "\"${testClusters."middle-cluster".getAllTransportPortURI().join(",")}\"" }
+}
+
+check.dependsOn "follow-cluster"
 test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test

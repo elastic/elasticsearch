@@ -3,7 +3,7 @@
 :request: ResumeFollowRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Resume Follow API
 

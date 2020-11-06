@@ -3,7 +3,7 @@
 
 Type mappings, <<object,`object` fields>> and <<nested,`nested` fields>>
 contain sub-fields, called `properties`. These properties may be of any
-<<mapping-types,datatype>>, including `object` and `nested`.  Properties can
+<<mapping-types,data type>>, including `object` and `nested`.  Properties can
 be added:
 
 * explicitly by defining them when <<indices-create-index,creating an index>>.
@@ -13,9 +13,9 @@ be added:
 Below is an example of adding `properties` to a mapping type, an `object`
 field, and a `nested` field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": { <1>
@@ -36,7 +36,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1 <4>
+PUT my-index-000001/_doc/1 <4>
 {
   "region": "US",
   "manager": {
@@ -55,7 +55,7 @@ PUT my_index/_doc/1 <4>
   ]
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Properties in the top-level mappings definition.
 <2> Properties under the `manager` object field.
 <3> Properties under the `employees` nested field.
@@ -70,9 +70,9 @@ fields using the <<indices-put-mapping,PUT mapping API>>.
 Inner fields can be referred to in queries, aggregations, etc., using _dot
 notation_:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -96,7 +96,6 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 IMPORTANT: The full path to the inner field must be specified.

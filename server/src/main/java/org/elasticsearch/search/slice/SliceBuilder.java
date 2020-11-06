@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.slice;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -65,7 +64,7 @@ import java.util.Set;
  */
 public class SliceBuilder implements Writeable, ToXContentObject {
 
-    private static final DeprecationLogger DEPRECATION_LOG = new DeprecationLogger(LogManager.getLogger(SliceBuilder.class));
+    private static final DeprecationLogger DEPRECATION_LOG = DeprecationLogger.getLogger(SliceBuilder.class);
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
@@ -217,8 +216,9 @@ public class SliceBuilder implements Writeable, ToXContentObject {
      *
      * @param context Additional information needed to build the query
      */
+    @SuppressWarnings("rawtypes")
     public Query toFilter(ClusterService clusterService, ShardSearchRequest request, QueryShardContext context, Version minNodeVersion) {
-        final MappedFieldType type = context.fieldMapper(field);
+        final MappedFieldType type = context.getFieldType(field);
         if (type == null) {
             throw new IllegalArgumentException("field " + field + " not found");
         }
@@ -263,7 +263,8 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
             }
-            DEPRECATION_LOG.deprecated("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
+            DEPRECATION_LOG.deprecate("slice_on_uid",
+                "Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
             useTermQuery = true;
         } else if (IdFieldMapper.NAME.equals(field)) {
             useTermQuery = true;

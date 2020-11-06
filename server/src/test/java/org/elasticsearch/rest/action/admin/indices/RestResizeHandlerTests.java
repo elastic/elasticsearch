@@ -20,9 +20,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
@@ -38,7 +36,7 @@ public class RestResizeHandlerTests extends ESTestCase {
 
     public void testShrinkCopySettingsDeprecated() throws IOException {
         final RestResizeHandler.RestShrinkIndexAction handler =
-                new RestResizeHandler.RestShrinkIndexAction(Settings.EMPTY, mock(RestController.class));
+                new RestResizeHandler.RestShrinkIndexAction();
         for (final String copySettings : new String[]{null, "", "true", "false"}) {
             runTestResizeCopySettingsDeprecated(handler, "shrink", copySettings);
         }
@@ -46,7 +44,7 @@ public class RestResizeHandlerTests extends ESTestCase {
 
     public void testSplitCopySettingsDeprecated() throws IOException {
         final RestResizeHandler.RestSplitIndexAction handler =
-                new RestResizeHandler.RestSplitIndexAction(Settings.EMPTY, mock(RestController.class));
+                new RestResizeHandler.RestSplitIndexAction();
         for (final String copySettings : new String[]{null, "", "true", "false"}) {
             runTestResizeCopySettingsDeprecated(handler, "split", copySettings);
         }

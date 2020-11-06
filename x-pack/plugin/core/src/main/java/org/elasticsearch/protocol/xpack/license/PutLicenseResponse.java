@@ -20,11 +20,26 @@ import java.util.Objects;
 
 public class PutLicenseResponse extends AcknowledgedResponse {
 
-    private LicensesStatus status;
-    private Map<String, String[]> acknowledgeMessages;
-    private String acknowledgeHeader;
+    private final LicensesStatus status;
+    private final Map<String, String[]> acknowledgeMessages;
+    private final String acknowledgeHeader;
 
-    public PutLicenseResponse() {
+    public PutLicenseResponse(StreamInput in) throws IOException {
+        super(in);
+        status = LicensesStatus.fromId(in.readVInt());
+        acknowledgeHeader = in.readOptionalString();
+        int size = in.readVInt();
+        Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            String feature = in.readString();
+            int nMessages = in.readVInt();
+            String[] messages = new String[nMessages];
+            for (int j = 0; j < nMessages; j++) {
+                messages[j] = in.readString();
+            }
+            acknowledgeMessages.put(feature, messages);
+        }
+        this.acknowledgeMessages = acknowledgeMessages;
     }
 
     public PutLicenseResponse(boolean acknowledged, LicensesStatus status) {
@@ -49,25 +64,6 @@ public class PutLicenseResponse extends AcknowledgedResponse {
 
     public String acknowledgeHeader() {
         return acknowledgeHeader;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        status = LicensesStatus.fromId(in.readVInt());
-        acknowledgeHeader = in.readOptionalString();
-        int size = in.readVInt();
-        Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            String feature = in.readString();
-            int nMessages = in.readVInt();
-            String[] messages = new String[nMessages];
-            for (int j = 0; j < nMessages; j++) {
-                messages[j] = in.readString();
-            }
-            acknowledgeMessages.put(feature, messages);
-        }
-        this.acknowledgeMessages = acknowledgeMessages;
     }
 
     @Override

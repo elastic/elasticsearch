@@ -34,8 +34,15 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
     private boolean requestCache = false;
     private String[] fields = Strings.EMPTY_ARRAY;
 
-
-    public ClearIndicesCacheRequest() {
+    public ClearIndicesCacheRequest(StreamInput in) throws IOException {
+        super(in);
+        queryCache = in.readBoolean();
+        fieldDataCache = in.readBoolean();
+        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
+            in.readBoolean(); // recycler
+        }
+        fields = in.readStringArray();
+        requestCache = in.readBoolean();
     }
 
     public ClearIndicesCacheRequest(String... indices) {
@@ -76,18 +83,6 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
 
     public String[] fields() {
         return this.fields;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        queryCache = in.readBoolean();
-        fieldDataCache = in.readBoolean();
-        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
-            in.readBoolean(); // recycler
-        }
-        fields = in.readStringArray();
-        requestCache = in.readBoolean();
     }
 
     @Override

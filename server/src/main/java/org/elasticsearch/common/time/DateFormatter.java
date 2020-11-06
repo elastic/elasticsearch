@@ -31,6 +31,7 @@ import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 public interface DateFormatter {
 
@@ -128,27 +129,36 @@ public interface DateFormatter {
     DateMathParser toDateMathParser();
 
     static DateFormatter forPattern(String input) {
+
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
         // support the 6.x BWC compatible way of parsing java 8 dates
-        if (input.startsWith("8")) {
-            input = input.substring(1);
-        }
+        String format = strip8Prefix(input);
+        List<String> patterns = splitCombinedPatterns(format);
+        List<DateFormatter> formatters = patterns.stream()
+                                                 .map(DateFormatters::forPattern)
+                                                 .collect(Collectors.toList());
 
-        List<DateFormatter> formatters = new ArrayList<>();
+        return JavaDateFormatter.combined(input, formatters);
+    }
+
+    static String strip8Prefix(String input) {
+        if (input.startsWith("8")) {
+            return input.substring(1);
+        }
+        return input;
+    }
+
+    static List<String> splitCombinedPatterns(String input) {
+        List<String> patterns = new ArrayList<>();
         for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
             if (Strings.hasLength(pattern) == false) {
                 throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
             }
-            formatters.add(DateFormatters.forPattern(pattern));
+            patterns.add(pattern);
         }
-
-        if (formatters.size() == 1) {
-            return formatters.get(0);
-        }
-
-        return DateFormatters.merge(input, formatters);
+        return patterns;
     }
 }

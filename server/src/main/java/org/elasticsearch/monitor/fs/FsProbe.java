@@ -23,9 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.DiskUsage;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
@@ -51,7 +48,7 @@ public class FsProbe {
         this.nodeEnv = nodeEnv;
     }
 
-    public FsInfo stats(FsInfo previous, @Nullable ClusterInfo clusterInfo) throws IOException {
+    public FsInfo stats(FsInfo previous) throws IOException {
         if (!nodeEnv.hasNodeFile()) {
             return new FsInfo(System.currentTimeMillis(), null, new FsInfo.Path[0]);
         }
@@ -70,13 +67,7 @@ public class FsProbe {
             }
             ioStats = ioStats(devicesNumbers, previous);
         }
-        DiskUsage leastDiskEstimate = null;
-        DiskUsage mostDiskEstimate = null;
-        if (clusterInfo != null) {
-            leastDiskEstimate = clusterInfo.getNodeLeastAvailableDiskUsages().get(nodeEnv.nodeId());
-            mostDiskEstimate = clusterInfo.getNodeMostAvailableDiskUsages().get(nodeEnv.nodeId());
-        }
-        return new FsInfo(System.currentTimeMillis(), ioStats, paths, leastDiskEstimate, mostDiskEstimate);
+        return new FsInfo(System.currentTimeMillis(), ioStats, paths);
     }
 
     final FsInfo.IoStats ioStats(final Set<Tuple<Integer, Integer>> devicesNumbers, final FsInfo previous) {
@@ -148,7 +139,7 @@ public class FsProbe {
 
     public static FsInfo.Path getFSInfo(NodePath nodePath) throws IOException {
         FsInfo.Path fsPath = new FsInfo.Path();
-        fsPath.path = nodePath.path.toAbsolutePath().toString();
+        fsPath.path = nodePath.path.toString();
 
         // NOTE: we use already cached (on node startup) FileStore and spins
         // since recomputing these once per second (default) could be costly,

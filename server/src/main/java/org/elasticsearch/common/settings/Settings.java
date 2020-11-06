@@ -20,8 +20,8 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
@@ -145,13 +145,13 @@ public final class Settings implements ToXContentFragment {
             if (existingValue == null) {
                 Map<String, Object> newMap = new HashMap<>(2);
                 processSetting(newMap, "", rest, value);
-                map.put(key, newMap);
+                map.put(prefix + key, newMap);
             } else {
                 if (existingValue instanceof Map) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> innerMap = (Map<String, Object>) existingValue;
                     processSetting(innerMap, "", rest, value);
-                    map.put(key, innerMap);
+                    map.put(prefix + key, innerMap);
                 } else {
                     // It supposed to be a map, but we already have a value stored, which is not a map
                     // fall back to "." notation
@@ -320,7 +320,7 @@ public final class Settings implements ToXContentFragment {
      * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
      */
     static class DeprecationLoggerHolder {
-        static DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Settings.class));
+        static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Settings.class);
     }
 
     /**
@@ -614,7 +614,7 @@ public final class Settings implements ToXContentFragment {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Builder innerBuilder = Settings.builder();
         StringBuilder currentKeyBuilder = new StringBuilder();
         fromXContent(parser, currentKeyBuilder, innerBuilder, allowNullValues);
@@ -716,14 +716,17 @@ public final class Settings implements ToXContentFragment {
 
     /** Returns the fully qualified setting names contained in this settings object. */
     public Set<String> keySet() {
-        synchronized (keys) {
-            if (keys.get() == null) {
-                if (secureSettings == null) {
-                    keys.set(settings.keySet());
-                } else {
-                    Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
-                    // uniquify, since for legacy reasons the same setting name may exist in both
-                    keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
+        if (keys.get() == null) {
+            synchronized (keys) {
+                // Check that the keys are still null now that we have acquired the lock
+                if (keys.get() == null) {
+                    if (secureSettings == null) {
+                        keys.set(settings.keySet());
+                    } else {
+                        Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
+                        // uniquify, since for legacy reasons the same setting name may exist in both
+                        keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
+                    }
                 }
             }
         }
@@ -1049,6 +1052,19 @@ public final class Settings implements ToXContentFragment {
         }
 
         /**
+         * Loads settings from a map.
+         */
+        public Builder loadFromMap(Map<String, ?> map) {
+            // TODO: do this without a serialization round-trip
+            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+                builder.map(map);
+                return loadFromSource(Strings.toString(builder), builder.contentType());
+            } catch (IOException e) {
+                throw new ElasticsearchGenerationException("Failed to generate [" + map + "]", e);
+            }
+        }
+
+        /**
          * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser)}
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
@@ -1350,13 +1366,18 @@ public final class Settings implements ToXContentFragment {
         }
 
         @Override
-        public SecureString getString(String setting) throws GeneralSecurityException{
+        public SecureString getString(String setting) throws GeneralSecurityException {
             return delegate.getString(addPrefix.apply(setting));
         }
 
         @Override
-        public InputStream getFile(String setting) throws GeneralSecurityException{
+        public InputStream getFile(String setting) throws GeneralSecurityException {
             return delegate.getFile(addPrefix.apply(setting));
+        }
+
+        @Override
+        public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
+            return delegate.getSHA256Digest(addPrefix.apply(setting));
         }
 
         @Override

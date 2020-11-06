@@ -3,10 +3,12 @@
 [[sql-syntax-describe-table]]
 === DESCRIBE TABLE
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-DESCRIBE [table identifier<1> | [LIKE pattern<2>]]
+DESCRIBE
+    [table identifier | <1>
+    [LIKE pattern]]     <2>
 ----
 
 <1> single table identifier or double quoted es multi index
@@ -16,17 +18,17 @@ or
 
 [source, sql]
 ----
-DESC [table identifier<1>|[LIKE pattern<2>]]
+DESC 
+    [table identifier | <1>
+    [LIKE pattern]]     <2>
 ----
 
 <1> single table identifier or double quoted es multi index
 <2> SQL LIKE pattern
 
-.Description
+*Description*: `DESC` and `DESCRIBE` are aliases to <<sql-syntax-show-columns>>.
 
-`DESC` and `DESCRIBE` are aliases to <<sql-syntax-show-columns>>.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[describeTable]
 ----

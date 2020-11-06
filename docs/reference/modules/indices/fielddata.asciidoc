@@ -1,5 +1,5 @@
 [[modules-fielddata]]
-=== Fielddata
+=== Field data cache settings
 
 The field data cache is used mainly when sorting on or computing aggregations
 on a field. It loads all the field values to memory in order to provide fast
@@ -13,15 +13,12 @@ reloading  the field data which does not fit into your cache will be expensive
 and  perform poorly.
 
 `indices.fielddata.cache.size`::
+(<<static-cluster-setting,Static>>)
+The max size of the field data cache, eg `30%` of node heap space, or an
+absolute value, eg `12GB`. Defaults to unbounded.  Also see
+<<fielddata-circuit-breaker>>.
 
-    The max size of the field data cache, eg `30%` of node heap space, or an
-    absolute value, eg `12GB`. Defaults to unbounded.  Also see
-    <<fielddata-circuit-breaker>>.
-
-NOTE: These are static settings which must be configured on every data node in
-the cluster.
-
-[float]
+[discrete]
 [[fielddata-monitoring]]
 ==== Monitoring field data
 

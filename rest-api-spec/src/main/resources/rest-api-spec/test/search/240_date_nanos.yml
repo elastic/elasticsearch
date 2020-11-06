@@ -112,8 +112,15 @@ setup:
         rest_total_hits_as_int: true
         index: date*
         body:
-          docvalue_fields: [ { "field": "date", "format" : "strict_date_optional_time" }, { "field": "date", "format": "epoch_millis" }, { "field" : "date", "format": "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSX" } ]
-          sort: [ { "date": "desc" } ]
+          docvalue_fields:
+            - field: date
+              format: strict_date_optional_time
+            - field: date
+              format: epoch_millis
+            - field: date
+              format: uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSX
+          sort:
+            - date: desc
 
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
@@ -124,6 +131,9 @@ setup:
 
 ---
 "date histogram aggregation with date and date_nanos mapping":
+  - skip:
+      version: " - 7.1.99"
+      reason:  calendar_interval introduced in 7.2.0
 
   - do:
       bulk:
@@ -148,7 +158,7 @@ setup:
             date:
               date_histogram:
                 field: date
-                interval: 1d
+                calendar_interval: 1d
 
   - match: { hits.total: 4 }
   - length: { aggregations.date.buckets: 2 }

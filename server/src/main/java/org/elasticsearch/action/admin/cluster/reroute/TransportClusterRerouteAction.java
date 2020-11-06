@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
@@ -56,6 +57,8 @@ import java.util.Map;
 
 public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportClusterRerouteAction.class);
+
     private final AllocationService allocationService;
 
     @Inject
@@ -63,24 +66,13 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                                          ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              indexNameExpressionResolver, ClusterRerouteRequest::new);
+              ClusterRerouteRequest::new, indexNameExpressionResolver, ClusterRerouteResponse::new, ThreadPool.Names.SAME);
         this.allocationService = allocationService;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
     }
 
     @Override
     protected ClusterBlockException checkBlock(ClusterRerouteRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-    }
-
-    @Override
-    protected ClusterRerouteResponse newResponse() {
-        return new ClusterRerouteResponse();
     }
 
     @Override

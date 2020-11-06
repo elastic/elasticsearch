@@ -11,14 +11,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -46,9 +44,7 @@ import static org.mockito.Mockito.when;
 
 public class RestMonitoringBulkActionTests extends ESTestCase {
 
-    private final RestController controller = mock(RestController.class);
-
-    private final RestMonitoringBulkAction action = new RestMonitoringBulkAction(Settings.EMPTY, controller);
+    private final RestMonitoringBulkAction action = new RestMonitoringBulkAction();
 
     public void testGetName() {
         // Are you sure that you want to change the name?

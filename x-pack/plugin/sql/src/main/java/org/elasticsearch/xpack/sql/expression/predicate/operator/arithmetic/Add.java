@@ -5,17 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * Addition function ({@code a + b}).
  */
 public class Add extends DateTimeArithmeticOperation {
     public Add(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryArithmeticOperation.ADD);
+        super(source, left, right, SqlBinaryArithmeticOperation.ADD);
     }
 
     @Override

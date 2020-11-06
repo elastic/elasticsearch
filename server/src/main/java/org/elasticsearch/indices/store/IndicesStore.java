@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -90,7 +90,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
     // Cache successful shard deletion checks to prevent unnecessary file system lookups
     private final Set<ShardId> folderNotFoundCache = new HashSet<>();
 
-    private TimeValue deleteShardTimeout;
+    private final TimeValue deleteShardTimeout;
 
     @Inject
     public IndicesStore(Settings settings, IndicesService indicesService,
@@ -100,7 +100,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        transportService.registerRequestHandler(ACTION_SHARD_EXISTS, ShardActiveRequest::new, ThreadPool.Names.SAME,
+        transportService.registerRequestHandler(ACTION_SHARD_EXISTS, ThreadPool.Names.SAME, ShardActiveRequest::new,
             new ShardActiveRequestHandler());
         this.deleteShardTimeout = INDICES_STORE_DELETE_SHARD_TIMEOUT.get(settings);
         // Doesn't make sense to delete shards on non-data nodes
@@ -152,8 +152,8 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                     IndexService indexService = indicesService.indexService(indexRoutingTable.getIndex());
                     final IndexSettings indexSettings;
                     if (indexService == null) {
-                        IndexMetaData indexMetaData = event.state().getMetaData().getIndexSafe(indexRoutingTable.getIndex());
-                        indexSettings = new IndexSettings(indexMetaData, settings);
+                        IndexMetadata indexMetadata = event.state().getMetadata().getIndexSafe(indexRoutingTable.getIndex());
+                        indexSettings = new IndexSettings(indexMetadata, settings);
                     } else {
                         indexSettings = indexService.getIndexSettings();
                     }
@@ -264,11 +264,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             }
         }
 
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
         private void allNodesResponded() {
             if (activeCopies.get() != expectedActiveCopies) {
                 logger.trace("not deleting shard {}, expected {} active copies, but only {} found active copies",
@@ -346,10 +341,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                         public void sendResult(boolean shardActive) {
                             try {
                                 channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
-                            } catch (IOException e) {
-                                logger.error(() -> new ParameterizedMessage("failed send response for shard active while trying to " +
-                                    "delete shard {} - shard will probably not be removed", request.shardId), e);
-                            } catch (EsRejectedExecutionException e) {
+                            } catch (IOException | EsRejectedExecutionException e) {
                                 logger.error(() -> new ParameterizedMessage("failed send response for shard active while trying to " +
                                     "delete shard {} - shard will probably not be removed", request.shardId), e);
                             }
@@ -397,7 +389,12 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         private String indexUUID;
         private ShardId shardId;
 
-        ShardActiveRequest() {
+        ShardActiveRequest(StreamInput in) throws IOException {
+            super(in);
+            clusterName = new ClusterName(in);
+            indexUUID = in.readString();
+            shardId = new ShardId(in);
+            timeout = new TimeValue(in.readLong(), TimeUnit.MILLISECONDS);
         }
 
         ShardActiveRequest(ClusterName clusterName, String indexUUID, ShardId shardId, TimeValue timeout) {
@@ -405,15 +402,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             this.indexUUID = indexUUID;
             this.clusterName = clusterName;
             this.timeout = timeout;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            clusterName = new ClusterName(in);
-            indexUUID = in.readString();
-            shardId = ShardId.readShardId(in);
-            timeout = new TimeValue(in.readLong(), TimeUnit.MILLISECONDS);
         }
 
         @Override
@@ -443,7 +431,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeBoolean(shardActive);
             node.writeTo(out);
         }

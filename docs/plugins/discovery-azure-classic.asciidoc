@@ -139,7 +139,7 @@ about your nodes.
 
 Before starting, you need to have:
 
-* A http://www.windowsazure.com/[Windows Azure account]
+* A https://azure.microsoft.com/en-us/[Windows Azure account]
 * OpenSSL that isn't from MacPorts, specifically `OpenSSL 1.0.1f 6 Jan
   2014` doesn't seem to create a valid keypair for ssh. FWIW,
  `OpenSSL 1.0.1c 10 May 2012` on Ubuntu 14.04 LTS is known to work.
@@ -331,35 +331,14 @@ scp /tmp/azurekeystore.pkcs12 azure-elasticsearch-cluster.cloudapp.net:/home/ela
 ssh azure-elasticsearch-cluster.cloudapp.net
 ----
 
-Once connected, install Elasticsearch:
-
-["source","sh",subs="attributes,callouts"]
-----
-# Install Latest Java version
-# Read http://www.webupd8.org/2012/09/install-oracle-java-8-in-ubuntu-via-ppa.html for details
-sudo add-apt-repository ppa:webupd8team/java
-sudo apt-get update
-sudo apt-get install oracle-java8-installer
-
-# If you want to install OpenJDK instead
-# sudo apt-get update
-# sudo apt-get install openjdk-8-jre-headless
-
-# Download Elasticsearch
-curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-{version}.deb -o elasticsearch-{version}.deb
-
-# Prepare Elasticsearch installation
-sudo dpkg -i elasticsearch-{version}.deb
-----
-// NOTCONSOLE
+Once connected, {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[install {es}]:
 
 Check that Elasticsearch is running:
 
-[source,js]
+[source,console]
 ----
 GET /
 ----
-// CONSOLE
 
 This command should give you a JSON result:
 

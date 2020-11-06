@@ -26,6 +26,7 @@ import org.apache.lucene.util.FutureObjects;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -35,14 +36,27 @@ import java.util.Objects;
  *
  * Note, {@link #toBytesRef()} will materialize all pages in this BytesReference.
  */
-public final class CompositeBytesReference extends BytesReference {
+public final class CompositeBytesReference extends AbstractBytesReference {
 
     private final BytesReference[] references;
     private final int[] offsets;
     private final int length;
     private final long ramBytesUsed;
 
-    public CompositeBytesReference(BytesReference... references) {
+    public static BytesReference of(BytesReference... references) {
+        switch (references.length) {
+            case 0:
+                return BytesArray.EMPTY;
+            case 1:
+                return references[0];
+            default:
+                return new CompositeBytesReference(references);
+        }
+    }
+
+    private CompositeBytesReference(BytesReference... references) {
+        assert references.length > 1
+                : "Should not build composite reference from less than two references but received [" + references.length + "]";
         this.references = Objects.requireNonNull(references, "references must not be null");
         this.offsets = new int[references.length];
         long ramBytesUsed = 0;
@@ -69,6 +83,34 @@ public final class CompositeBytesReference extends BytesReference {
     public byte get(int index) {
         final int i = getOffsetIndex(index);
         return references[i].get(index - offsets[i]);
+    }
+
+    @Override
+    public int indexOf(byte marker, int from) {
+        final int remainingBytes = Math.max(length - from, 0);
+        FutureObjects.checkFromIndexSize(from, remainingBytes, length);
+
+        int result = -1;
+        if (length == 0) {
+            return result;
+        }
+
+        final int firstReferenceIndex = getOffsetIndex(from);
+        for (int i = firstReferenceIndex; i < references.length; ++i) {
+            final BytesReference reference = references[i];
+            final int internalFrom;
+            if (i == firstReferenceIndex) {
+                internalFrom = from - offsets[firstReferenceIndex];
+            } else {
+                internalFrom = 0;
+            }
+            result = reference.indexOf(marker, internalFrom);
+            if (result != -1) {
+                result += offsets[i];
+                break;
+            }
+        }
+        return result;
     }
 
     @Override
@@ -126,29 +168,32 @@ public final class CompositeBytesReference extends BytesReference {
 
     @Override
     public BytesRefIterator iterator() {
-        if (references.length > 0) {
-            return new BytesRefIterator() {
-                int index = 0;
-                private BytesRefIterator current = references[index++].iterator();
-                @Override
-                public BytesRef next() throws IOException {
-                    BytesRef next = current.next();
-                    if (next == null) {
-                        while (index < references.length) {
-                            current = references[index++].iterator();
-                            next = current.next();
-                            if (next != null) {
-                                break;
-                            }
+        return new BytesRefIterator() {
+            int index = 0;
+            private BytesRefIterator current = references[index++].iterator();
+
+            @Override
+            public BytesRef next() throws IOException {
+                BytesRef next = current.next();
+                if (next == null) {
+                    while (index < references.length) {
+                        current = references[index++].iterator();
+                        next = current.next();
+                        if (next != null) {
+                            break;
                         }
                     }
-                    return next;
                 }
-            };
-        } else {
-            return () -> null;
-        }
+                return next;
+            }
+        };
+    }
 
+    @Override
+    public void writeTo(OutputStream os) throws IOException {
+        for (BytesReference reference : references) {
+            reference.writeTo(os);
+        }
     }
 
     @Override

@@ -41,12 +41,12 @@ import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocumen
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
 public class AttachmentProcessorTests extends ESTestCase {
 
@@ -54,7 +54,7 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     @Before
     public void createStandardProcessor() {
-        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
             "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 10000, false, null);
     }
 
@@ -87,7 +87,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             selectedProperties.add(AttachmentProcessor.Property.DATE);
         }
-        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
             "target_field", selectedProperties, 10000, false, null);
 
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
@@ -216,8 +216,8 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     // See (https://issues.apache.org/jira/browse/COMPRESS-432) for information
     // about the issue that causes a zip file to hang in Tika versions prior to 1.18.
-    public void testZipFileDoesNotHang() {
-        expectThrows(Exception.class, () -> parseDocument("bad_tika.zip", processor));
+    public void testZipFileDoesNotHang() throws Exception {
+        parseDocument("bad_tika.zip", processor);
     }
 
     public void testParseAsBytesArray() throws Exception {
@@ -247,7 +247,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "randomTarget", null, 10, true, null);
+        Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field", "randomTarget", null, 10, true, null);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -255,7 +255,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testNonExistentWithIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "randomTarget", null, 10, true, null);
+        Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field", "randomTarget", null, 10, true, null);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -264,7 +264,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "randomTarget", null, 10, false, null);
+        Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field", "randomTarget", null, 10, false, null);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot parse."));
     }
@@ -272,7 +272,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testNonExistentWithoutIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "randomTarget", null, 10, false, null);
+        Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field", "randomTarget", null, 10, false, null);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
     }
@@ -284,7 +284,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     private Map<String, Object> parseDocument(String file, AttachmentProcessor processor, Map<String, Object> optionalFields)
         throws Exception {
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", getAsBase64(file));
+        document.put("source_field", getAsBinaryOrBase64(file));
         document.putAll(optionalFields);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -296,7 +296,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testIndexedChars() throws Exception {
-        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
             "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, null);
 
         Map<String, Object> attachmentData = parseDocument("text-in-english.txt", processor);
@@ -307,7 +307,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
         assertThat(attachmentData.get("content_length"), is(19L));
 
-        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
             "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, "max_length");
 
         attachmentData = parseDocument("text-in-english.txt", processor);
@@ -335,11 +335,16 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get("content_length"), is(56L));
     }
 
-    private String getAsBase64(String filename) throws Exception {
+    private Object getAsBinaryOrBase64(String filename) throws Exception {
         String path = "/org/elasticsearch/ingest/attachment/test/sample-files/" + filename;
         try (InputStream is = AttachmentProcessorTests.class.getResourceAsStream(path)) {
             byte bytes[] = IOUtils.toByteArray(is);
-            return Base64.getEncoder().encodeToString(bytes);
+            // behave like CBOR from time to time
+            if (rarely()) {
+                return bytes;
+            } else {
+                return Base64.getEncoder().encodeToString(bytes);
+            }
         }
     }
 }

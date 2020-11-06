@@ -19,24 +19,67 @@
 
 package org.elasticsearch.plugins;
 
+import org.apache.lucene.store.Directory;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.indices.recovery.RecoveryState;
 
+import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
- * A plugin that provides alternative index store implementations.
+ * A plugin that provides alternative directory implementations.
  */
 public interface IndexStorePlugin {
 
     /**
-     * The index store factories for this plugin. When an index is created the store type setting
-     * {@link org.elasticsearch.index.IndexModule#INDEX_STORE_TYPE_SETTING} on the index will be examined and either use the default or a
-     * built-in type, or looked up among all the index store factories from {@link IndexStore} plugins.
-     *
-     * @return a map from store type to an index store factory
+     * An interface that describes how to create a new directory instance per shard.
      */
-    Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories();
+    @FunctionalInterface
+    interface DirectoryFactory {
+        /**
+         * Creates a new directory per shard. This method is called once per shard on shard creation.
+         * @param indexSettings the shards index settings
+         * @param shardPath the path the shard is using
+         * @return a new lucene directory instance
+         * @throws IOException if an IOException occurs while opening the directory
+         */
+        Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException;
+    }
 
+    /**
+     * The {@link DirectoryFactory} mappings for this plugin. When an index is created the store type setting
+     * {@link org.elasticsearch.index.IndexModule#INDEX_STORE_TYPE_SETTING} on the index will be examined and either use the default or a
+     * built-in type, or looked up among all the directory factories from {@link IndexStorePlugin} plugins.
+     *
+     * @return a map from store type to an directory factory
+     */
+    Map<String, DirectoryFactory> getDirectoryFactories();
+
+    /**
+     * An interface that allows to create a new {@link RecoveryState} per shard.
+     */
+    @FunctionalInterface
+    interface RecoveryStateFactory {
+        /**
+         * Creates a new {@link RecoveryState} per shard. This method is called once per shard on shard creation.
+         * @return a new RecoveryState instance
+         */
+        RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode);
+    }
+
+    /**
+     * The {@link RecoveryStateFactory} mappings for this plugin. When an index is created the recovery type setting
+     * {@link org.elasticsearch.index.IndexModule#INDEX_RECOVERY_TYPE_SETTING} on the index will be examined and either use the default
+     * or looked up among all the recovery state factories from {@link IndexStorePlugin} plugins.
+     *
+     * @return a map from recovery type to an recovery state factory
+     */
+    default Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+        return Collections.emptyMap();
+    }
 }

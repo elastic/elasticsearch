@@ -28,11 +28,11 @@ public class ReleasablesTests extends ESTestCase {
 
     public void testReleaseOnce() {
         AtomicInteger count = new AtomicInteger(0);
-        Releasable releasable = Releasables.releaseOnce(count::incrementAndGet, count::incrementAndGet);
+        Releasable releasable = Releasables.releaseOnce(count::incrementAndGet);
         assertEquals(0, count.get());
         releasable.close();
-        assertEquals(2, count.get());
+        assertEquals(1, count.get());
         releasable.close();
-        assertEquals(2, count.get());
+        assertEquals(1, count.get());
     }
 }

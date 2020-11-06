@@ -60,7 +60,7 @@ final class TypeUtils {
         aMap.put(GregorianCalendar.class, EsType.DATETIME);
         aMap.put(java.util.Date.class, EsType.DATETIME);
         aMap.put(java.sql.Date.class, EsType.DATETIME);
-        aMap.put(java.sql.Time.class, EsType.DATETIME);
+        aMap.put(java.sql.Time.class, EsType.TIME);
         aMap.put(LocalDateTime.class, EsType.DATETIME);
         CLASS_TO_TYPE = Collections.unmodifiableMap(aMap);
 
@@ -92,6 +92,9 @@ final class TypeUtils {
         types.put(EsType.INTERVAL_HOUR_TO_MINUTE, Duration.class);
         types.put(EsType.INTERVAL_HOUR_TO_SECOND, Duration.class);
         types.put(EsType.INTERVAL_MINUTE_TO_SECOND, Duration.class);
+        types.put(EsType.GEO_POINT, String.class);
+        types.put(EsType.GEO_SHAPE, String.class);
+        types.put(EsType.SHAPE, String.class);
 
         TYPE_TO_CLASS = unmodifiableMap(types);
 

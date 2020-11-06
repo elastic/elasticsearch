@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -112,27 +113,57 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         }
     }
 
-    private ShardId shardId;
-    private String id;
-    private String type;
-    private long version;
-    private long seqNo;
-    private long primaryTerm;
+    private final ShardId shardId;
+    private final String id;
+    private final String type;
+    private final long version;
+    private final long seqNo;
+    private final long primaryTerm;
     private boolean forcedRefresh;
-    protected Result result;
+    protected final Result result;
 
     public DocWriteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
-        this.shardId = shardId;
-        this.type = type;
-        this.id = id;
+        this.shardId = Objects.requireNonNull(shardId);
+        this.type = Objects.requireNonNull(type);
+        this.id = Objects.requireNonNull(id);
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
         this.version = version;
-        this.result = result;
+        this.result = Objects.requireNonNull(result);
     }
 
     // needed for deserialization
-    protected DocWriteResponse() {
+    protected DocWriteResponse(ShardId shardId, StreamInput in) throws IOException {
+        super(in);
+        this.shardId = shardId;
+        type = in.readString();
+        id = in.readString();
+        version = in.readZLong();
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
+        forcedRefresh = in.readBoolean();
+        result = Result.readFrom(in);
+    }
+
+    /**
+     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.IndexAction} and BwC
+     * deserialization path
+     */
+    protected DocWriteResponse(StreamInput in) throws IOException {
+        super(in);
+        shardId = new ShardId(in);
+        type = in.readString();
+        id = in.readString();
+        version = in.readZLong();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            seqNo = in.readZLong();
+            primaryTerm = in.readVLong();
+        } else {
+            seqNo = UNASSIGNED_SEQ_NO;
+            primaryTerm = UNASSIGNED_PRIMARY_TERM;
+        }
+        forcedRefresh = in.readBoolean();
+        result = Result.readFrom(in);
     }
 
     /**
@@ -257,28 +288,19 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         return location.toString();
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shardId = ShardId.readShardId(in);
-        type = in.readString();
-        id = in.readString();
-        version = in.readZLong();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            seqNo = in.readZLong();
-            primaryTerm = in.readVLong();
-        } else {
-            seqNo = UNASSIGNED_SEQ_NO;
-            primaryTerm = UNASSIGNED_PRIMARY_TERM;
-        }
-        forcedRefresh = in.readBoolean();
-        result = Result.readFrom(in);
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeWithoutShardId(out);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
+        writeWithoutShardId(out);
+    }
+
+    private void writeWithoutShardId(StreamOutput out) throws IOException {
         out.writeString(type);
         out.writeString(id);
         out.writeZLong(version);
@@ -325,7 +347,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
      */
     protected static void parseInnerToXContent(XContentParser parser, Builder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 
         String currentFieldName = parser.currentName();
         token = parser.nextToken();
@@ -333,7 +355,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         if (token.isValue()) {
             if (_INDEX.equals(currentFieldName)) {
                 // index uuid and shard id are unknown and can't be parsed back for now.
-                context.setShardId(new ShardId(new Index(parser.text(), IndexMetaData.INDEX_UUID_NA_VALUE), -1));
+                context.setShardId(new ShardId(new Index(parser.text(), IndexMetadata.INDEX_UUID_NA_VALUE), -1));
             } else if (_TYPE.equals(currentFieldName)) {
                 context.setType(parser.text());
             } else if (_ID.equals(currentFieldName)) {
@@ -380,8 +402,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         protected Result result = null;
         protected boolean forcedRefresh;
         protected ShardInfo shardInfo = null;
-        protected Long seqNo = UNASSIGNED_SEQ_NO;
-        protected Long primaryTerm = UNASSIGNED_PRIMARY_TERM;
+        protected long seqNo = UNASSIGNED_SEQ_NO;
+        protected long primaryTerm = UNASSIGNED_PRIMARY_TERM;
 
         public ShardId getShardId() {
             return shardId;
@@ -423,11 +445,11 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             this.shardInfo = shardInfo;
         }
 
-        public void setSeqNo(Long seqNo) {
+        public void setSeqNo(long seqNo) {
             this.seqNo = seqNo;
         }
 
-        public void setPrimaryTerm(Long primaryTerm) {
+        public void setPrimaryTerm(long primaryTerm) {
             this.primaryTerm = primaryTerm;
         }
 

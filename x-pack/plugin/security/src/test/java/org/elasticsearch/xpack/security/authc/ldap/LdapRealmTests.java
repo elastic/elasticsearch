@@ -19,12 +19,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -34,7 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.LdapSessionFactorySettin
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
@@ -98,15 +100,20 @@ public class LdapRealmTests extends LdapTestCase {
     public void init() throws Exception {
         threadPool = new TestThreadPool("ldap realm tests");
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
-        defaultGlobalSettings = Settings.builder().put("path.home", createTempDir()).build();
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        defaultGlobalSettings = builder.put("path.home", createTempDir()).build();
         sslService = new SSLService(defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings));
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
     }
 
     @After
     public void shutdown() throws InterruptedException {
-        resourceWatcherService.stop();
+        resourceWatcherService.close();
         terminate(threadPool);
     }
 
@@ -408,7 +415,7 @@ public class LdapRealmTests extends LdapTestCase {
     /**
      * This tests template role mappings (see
      * {@link TemplateRoleName}) with an LDAP realm, using a additional
-     * metadata field (see {@link LdapMetaDataResolverSettings#ADDITIONAL_META_DATA_SETTING}).
+     * metadata field (see {@link LdapMetadataResolverSettings#ADDITIONAL_METADATA_SETTING}).
      */
     public void testLdapRealmWithTemplatedRoleMapping() throws Exception {
         String groupSearchBase = "o=sevenSeas";
@@ -416,7 +423,8 @@ public class LdapRealmTests extends LdapTestCase {
         Settings settings = Settings.builder()
                 .put(defaultGlobalSettings)
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "uid")
+                .put(getFullSettingKey(REALM_IDENTIFIER.getName(),
+                        LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING.apply(LdapRealmSettings.LDAP_TYPE)), "uid")
                 .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
 

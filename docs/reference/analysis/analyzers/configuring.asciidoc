@@ -6,9 +6,9 @@ of them, however, support configuration options to alter their behaviour.  For
 instance, the <<analysis-standard-analyzer,`standard` analyzer>> can be configured
 to support a list of stop words:
 
-[source,js]
+[source,console]
 --------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -36,20 +36,19 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "field": "my_text", <2>
   "text": "The old brown cow"
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "field": "my_text.english", <3>
   "text": "The old brown cow"
 }
 
 --------------------------------
-// CONSOLE
 
 <1> We define the `std_english` analyzer to be based on the `standard`
     analyzer, but configured to remove the pre-defined list of English stopwords.
@@ -63,7 +62,7 @@ POST my_index/_analyze
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -91,6 +90,5 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////

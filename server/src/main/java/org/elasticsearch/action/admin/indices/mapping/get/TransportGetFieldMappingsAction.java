@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 public class TransportGetFieldMappingsAction extends HandledTransportAction<GetFieldMappingsRequest, GetFieldMappingsResponse> {
@@ -61,7 +62,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
         final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<>(concreteIndices.length);
 
         if (concreteIndices.length == 0) {
-            listener.onResponse(new GetFieldMappingsResponse());
+            listener.onResponse(new GetFieldMappingsResponse(emptyMap()));
         } else {
             boolean probablySingleFieldRequest = concreteIndices.length == 1 && request.types().length == 1 && request.fields().length == 1;
             for (final String index : concreteIndices) {
@@ -89,7 +90,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     }
 
     private GetFieldMappingsResponse merge(AtomicReferenceArray<Object> indexResponses) {
-        Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mergedResponses = new HashMap<>();
+        Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>>> mergedResponses = new HashMap<>();
         for (int i = 0; i < indexResponses.length(); i++) {
             Object element = indexResponses.get(i);
             if (element instanceof GetFieldMappingsResponse) {

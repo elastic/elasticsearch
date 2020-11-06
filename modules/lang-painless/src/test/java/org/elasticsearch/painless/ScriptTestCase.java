@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
-import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -91,13 +90,10 @@ public abstract class ScriptTestCase extends ESTestCase {
     public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, boolean picky) {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
-            ScriptClassInfo scriptClassInfo =
-                    new ScriptClassInfo(scriptEngine.getContextsToLookups().get(PainlessTestScript.CONTEXT), PainlessTestScript.class);
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
-            Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), getTestName(), script, pickySettings,
-                    scriptEngine.getContextsToLookups().get(PainlessTestScript.CONTEXT), null);
+            Walker.buildPainlessTree(getTestName(), script, pickySettings);
         }
         // test actual script execution
         PainlessTestScript.Factory factory = scriptEngine.compile(null, script, PainlessTestScript.CONTEXT, compileParams);

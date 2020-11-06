@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.test.feature_aware;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -145,7 +145,7 @@ public final class FeatureAwareCheck {
             final List<String> interfaces,
             final Consumer<FeatureAwareViolation> callback) {
         checkCustomForClass(ClusterState.Custom.class, XPackPlugin.XPackClusterStateCustom.class, name, interfaces, callback);
-        checkCustomForClass(MetaData.Custom.class, XPackPlugin.XPackMetaDataCustom.class, name, interfaces, callback);
+        checkCustomForClass(Metadata.Custom.class, XPackPlugin.XPackMetadataCustom.class, name, interfaces, callback);
         checkCustomForClass(PersistentTaskParams.class, XPackPlugin.XPackPersistentTaskParams.class, name, interfaces, callback);
     }
 

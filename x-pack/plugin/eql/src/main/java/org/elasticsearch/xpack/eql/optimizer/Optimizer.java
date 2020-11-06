@@ -1,0 +1,464 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+package org.elasticsearch.xpack.eql.optimizer;
+
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.plan.logical.Join;
+import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
+import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
+import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
+import org.elasticsearch.xpack.eql.session.Payload.Type;
+import org.elasticsearch.xpack.eql.util.MathUtils;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
+import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
+import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toList;
+
+public class Optimizer extends RuleExecutor<LogicalPlan> {
+
+    public LogicalPlan optimize(LogicalPlan verified) {
+        return verified.optimized() ? verified : execute(verified);
+    }
+
+    @Override
+    protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
+        Batch substitutions = new Batch("Substitution", Limiter.ONCE,
+                new ReplaceSurrogateFunction(),
+                new ReplaceRegexMatch());
+
+        Batch syntactic = new Batch("Rewrite Syntactic Sugar", Limiter.ONCE,
+                new AddMissingEquals());
+
+        Batch operators = new Batch("Operator Optimization",
+                new ConstantFolding(),
+                // boolean
+                new BooleanSimplification(),
+                new BooleanLiteralsOnTheRight(),
+                new BooleanFunctionEqualsElimination(),
+                // needs to occur before BinaryComparison combinations
+                new ReplaceNullChecks(),
+                new PropagateEquals(),
+                new CombineBinaryComparisons(),
+                new PushDownAndCombineFilters(),
+                // prune/elimination
+                new PruneFilters(),
+                new PruneLiteralsInOrderBy(),
+                new CombineLimits());
+
+        Batch constraints = new Batch("Infer constraints", Limiter.ONCE,
+                new PropagateJoinKeyConstraints());
+
+        Batch ordering = new Batch("Implicit Order",
+                new SortByLimit(),
+                new PushDownOrderBy());
+
+        Batch local = new Batch("Skip Elasticsearch",
+                new SkipEmptyFilter(),
+                new SkipEmptyJoin(),
+                new SkipQueryOnLimitZero());
+
+        Batch label = new Batch("Set as Optimized", Limiter.ONCE,
+                new SetAsOptimized());
+
+        return asList(substitutions, syntactic, operators, constraints, operators, ordering, local, label);
+    }
+
+    private static class AddMissingEquals extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+            // check the condition itself
+            Expression condition = replaceRawBoolFieldWithEquals(filter.condition());
+            // otherwise look for binary logic
+            if (condition == filter.condition()) {
+                condition = condition.transformUp(b ->
+                    b.replaceChildren(asList(replaceRawBoolFieldWithEquals(b.left()), replaceRawBoolFieldWithEquals(b.right())))
+                , BinaryLogic.class);
+            }
+
+            if (condition != filter.condition()) {
+                filter = new Filter(filter.source(), filter.child(), condition);
+            }
+            return filter;
+        }
+
+        private Expression replaceRawBoolFieldWithEquals(Expression e) {
+            if (e instanceof FieldAttribute) {
+                e = new Equals(e.source(), e, Literal.of(e, Boolean.TRUE));
+            }
+            return e;
+        }
+    }
+
+    private static class ReplaceNullChecks extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+
+            return filter.transformExpressionsUp(e -> {
+                // expr == null || expr != null
+                if (e instanceof Equals || e instanceof NotEquals) {
+                    BinaryComparison cmp = (BinaryComparison) e;
+
+                    if (cmp.right().foldable() && cmp.right().fold() == null) {
+                        if (e instanceof Equals) {
+                            e = new IsNull(e.source(), cmp.left());
+                        } else {
+                            e = new IsNotNull(e.source(), cmp.left());
+                        }
+                    }
+                }
+
+                return e;
+            });
+        }
+    }
+
+    static class PushDownAndCombineFilters extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+            LogicalPlan child = filter.child();
+            LogicalPlan plan = filter;
+
+            if (child instanceof Filter) {
+                Filter f = (Filter) child;
+                plan = new Filter(f.source(), f.child(), new And(f.source(), f.condition(), filter.condition()));
+            } else if (child instanceof UnaryPlan) {
+                UnaryPlan up = (UnaryPlan) child;
+                plan = child.replaceChildren(singletonList(new Filter(filter.source(), up.child(), filter.condition())));
+            }
+
+            return plan;
+        }
+    }
+
+    static class PruneFilters extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters {
+
+        @Override
+        protected LogicalPlan skipPlan(Filter filter) {
+            return Optimizer.skipPlan(filter);
+        }
+    }
+
+    static class SkipEmptyFilter extends OptimizerRule<UnaryPlan> {
+
+        SkipEmptyFilter() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(UnaryPlan plan) {
+            if ((plan instanceof KeyedFilter) == false && plan.child() instanceof LocalRelation) {
+                return new LocalRelation(plan.source(), plan.output(), Type.EVENT);
+            }
+            return plan;
+        }
+    }
+
+    static class SkipQueryOnLimitZero extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SkipQueryOnLimitZero {
+
+        @Override
+        protected LogicalPlan skipPlan(Limit limit) {
+            return Optimizer.skipPlan(limit);
+        }
+    }
+
+    private static LogicalPlan skipPlan(UnaryPlan plan) {
+        return new LocalRelation(plan.source(), plan.output());
+    }
+
+    /**
+     * Combine tail and head into one limit.
+     * The rules moves up since the first limit is the one that defines whether it's the head (positive) or
+     * the tail (negative) limit of the data and the rest simply work in this space.
+     */
+    static final class CombineLimits extends OptimizerRule<LimitWithOffset> {
+
+        CombineLimits() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(LimitWithOffset limit) {
+            // bail out early
+            if (limit.child() instanceof LimitWithOffset == false) {
+                return limit;
+            }
+
+            LimitWithOffset primary = (LimitWithOffset) limit.child();
+
+            int primaryLimit = (Integer) primary.limit().fold();
+            int primaryOffset = primary.offset();
+            // +1 means ASC, -1 descending and 0 if there are no results
+            int sign = Integer.signum(primaryLimit);
+
+            int secondaryLimit = (Integer) limit.limit().fold();
+            if (limit.offset() != 0) {
+                throw new EqlIllegalArgumentException("Limits with different offset not implemented yet");
+            }
+
+            // for the same direction
+            if (primaryLimit > 0 && secondaryLimit > 0) {
+                // consider the minimum
+                primaryLimit = Math.min(primaryLimit, secondaryLimit);
+            } else if (primaryLimit < 0 && secondaryLimit < 0) {
+                primaryLimit = Math.max(primaryLimit, secondaryLimit);
+            } else {
+                // the secondary limit cannot go beyond the primary - if it does it gets ignored
+                if (MathUtils.abs(secondaryLimit) < MathUtils.abs(primaryLimit)) {
+                    primaryOffset += MathUtils.abs(primaryLimit + secondaryLimit);
+                    // preserve order
+                    primaryLimit = MathUtils.abs(secondaryLimit) * sign;
+                }
+            }
+
+            Literal literal = new Literal(primary.limit().source(), primaryLimit, DataTypes.INTEGER);
+            return new LimitWithOffset(primary.source(), literal, primaryOffset, primary.child());
+        }
+    }
+
+
+    /**
+     * Any condition applied on a join/sequence key, gets propagated to all rules.
+     */
+    static class PropagateJoinKeyConstraints extends OptimizerRule<Join> {
+
+        static class Constraint {
+            private final Expression condition;
+            private final KeyedFilter keyedFilter;
+            private final int keyPosition;
+
+            Constraint(Expression condition, KeyedFilter filter, int keyPosition) {
+                this.condition = condition;
+                this.keyedFilter = filter;
+                this.keyPosition = keyPosition;
+            }
+
+            Expression constraintFor(KeyedFilter keyed) {
+                if (keyed == keyedFilter) {
+                    return null;
+                }
+
+                Expression localKey = keyed.keys().get(keyPosition);
+                Expression key = keyedFilter.keys().get(keyPosition);
+
+                Expression newCond = condition.transformDown(e -> key.semanticEquals(e) ? localKey : e);
+                return newCond;
+            }
+
+            @Override
+            public String toString() {
+                return condition.toString();
+            }
+        }
+
+        @Override
+        protected LogicalPlan rule(Join join) {
+            List<Constraint> constraints = new ArrayList<>();
+
+            // collect constraints for each filter
+            join.queries().forEach(k ->
+                k.forEachDown(f -> constraints.addAll(detectKeyConstraints(f.condition(), k))
+                                  , Filter.class));
+
+            if (constraints.isEmpty() == false) {
+                List<KeyedFilter> queries = join.queries().stream()
+                        .map(k -> addConstraint(k, constraints))
+                        .collect(toList());
+
+                join = join.with(queries, join.until(), join.direction());
+            }
+
+            return join;
+        }
+
+        private List<Constraint> detectKeyConstraints(Expression condition, KeyedFilter filter) {
+            List<Constraint> constraints = new ArrayList<>();
+            List<? extends NamedExpression> keys = filter.keys();
+
+            List<Expression> and = Predicates.splitAnd(condition);
+            for (Expression exp : and) {
+                // if there are no conjunction and at least one key matches, save the expression along with the key
+                // and its ordinal so it can be replaced
+                if (exp.anyMatch(Or.class::isInstance) == false) {
+                    // comparisons against variables are not done
+                    // hence why on the first key match, the expression is picked up
+                    exp.anyMatch(e -> {
+                        for (int i = 0; i < keys.size(); i++) {
+                            Expression key = keys.get(i);
+                            if (e.semanticEquals(key)) {
+                                constraints.add(new Constraint(exp, filter, i));
+                                return true;
+                            }
+                        }
+                        return false;
+                    });
+                }
+            }
+            return constraints;
+        }
+
+        // adapt constraint to the given filter by replacing the keys accordingly in the expressions
+        private KeyedFilter addConstraint(KeyedFilter k, List<Constraint> constraints) {
+            Expression constraint = Predicates.combineAnd(constraints.stream()
+                .map(c -> c.constraintFor(k))
+                .filter(Objects::nonNull)
+                .collect(toList()));
+
+            return constraint != null
+                    ? new KeyedFilter(k.source(), new Filter(k.source(), k.child(), constraint), k.keys(), k.timestamp(), k.tiebreaker())
+                    : k;
+        }
+    }
+
+
+    /**
+     * Align the implicit order with the limit (head means ASC or tail means DESC).
+     */
+    static final class SortByLimit extends OptimizerRule<LimitWithOffset> {
+
+        @Override
+        protected LogicalPlan rule(LimitWithOffset limit) {
+            if (limit.limit().foldable()) {
+                LogicalPlan child = limit.child();
+                if (child instanceof OrderBy) {
+                    OrderBy ob = (OrderBy) child;
+                    if (PushDownOrderBy.isDefaultOrderBy(ob)) {
+                        int l = (Integer) limit.limit().fold();
+                        OrderDirection direction = Integer.signum(l) > 0 ? OrderDirection.ASC : OrderDirection.DESC;
+                        ob = new OrderBy(ob.source(), ob.child(), PushDownOrderBy.changeOrderDirection(ob.order(), direction));
+                        limit = new LimitWithOffset(limit.source(), limit.limit(), limit.offset(), ob);
+                    }
+                }
+            }
+
+            return limit;
+        }
+    }
+
+    /**
+     * Push down the OrderBy into the actual queries before translating them.
+     * There is always an implicit order (timestamp + tiebreaker ascending).
+     */
+    static final class PushDownOrderBy extends OptimizerRule<OrderBy> {
+
+        @Override
+        protected LogicalPlan rule(OrderBy orderBy) {
+            LogicalPlan plan = orderBy;
+            if (isDefaultOrderBy(orderBy)) {
+                LogicalPlan child = orderBy.child();
+                //
+                // When dealing with sequences, the matching needs to happen ascending
+                // hence why the queries will always be ascending
+                // but if the order is descending, apply that only to the first query
+                // which is used to discover the window for which matching is being applied.
+                //
+                if (child instanceof Join) {
+                    Join join = (Join) child;
+                    List<KeyedFilter> queries = join.queries();
+
+                    // the main reason ASC is used is the lack of search_before (which is emulated through search_after + ASC)
+                    List<Order> ascendingOrders = changeOrderDirection(orderBy.order(), OrderDirection.ASC);
+                    // preserve the order direction as is (can be DESC) for the base query
+                    List<KeyedFilter> orderedQueries = new ArrayList<>(queries.size());
+                    boolean baseFilter = true;
+                    for (KeyedFilter filter : queries) {
+                        // preserve the order for the base query, everything else needs to be ascending
+                        List<Order> pushedOrder = baseFilter ? orderBy.order() : ascendingOrders;
+                        OrderBy order = new OrderBy(filter.source(), filter.child(), pushedOrder);
+                        orderedQueries.add((KeyedFilter) filter.replaceChildren(singletonList(order)));
+                        baseFilter = false;
+                    }
+
+                    KeyedFilter until = join.until();
+                    OrderBy order = new OrderBy(until.source(), until.child(), ascendingOrders);
+                    until = (KeyedFilter) until.replaceChildren(singletonList(order));
+
+                    OrderDirection direction = orderBy.order().get(0).direction();
+                    plan = join.with(orderedQueries, until, direction);
+                }
+            }
+            return plan;
+        }
+
+        private static boolean isDefaultOrderBy(OrderBy orderBy) {
+            LogicalPlan child = orderBy.child();
+            // the default order by is the first pipe
+            // so it has to be on top of a event query or join/sequence
+            return child instanceof Project || child instanceof Join;
+        }
+
+        private static List<Order> changeOrderDirection(List<Order> orders, Order.OrderDirection direction) {
+            List<Order> changed = new ArrayList<>(orders.size());
+            boolean hasChanged = false;
+            for (Order order : orders) {
+                if (order.direction() != direction) {
+                    order = new Order(order.source(), order.child(), direction,
+                            direction == OrderDirection.ASC ? NullsPosition.FIRST : NullsPosition.LAST);
+                    hasChanged = true;
+                }
+                changed.add(order);
+            }
+            return hasChanged ? changed : orders;
+        }
+    }
+
+    static class SkipEmptyJoin extends OptimizerRule<Join> {
+
+        @Override
+        protected LogicalPlan rule(Join plan) {
+            // check for empty filters
+            for (KeyedFilter filter : plan.queries()) {
+                if (filter.anyMatch(LocalRelation.class::isInstance)) {
+                    return new LocalRelation(plan.source(), plan.output(), Type.SEQUENCE);
+                }
+            }
+            return plan;
+        }
+    }
+}

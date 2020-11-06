@@ -36,9 +36,7 @@ public class OperationModeFileWatcherTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("resource.reload.interval.high", "10ms")
                 .build();
-        watcherService = new ResourceWatcherService(settings,
-                threadPool);
-        watcherService.start();
+        watcherService = new ResourceWatcherService(settings, threadPool);
         licenseModePath = createTempFile();
         onChangeCounter = new AtomicReference<>(new CountDownLatch(1));
         operationModeFileWatcher = new OperationModeFileWatcher(watcherService, licenseModePath, logger,
@@ -47,8 +45,8 @@ public class OperationModeFileWatcherTests extends ESTestCase {
 
     @After
     public void shutdown() throws InterruptedException {
+        watcherService.close();
         terminate(threadPool);
-        watcherService.stop();
     }
 
     public void testInit() throws Exception {

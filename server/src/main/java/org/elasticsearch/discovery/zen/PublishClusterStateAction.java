@@ -35,9 +35,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -113,9 +116,9 @@ public class PublishClusterStateAction {
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.incomingClusterStateListener = incomingClusterStateListener;
         this.discoverySettings = discoverySettings;
-        transportService.registerRequestHandler(SEND_ACTION_NAME, BytesTransportRequest::new, ThreadPool.Names.SAME, false, false,
+        transportService.registerRequestHandler(SEND_ACTION_NAME, ThreadPool.Names.SAME, false, false, BytesTransportRequest::new,
             new SendClusterStateRequestHandler());
-        transportService.registerRequestHandler(COMMIT_ACTION_NAME, CommitClusterStateRequest::new, ThreadPool.Names.SAME, false, false,
+        transportService.registerRequestHandler(COMMIT_ACTION_NAME, ThreadPool.Names.SAME, false, false, CommitClusterStateRequest::new,
             new CommitClusterStateRequestHandler());
     }
 
@@ -354,7 +357,7 @@ public class PublishClusterStateAction {
 
     public static BytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
+        try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream))) {
             stream.setVersion(nodeVersion);
             stream.writeBoolean(true);
             clusterState.writeTo(stream);
@@ -364,7 +367,7 @@ public class PublishClusterStateAction {
 
     public static BytesReference serializeDiffClusterState(Diff diff, Version nodeVersion) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
+        try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream))) {
             stream.setVersion(nodeVersion);
             stream.writeBoolean(false);
             diff.writeTo(stream);
@@ -382,7 +385,7 @@ public class PublishClusterStateAction {
         synchronized (lastSeenClusterStateMutex) {
             try {
                 if (compressor != null) {
-                    in = compressor.streamInput(in);
+                    in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
                 }
                 in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
                 in.setVersion(request.version());
@@ -462,17 +465,13 @@ public class PublishClusterStateAction {
 
         public String stateUUID;
 
-        public CommitClusterStateRequest() {
+        public CommitClusterStateRequest(StreamInput in) throws IOException {
+            super(in);
+            stateUUID = in.readString();
         }
 
         public CommitClusterStateRequest(String stateUUID) {
             this.stateUUID = stateUUID;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            stateUUID = in.readString();
         }
 
         @Override

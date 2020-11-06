@@ -32,6 +32,13 @@ public class MonitoringBulkRequest extends ActionRequest {
 
     private final List<MonitoringBulkDoc> docs = new ArrayList<>();
 
+    public MonitoringBulkRequest() {}
+
+    public MonitoringBulkRequest(StreamInput in) throws IOException {
+        super(in);
+        docs.addAll(in.readList(MonitoringBulkDoc::new));
+    }
+
     /**
      * @return the list of {@link MonitoringBulkDoc} to be indexed
      */
@@ -72,7 +79,7 @@ public class MonitoringBulkRequest extends ActionRequest {
                                      final long intervalMillis) throws IOException {
 
         // MonitoringBulkRequest accepts a body request that has the same format as the BulkRequest
-        new BulkRequestParser(false).parse(content, null, null, null, null, true, xContentType,
+        new BulkRequestParser(false).parse(content, null, null, null, null, null, true, xContentType,
                 indexRequest -> {
                     // we no longer accept non-timestamped indexes from Kibana, LS, or Beats because we do not use the data
                     // and it was duplicated anyway; by simply dropping it, we allow BWC for older clients that still send it
@@ -93,12 +100,6 @@ public class MonitoringBulkRequest extends ActionRequest {
                 deleteRequest -> { throw new IllegalArgumentException("monitoring bulk requests should only contain index requests"); });
 
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        docs.addAll(in.readList(MonitoringBulkDoc::readFrom));
     }
 
     @Override

@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -39,15 +38,26 @@ public class UpdateResponse extends DocWriteResponse {
 
     private GetResult getResult;
 
-    public UpdateResponse() {
+    public UpdateResponse(ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
+        if (in.readBoolean()) {
+            getResult = new GetResult(in);
+        }
+    }
+
+    public UpdateResponse(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            getResult = new GetResult(in);
+        }
     }
 
     /**
      * Constructor to be used when a update didn't translate in a write.
      * For example: update script with operation set to none
      */
-    public UpdateResponse(ShardId shardId, String type, String id, long version, Result result) {
-        this(new ShardInfo(0, 0), shardId, type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, result);
+    public UpdateResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
+        this(new ShardInfo(0, 0), shardId, type, id, seqNo, primaryTerm, version, result);
     }
 
     public UpdateResponse(
@@ -70,16 +80,18 @@ public class UpdateResponse extends DocWriteResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.readBoolean()) {
-            getResult = GetResult.readGetResult(in);
-        }
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        writeGetResult(out);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        writeGetResult(out);
+    }
+
+    private void writeGetResult(StreamOutput out) throws IOException {
         if (getResult == null) {
             out.writeBoolean(false);
         } else {
@@ -115,7 +127,7 @@ public class UpdateResponse extends DocWriteResponse {
     }
 
     public static UpdateResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
 
         Builder context = new Builder();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -156,15 +168,16 @@ public class UpdateResponse extends DocWriteResponse {
         @Override
         public UpdateResponse build() {
             UpdateResponse update;
-            if (shardInfo != null && seqNo != null) {
+            if (shardInfo != null) {
                 update = new UpdateResponse(shardInfo, shardId, type, id, seqNo, primaryTerm, version, result);
             } else {
-                update = new UpdateResponse(shardId, type, id, version, result);
+                update = new UpdateResponse(shardId, type, id, seqNo, primaryTerm, version, result);
             }
             if (getResult != null) {
                 update.setGetResult(new GetResult(update.getIndex(), update.getType(), update.getId(),
                     getResult.getSeqNo(), getResult.getPrimaryTerm(), update.getVersion(),
-                    getResult.isExists(), getResult.internalSourceRef(), getResult.getFields()));
+                    getResult.isExists(), getResult.internalSourceRef(), getResult.getDocumentFields(),
+                    getResult.getMetadataFields()));
             }
             update.setForcedRefresh(forcedRefresh);
             return update;

@@ -28,19 +28,9 @@ public class TransportUpdateJobAction extends TransportMasterNodeAction<UpdateJo
     public TransportUpdateJobAction(TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager) {
-        super(UpdateJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, UpdateJobAction.Request::new);
+        super(UpdateJobAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateJobAction.Request::new,
+                indexNameExpressionResolver, PutJobAction.Response::new, ThreadPool.Names.SAME);
         this.jobManager = jobManager;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutJobAction.Response newResponse() {
-        return new PutJobAction.Response();
     }
 
     @Override

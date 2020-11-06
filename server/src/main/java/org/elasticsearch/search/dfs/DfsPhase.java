@@ -21,14 +21,12 @@ package org.elasticsearch.search.dfs;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -41,24 +39,19 @@ import java.util.Map;
  * Dfs phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
  * The additional information is used to better compare the scores coming from all the shards, which depend on local factors (e.g. idf)
  */
-public class DfsPhase implements SearchPhase {
+public class DfsPhase {
 
-    @Override
-    public void preProcess(SearchContext context) {
-    }
-
-    @Override
     public void execute(SearchContext context) {
         try {
             ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
             Map<Term, TermStatistics> stats = new HashMap<>();
             IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
                 @Override
-                public TermStatistics termStatistics(Term term, TermStates states) throws IOException {
+                public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
                     if (context.isCancelled()) {
                         throw new TaskCancelledException("cancelled");
                     }
-                    TermStatistics ts = super.termStatistics(term, states);
+                    TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
                     if (ts != null) {
                         stats.put(term, ts);
                     }
@@ -95,7 +88,7 @@ public class DfsPhase implements SearchPhase {
                     .fieldStatistics(fieldStatistics)
                     .maxDoc(context.searcher().getIndexReader().maxDoc());
         } catch (Exception e) {
-            throw new DfsPhaseExecutionException(context, "Exception during dfs phase", e);
+            throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
         }
     }
 

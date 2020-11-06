@@ -1,5 +1,8 @@
+[role="xpack"]
 [[java-rest-high-x-pack-rollup-get-job]]
 === Get Rollup Job API
+
+experimental::[]
 
 The Get Rollup Job API can be used to get one or all rollup jobs from the
 cluster. It accepts a `GetRollupJobRequest` object as a request and returns

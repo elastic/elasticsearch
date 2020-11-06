@@ -6,28 +6,18 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.action.ActionType;
 
 /**
- * Action for the creation of an API key
+ * ActionType for the creation of an API key
  */
-public final class CreateApiKeyAction extends Action<CreateApiKeyResponse> {
+public final class CreateApiKeyAction extends ActionType<CreateApiKeyResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/api_key/create";
     public static final CreateApiKeyAction INSTANCE = new CreateApiKeyAction();
 
     private CreateApiKeyAction() {
-        super(NAME);
+        super(NAME, CreateApiKeyResponse::new);
     }
 
-    @Override
-    public CreateApiKeyResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<CreateApiKeyResponse> getResponseReader() {
-        return CreateApiKeyResponse::new;
-    }
 }

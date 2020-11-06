@@ -19,20 +19,22 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
-import java.io.IOException;
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class TestResponseHeaderRestAction extends BaseRestHandler {
-    public TestResponseHeaderRestAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_protected", this);
+
+    @Override
+    public List<Route> routes() {
+        return singletonList(new Route(GET, "/_protected"));
     }
 
     @Override
@@ -41,7 +43,7 @@ public class TestResponseHeaderRestAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         if ("password".equals(request.header("Secret"))) {
             RestResponse response = new BytesRestResponse(RestStatus.OK, "Access granted");
             response.addHeader("Secret", "granted");

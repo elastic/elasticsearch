@@ -26,18 +26,8 @@ public class TransportPostStartTrialAction extends TransportMasterNodeAction<Pos
                                          LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PostStartTrialAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PostStartTrialRequest::new);
+                PostStartTrialRequest::new, indexNameExpressionResolver, PostStartTrialResponse::new, ThreadPool.Names.SAME);
         this.licenseService = licenseService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PostStartTrialResponse newResponse() {
-        return new PostStartTrialResponse();
     }
 
     @Override

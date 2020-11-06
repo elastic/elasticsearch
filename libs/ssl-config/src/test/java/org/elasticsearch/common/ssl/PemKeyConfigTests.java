@@ -45,7 +45,7 @@ public class PemKeyConfigTests extends ESTestCase {
     private static final int IP_NAME = 7;
     private static final int DNS_NAME = 2;
 
-    public void testBuildKeyConfigFromPemFilesWithoutPassword() throws Exception {
+    public void testBuildKeyConfigFromPkcs1PemFilesWithoutPassword() throws Exception {
         final Path cert = getDataPath("/certs/cert1/cert1.crt");
         final Path key = getDataPath("/certs/cert1/cert1.key");
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0]);
@@ -53,9 +53,26 @@ public class PemKeyConfigTests extends ESTestCase {
         assertCertificateAndKey(keyConfig, "CN=cert1");
     }
 
-    public void testBuildKeyConfigFromPemFilesWithPassword() throws Exception {
+    public void testBuildKeyConfigFromPkcs1PemFilesWithPassword() throws Exception {
         final Path cert = getDataPath("/certs/cert2/cert2.crt");
         final Path key = getDataPath("/certs/cert2/cert2.key");
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "c2-pass".toCharArray());
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
+        assertCertificateAndKey(keyConfig, "CN=cert2");
+    }
+
+    public void testBuildKeyConfigFromPkcs8PemFilesWithoutPassword() throws Exception {
+        final Path cert = getDataPath("/certs/cert1/cert1.crt");
+        final Path key = getDataPath("/certs/cert1/cert1-pkcs8.key");
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0]);
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
+        assertCertificateAndKey(keyConfig, "CN=cert1");
+    }
+
+    public void testBuildKeyConfigFromPkcs8PemFilesWithPassword() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
+        final Path cert = getDataPath("/certs/cert2/cert2.crt");
+        final Path key = getDataPath("/certs/cert2/cert2-pkcs8.key");
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "c2-pass".toCharArray());
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
         assertCertificateAndKey(keyConfig, "CN=cert2");

@@ -21,10 +21,8 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class InternalSampler extends InternalSingleBucketAggregation implements Sampler {
@@ -32,9 +30,8 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
     // InternalSampler and UnmappedSampler share the same parser name, so we use this when identifying the aggregation type
     public static final String PARSER_NAME = "sampler";
 
-    InternalSampler(String name, long docCount, InternalAggregations subAggregations, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, docCount, subAggregations, pipelineAggregators, metaData);
+    InternalSampler(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metadata) {
+        super(name, docCount, subAggregations, metadata);
     }
 
     /**
@@ -57,6 +54,6 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount,
             InternalAggregations subAggregations) {
-        return new InternalSampler(name, docCount, subAggregations, pipelineAggregators(), metaData);
+        return new InternalSampler(name, docCount, subAggregations, metadata);
     }
 }

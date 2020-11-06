@@ -1,47 +1,50 @@
 [[analysis-tokenfilters]]
-== Token Filters
+== Token filter reference
 
 Token filters accept a stream of tokens from a
 <<analysis-tokenizers,tokenizer>> and can modify tokens
 (eg lowercasing), delete tokens (eg remove stopwords)
 or add tokens (eg synonyms).
 
-Elasticsearch has a number of built in token filters which can be
-used to build <<analysis-custom-analyzer,custom analyzers>>.
+{es} has a number of built-in token filters you can use
+to build <<analysis-custom-analyzer,custom analyzers>>.
+
+
+include::tokenfilters/apostrophe-tokenfilter.asciidoc[]
 
 include::tokenfilters/asciifolding-tokenfilter.asciidoc[]
 
-include::tokenfilters/flatten-graph-tokenfilter.asciidoc[]
+include::tokenfilters/cjk-bigram-tokenfilter.asciidoc[]
 
-include::tokenfilters/length-tokenfilter.asciidoc[]
+include::tokenfilters/cjk-width-tokenfilter.asciidoc[]
 
-include::tokenfilters/lowercase-tokenfilter.asciidoc[]
+include::tokenfilters/classic-tokenfilter.asciidoc[]
 
-include::tokenfilters/uppercase-tokenfilter.asciidoc[]
-
-include::tokenfilters/ngram-tokenfilter.asciidoc[]
-
-include::tokenfilters/edgengram-tokenfilter.asciidoc[]
-
-include::tokenfilters/porterstem-tokenfilter.asciidoc[]
-
-include::tokenfilters/shingle-tokenfilter.asciidoc[]
-
-include::tokenfilters/stop-tokenfilter.asciidoc[]
-
-include::tokenfilters/word-delimiter-tokenfilter.asciidoc[]
-
-include::tokenfilters/word-delimiter-graph-tokenfilter.asciidoc[]
-
-include::tokenfilters/multiplexer-tokenfilter.asciidoc[]
+include::tokenfilters/common-grams-tokenfilter.asciidoc[]
 
 include::tokenfilters/condition-tokenfilter.asciidoc[]
 
-include::tokenfilters/predicate-tokenfilter.asciidoc[]
+include::tokenfilters/decimal-digit-tokenfilter.asciidoc[]
 
-include::tokenfilters/stemmer-tokenfilter.asciidoc[]
+include::tokenfilters/delimited-payload-tokenfilter.asciidoc[]
 
-include::tokenfilters/stemmer-override-tokenfilter.asciidoc[]
+include::tokenfilters/dictionary-decompounder-tokenfilter.asciidoc[]
+
+include::tokenfilters/edgengram-tokenfilter.asciidoc[]
+
+include::tokenfilters/elision-tokenfilter.asciidoc[]
+
+include::tokenfilters/fingerprint-tokenfilter.asciidoc[]
+
+include::tokenfilters/flatten-graph-tokenfilter.asciidoc[]
+
+include::tokenfilters/hunspell-tokenfilter.asciidoc[]
+
+include::tokenfilters/hyphenation-decompounder-tokenfilter.asciidoc[]
+
+include::tokenfilters/keep-types-tokenfilter.asciidoc[]
+
+include::tokenfilters/keep-words-tokenfilter.asciidoc[]
 
 include::tokenfilters/keyword-marker-tokenfilter.asciidoc[]
 
@@ -49,56 +52,56 @@ include::tokenfilters/keyword-repeat-tokenfilter.asciidoc[]
 
 include::tokenfilters/kstem-tokenfilter.asciidoc[]
 
-include::tokenfilters/snowball-tokenfilter.asciidoc[]
+include::tokenfilters/length-tokenfilter.asciidoc[]
 
-include::tokenfilters/phonetic-tokenfilter.asciidoc[]
+include::tokenfilters/limit-token-count-tokenfilter.asciidoc[]
 
-include::tokenfilters/synonym-tokenfilter.asciidoc[]
+include::tokenfilters/lowercase-tokenfilter.asciidoc[]
 
-include::tokenfilters/synonym-graph-tokenfilter.asciidoc[]
+include::tokenfilters/minhash-tokenfilter.asciidoc[]
 
-include::tokenfilters/compound-word-tokenfilter.asciidoc[]
+include::tokenfilters/multiplexer-tokenfilter.asciidoc[]
 
-include::tokenfilters/reverse-tokenfilter.asciidoc[]
+include::tokenfilters/ngram-tokenfilter.asciidoc[]
 
-include::tokenfilters/elision-tokenfilter.asciidoc[]
-
-include::tokenfilters/truncate-tokenfilter.asciidoc[]
-
-include::tokenfilters/unique-tokenfilter.asciidoc[]
+include::tokenfilters/normalization-tokenfilter.asciidoc[]
 
 include::tokenfilters/pattern-capture-tokenfilter.asciidoc[]
 
 include::tokenfilters/pattern_replace-tokenfilter.asciidoc[]
 
-include::tokenfilters/trim-tokenfilter.asciidoc[]
+include::tokenfilters/phonetic-tokenfilter.asciidoc[]
 
-include::tokenfilters/limit-token-count-tokenfilter.asciidoc[]
+include::tokenfilters/porterstem-tokenfilter.asciidoc[]
 
-include::tokenfilters/hunspell-tokenfilter.asciidoc[]
-
-include::tokenfilters/common-grams-tokenfilter.asciidoc[]
-
-include::tokenfilters/normalization-tokenfilter.asciidoc[]
-
-include::tokenfilters/cjk-width-tokenfilter.asciidoc[]
-
-include::tokenfilters/cjk-bigram-tokenfilter.asciidoc[]
-
-include::tokenfilters/delimited-payload-tokenfilter.asciidoc[]
-
-include::tokenfilters/keep-words-tokenfilter.asciidoc[]
-
-include::tokenfilters/keep-types-tokenfilter.asciidoc[]
-
-include::tokenfilters/classic-tokenfilter.asciidoc[]
-
-include::tokenfilters/apostrophe-tokenfilter.asciidoc[]
-
-include::tokenfilters/decimal-digit-tokenfilter.asciidoc[]
-
-include::tokenfilters/fingerprint-tokenfilter.asciidoc[]
-
-include::tokenfilters/minhash-tokenfilter.asciidoc[]
+include::tokenfilters/predicate-tokenfilter.asciidoc[]
 
 include::tokenfilters/remove-duplicates-tokenfilter.asciidoc[]
+
+include::tokenfilters/reverse-tokenfilter.asciidoc[]
+
+include::tokenfilters/shingle-tokenfilter.asciidoc[]
+
+include::tokenfilters/snowball-tokenfilter.asciidoc[]
+
+include::tokenfilters/stemmer-tokenfilter.asciidoc[]
+
+include::tokenfilters/stemmer-override-tokenfilter.asciidoc[]
+
+include::tokenfilters/stop-tokenfilter.asciidoc[]
+
+include::tokenfilters/synonym-tokenfilter.asciidoc[]
+
+include::tokenfilters/synonym-graph-tokenfilter.asciidoc[]
+
+include::tokenfilters/trim-tokenfilter.asciidoc[]
+
+include::tokenfilters/truncate-tokenfilter.asciidoc[]
+
+include::tokenfilters/unique-tokenfilter.asciidoc[]
+
+include::tokenfilters/uppercase-tokenfilter.asciidoc[]
+
+include::tokenfilters/word-delimiter-tokenfilter.asciidoc[]
+
+include::tokenfilters/word-delimiter-graph-tokenfilter.asciidoc[]

@@ -1,8 +1,3 @@
-[role="xpack"]
-[[configuring-file-realm]]
-=== Configuring a file realm
-
-You can manage and authenticate users with the built-in `file` internal realm. 
 All the data about the users for the `file` realm is stored in two files on each 
 node in the cluster: `users` and `users_roles`. Both files are located in 
 `ES_PATH_CONF` and are read on startup.
@@ -21,9 +16,6 @@ or using a configuration management system such as Puppet or Chef).
 
 The `file` realm is added to the realm chain by default. You don't need to
 explicitly configure a `file` realm.
-
-For more information about file realms, see 
-{xpack-ref}/file-realm.html[File-based user authentication].
 
 . (Optional) Add a realm configuration to `elasticsearch.yml` under the
 `xpack.security.authc.realms.file` namespace. At a minimum, you must set 
@@ -45,6 +37,8 @@ xpack:
           file1:
             order: 0
 ------------------------------------------------------------
+
+NOTE: You can configure only one file realm on {es} nodes.
 --
 
 . Restart {es}.

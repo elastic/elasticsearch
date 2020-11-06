@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,21 +43,16 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Action that is used by executor node to indicate that the persistent action finished or failed on the node and needs to be
+ * ActionType that is used by executor node to indicate that the persistent action finished or failed on the node and needs to be
  * removed from the cluster state in case of successful completion or restarted on some other node in case of failure.
  */
-public class CompletionPersistentTaskAction extends Action<PersistentTaskResponse> {
+public class CompletionPersistentTaskAction extends ActionType<PersistentTaskResponse> {
 
     public static final CompletionPersistentTaskAction INSTANCE = new CompletionPersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/completion";
 
     private CompletionPersistentTaskAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PersistentTaskResponse newResponse() {
-        return new PersistentTaskResponse();
+        super(NAME, PersistentTaskResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -69,22 +63,19 @@ public class CompletionPersistentTaskAction extends Action<PersistentTaskRespons
 
         private long allocationId = -1;
 
-        public Request() {
+        public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            taskId = in.readString();
+            allocationId = in.readLong();
+            exception = in.readException();
         }
 
         public Request(String taskId, long allocationId, Exception exception) {
             this.taskId = taskId;
             this.exception = exception;
             this.allocationId = allocationId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            taskId = in.readString();
-            allocationId = in.readLong();
-            exception = in.readException();
         }
 
         @Override
@@ -141,18 +132,8 @@ public class CompletionPersistentTaskAction extends Action<PersistentTaskRespons
                                PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(CompletionPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver, PersistentTaskResponse::new, ThreadPool.Names.GENERIC);
             this.persistentTasksClusterService = persistentTasksClusterService;
-        }
-
-        @Override
-        protected String executor() {
-            return ThreadPool.Names.GENERIC;
-        }
-
-        @Override
-        protected PersistentTaskResponse newResponse() {
-            return new PersistentTaskResponse();
         }
 
         @Override
@@ -165,17 +146,8 @@ public class CompletionPersistentTaskAction extends Action<PersistentTaskRespons
         protected final void masterOperation(final Request request, ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
             persistentTasksClusterService.completePersistentTask(request.taskId, request.allocationId, request.exception,
-                    new ActionListener<PersistentTask<?>>() {
-                        @Override
-                        public void onResponse(PersistentTask<?> task) {
-                            listener.onResponse(new PersistentTaskResponse(task));
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+                ActionListener.delegateFailure(listener,
+                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))));
         }
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -24,6 +25,8 @@ public class AutodetectParams {
     private final DataCounts dataCounts;
     private final ModelSizeStats modelSizeStats;
     @Nullable
+    private final TimingStats timingStats;
+    @Nullable
     private final ModelSnapshot modelSnapshot;
     @Nullable
     private final Quantiles quantiles;
@@ -31,12 +34,13 @@ public class AutodetectParams {
     private final List<ScheduledEvent> scheduledEvents;
 
 
-    private AutodetectParams(DataCounts dataCounts, ModelSizeStats modelSizeStats,
+    private AutodetectParams(DataCounts dataCounts, ModelSizeStats modelSizeStats, TimingStats timingStats,
                              @Nullable ModelSnapshot modelSnapshot,
                              @Nullable Quantiles quantiles, Set<MlFilter> filters,
                              List<ScheduledEvent> scheduledEvents) {
         this.dataCounts = Objects.requireNonNull(dataCounts);
         this.modelSizeStats = Objects.requireNonNull(modelSizeStats);
+        this.timingStats = timingStats;
         this.modelSnapshot = modelSnapshot;
         this.quantiles = quantiles;
         this.filters = filters;
@@ -49,6 +53,10 @@ public class AutodetectParams {
 
     public ModelSizeStats modelSizeStats() {
         return modelSizeStats;
+    }
+
+    public TimingStats timingStats() {
+        return timingStats;
     }
 
     @Nullable
@@ -83,6 +91,7 @@ public class AutodetectParams {
 
         return Objects.equals(this.dataCounts, that.dataCounts)
                 && Objects.equals(this.modelSizeStats, that.modelSizeStats)
+                && Objects.equals(this.timingStats, that.timingStats)
                 && Objects.equals(this.modelSnapshot, that.modelSnapshot)
                 && Objects.equals(this.quantiles, that.quantiles)
                 && Objects.equals(this.filters, that.filters)
@@ -91,22 +100,23 @@ public class AutodetectParams {
 
     @Override
     public int hashCode() {
-        return Objects.hash(dataCounts, modelSizeStats, modelSnapshot, quantiles, filters, scheduledEvents);
+        return Objects.hash(dataCounts, modelSizeStats, timingStats, modelSnapshot, quantiles, filters, scheduledEvents);
     }
 
     public static class Builder {
 
         private DataCounts dataCounts;
         private ModelSizeStats modelSizeStats;
+        private TimingStats timingStats;
         private ModelSnapshot modelSnapshot;
         private Quantiles quantiles;
-        private Set<MlFilter> filters;
+        private final Set<MlFilter> filters = new HashSet<>();
         private List<ScheduledEvent> scheduledEvents;
 
         public Builder(String jobId) {
             dataCounts = new DataCounts(jobId);
             modelSizeStats = new ModelSizeStats.Builder(jobId).build();
-            filters = new HashSet<>();
+            timingStats = new TimingStats(jobId);
             scheduledEvents = new ArrayList<>();
         }
 
@@ -121,6 +131,11 @@ public class AutodetectParams {
 
         public Builder setModelSizeStats(ModelSizeStats modelSizeStats) {
             this.modelSizeStats = modelSizeStats;
+            return this;
+        }
+
+        public Builder setTimingStats(TimingStats timingStats) {
+            this.timingStats = new TimingStats(timingStats);
             return this;
         }
 
@@ -144,13 +159,8 @@ public class AutodetectParams {
             return this;
         }
 
-        public Builder setFilters(Set<MlFilter> filters) {
-            filters = Objects.requireNonNull(filters);
-            return this;
-        }
-
         public AutodetectParams build() {
-            return new AutodetectParams(dataCounts, modelSizeStats, modelSnapshot, quantiles,
+            return new AutodetectParams(dataCounts, modelSizeStats, timingStats, modelSnapshot, quantiles,
                     filters, scheduledEvents);
         }
     }

@@ -23,15 +23,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -47,9 +47,7 @@ public class RestNodesActionTests extends ESTestCase {
 
     @Before
     public void setUpAction() {
-        UsageService usageService = new UsageService();
-        action = new RestNodesAction(Settings.EMPTY,
-                new RestController(Collections.emptySet(), null, null, null, usageService));
+        action = new RestNodesAction();
     }
 
     public void testBuildTableDoesNotThrowGivenNullNodeInfoAndStats() {
@@ -65,5 +63,17 @@ public class RestNodesActionTests extends ESTestCase {
         NodesStatsResponse nodesStatsResponse = new NodesStatsResponse(clusterName, Collections.emptyList(), Collections.emptyList());
 
         action.buildTable(false, new FakeRestRequest(), clusterStateResponse, nodesInfoResponse, nodesStatsResponse);
+    }
+
+    public void testCatNodesWithLocalDeprecationWarning() {
+        TestThreadPool threadPool = new TestThreadPool(RestNodesActionTests.class.getName());
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        FakeRestRequest request = new FakeRestRequest();
+        request.params().put("local", randomFrom("", "true", "false"));
+
+        action.doCatRequest(request, client);
+        assertWarnings(RestNodesAction.LOCAL_DEPRECATED_MESSAGE);
+
+        terminate(threadPool);
     }
 }

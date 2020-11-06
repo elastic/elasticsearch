@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
@@ -48,8 +49,15 @@ import java.util.Objects;
  * and high-frequency terms are added to an optional boolean clause. The
  * optional clause is only executed if the required "low-frequency' clause
  * matches.
+ *
+ * @deprecated Since max_optimization optimization landed in 7.0, normal MatchQuery
+ *             will achieve the same result without any configuration.
  */
+@Deprecated
 public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
+
+    public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "[match] query which can efficiently " +
+        "skip blocks of documents if the total number of hits is not tracked";
 
     public static final String NAME = "common";
 
@@ -87,7 +95,9 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     /**
      * Constructs a new common terms query.
+     * @deprecated See {@link CommonTermsQueryBuilder} for more details.
      */
+    @Deprecated
     public CommonTermsQueryBuilder(String fieldName, Object text) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name is null or empty");
@@ -101,7 +111,9 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     /**
      * Read from a stream.
+     * @deprecated See {@link CommonTermsQueryBuilder} for more details.
      */
+    @Deprecated
     public CommonTermsQueryBuilder(StreamInput in) throws IOException {
         super(in);
         fieldName = in.readString();
@@ -346,23 +358,17 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        String field;
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType != null) {
-            field = fieldType.name();
-        } else {
-            field = fieldName;
+
+        MappedFieldType fieldType = context.getFieldType(fieldName);
+        if (fieldType == null) {
+            return new MatchNoDocsQuery("unknown field " + fieldName);
         }
 
         Analyzer analyzerObj;
         if (analyzer == null) {
-            if (fieldType != null) {
-                analyzerObj = context.getSearchAnalyzer(fieldType);
-            } else {
-                analyzerObj = context.getMapperService().searchAnalyzer();
-            }
+            analyzerObj = fieldType.getTextSearchInfo().getSearchAnalyzer();
         } else {
-            analyzerObj = context.getMapperService().getIndexAnalyzers().get(analyzer);
+            analyzerObj = context.getIndexAnalyzers().get(analyzer);
             if (analyzerObj == null) {
                 throw new QueryShardException(context, "[common] analyzer [" + analyzer + "] not found");
             }
@@ -372,7 +378,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         Occur lowFreqOccur = lowFreqOperator.toBooleanClauseOccur();
 
         ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency);
-        return parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
+        return parseQueryString(commonsQuery, text, fieldType.name(), analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
     }
 
     private static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer,

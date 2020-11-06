@@ -4,10 +4,10 @@ When you shut down a node, the allocation process waits for
 starting to replicate the shards on that node to other nodes in the cluster,
 which can involve a lot of I/O.  Since the node is shortly going to be
 restarted, this I/O is unnecessary. You can avoid racing the clock by 
-<<shards-allocation, disabling allocation>> of replicas before shutting down
-the node:
+<<cluster-routing-allocation-enable,disabling allocation>> of replicas before
+shutting down the node:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -16,5 +16,4 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:indexes don't assign]

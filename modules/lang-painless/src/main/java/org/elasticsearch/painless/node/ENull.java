@@ -19,56 +19,25 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.objectweb.asm.Opcodes;
-
-import java.util.Set;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 /**
  * Represents a null constant.
  */
-public final class ENull extends AExpression {
+public class ENull extends AExpression {
 
-    public ENull(Location location) {
-        super(location);
+    public ENull(int identifier, Location location) {
+        super(identifier, location);
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitNull(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        if (!read) {
-            throw createError(new IllegalArgumentException("Must read from null constant."));
-        }
-
-        isNull = true;
-
-        if (expected != null) {
-            if (expected.isPrimitive()) {
-                throw createError(new IllegalArgumentException(
-                    "Cannot cast null to a primitive type [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]."));
-            }
-
-            actual = expected;
-        } else {
-            actual = Object.class;
-        }
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.visitInsn(Opcodes.ACONST_NULL);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString();
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

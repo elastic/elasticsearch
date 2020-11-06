@@ -23,12 +23,9 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -36,21 +33,23 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesUsageAction extends BaseRestHandler {
 
-    @Inject
-    public RestNodesUsageAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_nodes/usage", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/usage", this);
-
-        controller.registerHandler(GET, "/_nodes/usage/{metric}", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/usage/{metric}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_nodes/usage"),
+            new Route(GET, "/_nodes/{nodeId}/usage"),
+            new Route(GET, "/_nodes/usage/{metric}"),
+            new Route(GET, "/_nodes/{nodeId}/usage/{metric}")));
     }
 
     @Override
@@ -69,6 +68,7 @@ public class RestNodesUsageAction extends BaseRestHandler {
         } else {
             nodesUsageRequest.clear();
             nodesUsageRequest.restActions(metrics.contains("rest_actions"));
+            nodesUsageRequest.aggregations(metrics.contains("aggregations"));
         }
 
         return channel -> client.admin().cluster().nodesUsage(nodesUsageRequest, new RestBuilderListener<NodesUsageResponse>(channel) {

@@ -25,13 +25,12 @@ import org.elasticsearch.action.PrimaryMissingActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -104,13 +103,13 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
                 versions.put(index, new Tuple<>(version, luceneVersion));
             }
         }
-        Map<String, Tuple<org.elasticsearch.Version, String>> updatedVersions = new HashMap<>();
-        MetaData metaData = clusterState.metaData();
+        Map<String, Tuple<Version, String>> updatedVersions = new HashMap<>();
+        Metadata metadata = clusterState.metadata();
         for (Map.Entry<String, Tuple<Version, org.apache.lucene.util.Version>> versionEntry : versions.entrySet()) {
             String index = versionEntry.getKey();
             Integer primaryCount = successfulPrimaryShards.get(index);
-            int expectedPrimaryCount = metaData.index(index).getNumberOfShards();
-            if (primaryCount == metaData.index(index).getNumberOfShards()) {
+            int expectedPrimaryCount = metadata.index(index).getNumberOfShards();
+            if (primaryCount == metadata.index(index).getNumberOfShards()) {
                 updatedVersions.put(index, new Tuple<>(versionEntry.getValue().v1(), versionEntry.getValue().v2().toString()));
             } else {
                 logger.warn("Not updating settings for the index [{}] because upgraded of some primary shards failed - " +
@@ -131,16 +130,12 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
 
     @Override
     protected ShardUpgradeResult readShardResult(StreamInput in) throws IOException {
-        ShardUpgradeResult result = new ShardUpgradeResult();
-        result.readFrom(in);
-        return result;
+        return new ShardUpgradeResult(in);
     }
 
     @Override
     protected UpgradeRequest readRequestFrom(StreamInput in) throws IOException {
-        UpgradeRequest request = new UpgradeRequest();
-        request.readFrom(in);
-        return request;
+        return new UpgradeRequest(in);
     }
 
     /**
@@ -185,40 +180,18 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
 
     @Override
     protected void doExecute(Task task, UpgradeRequest request, final ActionListener<UpgradeResponse> listener) {
-        ActionListener<UpgradeResponse> settingsUpdateListener = new ActionListener<UpgradeResponse>() {
-            @Override
-            public void onResponse(UpgradeResponse upgradeResponse) {
-                try {
-                    if (upgradeResponse.versions().isEmpty()) {
-                        listener.onResponse(upgradeResponse);
-                    } else {
-                        updateSettings(upgradeResponse, listener);
-                    }
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+        super.doExecute(task, request, ActionListener.wrap(upgradeResponse -> {
+            if (upgradeResponse.versions().isEmpty()) {
+                listener.onResponse(upgradeResponse);
+            } else {
+                updateSettings(upgradeResponse, listener);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        };
-        super.doExecute(task, request, settingsUpdateListener);
+        }, listener::onFailure));
     }
 
     private void updateSettings(final UpgradeResponse upgradeResponse, final ActionListener<UpgradeResponse> listener) {
         UpgradeSettingsRequest upgradeSettingsRequest = new UpgradeSettingsRequest(upgradeResponse.versions());
-        client.executeLocally(UpgradeSettingsAction.INSTANCE, upgradeSettingsRequest, new ActionListener<AcknowledgedResponse>() {
-            @Override
-            public void onResponse(AcknowledgedResponse updateSettingsResponse) {
-                listener.onResponse(upgradeResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        client.executeLocally(UpgradeSettingsAction.INSTANCE, upgradeSettingsRequest, ActionListener.delegateFailure(
+            listener, (delegatedListener, updateSettingsResponse) -> delegatedListener.onResponse(upgradeResponse)));
     }
 }

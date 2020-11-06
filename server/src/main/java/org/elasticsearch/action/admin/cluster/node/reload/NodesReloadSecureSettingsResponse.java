@@ -40,7 +40,8 @@ import java.util.List;
 public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesReloadSecureSettingsResponse.NodeResponse>
         implements ToXContentFragment {
 
-    public NodesReloadSecureSettingsResponse() {
+    public NodesReloadSecureSettingsResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
     public NodesReloadSecureSettingsResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
@@ -49,12 +50,12 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
 
     @Override
     protected List<NodesReloadSecureSettingsResponse.NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeResponse::readNodeResponse);
+        return in.readList(NodeResponse::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodesReloadSecureSettingsResponse.NodeResponse> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override
@@ -92,7 +93,11 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
 
         private Exception reloadException = null;
 
-        public NodeResponse() {
+        public NodeResponse(StreamInput in) throws IOException {
+            super(in);
+            if (in.readBoolean()) {
+                reloadException = in.readException();
+            }
         }
 
         public NodeResponse(DiscoveryNode node, Exception reloadException) {
@@ -102,14 +107,6 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
 
         public Exception reloadException() {
             return this.reloadException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.readBoolean()) {
-                reloadException = in.readException();
-            }
         }
 
         @Override
@@ -138,12 +135,6 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
         @Override
         public int hashCode() {
             return reloadException != null ? reloadException.hashCode() : 0;
-        }
-
-        public static NodeResponse readNodeResponse(StreamInput in) throws IOException {
-            final NodeResponse node = new NodeResponse();
-            node.readFrom(in);
-            return node;
         }
     }
 }

@@ -18,49 +18,53 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 
 import java.util.Collections;
 import java.util.Map;
 
-public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
+import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
+public class TransportUpdateDatafeedAction extends
+    TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
+
+    private final Client client;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobConfigProvider jobConfigProvider;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportUpdateDatafeedAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver,
                                          Client client, NamedXContentRegistry xContentRegistry) {
-        super(UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, UpdateDatafeedAction.Request::new);
+        super(UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateDatafeedAction.Request::new,
+                indexNameExpressionResolver, PutDatafeedAction.Response::new, ThreadPool.Names.SAME);
 
-        datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
-        jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
-        migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutDatafeedAction.Response newResponse() {
-        return new PutDatafeedAction.Response();
+        this.client = client;
+        this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
+            new SecurityContext(settings, threadPool.getThreadContext()) : null;
     }
 
     @Override
@@ -71,35 +75,58 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("update datafeed", request.getUpdate().getId()));
             return;
         }
-
-        final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
-
         // Check datafeed is stopped
-        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (MlTasks.getDatafeedTask(request.getUpdate().getId(), tasks) != null) {
             listener.onFailure(ExceptionsHelper.conflictStatusException(
-                    Messages.getMessage(Messages.DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE,
-                            request.getUpdate().getId(), DatafeedState.STARTED)));
+                Messages.getMessage(Messages.DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE,
+                    request.getUpdate().getId(), DatafeedState.STARTED)));
             return;
         }
 
         String datafeedId = request.getUpdate().getId();
 
-        CheckedConsumer<Boolean, Exception> updateConsumer = ok -> {
-            datafeedConfigProvider.updateDatefeedConfig(request.getUpdate().getId(), request.getUpdate(), headers,
+        Runnable doUpdate = () ->
+            useSecondaryAuthIfAvailable(securityContext, () -> {
+                final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+                datafeedConfigProvider.updateDatefeedConfig(
+                    request.getUpdate().getId(),
+                    request.getUpdate(),
+                    headers,
                     jobConfigProvider::validateDatafeedJob,
                     ActionListener.wrap(
-                            updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
-                            listener::onFailure
-                    ));
-        };
+                        updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
+                        listener::onFailure));
+            });
 
+        // Obviously if we're updating a datafeed it's impossible that the config index has no mappings at
+        // all, but if we rewrite the datafeed config we may add new fields that require the latest mappings
+        CheckedConsumer<BulkByScrollResponse, Exception> updateConsumer =
+            unused -> ElasticsearchMappings.addDocMappingIfMissing(
+                MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state,
+                ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure));
+
+        CheckedConsumer<Boolean, Exception> deleteTimingStatsAndUpdateConsumer =
+            unused -> datafeedConfigProvider.getDatafeedConfig(
+                datafeedId,
+                ActionListener.wrap(
+                    datafeedConfigBuilder -> {
+                        String jobId = datafeedConfigBuilder.build().getJobId();
+                        if (jobId.equals(request.getUpdate().getJobId())) {
+                            // Datafeed's jobId didn't change, no point in deleting datafeed timing stats.
+                            updateConsumer.accept(null);
+                        } else {
+                            JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
+                            jobDataDeleter.deleteDatafeedTimingStats(ActionListener.wrap(updateConsumer, listener::onFailure));
+                        }
+                    },
+                    listener::onFailure));
 
         if (request.getUpdate().getJobId() != null) {
-            checkJobDoesNotHaveADifferentDatafeed(request.getUpdate().getJobId(), datafeedId,
-                    ActionListener.wrap(updateConsumer, listener::onFailure));
+            checkJobDoesNotHaveADifferentDatafeed(
+                request.getUpdate().getJobId(), datafeedId, ActionListener.wrap(deleteTimingStatsAndUpdateConsumer, listener::onFailure));
         } else {
-            updateConsumer.accept(Boolean.TRUE);
+            updateConsumer.accept(null);
         }
     }
 

@@ -41,11 +41,13 @@ import java.util.Objects;
 public class GetDatafeedRequest extends ActionRequest implements ToXContentObject {
 
     public static final ParseField DATAFEED_IDS = new ParseField("datafeed_ids");
-    public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     private static final String ALL_DATAFEEDS = "_all";
     private final List<String> datafeedIds;
-    private Boolean allowNoDatafeeds;
+    private Boolean allowNoMatch;
+    private Boolean excludeGenerated;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -54,7 +56,7 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), DATAFEED_IDS);
-        PARSER.declareBoolean(GetDatafeedRequest::setAllowNoDatafeeds, ALLOW_NO_DATAFEEDS);
+        PARSER.declareBoolean(GetDatafeedRequest::setAllowNoMatch, ALLOW_NO_MATCH);
     }
 
     /**
@@ -90,15 +92,31 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
     /**
      * Whether to ignore if a wildcard expression matches no datafeeds.
      *
-     * @param allowNoDatafeeds If this is {@code false}, then an error is returned when a wildcard (or {@code _all})
+     * @param allowNoMatch If this is {@code false}, then an error is returned when a wildcard (or {@code _all})
      *                        does not match any datafeeds
      */
-    public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-        this.allowNoDatafeeds = allowNoDatafeeds;
+    public void setAllowNoMatch(boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
-    public Boolean getAllowNoDatafeeds() {
-        return allowNoDatafeeds;
+    public Boolean getAllowNoMatch() {
+        return allowNoMatch;
+    }
+
+    /**
+     * Setting this flag to `true` removes certain fields from the configuration on retrieval.
+     *
+     * This is useful when getting the configuration and wanting to put it in another cluster.
+     *
+     * Default value is false.
+     * @param excludeGenerated Boolean value indicating if certain fields should be removed
+     */
+    public void setExcludeGenerated(boolean excludeGenerated) {
+        this.excludeGenerated = excludeGenerated;
+    }
+
+    public Boolean getExcludeGenerated() {
+        return excludeGenerated;
     }
 
     @Override
@@ -108,7 +126,7 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
 
     @Override
     public int hashCode() {
-        return Objects.hash(datafeedIds, allowNoDatafeeds);
+        return Objects.hash(datafeedIds, excludeGenerated, allowNoMatch);
     }
 
     @Override
@@ -123,7 +141,8 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
 
         GetDatafeedRequest that = (GetDatafeedRequest) other;
         return Objects.equals(datafeedIds, that.datafeedIds) &&
-            Objects.equals(allowNoDatafeeds, that.allowNoDatafeeds);
+            Objects.equals(allowNoMatch, that.allowNoMatch) &&
+            Objects.equals(excludeGenerated, that.excludeGenerated);
     }
 
     @Override
@@ -134,8 +153,8 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
             builder.field(DATAFEED_IDS.getPreferredName(), datafeedIds);
         }
 
-        if (allowNoDatafeeds != null) {
-            builder.field(ALLOW_NO_DATAFEEDS.getPreferredName(), allowNoDatafeeds);
+        if (allowNoMatch != null) {
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
         }
 
         builder.endObject();

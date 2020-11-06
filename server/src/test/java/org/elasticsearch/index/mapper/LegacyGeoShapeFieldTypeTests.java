@@ -18,69 +18,61 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
 
 public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new GeoShapeFieldType();
-    }
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("tree", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setTree("geohash");
-            }
-        });
-        addModifier(new Modifier("strategy", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setStrategy(SpatialStrategy.TERM);
-            }
-        });
-        addModifier(new Modifier("tree_levels", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setTreeLevels(10);
-            }
-        });
-        addModifier(new Modifier("precision", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setPrecisionInMeters(20);
-            }
-        });
-        addModifier(new Modifier("distance_error_pct", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setDefaultDistanceErrorPct(0.5);
-            }
-        });
-        addModifier(new Modifier("orientation", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
-            }
-        });
-    }
 
     /**
      * Test for {@link LegacyGeoShapeFieldMapper.GeoShapeFieldType#setStrategy(SpatialStrategy)} that checks
      * that {@link LegacyGeoShapeFieldMapper.GeoShapeFieldType#pointsOnly()} gets set as a side effect when using SpatialStrategy.TERM
      */
-    public void testSetStrategyName() throws IOException {
-        GeoShapeFieldType fieldType = new GeoShapeFieldType();
+    public void testSetStrategyName() {
+        GeoShapeFieldType fieldType = new GeoShapeFieldType("field");
         assertFalse(fieldType.pointsOnly());
         fieldType.setStrategy(SpatialStrategy.RECURSIVE);
         assertFalse(fieldType.pointsOnly());
         fieldType.setStrategy(SpatialStrategy.TERM);
         assertTrue(fieldType.pointsOnly());
+    }
+
+    public void testFetchSourceValue() throws IOException {
+
+        MappedFieldType mapper = new LegacyGeoShapeFieldMapper.Builder("field", Version.CURRENT, false, true)
+            .build(new ContentPath()).fieldType();
+
+        Map<String, Object> jsonLineString = org.elasticsearch.common.collect.Map.of("type", "LineString", "coordinates",
+            Arrays.asList(Arrays.asList(42.0, 27.1), Arrays.asList(30.0, 50.0)));
+        Map<String, Object> jsonPoint = org.elasticsearch.common.collect.Map.of(
+            "type", "Point",
+            "coordinates", Arrays.asList(14.0, 15.0));
+        String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
+        String wktPoint = "POINT (14.0 15.0)";
+
+        // Test a single shape in geojson format.
+        Object sourceValue = jsonLineString;
+        assertEquals(Collections.singletonList(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(Collections.singletonList(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of shapes in geojson format.
+        sourceValue = Arrays.asList(jsonLineString, jsonPoint);
+        assertEquals(Arrays.asList(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(Arrays.asList(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a single shape in wkt format.
+        sourceValue = wktLineString;
+        assertEquals(Collections.singletonList(jsonLineString), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(Collections.singletonList(wktLineString), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of shapes in wkt format.
+        sourceValue = Arrays.asList(wktLineString, wktPoint);
+        assertEquals(Arrays.asList(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(Arrays.asList(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 }

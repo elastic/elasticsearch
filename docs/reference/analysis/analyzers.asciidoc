@@ -1,5 +1,5 @@
 [[analysis-analyzers]]
-== Analyzers
+== Built-in analyzer reference
 
 Elasticsearch ships with a wide range of built-in analyzers, which can be used
 in any index without further configuration:
@@ -45,7 +45,7 @@ Elasticsearch provides many language-specific analyzers like `english` or
 The `fingerprint` analyzer is a specialist analyzer which creates a
 fingerprint which can be used for duplicate detection.
 
-[float]
+[discrete]
 === Custom analyzers
 
 If you do not find an analyzer suitable for your needs, you can create a
@@ -54,23 +54,18 @@ If you do not find an analyzer suitable for your needs, you can create a
 <<analysis-tokenizers,tokenizer>>, and <<analysis-tokenfilters,token filters>>.
 
 
-include::analyzers/configuring.asciidoc[]
-
-include::analyzers/standard-analyzer.asciidoc[]
-
-include::analyzers/simple-analyzer.asciidoc[]
-
-include::analyzers/whitespace-analyzer.asciidoc[]
-
-include::analyzers/stop-analyzer.asciidoc[]
+include::analyzers/fingerprint-analyzer.asciidoc[]
 
 include::analyzers/keyword-analyzer.asciidoc[]
 
-include::analyzers/pattern-analyzer.asciidoc[]
-
 include::analyzers/lang-analyzer.asciidoc[]
 
-include::analyzers/fingerprint-analyzer.asciidoc[]
+include::analyzers/pattern-analyzer.asciidoc[]
 
-include::analyzers/custom-analyzer.asciidoc[]
+include::analyzers/simple-analyzer.asciidoc[]
 
+include::analyzers/standard-analyzer.asciidoc[]
+
+include::analyzers/stop-analyzer.asciidoc[]
+
+include::analyzers/whitespace-analyzer.asciidoc[]

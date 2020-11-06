@@ -29,19 +29,22 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.cluster.coordination.CoordinationState.isElectionQuorum;
-import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
+
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 public class PreVoteCollector {
 
@@ -52,16 +55,20 @@ public class PreVoteCollector {
     private final TransportService transportService;
     private final Runnable startElection;
     private final LongConsumer updateMaxTermSeen;
+    private final ElectionStrategy electionStrategy;
+    private NodeHealthService nodeHealthService;
 
     // Tuple for simple atomic updates. null until the first call to `update()`.
     private volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known leader.
 
-    PreVoteCollector(final TransportService transportService, final Runnable startElection, final LongConsumer updateMaxTermSeen) {
+    PreVoteCollector(final TransportService transportService, final Runnable startElection, final LongConsumer updateMaxTermSeen,
+                     final ElectionStrategy electionStrategy, NodeHealthService nodeHealthService) {
         this.transportService = transportService;
         this.startElection = startElection;
         this.updateMaxTermSeen = updateMaxTermSeen;
+        this.electionStrategy = electionStrategy;
+        this.nodeHealthService = nodeHealthService;
 
-        // TODO does this need to be on the generic threadpool or can it use SAME?
         transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, false, false,
             PreVoteRequest::new,
             (request, channel, task) -> channel.sendResponse(handlePreVoteRequest(request)));
@@ -105,6 +112,13 @@ public class PreVoteCollector {
         final DiscoveryNode leader = state.v1();
         final PreVoteResponse response = state.v2();
 
+        final StatusInfo statusInfo = nodeHealthService.getHealth();
+        if (statusInfo.getStatus() == UNHEALTHY) {
+            String message = "rejecting " + request + " on unhealthy node: [" + statusInfo.getInfo() + "]";
+            logger.debug(message);
+            throw new NodeHealthCheckFailureException(message);
+        }
+
         if (leader == null) {
             return response;
         }
@@ -129,7 +143,7 @@ public class PreVoteCollector {
     }
 
     private class PreVotingRound implements Releasable {
-        private final Set<DiscoveryNode> preVotesReceived = newConcurrentSet();
+        private final Map<DiscoveryNode, PreVoteResponse> preVotesReceived = newConcurrentMap();
         private final AtomicBoolean electionStarted = new AtomicBoolean();
         private final PreVoteRequest preVoteRequest;
         private final ClusterState clusterState;
@@ -182,16 +196,25 @@ public class PreVoteCollector {
 
             if (response.getLastAcceptedTerm() > clusterState.term()
                 || (response.getLastAcceptedTerm() == clusterState.term()
-                && response.getLastAcceptedVersion() > clusterState.getVersionOrMetaDataVersion())) {
+                && response.getLastAcceptedVersion() > clusterState.getVersionOrMetadataVersion())) {
                 logger.debug("{} ignoring {} from {} as it is fresher", this, response, sender);
                 return;
             }
 
-            preVotesReceived.add(sender);
-            final VoteCollection voteCollection = new VoteCollection();
-            preVotesReceived.forEach(voteCollection::addVote);
+            preVotesReceived.put(sender, response);
 
-            if (isElectionQuorum(voteCollection, clusterState) == false) {
+            // create a fake VoteCollection based on the pre-votes and check if there is an election quorum
+            final VoteCollection voteCollection = new VoteCollection();
+            final DiscoveryNode localNode = clusterState.nodes().getLocalNode();
+            final PreVoteResponse localPreVoteResponse = getPreVoteResponse();
+
+            preVotesReceived.forEach((node, preVoteResponse) -> voteCollection.addJoinVote(
+                new Join(node, localNode, preVoteResponse.getCurrentTerm(),
+                preVoteResponse.getLastAcceptedTerm(), preVoteResponse.getLastAcceptedVersion())));
+
+            if (electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), localPreVoteResponse.getCurrentTerm(),
+                localPreVoteResponse.getLastAcceptedTerm(), localPreVoteResponse.getLastAcceptedVersion(),
+                clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration(), voteCollection) == false) {
                 logger.debug("{} added {} from {}, no quorum yet", this, response, sender);
                 return;
             }

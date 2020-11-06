@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -26,7 +27,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -36,6 +39,23 @@ import java.util.function.LongSupplier;
  * Processors may get called concurrently and thus need to be thread-safe.
  */
 public interface Processor {
+
+    /**
+     * Introspect and potentially modify the incoming data.
+     *
+     * Expert method: only override this method if a processor implementation needs to make an asynchronous call,
+     * otherwise just overwrite {@link #execute(IngestDocument)}.
+     */
+    default void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        final IngestDocument result;
+        try {
+            result = execute(ingestDocument);
+        } catch (Exception e) {
+            handler.accept(null, e);
+            return;
+        }
+        handler.accept(result, null);
+    }
 
     /**
      * Introspect and potentially modify the incoming data.
@@ -56,22 +76,26 @@ public interface Processor {
     String getTag();
 
     /**
+     * Gets the description of a processor.
+     */
+    String getDescription();
+
+    /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
     interface Factory {
 
         /**
          * Creates a processor based on the specified map of maps config.
-         *
-         * @param processorFactories Other processors which may be created inside this processor
+         *  @param processorFactories Other processors which may be created inside this processor
          * @param tag The tag for the processor
+         * @param description A short description of what this processor does
          * @param config The configuration for the processor
          *
          * <b>Note:</b> Implementations are responsible for removing the used configuration keys, so that after
-         * creating a pipeline ingest can verify if all configurations settings have been used.
          */
-        Processor create(Map<String, Processor.Factory> processorFactories, String tag,
-                         Map<String, Object> config) throws Exception;
+        Processor create(Map<String, Factory> processorFactories, String tag,
+                         String description, Map<String, Object> config) throws Exception;
     }
 
     /**
@@ -105,14 +129,21 @@ public interface Processor {
 
         public final IngestService ingestService;
 
+        public final Consumer<Runnable> genericExecutor;
+
         /**
          * Provides scheduler support
          */
         public final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler;
 
+        /**
+         * Provides access to the node client
+         */
+        public final Client client;
+
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
                           LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
-            IngestService ingestService) {
+                          IngestService ingestService, Client client, Consumer<Runnable> genericExecutor ) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;
@@ -120,6 +151,8 @@ public interface Processor {
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.scheduler = scheduler;
             this.ingestService = ingestService;
+            this.client = client;
+            this.genericExecutor = genericExecutor;
         }
 
     }

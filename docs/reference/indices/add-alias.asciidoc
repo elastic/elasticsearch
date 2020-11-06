@@ -1,0 +1,136 @@
+[[indices-add-alias]]
+=== Add index alias API
+++++
+<titleabbrev>Add index alias</titleabbrev>
+++++
+
+Creates or updates an index alias.
+
+include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
+
+[source,console]
+----
+PUT /my-index-000001/_alias/alias1
+----
+// TEST[setup:my_index]
+
+
+[[add-alias-api-request]]
+==== {api-request-title}
+
+`PUT /<index>/_alias/<alias>`
+
+`POST /<index>/_alias/<alias>`
+
+`PUT /<index>/_aliases/<alias>`
+
+`POST /<index>/_aliases/<alias>`
+
+
+[[add-alias-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string)
+Comma-separated list or wildcard expression of index names
+to add to the alias.
++
+To add all indices in the cluster to the alias,
+use a value of `_all`.
++
+NOTE: You cannot add <<data-streams,data streams>> to an index alias.
+
+`<alias>`::
+(Required, string)
+Name of the index alias to create or update.
+
+
+[[add-alias-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[add-alias-api-request-body]]
+==== {api-request-body-title}
+
+`filter`::
+(Required, query object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
+
+[[add-alias-api-example]]
+==== {api-examples-title}
+
+[[alias-adding]]
+===== Add a time-based alias
+
+The following request creates an alias, `2030`,
+for the `logs_20302801` index.
+
+[source,console]
+--------------------------------------------------
+PUT /logs_20302801/_alias/2030
+--------------------------------------------------
+// TEST[s/^/PUT logs_20302801\n/]
+
+[[add-alias-api-user-ex]]
+===== Add a user-based alias
+
+First, create an index, `users`,
+with a mapping for the `user_id` field:
+
+[source,console]
+--------------------------------------------------
+PUT /users
+{
+  "mappings" : {
+    "properties" : {
+      "user_id" : {"type" : "integer"}
+    }
+  }
+}
+--------------------------------------------------
+
+Then add the index alias for a specific user, `user_12`:
+
+[source,console]
+--------------------------------------------------
+PUT /users/_alias/user_12
+{
+  "routing" : "12",
+  "filter" : {
+    "term" : {
+      "user_id" : 12
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+[[alias-index-creation]]
+===== Add an alias during index creation
+
+You can use the <<create-index-aliases,create index API>>
+to add an index alias during index creation.
+
+[source,console]
+--------------------------------------------------
+PUT /logs_20302801
+{
+  "mappings": {
+    "properties": {
+      "year": { "type": "integer" }
+    }
+  },
+  "aliases": {
+    "current_day": {},
+    "2030": {
+      "filter": {
+        "term": { "year": 2030 }
+      }
+    }
+  }
+}
+--------------------------------------------------

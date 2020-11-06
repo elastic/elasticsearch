@@ -19,7 +19,17 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.apache.logging.log4j.LogManager;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
+
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,22 +39,7 @@ import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
 public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovAvgPipelineAggregationBuilder> {
     public static final String NAME = "moving_avg";
@@ -54,8 +49,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     public static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField PREDICT = new ParseField("predict");
     private static final ParseField MINIMIZE = new ParseField("minimize");
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(MovAvgPipelineAggregationBuilder.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(MovAvgPipelineAggregationBuilder.class);
 
     private String format;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
@@ -250,28 +244,27 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
         // If the user doesn't set a preference for cost minimization, ask
         // what the model prefers
         boolean minimize = this.minimize == null ? model.minimizeByDefault() : this.minimize;
-        return new MovAvgPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, window, predict, model, minimize, metaData);
+        return new MovAvgPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, window, predict, model, minimize, metadata);
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
-            Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
+    protected void validate(ValidationContext context) {
         if (minimize != null && minimize && !model.canBeMinimized()) {
             // If the user asks to minimize, but this model doesn't support
             // it, throw exception
-            throw new IllegalStateException("The [" + model + "] model cannot be minimized for aggregation [" + name + "]");
+            context.addValidationError("The [" + model + "] model cannot be minimized for aggregation [" + name + "]");
         }
         if (bucketsPaths.length != 1) {
-            throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                    + " must contain a single entry for aggregation [" + name + "]");
+            context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
+            return;
         }
         // Validate any model-specific window requirements
         model.validate(window, name);
-        validateSequentiallyOrderedParentAggs(parent, NAME, name);
+        context.validateParentAggSequentiallyOrdered(NAME, name);
     }
 
     @Override
@@ -306,7 +299,8 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
         Integer predict = null;
         Boolean minimize = null;
 
-        DEPRECATION_LOGGER.deprecated("The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.");
+        DEPRECATION_LOGGER.deprecate("moving_avg_aggregation",
+            "The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.");
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -410,12 +404,15 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(format, gapPolicy, window, model, predict, minimize);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), format, gapPolicy, window, model, predict, minimize);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         MovAvgPipelineAggregationBuilder other = (MovAvgPipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format)
                 && Objects.equals(gapPolicy, other.gapPolicy)

@@ -274,7 +274,7 @@ class BulkPrimaryExecutionContext {
                     // use docWriteRequest.index() it will use the
                     // concrete index instead of an alias if used!
                     new BulkItemResponse.Failure(request.index(), docWriteRequest.type(), docWriteRequest.id(),
-                        result.getFailure(), result.getSeqNo()));
+                        result.getFailure(), result.getSeqNo(), result.getTerm()));
                 break;
             default:
                 throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());

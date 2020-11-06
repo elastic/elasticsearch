@@ -21,7 +21,7 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,8 +32,9 @@ import java.util.Objects;
 public class PersistentTaskResponse extends ActionResponse {
     private PersistentTask<?> task;
 
-    public PersistentTaskResponse() {
-        super();
+    public PersistentTaskResponse(StreamInput in) throws IOException {
+        super(in);
+        task = in.readOptionalWriteable(PersistentTask::new);
     }
 
     public PersistentTaskResponse(PersistentTask<?> task) {
@@ -41,14 +42,7 @@ public class PersistentTaskResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        task = in.readOptionalWriteable(PersistentTask::new);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeOptionalWriteable(task);
     }
 

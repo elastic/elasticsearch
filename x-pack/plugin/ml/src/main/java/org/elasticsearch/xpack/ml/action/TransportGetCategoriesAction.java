@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
-import java.util.function.Supplier;
-
 public class TransportGetCategoriesAction extends HandledTransportAction<GetCategoriesAction.Request, GetCategoriesAction.Response> {
 
     private final JobResultsProvider jobResultsProvider;
@@ -27,8 +25,7 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
     @Inject
     public TransportGetCategoriesAction(TransportService transportService, ActionFilters actionFilters,
                                         JobResultsProvider jobResultsProvider, Client client, JobManager jobManager) {
-        super(GetCategoriesAction.NAME, transportService, actionFilters,
-            (Supplier<GetCategoriesAction.Request>) GetCategoriesAction.Request::new);
+        super(GetCategoriesAction.NAME, transportService, actionFilters, GetCategoriesAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.client = client;
         this.jobManager = jobManager;
@@ -40,8 +37,8 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
                 jobExists -> {
                     Integer from = request.getPageParams() != null ? request.getPageParams().getFrom() : null;
                     Integer size = request.getPageParams() != null ? request.getPageParams().getSize() : null;
-                    jobResultsProvider.categoryDefinitions(request.getJobId(), request.getCategoryId(), true, from, size,
-                            r -> listener.onResponse(new GetCategoriesAction.Response(r)), listener::onFailure, client);
+                    jobResultsProvider.categoryDefinitions(request.getJobId(), request.getCategoryId(), request.getPartitionFieldValue(),
+                        true, from, size, r -> listener.onResponse(new GetCategoriesAction.Response(r)), listener::onFailure, client);
                 },
                 listener::onFailure
         ));

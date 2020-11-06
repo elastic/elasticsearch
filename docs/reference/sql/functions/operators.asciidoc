@@ -8,7 +8,7 @@ Boolean operator for comparing against one or multiple expressions.
 [[sql-operators-equality]]
 ==== `Equality (=)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldEquality]
 --------------------------------------------------
@@ -16,12 +16,12 @@ include-tagged::{sql-specs}/filter.sql-spec[whereFieldEquality]
 [[sql-operators-null-safe-equality]]
 ==== `Null safe Equality (<=>)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[nullEqualsCompareWithNull]
 --------------------------------------------------
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[nullEqualsCompareTwoNulls]
 --------------------------------------------------
@@ -29,7 +29,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[nullEqualsCompareTwoNulls]
 [[sql-operators-inequality]]
 ==== `Inequality (<> or !=)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldNonEquality]
 --------------------------------------------------
@@ -37,7 +37,7 @@ include-tagged::{sql-specs}/filter.sql-spec[whereFieldNonEquality]
 [[sql-operators-comparison]]
 ==== `Comparison (<, <=, >, >=)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldLessThan]
 --------------------------------------------------
@@ -45,7 +45,7 @@ include-tagged::{sql-specs}/filter.sql-spec[whereFieldLessThan]
 [[sql-operators-between]]
 ==== `BETWEEN`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereBetween]
 --------------------------------------------------
@@ -53,7 +53,7 @@ include-tagged::{sql-specs}/filter.sql-spec[whereBetween]
 [[sql-operators-is-null]]
 ==== `IS NULL/IS NOT NULL`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereIsNotNullAndIsNull]
 --------------------------------------------------
@@ -61,7 +61,7 @@ include-tagged::{sql-specs}/filter.sql-spec[whereIsNotNullAndIsNull]
 [[sql-operators-in]]
 ==== `IN (<value1>, <value2>, ...)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereWithInAndMultipleValues]
 --------------------------------------------------
@@ -74,7 +74,7 @@ Boolean operator for evaluating one or two expressions.
 [[sql-operators-and]]
 ==== `AND`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldAndComparison]
 --------------------------------------------------
@@ -82,7 +82,7 @@ include-tagged::{sql-specs}/filter.sql-spec[whereFieldAndComparison]
 [[sql-operators-or]]
 ==== `OR`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldOrComparison]
 --------------------------------------------------
@@ -90,7 +90,7 @@ include-tagged::{sql-specs}/filter.sql-spec[whereFieldOrComparison]
 [[sql-operators-not]]
 ==== `NOT`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/filter.sql-spec[whereFieldEqualityNot]
 --------------------------------------------------
@@ -104,7 +104,7 @@ The result is a value of numeric type.
 [[sql-operators-plus]]
 ==== `Add (+)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[plus]
 --------------------------------------------------
@@ -112,7 +112,7 @@ include-tagged::{sql-specs}/arithmetic.sql-spec[plus]
 [[sql-operators-subtract]]
 ==== `Subtract (infix -)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[minus]
 --------------------------------------------------
@@ -120,7 +120,7 @@ include-tagged::{sql-specs}/arithmetic.sql-spec[minus]
 [[sql-operators-negate]]
 ==== `Negate (unary -)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[unaryMinus]
 --------------------------------------------------
@@ -128,7 +128,7 @@ include-tagged::{sql-specs}/arithmetic.sql-spec[unaryMinus]
 [[sql-operators-multiply]]
 ==== `Multiply (*)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[multiply]
 --------------------------------------------------
@@ -136,7 +136,7 @@ include-tagged::{sql-specs}/arithmetic.sql-spec[multiply]
 [[sql-operators-divide]]
 ==== `Divide (/)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[divide]
 --------------------------------------------------
@@ -144,7 +144,7 @@ include-tagged::{sql-specs}/arithmetic.sql-spec[divide]
 [[sql-operators-remainder]]
 ==== `Modulo or Remainder(%)`
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[mod]
 --------------------------------------------------
@@ -157,7 +157,7 @@ include-tagged::{sql-specs}/arithmetic.sql-spec[mod]
 
 `::` provides an alternative syntax to the <<sql-functions-type-conversion-cast>> function.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[conversionStringToLongCastOperator]
 --------------------------------------------------

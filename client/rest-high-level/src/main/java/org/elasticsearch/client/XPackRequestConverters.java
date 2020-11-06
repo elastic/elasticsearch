@@ -46,8 +46,9 @@ final class XPackRequestConverters {
 
     static Request usage(XPackUsageRequest usageRequest) {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
+        request.addParameters(parameters.asMap());
         return request;
     }
 }

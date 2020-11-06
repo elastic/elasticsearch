@@ -45,82 +45,24 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
     }
 
     /**
-     * Should the node settings be returned.
+     * Add a single metric to the request.
+     *
+     * @param metric Name of metric as a string.
+     * @return This, for request chaining.
      */
-    public NodesInfoRequestBuilder setSettings(boolean settings) {
-        request.settings(settings);
+    public NodesInfoRequestBuilder addMetric(String metric) {
+        request.addMetric(metric);
         return this;
     }
 
     /**
-     * Should the node OS info be returned.
+     * Add an array of metrics to the request.
+     *
+     * @param metrics Metric names as strings.
+     * @return This, for request chaining.
      */
-    public NodesInfoRequestBuilder setOs(boolean os) {
-        request.os(os);
-        return this;
-    }
-
-    /**
-     * Should the node OS process be returned.
-     */
-    public NodesInfoRequestBuilder setProcess(boolean process) {
-        request.process(process);
-        return this;
-    }
-
-    /**
-     * Should the node JVM info be returned.
-     */
-    public NodesInfoRequestBuilder setJvm(boolean jvm) {
-        request.jvm(jvm);
-        return this;
-    }
-
-    /**
-     * Should the node thread pool info be returned.
-     */
-    public NodesInfoRequestBuilder setThreadPool(boolean threadPool) {
-        request.threadPool(threadPool);
-        return this;
-    }
-
-    /**
-     * Should the node Transport info be returned.
-     */
-    public NodesInfoRequestBuilder setTransport(boolean transport) {
-        request.transport(transport);
-        return this;
-    }
-
-    /**
-     * Should the node HTTP info be returned.
-     */
-    public NodesInfoRequestBuilder setHttp(boolean http) {
-        request.http(http);
-        return this;
-    }
-
-    /**
-     * Should the node plugins info be returned.
-     */
-    public NodesInfoRequestBuilder setPlugins(boolean plugins) {
-        request().plugins(plugins);
-        return this;
-    }
-
-    /**
-     * Should the node ingest info be returned.
-     */
-    public NodesInfoRequestBuilder setIngest(boolean ingest) {
-        request().ingest(ingest);
-        return this;
-    }
-
-    /**
-     * Should the node indices info be returned.
-     */
-    public NodesInfoRequestBuilder setIndices(boolean indices) {
-        request().indices(indices);
+    public NodesInfoRequestBuilder addMetrics(String... metrics) {
+        request.addMetrics(metrics);
         return this;
     }
 }

@@ -20,7 +20,9 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
@@ -28,6 +30,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -48,6 +51,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -59,7 +63,10 @@ import java.util.Set;
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
  * clients against against an elasticsearch cluster.
+ *
+ * The suite timeout is extended to account for projects with a large number of tests.
  */
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     /**
@@ -280,9 +287,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (validateSpec) {
             StringBuilder errorMessage = new StringBuilder();
             for (ClientYamlSuiteRestApi restApi : restSpec.getApis()) {
-                if (restApi.getMethods().contains("GET") && restApi.isBodySupported()) {
-                    if (!restApi.getMethods().contains("POST")) {
-                        errorMessage.append("\n- ").append(restApi.getName()).append(" supports GET with a body but doesn't support POST");
+                if (restApi.isBodySupported()) {
+                    for (ClientYamlSuiteRestApi.Path path : restApi.getPaths()) {
+                        List<String> methodsList = Arrays.asList(path.getMethods());
+                        if (methodsList.contains("GET") && restApi.isBodySupported()) {
+                            if (!methodsList.contains("POST")) {
+                                errorMessage.append("\n- ").append(restApi.getName())
+                                    .append(" supports GET with a body but doesn't support POST");
+                            }
+                        }
                     }
                 }
             }
@@ -352,6 +365,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
             final Request request = new Request("PUT", "/_template/global");
             request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
+            // Because this has not yet transitioned to a composable template, it's possible that
+            // this can overlap an installed composable template since this is a global (*)
+            // template. In order to avoid this failing the test, we override the warnings handler
+            // to be permissive in this case. This can be removed once all tests use composable
+            // templates instead of legacy templates
+            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+            builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            request.setOptions(builder.build());
             adminClient().performRequest(request);
         }
 

@@ -19,103 +19,55 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a catch block as part of a try-catch block.
  */
-public final class SCatch extends AStatement {
+public class SCatch extends AStatement {
 
-    private final String type;
-    private final String name;
-    private final SBlock block;
+    private final Class<?> baseException;
+    private final String canonicalTypeName;
+    private final String symbol;
+    private final SBlock blockNode;
 
-    private Variable variable = null;
+    public SCatch(int identifier, Location location, Class<?> baseException, String canonicalTypeName, String symbol, SBlock blockNode) {
+        super(identifier, location);
 
-    Label begin = null;
-    Label end = null;
-    Label exception = null;
+        this.baseException = Objects.requireNonNull(baseException);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.blockNode = blockNode;
+    }
 
-    public SCatch(Location location, String type, String name, SBlock block) {
-        super(location);
+    public Class<?> getBaseException() {
+        return baseException;
+    }
 
-        this.type = Objects.requireNonNull(type);
-        this.name = Objects.requireNonNull(name);
-        this.block = block;
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
-
-        if (block != null) {
-            block.extractVariables(variables);
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitCatch(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
-
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        if (blockNode != null) {
+            blockNode.visit(userTreeVisitor, scope);
         }
-
-        if (!Exception.class.isAssignableFrom(clazz)) {
-            throw createError(new ClassCastException("Not an exception type [" + this.type + "]."));
-        }
-
-        variable = locals.addVariable(location, clazz, name, true);
-
-        if (block != null) {
-            block.lastSource = lastSource;
-            block.inLoop = inLoop;
-            block.lastLoop = lastLoop;
-
-            block.analyze(locals);
-
-            methodEscape = block.methodEscape;
-            loopEscape = block.loopEscape;
-            allEscape = block.allEscape;
-            anyContinue = block.anyContinue;
-            anyBreak = block.anyBreak;
-            statementCount = block.statementCount;
-        }
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
-
-        Label jump = new Label();
-
-        writer.mark(jump);
-        writer.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
-
-        if (block != null) {
-            block.continu = continu;
-            block.brake = brake;
-            block.write(writer, globals);
-        }
-
-        writer.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(variable.clazz).getInternalName());
-
-        if (exception != null && !block.allEscape) {
-            writer.goTo(exception);
-        }
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type, name, block);
     }
 }

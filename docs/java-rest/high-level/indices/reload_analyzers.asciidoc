@@ -1,0 +1,50 @@
+--
+:api: reload-analyzers
+:request: ReloadAnalyzersRequest
+:response: ReloadAnalyzersResponse
+--
+
+[id="{upid}-{api}"]
+=== Reload Search Analyzers API
+
+[id="{upid}-{api}-request"]
+==== Reload Search Analyzers Request
+
+An +{request}+ requires an `index` argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The index to reload
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Reload Search Analyzers Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Shard statistics. Note that reloading does not happen on each shard of an
+index, but once on each node the index has shards on. The reported shard count
+can therefore differ from the number of index shards
+<2> Reloading details of all indices the request was executed on
+<3> Details can be retrieved by index name
+<4> The reloaded index name
+<5> The nodes the index was reloaded on
+<6> The analyzer names that were reloaded

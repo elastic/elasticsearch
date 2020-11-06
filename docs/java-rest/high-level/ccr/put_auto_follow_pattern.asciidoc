@@ -3,7 +3,7 @@
 :request: PutAutoFollowPatternRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put Auto Follow Pattern API
 
@@ -22,6 +22,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <2> The name of the remote cluster.
 <3> The leader index patterns.
 <4> The pattern used to create the follower index
+<5> The settings overrides for the follower index
 
 [id="{upid}-{api}-response"]
 ==== Response

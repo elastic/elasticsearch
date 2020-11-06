@@ -10,6 +10,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -74,18 +75,26 @@ public class ExtractorUtilsTests extends ESTestCase {
     public void testGetHistogramIntervalMillis_GivenDateHistogramWithInvalidTimeZone() {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
-                .interval(300000L).timeZone(ZoneId.of("CET")).subAggregation(maxTime);
+                .fixedInterval(new DateHistogramInterval(300000 + "ms")).timeZone(ZoneId.of("CET")).subAggregation(maxTime);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> ExtractorUtils.getHistogramIntervalMillis(dateHistogram));
 
         assertThat(e.getMessage(), equalTo("ML requires date_histogram.time_zone to be UTC"));
     }
 
+    public void testGetHistogramIntervalMillis_GivenUtcTimeZonesDeprecated() {
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        ZoneId zone = randomFrom(ZoneOffset.UTC, ZoneId.of("UTC"));
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
+            .fixedInterval(new DateHistogramInterval(300000L + "ms")).timeZone(zone).subAggregation(maxTime);
+        assertThat(ExtractorUtils.getHistogramIntervalMillis(dateHistogram), is(300_000L));
+    }
+
     public void testGetHistogramIntervalMillis_GivenUtcTimeZones() {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         ZoneId zone = randomFrom(ZoneOffset.UTC, ZoneId.of("UTC"));
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
-            .interval(300000L).timeZone(zone).subAggregation(maxTime);
+            .fixedInterval(new DateHistogramInterval("300000ms")).timeZone(zone).subAggregation(maxTime);
         assertThat(ExtractorUtils.getHistogramIntervalMillis(dateHistogram), is(300_000L));
     }
 

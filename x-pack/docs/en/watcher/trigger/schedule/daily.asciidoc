@@ -1,18 +1,19 @@
+[role="xpack"]
 [[schedule-daily]]
-==== Daily Schedule
+==== Daily schedule
 
-A <<trigger-schedule, `schedule`>> that triggers at a particular time
+A <<trigger-schedule,`schedule`>> that triggers at a particular time
 every day. To use the `daily` schedule, you specify the time of day (or times)
 when you want the scheduler to start the watch execution with the `at` attribute.
 
 Times are specified in the form `HH:mm` on a 24-hour clock. You can also use the
 reserved values `midnight` and `noon` for `00:00` and `12:00`, and
-<<specifying-times-using-objects, specify times using objects>>.
+<<specifying-times-using-objects,specify times using objects>>.
 
 NOTE: If you don't specify the `at` attribute for a `daily` schedule, it defaults
       to firing once daily at midnight, `00:00`.
 
-===== Configuring a Daily Schedule
+===== Configuring a daily schedule
 
 To configure a once a day schedule, you specify a single time with the `at`
 attribute. For example, the following `daily` schedule triggers once every
@@ -30,7 +31,7 @@ day at 5:00 PM:
 --------------------------------------------------
 // NOTCONSOLE
 
-===== Configuring a Multiple Times Daily Schedule
+===== Configuring a multiple times daily schedule
 
 To configure a `daily` schedule that triggers at multiple times during the day,
 you specify an array of times. For example, the following `daily` schedule
@@ -49,7 +50,7 @@ triggers at `00:00`, `12:00`, and `17:00` every day.
 // NOTCONSOLE
 
 [[specifying-times-using-objects]]
-===== Specifying Times Using Objects
+===== Specifying times using objects
 
 In addition to using the `HH:mm` string syntax to specify times, you can specify
 a time as an object that has `hour` and `minute` attributes.
@@ -62,7 +63,7 @@ For example, the following `daily` schedule triggers once every day at 5:00 PM:
   "trigger" : {
     "schedule" : {
       "daily" : {
-        "at" {
+        "at" : {
           "hour" : 17,
           "minute" : 0
         }
@@ -83,7 +84,7 @@ or minutes as an array. For example, following `daily` schedule triggers at
   "trigger" : {
     "schedule" : {
       "daily" : {
-        "at" {
+        "at" : {
           "hour" : [ 0, 12, 17 ],
           "minute" : [0, 30]
         }

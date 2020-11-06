@@ -1,0 +1,77 @@
+[[release-notes-7.1.1]]
+== {es} version 7.1.1
+
+Also see <<breaking-changes-7.1,Breaking changes in 7.1>>.
+
+[discrete]
+=== Known issues
+
+* Applying deletes or updates on an index after it has been shrunk may corrupt
+the index. In order to prevent this issue, it is recommended to stop shrinking
+read-write indices. For read-only indices, it is recommended to force-merge
+indices after shrinking, which significantly reduces the likeliness of this
+corruption in the case that deletes/updates would be applied by mistake. This
+bug is fixed in {es} 7.7 and later versions. More details can be found on the
+https://issues.apache.org/jira/browse/LUCENE-9300[corresponding issue].
+
+* Indices created in 6.x with <<date,`date`>> and <<date_nanos,`date_nanos`>> fields using formats
+that are incompatible with java.time patterns will cause parsing errors, incorrect date calculations or wrong search results.
+https://github.com/elastic/elasticsearch/pull/52555
+This is fixed in {es} 7.7 and later versions.
+
+[[bug-7.1.1]]
+[discrete]
+=== Bug fixes
+
+Distributed::
+* Avoid unnecessary persistence of retention leases {es-pull}42299[#42299]
+* Execute actions under permit in primary mode only {es-pull}42241[#42241] (issues: {es-issue}40386[#40386], {es-issue}41686[#41686])
+
+Infra/REST API::
+* Remove deprecated _source_exclude and _source_include from get API spec {es-pull}42188[#42188]
+
+[[release-notes-7.1.0]]
+== {es} version 7.1.0
+
+Also see <<breaking-changes-7.1,Breaking changes in 7.1>>.
+
+[[enhancement-7.1.0]]
+[discrete]
+=== Enhancements
+
+Security::
+* Moved some security features to basic. See {ref-bare/release-highlights-7.1.0.html[7.1.0 Release highlights].
+
+Authentication::
+* Log warning when unlicensed realms are skipped {es-pull}41778[#41778]
+
+Infra/Settings::
+* Drop distinction in entries for keystore {es-pull}41701[#41701]
+
+
+[[bug-7.1.0]]
+[discrete]
+=== Bug fixes
+
+Cluster Coordination::
+* Handle serialization exceptions during publication {es-pull}41781[#41781] (issue: {es-issue}41090[#41090])
+
+Infra/Core::
+* Fix fractional seconds for strict_date_optional_time {es-pull}41871[#41871] (issue: {es-issue}41633[#41633])
+
+Network::
+* Enforce transport TLS on Basic with Security {es-pull}42150[#42150]
+
+Reindex::
+* Allow reindexing into write alias {es-pull}41677[#41677] (issue: {es-issue}41667[#41667])
+
+SQL::
+* SQL: Fix issue regarding INTERVAL * number {es-pull}42014[#42014] (issue: {es-issue}41239[#41239])
+* SQL: Remove CircuitBreaker from parser {es-pull}41835[#41835] (issue: {es-issue}41471[#41471])
+
+Search::
+* Fix IAE on cross_fields query introduced in 7.0.1 {es-pull}41938[#41938] (issues: {es-issue}41125[#41125], {es-issue}41934[#41934])
+
+
+
+

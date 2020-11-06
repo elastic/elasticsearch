@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 
-public class ValidateDetectorActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class ValidateDetectorActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -24,13 +25,13 @@ public class ValidateDetectorActionRequestTests extends AbstractStreamableXConte
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
     @Override

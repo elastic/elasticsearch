@@ -18,7 +18,9 @@ import java.util.Objects;
 
 public class NodesDeprecationCheckResponse extends BaseNodesResponse<NodesDeprecationCheckAction.NodeResponse> {
 
-    public NodesDeprecationCheckResponse() {}
+    public NodesDeprecationCheckResponse(StreamInput in) throws IOException {
+        super(in);
+    }
 
     public NodesDeprecationCheckResponse(ClusterName clusterName,
                                          List<NodesDeprecationCheckAction.NodeResponse> nodes,
@@ -28,12 +30,12 @@ public class NodesDeprecationCheckResponse extends BaseNodesResponse<NodesDeprec
 
     @Override
     protected List<NodesDeprecationCheckAction.NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodesDeprecationCheckAction.NodeResponse::readNodeResponse);
+        return in.readList(NodesDeprecationCheckAction.NodeResponse::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodesDeprecationCheckAction.NodeResponse> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override

@@ -40,23 +40,11 @@ public class HttpInfoTests extends ESTestCase {
                 new BoundTransportAddress(
                     new TransportAddress[]{new TransportAddress(localhost, port)},
                     new TransportAddress(localhost, port)
-                ), 0L, true
+                ), 0L
             ), "localhost/" + NetworkAddress.format(localhost) + ':' + port
         );
     }
 
-    public void hideCnameIfDeprecatedFormat() throws Exception {
-        InetAddress localhost = InetAddress.getByName("localhost");
-        int port = 9200;
-        assertPublishAddress(
-            new HttpInfo(
-                new BoundTransportAddress(
-                    new TransportAddress[]{new TransportAddress(localhost, port)},
-                    new TransportAddress(localhost, port)
-                ), 0L, false
-            ), NetworkAddress.format(localhost) + ':' + port
-        );
-    }
 
     public void testCorrectDisplayPublishedIp() throws Exception {
         InetAddress localhost = InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("localhost")));
@@ -66,7 +54,7 @@ public class HttpInfoTests extends ESTestCase {
                 new BoundTransportAddress(
                     new TransportAddress[]{new TransportAddress(localhost, port)},
                     new TransportAddress(localhost, port)
-                ), 0L, true
+                ), 0L
             ), NetworkAddress.format(localhost) + ':' + port
         );
     }
@@ -77,7 +65,7 @@ public class HttpInfoTests extends ESTestCase {
             new TransportAddress(InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("0:0:0:0:0:0:0:1"))), port);
         assertPublishAddress(
             new HttpInfo(
-                new BoundTransportAddress(new TransportAddress[]{localhost}, localhost), 0L, true
+                new BoundTransportAddress(new TransportAddress[]{localhost}, localhost), 0L
             ), localhost.toString()
         );
     }

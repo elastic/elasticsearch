@@ -1,54 +1,43 @@
 [role="xpack"]
 [testenv="basic"]
-[[es-monitoring]]
-= Monitoring {es}
+[[monitor-elasticsearch-cluster]]
+= Monitor a cluster
 
 [partintro]
 --
-The Elastic {monitor-features} enable you to easily monitor the health of 
-your {es} cluster. The monitoring metrics are collected from each node and 
-stored in {es} indices. 
+The {stack} {monitor-features} provide a way to keep a pulse on the health and
+performance of your {es} cluster.
 
-TIP: In production environments, it is recommended to store the monitoring data 
-in a separate _monitoring cluster_. See 
-{stack-ov}/monitoring-production.html[Monitoring in a production environment]. 
-
-Each {es} node is considered unique based on its persistent UUID, which is
-written on first start to its <<path-settings,`path.data`>> directory, which
-defaults to `./data`.
-
-All settings associated with monitoring in {es} must be set in either the
-`elasticsearch.yml` file for each node or, where possible, in the dynamic
-cluster settings. For more information, see <<configuring-monitoring>>.
-
-[[es-monitoring-overview]]
-{es} is also at the core of monitoring across the {stack}. In all cases, 
-monitoring documents are just ordinary JSON documents built by monitoring each 
-{stack} component at some collection interval, then indexing those 
-documents into the monitoring cluster. 
-
-Each component in the stack is responsible for monitoring itself and then 
-forwarding those documents to the {es} production cluster for both routing and 
-indexing (storage). The routing and indexing processes in {es} are handled by 
-what are called <<es-monitoring-collectors,collectors>> and 
-<<es-monitoring-exporters,exporters>>. 
-
-Alternatively, in 6.4 and later, you can use {metricbeat} to collect 
-monitoring data about {kib} and ship it directly to the monitoring cluster, 
-rather than routing it through the production cluster. In 6.5 and later, you 
-can also use {metricbeat} to collect and ship data about {es}. 
-
-You can view monitoring data from {kib} where it’s easy to spot issues at a
-glance or delve into the system behavior over time to diagnose operational
-issues. In addition to the built-in status warnings, you can also set up custom
-alerts based on the data in the monitoring indices.
-
-For an introduction to monitoring your {stack}, including Beats, {ls}, and {kib}, 
-see {stack-ov}/xpack-monitoring.html[Monitoring the {stack}].
+* <<monitoring-overview>>
+* <<how-monitoring-works>>
+* <<monitoring-production>>
+* <<configuring-metricbeat>>
+* <<configuring-filebeat>>
+* <<config-monitoring-indices>>
+* <<collecting-monitoring-data>>
+* <<monitoring-troubleshooting>>
 
 --
 
+include::overview.asciidoc[]
+
+include::how-monitoring-works.asciidoc[]
+
+include::production.asciidoc[]
+
+include::configuring-metricbeat.asciidoc[]
+
+include::configuring-filebeat.asciidoc[]
+
+include::indices.asciidoc[]
+
+include::collecting-monitoring-data.asciidoc[]
+:leveloffset: +1
 include::collectors.asciidoc[]
 include::exporters.asciidoc[]
+:leveloffset: -1
+include::local-export.asciidoc[]
+include::http-export.asciidoc[]
 include::pause-export.asciidoc[]
 
+include::troubleshooting.asciidoc[]

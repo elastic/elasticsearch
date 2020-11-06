@@ -199,12 +199,16 @@ public class JsonXContentParser extends AbstractXContentParser {
         switch (numberType) {
             case INT:
                 return NumberType.INT;
+            case BIG_INTEGER:
+                return NumberType.BIG_INTEGER;
             case LONG:
                 return NumberType.LONG;
             case FLOAT:
                 return NumberType.FLOAT;
             case DOUBLE:
                 return NumberType.DOUBLE;
+            case BIG_DECIMAL:
+                return NumberType.BIG_DECIMAL;
         }
         throw new IllegalStateException("No matching token for number_type [" + numberType + "]");
     }

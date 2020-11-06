@@ -47,6 +47,7 @@ import org.joda.time.DateTime;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -66,7 +67,7 @@ import static org.mockito.Mockito.when;
 public class IndexerUtilsTests extends AggregatorTestCase {
     public void testMissingFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -89,19 +90,12 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(timestampField);
-        DateFieldMapper.DateFieldType timestampFieldType = builder.fieldType();
-        timestampFieldType.setHasDocValues(true);
-        timestampFieldType.setName(timestampField);
-
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        valueFieldType.setName(valueField);
-        valueFieldType.setHasDocValues(true);
-        valueFieldType.setName(valueField);
+        DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
-        //TODO swap this over to DateHistoConfig.Builder once DateInterval is in
-        DateHistogramGroupConfig dateHistoGroupConfig = new DateHistogramGroupConfig(timestampField, DateHistogramInterval.DAY);
+        DateHistogramGroupConfig dateHistoGroupConfig
+            = new DateHistogramGroupConfig.CalendarInterval(timestampField, DateHistogramInterval.DAY);
         CompositeAggregationBuilder compositeBuilder =
             new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
                 RollupIndexer.createValueSourceBuilders(dateHistoGroupConfig));
@@ -112,8 +106,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -130,7 +123,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testCorrectFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -153,22 +146,15 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(timestampField);
-        DateFieldMapper.DateFieldType timestampFieldType = builder.fieldType();
-        timestampFieldType.setHasDocValues(true);
-        timestampFieldType.setName(timestampField);
-
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        valueFieldType.setName(valueField);
-        valueFieldType.setHasDocValues(true);
-        valueFieldType.setName(valueField);
+        DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
         //TODO swap this over to DateHistoConfig.Builder once DateInterval is in
         DateHistogramValuesSourceBuilder dateHisto
                 = new DateHistogramValuesSourceBuilder("the_histo." + DateHistogramAggregationBuilder.NAME)
                 .field(timestampField)
-                .interval(1);
+                .fixedInterval(new DateHistogramInterval("1ms"));
 
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
                 singletonList(dateHisto));
@@ -180,8 +166,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -198,7 +183,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testNumericTerms() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats= new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        RollupIndexerJobStats stats= new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String valueField = "the_avg";
 
@@ -218,10 +203,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        valueFieldType.setName(valueField);
-        valueFieldType.setHasDocValues(true);
-        valueFieldType.setName(valueField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
         TermsValuesSourceBuilder terms
@@ -236,8 +218,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -254,7 +235,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testEmptyCounts() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String timestampField = "ts";
         String valueField = "the_avg";
@@ -277,21 +258,14 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(timestampField);
-        DateFieldMapper.DateFieldType timestampFieldType = builder.fieldType();
-        timestampFieldType.setHasDocValues(true);
-        timestampFieldType.setName(timestampField);
-
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        valueFieldType.setName(valueField);
-        valueFieldType.setHasDocValues(true);
-        valueFieldType.setName(valueField);
+        DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
         DateHistogramValuesSourceBuilder dateHisto
                 = new DateHistogramValuesSourceBuilder("the_histo." + DateHistogramAggregationBuilder.NAME)
                     .field(timestampField)
-                    .dateHistogramInterval(new DateHistogramInterval("1d"));
+                    .calendarInterval(new DateHistogramInterval("1d"));
 
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
                 singletonList(dateHisto));
@@ -303,8 +277,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -490,7 +463,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testMissingBuckets() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String metricField = "metric_field";
         String valueField = "value_field";
@@ -518,15 +491,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        valueFieldType.setName(valueField);
-        valueFieldType.setHasDocValues(true);
-        valueFieldType.setName(valueField);
-
-        MappedFieldType metricFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        metricFieldType.setName(metricField);
-        metricFieldType.setHasDocValues(true);
-        metricFieldType.setName(metricField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
+        MappedFieldType metricFieldType = new NumberFieldMapper.NumberFieldType(metricField, NumberFieldMapper.NumberType.LONG);
 
         // Setup the composite agg
         TermsGroupConfig termsGroupConfig = new TermsGroupConfig(valueField);
@@ -541,8 +507,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, valueFieldType, metricFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -559,6 +524,81 @@ public class IndexerUtilsTests extends AggregatorTestCase {
                 assertThat(map.get(valueField + "." + TermsAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
             }
         }
+    }
+
+    public void testTimezone() throws IOException {
+        String indexName = randomAlphaOfLengthBetween(1, 10);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+        String timestampField = "the_histo";
+        String valueField = "the_avg";
+
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+
+        {
+            Document document = new Document();
+            long timestamp = 1443659400000L; // 2015-10-01T00:30:00Z
+            document.add(new SortedNumericDocValuesField(timestampField, timestamp));
+            document.add(new LongPoint(timestampField, timestamp));
+            document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1, 100)));
+            indexWriter.addDocument(document);
+        }
+        {
+            Document document = new Document();
+            long timestamp = 1443663000000L; // 2015-10-01T01:30:00Z
+            document.add(new SortedNumericDocValuesField(timestampField, timestamp));
+            document.add(new LongPoint(timestampField, timestamp));
+            document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1, 100)));
+            indexWriter.addDocument(document);
+        }
+        indexWriter.close();
+
+        IndexReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+        DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
+
+        // Setup the composite agg
+        DateHistogramValuesSourceBuilder dateHisto
+            = new DateHistogramValuesSourceBuilder("the_histo." + DateHistogramAggregationBuilder.NAME)
+            .field(timestampField)
+            .calendarInterval(new DateHistogramInterval("1d"))
+            .timeZone(ZoneId.of("-01:00", ZoneId.SHORT_IDS));  // adds a timezone so that we aren't on default UTC
+
+        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
+            singletonList(dateHisto));
+
+        MetricConfig metricConfig = new MetricConfig(valueField, singletonList("max"));
+        List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
+        metricAgg.forEach(compositeBuilder::subAggregation);
+
+        Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
+        indexReader.close();
+        directory.close();
+
+        final GroupConfig groupConfig = randomGroupConfig(random());
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo", randomBoolean());
+
+        assertThat(docs.size(), equalTo(2));
+
+        Map<String, Object> map = docs.get(0).sourceAsMap();
+        assertNotNull(map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
+        assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
+        assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.TIMESTAMP),
+            equalTo(1443574800000L)); // 2015-09-30T00:00:00.000-01:00
+
+        map = docs.get(1).sourceAsMap();
+        assertNotNull(map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
+        assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
+        assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.TIMESTAMP),
+            equalTo(1443661200000L)); // 2015-10-01T00:00:00.000-01:00
+
+
     }
 
     interface Mock {

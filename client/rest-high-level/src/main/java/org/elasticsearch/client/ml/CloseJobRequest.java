@@ -43,7 +43,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
     public static final ParseField JOB_ID = new ParseField("job_id");
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField FORCE = new ParseField("force");
-    public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<CloseJobRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -56,7 +56,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
             JOB_ID, ObjectParser.ValueType.STRING_ARRAY);
         PARSER.declareString((obj, val) -> obj.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         PARSER.declareBoolean(CloseJobRequest::setForce, FORCE);
-        PARSER.declareBoolean(CloseJobRequest::setAllowNoJobs, ALLOW_NO_JOBS);
+        PARSER.declareBoolean(CloseJobRequest::setAllowNoMatch, ALLOW_NO_MATCH);
     }
 
     private static final String ALL_JOBS = "_all";
@@ -64,7 +64,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
     private final List<String> jobIds;
     private TimeValue timeout;
     private Boolean force;
-    private Boolean allowNoJobs;
+    private Boolean allowNoMatch;
 
     /**
      * Explicitly close all jobs
@@ -129,8 +129,8 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         this.force = force;
     }
 
-    public Boolean getAllowNoJobs() {
-        return this.allowNoJobs;
+    public Boolean getAllowNoMatch() {
+        return this.allowNoMatch;
     }
 
     /**
@@ -138,10 +138,10 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
      *
      * This includes {@code _all} string or when no jobs have been specified
      *
-     * @param allowNoJobs When {@code true} ignore if wildcard or {@code _all} matches no jobs. Defaults to {@code true}
+     * @param allowNoMatch When {@code true} ignore if wildcard or {@code _all} matches no jobs. Defaults to {@code true}
      */
-    public void setAllowNoJobs(boolean allowNoJobs) {
-        this.allowNoJobs = allowNoJobs;
+    public void setAllowNoMatch(boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
     @Override
@@ -151,7 +151,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobIds, timeout, force, allowNoJobs);
+        return Objects.hash(jobIds, timeout, force, allowNoMatch);
     }
 
     @Override
@@ -168,7 +168,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         return Objects.equals(jobIds, that.jobIds) &&
             Objects.equals(timeout, that.timeout) &&
             Objects.equals(force, that.force) &&
-            Objects.equals(allowNoJobs, that.allowNoJobs);
+            Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override
@@ -181,8 +181,8 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         if (force != null) {
             builder.field(FORCE.getPreferredName(), force);
         }
-        if (allowNoJobs != null) {
-            builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
+        if (allowNoMatch != null) {
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
         }
         builder.endObject();
         return builder;

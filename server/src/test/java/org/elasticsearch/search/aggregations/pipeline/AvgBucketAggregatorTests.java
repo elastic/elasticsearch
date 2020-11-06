@@ -77,14 +77,14 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
      * it is fixed.
      *
      * Note: we have this test inside of the `avg_bucket` package so that we can get access to the package-private
-     * `doReduce()` needed for testing this
+     * `reduce()` needed for testing this
      */
     public void testSameAggNames() throws IOException {
         Query query = new MatchAllDocsQuery();
 
         AvgAggregationBuilder avgBuilder = new AvgAggregationBuilder("foo").field(VALUE_FIELD);
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("histo")
-            .dateHistogramInterval(DateHistogramInterval.YEAR)
+            .calendarInterval(DateHistogramInterval.YEAR)
             .field(DATE_FIELD)
             .subAggregation(new AvgAggregationBuilder("foo").field(VALUE_FIELD));
 
@@ -111,18 +111,14 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.Builder builder = new DateFieldMapper.Builder("histo");
-                DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName(DATE_FIELD);
+                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
 
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                valueFieldType.setName(VALUE_FIELD);
-                valueFieldType.setHasDocValues(true);
+                MappedFieldType valueFieldType
+                    = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
 
-                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000, null,
+                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000,
                     new MappedFieldType[]{fieldType, valueFieldType});
-                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000, null,
+                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000,
                     new MappedFieldType[]{fieldType, valueFieldType});
             }
 

@@ -29,7 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -274,7 +274,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
      * none are specified.
      */
     public SimpleQueryStringBuilder flags(SimpleQueryStringFlag... flags) {
-        if (flags != null && flags.length > 0) {
+        if (CollectionUtils.isEmpty(flags) == false) {
             int value = 0;
             for (SimpleQueryStringFlag flag : flags) {
                 value |= flag.value;
@@ -404,16 +404,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Settings newSettings = new Settings(settings);
         final Map<String, Float> resolvedFieldsAndWeights;
+        boolean isAllField;
         if (fieldsAndWeights.isEmpty() == false) {
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
+            isAllField = QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet());
         } else {
             List<String> defaultFields = context.defaultFields();
-            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
-            if (isAllField) {
-                newSettings.lenient(lenientSet ? settings.lenient() : true);
-            }
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context,
                 QueryParserHelper.parseFieldsAndWeights(defaultFields));
+            isAllField = QueryParserHelper.hasAllFieldsWildcard(defaultFields);
+        }
+
+        if (isAllField) {
+            newSettings.lenient(lenientSet ? settings.lenient() : true);
         }
 
         final SimpleQueryStringQueryParser sqp;

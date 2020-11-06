@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ShardChangesRequestTests extends AbstractStreamableTestCase<ShardChangesAction.Request> {
+public class ShardChangesRequestTests extends AbstractWireSerializingTestCase<ShardChangesAction.Request> {
 
     @Override
     protected ShardChangesAction.Request createTestInstance() {
@@ -23,8 +24,8 @@ public class ShardChangesRequestTests extends AbstractStreamableTestCase<ShardCh
     }
 
     @Override
-    protected ShardChangesAction.Request createBlankInstance() {
-        return new ShardChangesAction.Request();
+    protected Writeable.Reader<ShardChangesAction.Request> instanceReader() {
+        return ShardChangesAction.Request::new;
     }
 
     public void testValidate() {

@@ -21,10 +21,30 @@ package org.elasticsearch.search.profile.aggregation;
 
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
+
+/**
+ * {@linkplain AbstractProfileBreakdown} customized to work with aggregations.
+ */
 public class AggregationProfileBreakdown extends AbstractProfileBreakdown<AggregationTimingType> {
+    private final Map<String, Object> extra = new HashMap<>();
 
     public AggregationProfileBreakdown() {
         super(AggregationTimingType.class);
     }
 
+    /**
+     * Add extra debugging information about the aggregation.
+     */
+    public void addDebugInfo(String key, Object value) {
+        extra.put(key, value);
+    }
+
+    @Override
+    protected Map<String, Object> toDebugMap() {
+        return unmodifiableMap(extra);
+    }
 }

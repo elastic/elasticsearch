@@ -40,6 +40,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -91,7 +92,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             if (values[i] instanceof Double) continue;
             if (values[i] instanceof Float) continue;
             if (values[i] instanceof Boolean) continue;
-            if (values[i] instanceof Boolean) continue;
+            if (values[i] instanceof BigInteger) continue;
             throw new IllegalArgumentException("Can't handle " + SEARCH_AFTER + " field value of type [" + values[i].getClass() + "]");
         }
         sortValues = new Object[values.length];
@@ -182,10 +183,12 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                     return Double.parseDouble(value.toString());
 
                 case LONG:
-                    if (value instanceof Number) {
+                    // for unsigned_long field type we want to pass search_after value through formatting
+                    if (value instanceof Number && format != DocValueFormat.UNSIGNED_LONG_SHIFTED) {
                         return ((Number) value).longValue();
                     }
-                    return Long.parseLong(value.toString());
+                    return format.parseLong(value.toString(), false,
+                        () -> { throw new IllegalStateException("now() is not allowed in [search_after] key"); });
 
                 case FLOAT:
                     if (value instanceof Number) {
@@ -243,8 +246,13 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                             values.add(parser.floatValue());
                             break;
 
+                        case BIG_INTEGER:
+                            values.add(parser.text());
+                            break;
+
                         default:
-                            throw new AssertionError("Unknown number type []" + parser.numberType());
+                            throw new IllegalArgumentException("[search_after] does not accept numbers of type ["
+                                + parser.numberType() + "], got " + parser.text());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     values.add(parser.text());

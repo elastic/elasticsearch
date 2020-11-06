@@ -55,20 +55,24 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreadsTests;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
+import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
+import org.elasticsearch.indices.recovery.PeerRecoveryNotFound;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
+import org.elasticsearch.ingest.IngestProcessorException;
+import org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
@@ -77,17 +81,17 @@ import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TcpTransport;
 
@@ -119,6 +123,8 @@ import static java.lang.reflect.Modifier.isInterface;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ExceptionSerializationTests extends ESTestCase {
@@ -350,9 +356,15 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchContextMissingException() throws IOException {
-        long id = randomLong();
-        SearchContextMissingException ex = serialize(new SearchContextMissingException(id));
-        assertEquals(id, ex.id());
+        ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
+        Version version = VersionUtils.randomVersion(random());
+        SearchContextMissingException ex = serialize(new SearchContextMissingException(contextId), version);
+        assertThat(ex.contextId().getId(), equalTo(contextId.getId()));
+        if (version.onOrAfter(Version.V_7_7_0)) {
+            assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
+        } else {
+            assertThat(ex.contextId().getSessionId(), equalTo(""));
+        }
     }
 
     public void testCircuitBreakingException() throws IOException {
@@ -386,12 +398,10 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchParseException() throws IOException {
-        SearchContext ctx = new TestSearchContext(null);
-        SearchParseException ex = serialize(new SearchParseException(ctx, "foo", new XContentLocation(66, 666)));
+        SearchParseException ex = serialize(new SearchParseException(SHARD_TARGET, "foo", new XContentLocation(66, 666)));
         assertEquals("foo", ex.getMessage());
         assertEquals(66, ex.getLineNumber());
         assertEquals(666, ex.getColumnNumber());
-        assertEquals(ctx.shardTarget(), ex.shard());
     }
 
     public void testIllegalIndexShardStateException() throws IOException {
@@ -786,9 +796,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(122, null);
         ids.put(123, org.elasticsearch.ResourceAlreadyExistsException.class);
         ids.put(124, null);
-        ids.put(125, TcpTransport.HttpOnTransportException.class);
+        ids.put(125, TcpTransport.HttpRequestOnTransportException.class);
         ids.put(126, org.elasticsearch.index.mapper.MapperParsingException.class);
-        ids.put(127, org.elasticsearch.search.SearchContextException.class);
+        ids.put(127, null); // was org.elasticsearch.search.SearchContextException.class
         ids.put(128, org.elasticsearch.search.builder.SearchSourceBuilderException.class);
         ids.put(129, null); // was org.elasticsearch.index.engine.EngineClosedException.class
         ids.put(130, org.elasticsearch.action.NoShardAvailableActionException.class);
@@ -809,13 +819,19 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(145, org.elasticsearch.ElasticsearchStatusException.class);
         ids.put(146, org.elasticsearch.tasks.TaskCancelledException.class);
         ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
-        ids.put(148, UnknownNamedObjectException.class);
+        ids.put(148, null);
         ids.put(149, MultiBucketConsumerService.TooManyBucketsException.class);
         ids.put(150, CoordinationStateRejectedException.class);
         ids.put(151, SnapshotInProgressException.class);
         ids.put(152, NoSuchRemoteClusterException.class);
         ids.put(153, RetentionLeaseAlreadyExistsException.class);
         ids.put(154, RetentionLeaseNotFoundException.class);
+        ids.put(155, ShardNotInPrimaryModeException.class);
+        ids.put(156, RetentionLeaseInvalidRetainingSeqNoException.class);
+        ids.put(157, IngestProcessorException.class);
+        ids.put(158, PeerRecoveryNotFound.class);
+        ids.put(159, NodeHealthCheckFailureException.class);
+        ids.put(160, NoSeedNodeLeftException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

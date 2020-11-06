@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-max-bucket-aggregation]]
-=== Max Bucket Aggregation
+=== Max bucket aggregation
+++++
+<titleabbrev>Max bucket</titleabbrev>
+++++
 
 A sibling pipeline aggregation which identifies the bucket(s) with the maximum value of a specified metric in a sibling aggregation
 and outputs both the value and the key(s) of the bucket(s). The specified metric must be numeric and the sibling aggregation must
@@ -12,14 +15,16 @@ A `max_bucket` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "max_bucket": {
-        "buckets_path": "the_sum"
-    }
+  "max_bucket": {
+    "buckets_path": "the_sum"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
 
+[[max-bucket-params]]
 .`max_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to find the maximum for (see <<buckets-path-syntax>> for more
@@ -31,34 +36,33 @@ A `max_bucket` aggregation looks like this in isolation:
 
 The following snippet calculates the maximum of the total monthly `sales`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                }
-            }
-        },
-        "max_monthly_sales": {
-            "max_bucket": {
-                "buckets_path": "sales_per_month>sales" <1>
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
         }
+      }
+    },
+    "max_monthly_sales": {
+      "max_bucket": {
+        "buckets_path": "sales_per_month>sales" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> `buckets_path` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the
@@ -66,7 +70,7 @@ POST /sales/_search
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

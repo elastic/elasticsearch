@@ -23,13 +23,14 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
@@ -42,15 +43,16 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExplainResponseTests extends AbstractStreamableXContentTestCase<ExplainResponse> {
+public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainResponse> {
+
     @Override
     protected ExplainResponse doParseInstance(XContentParser parser) throws IOException {
         return ExplainResponse.fromXContent(parser, randomBoolean());
     }
 
     @Override
-    protected ExplainResponse createBlankInstance() {
-        return new ExplainResponse();
+    protected Writeable.Reader<ExplainResponse> instanceReader() {
+        return ExplainResponse::new;
     }
 
     @Override
@@ -68,7 +70,7 @@ public class ExplainResponseTests extends AbstractStreamableXContentTestCase<Exp
             0, 1, randomNonNegativeLong(),
             true,
             RandomObjects.randomSource(random()),
-            singletonMap(fieldName, new DocumentField(fieldName, values)));
+            singletonMap(fieldName, new DocumentField(fieldName, values)), null);
         return new ExplainResponse(index, type, id, exist, explanation, getResult);
     }
 
@@ -85,7 +87,7 @@ public class ExplainResponseTests extends AbstractStreamableXContentTestCase<Exp
         Explanation explanation = Explanation.match(1.0f, "description", Collections.emptySet());
         GetResult getResult = new GetResult(null, null, null, 0, 1, -1, true, new BytesArray("{ \"field1\" : " +
             "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
-            singletonList("value1"))));
+            singletonList("value1"))), null);
         ExplainResponse response = new ExplainResponse(index, type, id, exist, explanation, getResult);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

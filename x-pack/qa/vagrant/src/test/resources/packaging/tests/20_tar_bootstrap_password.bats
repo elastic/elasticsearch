@@ -1,1 +1,0 @@
-bootstrap_password.bash

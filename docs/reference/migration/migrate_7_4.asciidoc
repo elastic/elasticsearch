@@ -1,0 +1,208 @@
+[[breaking-changes-7.4]]
+== Breaking changes in 7.4
+++++
+<titleabbrev>7.4</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 7.4.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+//end::notable-breaking-changes[]
+
+[discrete]
+[[breaking_74_plugin_changes]]
+=== Plugins changes
+
+[discrete]
+==== TokenizerFactory changes
+
+TokenizerFactory now has a `name()` method that must be implemented.  Most
+plugin-provided TokenizerFactory implementations will extend `AbstractTokenizerFactory`,
+which now takes a `name` parameter in its constructor.
+
+[discrete]
+[[breaking_74_search_changes]]
+=== Search Changes
+
+[discrete]
+==== Forbid empty doc values in vector functions
+If a document doesn't have a value for a vector field (dense_vector
+or sparse_vector) on which a vector function is executed, an error will
+be thrown.
+
+[discrete]
+==== Use float instead of double for query vectors
+Previously, vector functions like `cosineSimilarity` represented the query
+vector as an list of doubles. Now vector functions use floats, which matches
+how the stored document vectors are represented.
+
+[discrete]
+[[breaking_74_snapshots_changes]]
+=== Snapshot and Restore changes
+
+[discrete]
+==== The S3 repository plugin uses the DNS style access pattern by default
+
+Starting in version 7.4 the `repository-s3` plugin does not use the
+now-deprecated path-style access pattern by default. In versions 7.0, 7.1, 7.2
+and 7.3 the `repository-s3` plugin always used the path-style access pattern.
+This is a breaking change for deployments that only support path-style access
+but which are recognized as supporting DNS-style access by the AWS SDK. If your
+deployment only supports path-style access and is affected by this change then
+you must configure the S3 client setting `path_style_access` to `true`. This
+breaking change was made necessary by
+https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/[AWS's
+announcement] that the path-style access pattern is deprecated and will be
+unsupported on buckets created after September 30th 2020.
+
+[discrete]
+[[breaking_74_http_changes]]
+=== HTTP changes
+
+[discrete]
+==== Changes to Encoding Plus Signs in URLs
+
+Starting in version 7.4, a `+` in a URL will be encoded as `%2B` by all REST API functionality. Prior versions handled a `+` as a single space.
+If your application requires handling `+` as a single space you can return to the old behaviour by setting the system property
+`es.rest.url_plus_as_space` to `true`. Note that this behaviour is deprecated and setting this system property to `true` will cease
+to be supported in version 8.
+
+[discrete]
+[[breaking_74_cluster_changes]]
+=== Cluster changes
+
+[discrete]
+==== Rerouting after starting a shard runs at lower priority
+
+After starting each shard the elected master node must perform a reroute to
+search for other shards that could be allocated. In particular, when creating
+an index it is this task that allocates the replicas once the primaries have
+started. In versions prior to 7.4 this task runs at priority `URGENT`, but
+starting in version 7.4 its priority is reduced to `NORMAL`. In a
+well-configured cluster this reduces the amount of work the master must do, but
+means that a cluster with a master that is overloaded with other tasks at
+`HIGH` or `URGENT` priority may take longer to allocate all replicas.
+
+Additionally, before 7.4 the `GET
+_cluster_health?wait_for_no_initializing_shards` and `GET
+_cluster/health?wait_for_no_relocating_shards` APIs would return only once all
+pending reroutes have completed too, but starting in version 7.4 if you want to
+wait for the rerouting process to completely finish you should add the
+`wait_for_events=languid` query parameter when calling these APIs.
+
+[discrete]
+[[breaking_74_allocation_changes]]
+=== Allocation changes
+
+[discrete]
+==== Auto-release of read-only-allow-delete block
+
+If a node exceeds the flood-stage disk watermark then {es} adds the
+`index.blocks.read_only_allow_delete` block to all of its indices to prevent
+further writes, as a last-resort attempt to prevent the node completely
+exhausting its disk space. In earlier versions this block would remain in place
+until manually removed, causing confusion for users who currently have ample
+disk space and who are not aware that they nearly ran out at some point in the
+past. From 7.4 onwards the block is automatically removed when the node drops
+below the high watermark again, with the expectation that the high watermark is
+some distance below the flood-stage watermark and therefore the disk space
+problem is truly resolved. Since this block may be automatically removed, you
+can no longer rely on adding this block manually to prevent writes to an index.
+You should use the `index.blocks.read_only` block instead. This behaviour can
+be disabled by setting the system property
+`es.disk.auto_release_flood_stage_block` to `false`.
+
+[discrete]
+[[breaking_74_settings_changes]]
+=== Settings changes
+
+[discrete]
+[[breaking_74_unique_realm_names]]
+==== Authentication realm name uniqueness is enforced
+
+Authentication realm name uniqueness is now enforced. If you configure more than one realm of any type
+with the same name, the node fails to start.
+
+[discrete]
+[[deprecate-pidfile]]
+==== `pidfile` setting is being replaced by `node.pidfile`
+
+To ensure that all settings are in a proper namespace, the `pidfile` setting is
+deprecated, and will be removed in version 8.0.0. Instead, use `node.pidfile`.
+
+[discrete]
+[[deprecate-processors]]
+==== `processors` setting is being replaced by `node.processors`
+
+To ensure that all settings are in a proper namespace, the `processors` setting
+is deprecated, and will be removed in version 8.0.0. Instead, use
+`node.processors`.
+
+[discrete]
+[[breaking_74_transform_changes]]
+=== {transform-cap} changes
+
+[discrete]
+[[transform_stats_format]]
+==== Stats response format changes
+
+The response format of the <<get-transform-stats>> is very different
+to previous versions:
+
+- `task_state` and `indexer_state` are combined into a single `state` field
+  that replaces the old `state` object.
+- Within the `checkpointing` object, `current` is renamed to `last` and
+  `in_progress` to `next`.
+- The `checkpoint` number is now nested under `last` and `next`.
+- `checkpoint_progress` is now reported in an object nested in the `next`
+  checkpoint object. (If there is no `next` checkpoint then no checkpoint is
+  in progress and by definition the `last` checkpoint is 100% complete.)
+
+For an example of the new format see <<get-transform-stats-example>>.
+
+[discrete]
+[[breaking_74_df_analytics_changes]]
+=== {dfanalytics-cap} changes
+
+[discrete]
+[[progress_reporting_change]]
+==== Changes to progress reporting
+
+The single integer `progress_percent` field at the top level of the
+{dfanalytics-job} stats is replaced by a `progress` field that is an array
+of objects. Each object contains the `phase` name and `progress_percent` of one
+phase of the analytics. For example:
+
+[source,js]
+----
+{
+  "id" : "my_job",
+  "state" : "analyzing",
+  "progress" : [
+    {
+      "phase" : "reindexing",
+      "progress_percent" : 100
+    },
+    {
+      "phase" : "loading_data",
+      "progress_percent" : 100
+    },
+    {
+      "phase" : "analyzing",
+      "progress_percent" : 47
+    },
+    {
+      "phase" : "writing_results",
+      "progress_percent" : 0
+    }
+  ]
+}
+----
+// NOTCONSOLE

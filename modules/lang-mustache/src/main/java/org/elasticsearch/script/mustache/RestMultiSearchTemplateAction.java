@@ -19,29 +19,28 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestMultiSearchTemplateAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiSearchTemplateAction.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
         " Specifying types in multi search template requests is deprecated.";
 
@@ -49,7 +48,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
     static {
         final Set<String> responseParams = new HashSet<>(
-            Arrays.asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM)
+            asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM)
         );
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
@@ -57,18 +56,20 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    public RestMultiSearchTemplateAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestMultiSearchTemplateAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+    }
 
-        controller.registerHandler(GET, "/_msearch/template", this);
-        controller.registerHandler(POST, "/_msearch/template", this);
-        controller.registerHandler(GET, "/{index}/_msearch/template", this);
-        controller.registerHandler(POST, "/{index}/_msearch/template", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/_msearch/template", this);
-        controller.registerHandler(POST, "/{index}/{type}/_msearch/template", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(GET, "/_msearch/template"),
+            new Route(POST, "/_msearch/template"),
+            new Route(GET, "/{index}/_msearch/template"),
+            new Route(POST, "/{index}/_msearch/template"),
+            // Deprecated typed endpoints.
+            new Route(GET, "/{index}/{type}/_msearch/template"),
+            new Route(POST, "/{index}/{type}/_msearch/template")));
     }
 
     @Override
@@ -83,7 +84,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         // Emit a single deprecation message if any search template contains types.
         for (SearchTemplateRequest searchTemplateRequest : multiRequest.requests()) {
             if (searchTemplateRequest.getRequest().types().length > 0) {
-                deprecationLogger.deprecatedAndMaybeLog("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
                 break;
             }
         }

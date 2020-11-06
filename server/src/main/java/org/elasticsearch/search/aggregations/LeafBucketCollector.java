@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
+import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 
 import java.io.IOException;
 import java.util.stream.Stream;
@@ -73,9 +74,33 @@ public abstract class LeafBucketCollector implements LeafCollector {
     }
 
     /**
-     * Collect the given doc in the given bucket.
+     * Collect the given {@code doc} in the bucket owned by
+     * {@code owningBucketOrd}.
+     * <p>
+     * The implementation of this method metric aggregations is generally
+     * something along the lines of
+     * <pre>{@code
+     * array[owningBucketOrd] += loadValueFromDoc(doc)
+     * }</pre>
+     * <p>Bucket aggregations have more trouble because their job is to
+     * <strong>make</strong> new ordinals. So their implementation generally
+     * looks kind of like
+     * <pre>{@code
+     * long myBucketOrd = mapOwningBucketAndValueToMyOrd(owningBucketOrd, loadValueFromDoc(doc));
+     * collectBucket(doc, myBucketOrd);
+     * }</pre>
+     * <p>
+     * Some bucket aggregations "know" how many ordinals each owning ordinal
+     * needs so they can map "densely". The {@code range} aggregation, for
+     * example, can perform this mapping with something like:
+     * <pre>{@code
+     * return rangeCount * owningBucketOrd + matchingRange(value);
+     * }</pre>
+     * Other aggregations don't know how many buckets will fall into any
+     * particular owning bucket. The {@code terms} aggregation, for example,
+     * uses {@link LongKeyedBucketOrds} which amounts to a hash lookup.
      */
-    public abstract void collect(int doc, long bucket) throws IOException;
+    public abstract void collect(int doc, long owningBucketOrd) throws IOException;
 
     @Override
     public final void collect(int doc) throws IOException {

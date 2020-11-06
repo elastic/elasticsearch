@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -195,6 +196,16 @@ public abstract class Publication {
             ", version=" + publishRequest.getAcceptedState().version() + '}';
     }
 
+    void logIncompleteNodes(Level level) {
+        final String message = publicationTargets.stream().filter(PublicationTarget::isActive).map(publicationTarget ->
+            publicationTarget.getDiscoveryNode() + " [" + publicationTarget.getState() + "]").collect(Collectors.joining(", "));
+        if (message.isEmpty() == false) {
+            final TimeValue elapsedTime = TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime);
+            logger.log(level, "after [{}] publication of cluster state version [{}] is still waiting for {}", elapsedTime,
+                publishRequest.getAcceptedState().version(), message);
+        }
+    }
+
     enum PublicationTargetState {
         NOT_STARTED,
         FAILED,
@@ -213,6 +224,10 @@ public abstract class Publication {
             this.discoveryNode = discoveryNode;
         }
 
+        PublicationTargetState getState() {
+            return state;
+        }
+
         @Override
         public String toString() {
             return "PublicationTarget{" +
@@ -229,7 +244,6 @@ public abstract class Publication {
             assert state == PublicationTargetState.NOT_STARTED : state + " -> " + PublicationTargetState.SENT_PUBLISH_REQUEST;
             state = PublicationTargetState.SENT_PUBLISH_REQUEST;
             Publication.this.sendPublishRequest(discoveryNode, publishRequest, new PublishResponseHandler());
-            // TODO Can this ^ fail with an exception? Target should be failed if so.
             assert publicationCompletedIffAllTargetsInactiveOrCancelled();
         }
 
@@ -239,12 +253,18 @@ public abstract class Publication {
             if (applyCommitRequest.isPresent()) {
                 sendApplyCommit();
             } else {
-                Publication.this.handlePublishResponse(discoveryNode, publishResponse).ifPresent(applyCommit -> {
-                    assert applyCommitRequest.isPresent() == false;
-                    applyCommitRequest = Optional.of(applyCommit);
-                    ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
-                    publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum).forEach(PublicationTarget::sendApplyCommit);
-                });
+                try {
+                    Publication.this.handlePublishResponse(discoveryNode, publishResponse).ifPresent(applyCommit -> {
+                        assert applyCommitRequest.isPresent() == false;
+                        applyCommitRequest = Optional.of(applyCommit);
+                        ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
+                        publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum)
+                            .forEach(PublicationTarget::sendApplyCommit);
+                    });
+                } catch (Exception e) {
+                    setFailed(e);
+                    onPossibleCommitFailure();
+                }
             }
         }
 

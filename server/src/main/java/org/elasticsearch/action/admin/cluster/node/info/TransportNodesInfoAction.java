@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequest,
                                                                    NodesInfoResponse,
@@ -56,39 +57,44 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     }
 
     @Override
-    protected NodeInfoRequest newNodeRequest(String nodeId, NodesInfoRequest request) {
-        return new NodeInfoRequest(nodeId, request);
+    protected NodeInfoRequest newNodeRequest(NodesInfoRequest request) {
+        return new NodeInfoRequest(request);
     }
 
     @Override
-    protected NodeInfo newNodeResponse() {
-        return new NodeInfo();
+    protected NodeInfo newNodeResponse(StreamInput in) throws IOException {
+        return new NodeInfo(in);
     }
 
     @Override
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest) {
         NodesInfoRequest request = nodeRequest.request;
-        return nodeService.info(request.settings(), request.os(), request.process(), request.jvm(), request.threadPool(),
-                request.transport(), request.http(), request.plugins(), request.ingest(), request.indices());
+        Set<String> metrics = request.requestedMetrics();
+        return nodeService.info(
+            metrics.contains(NodesInfoRequest.Metric.SETTINGS.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.OS.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.PROCESS.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.JVM.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.THREAD_POOL.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.TRANSPORT.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.HTTP.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.PLUGINS.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.INGEST.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.AGGREGATIONS.metricName()),
+            metrics.contains(NodesInfoRequest.Metric.INDICES.metricName()));
     }
 
     public static class NodeInfoRequest extends BaseNodeRequest {
 
         NodesInfoRequest request;
 
-        public NodeInfoRequest() {
+        public NodeInfoRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesInfoRequest(in);
         }
 
-        public NodeInfoRequest(String nodeId, NodesInfoRequest request) {
-            super(nodeId);
+        public NodeInfoRequest(NodesInfoRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesInfoRequest();
-            request.readFrom(in);
         }
 
         @Override

@@ -22,6 +22,7 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -47,25 +48,18 @@ public class TranslogDeletionPolicy {
      * translog generation
      */
     private final Map<Long, Counter> translogRefCounts = new HashMap<>();
-
-    /**
-     * the translog generation that is requires to properly recover from the oldest non deleted
-     * {@link org.apache.lucene.index.IndexCommit}.
-     */
-    private long minTranslogGenerationForRecovery = 1;
-
-    /**
-     * This translog generation is used to calculate the number of uncommitted operations since the last index commit.
-     */
-    private long translogGenerationOfLastCommit = 1;
+    private long localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
 
     private long retentionSizeInBytes;
 
     private long retentionAgeInMillis;
 
-    public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis) {
+    private int retentionTotalFiles;
+
+    public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis, int retentionTotalFiles) {
         this.retentionSizeInBytes = retentionSizeInBytes;
         this.retentionAgeInMillis = retentionAgeInMillis;
+        this.retentionTotalFiles = retentionTotalFiles;
         if (Assertions.ENABLED) {
             openTranslogRef = new ConcurrentHashMap<>();
         } else {
@@ -73,23 +67,12 @@ public class TranslogDeletionPolicy {
         }
     }
 
-    public synchronized void setMinTranslogGenerationForRecovery(long newGen) {
-        if (newGen < minTranslogGenerationForRecovery || newGen > translogGenerationOfLastCommit) {
-            throw new IllegalArgumentException("Invalid minTranslogGenerationForRecovery can't go backwards; new [" + newGen + "]," +
-                "current [" + minTranslogGenerationForRecovery + "], lastGen [" + translogGenerationOfLastCommit + "]");
+    public synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
+        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
+            throw new IllegalArgumentException("local checkpoint of the safe commit can't go backwards: " +
+                "current [" + this.localCheckpointOfSafeCommit + "] new [" + newCheckpoint + "]");
         }
-        minTranslogGenerationForRecovery = newGen;
-    }
-
-    /**
-     * Sets the translog generation of the last index commit.
-     */
-    public synchronized void setTranslogGenerationOfLastCommit(long lastGen) {
-        if (lastGen < translogGenerationOfLastCommit || lastGen < minTranslogGenerationForRecovery) {
-            throw new IllegalArgumentException("Invalid translogGenerationOfLastCommit; new [" + lastGen + "]," +
-                "current [" + translogGenerationOfLastCommit + "], minRequiredGen [" + minTranslogGenerationForRecovery + "]");
-        }
-        translogGenerationOfLastCommit = lastGen;
+        this.localCheckpointOfSafeCommit = newCheckpoint;
     }
 
     public synchronized void setRetentionSizeInBytes(long bytes) {
@@ -98,6 +81,10 @@ public class TranslogDeletionPolicy {
 
     public synchronized void setRetentionAgeInMillis(long ageInMillis) {
         retentionAgeInMillis = ageInMillis;
+    }
+
+    synchronized void setRetentionTotalFiles(int retentionTotalFiles) {
+        this.retentionTotalFiles = retentionTotalFiles;
     }
 
     /**
@@ -164,7 +151,8 @@ public class TranslogDeletionPolicy {
         } else {
             minByAgeAndSize = Math.max(minByAge, minBySize);
         }
-        return Math.min(minByAgeAndSize, Math.min(minByLocks, minTranslogGenerationForRecovery));
+        long minByNumFiles = getMinTranslogGenByTotalFiles(readers, writer, retentionTotalFiles);
+        return Math.min(Math.max(minByAgeAndSize, minByNumFiles), minByLocks);
     }
 
     static long getMinTranslogGenBySize(List<TranslogReader> readers, TranslogWriter writer, long retentionSizeInBytes) {
@@ -196,6 +184,16 @@ public class TranslogDeletionPolicy {
         }
     }
 
+    static long getMinTranslogGenByTotalFiles(List<TranslogReader> readers, TranslogWriter writer, final int maxTotalFiles) {
+        long minGen = writer.generation;
+        int totalFiles = 1; // for the current writer
+        for (int i = readers.size() - 1; i >= 0 && totalFiles < maxTotalFiles; i--) {
+            totalFiles++;
+            minGen = readers.get(i).generation;
+        }
+        return minGen;
+    }
+
     protected long currentTime() {
         return System.currentTimeMillis();
     }
@@ -204,16 +202,11 @@ public class TranslogDeletionPolicy {
         return translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
     }
 
-    /** returns the translog generation that will be used as a basis of a future store/peer recovery */
-    public synchronized long getMinTranslogGenerationForRecovery() {
-        return minTranslogGenerationForRecovery;
-    }
-
     /**
-     * Returns a translog generation that will be used to calculate the number of uncommitted operations since the last index commit.
+     * Returns the local checkpoint of the safe commit. This value is used to calculate the min required generation for recovery.
      */
-    public synchronized long getTranslogGenerationOfLastCommit() {
-        return translogGenerationOfLastCommit;
+    public synchronized long getLocalCheckpointOfSafeCommit() {
+        return localCheckpointOfSafeCommit;
     }
 
     synchronized long getTranslogRefCount(long gen) {

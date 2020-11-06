@@ -44,7 +44,13 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     private List<PipelineConfiguration> pipelines;
 
-    public GetPipelineResponse() {
+    public GetPipelineResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        pipelines = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            pipelines.add(PipelineConfiguration.readFrom(in));
+        }
     }
 
     public GetPipelineResponse(List<PipelineConfiguration> pipelines) {
@@ -61,18 +67,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        pipelines = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            pipelines.add(PipelineConfiguration.readFrom(in));
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(pipelines.size());
         for (PipelineConfiguration pipeline : pipelines) {
             pipeline.writeTo(out);
@@ -105,7 +100,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
      * @throws IOException If the parsing fails
      */
     public static GetPipelineResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         List<PipelineConfiguration> pipelines = new ArrayList<>();
         while(parser.nextToken().equals(Token.FIELD_NAME)) {
             String pipelineId = parser.currentName();
@@ -117,7 +112,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
                 pipelines.add(pipeline);
             }
         }
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
         return new GetPipelineResponse(pipelines);
     }
 

@@ -22,6 +22,7 @@ package org.elasticsearch.test.test;
 import junit.framework.AssertionFailedError;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -40,8 +41,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class ESTestCaseTests extends ESTestCase {
 
@@ -180,5 +183,38 @@ public class ESTestCaseTests extends ESTestCase {
          */
         Supplier<Object> usuallyNull = () -> usually() ? null : randomInt();
         assertNotNull(randomValueOtherThan(null, usuallyNull));
+    }
+
+    public void testWorkerSystemProperty() {
+        assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
+
+        assertThat(ESTestCase.TEST_WORKER_VM_ID, not(equals(ESTestCase.DEFAULT_TEST_WORKER_ID)));
+    }
+
+    public void testBasePortGradle() {
+        assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
+        // Gradle worker IDs are 1 based
+        assertNotEquals(10300, ESTestCase.getBasePort());
+    }
+
+    public void testBasePortIDE() {
+        assumeTrue("requires running tests without Gradle", System.getProperty("tests.gradle") == null);
+        assertEquals(10300, ESTestCase.getBasePort());
+    }
+
+    public void testRandomDateFormatterPattern() {
+        DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern());
+        /*
+         * Make sure it doesn't crash trying to format some dates and
+         * that round tripping through millis doesn't lose any information.
+         * Interestingly, round tripping through a string *can* lose
+         * information because not all date formats spit out milliseconds.
+         * Hell, not all of them spit out the time of day at all!
+         * But going from text back to millis back to text should
+         * be fine!
+         */
+        String formatted = formatter.formatMillis(randomLongBetween(0, 2_000_000_000_000L));
+        String formattedAgain = formatter.formatMillis(formatter.parseMillis(formatted));
+        assertThat(formattedAgain, equalTo(formatted));
     }
 }

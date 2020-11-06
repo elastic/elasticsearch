@@ -39,8 +39,8 @@ import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.ReportingService;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -60,14 +60,14 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class ThreadPool implements Scheduler, Closeable {
+public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
     public static class Names {
         public static final String SAME = "same";
         public static final String GENERIC = "generic";
-        public static final String LISTENER = "listener";
+        @Deprecated public static final String LISTENER = "listener";
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
@@ -81,6 +81,8 @@ public class ThreadPool implements Scheduler, Closeable {
         public static final String FORCE_MERGE = "force_merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
+        public static final String SYSTEM_READ = "system_read";
+        public static final String SYSTEM_WRITE = "system_write";
     }
 
     public enum ThreadPoolType {
@@ -138,6 +140,8 @@ public class ThreadPool implements Scheduler, Closeable {
         map.put(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING);
         map.put(Names.SEARCH_THROTTLED, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);
+        map.put(Names.SYSTEM_READ, ThreadPoolType.FIXED);
+        map.put(Names.SYSTEM_WRITE, ThreadPoolType.FIXED);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -167,31 +171,34 @@ public class ThreadPool implements Scheduler, Closeable {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
-        final int availableProcessors = EsExecutors.numberOfProcessors(settings);
-        final int halfProcMaxAt5 = halfNumberOfProcessorsMaxFive(availableProcessors);
-        final int halfProcMaxAt10 = halfNumberOfProcessorsMaxTen(availableProcessors);
-        final int genericThreadPoolMax = boundedBy(4 * availableProcessors, 128, 512);
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
+        final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
+        final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
         builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
-        builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, availableProcessors, 200));
-        builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, availableProcessors, 1000));
+        builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
+        builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
         builders.put(Names.SEARCH, new AutoQueueAdjustingExecutorBuilder(settings,
-                        Names.SEARCH, searchThreadPoolSize(availableProcessors), 1000, 1000, 1000, 2000));
+                        Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, 1000, 1000, 2000));
         builders.put(Names.SEARCH_THROTTLED, new AutoQueueAdjustingExecutorBuilder(settings,
             Names.SEARCH_THROTTLED, 1, 100, 100, 100, 200));
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
         // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
         // the assumption here is that the listeners should be very lightweight on the listeners side
-        builders.put(Names.LISTENER, new FixedExecutorBuilder(settings, Names.LISTENER, halfProcMaxAt10, -1));
+        builders.put(Names.LISTENER, new FixedExecutorBuilder(settings, Names.LISTENER, halfProcMaxAt10, -1, true));
         builders.put(Names.FLUSH, new ScalingExecutorBuilder(Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5)));
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.FETCH_SHARD_STARTED,
-                new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
+                new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1));
         builders.put(Names.FETCH_SHARD_STORE,
-                new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
+                new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5)));
+        builders.put(Names.SYSTEM_READ, new FixedExecutorBuilder(settings, Names.SYSTEM_READ, halfProcMaxAt5, 2000, false));
+        builders.put(Names.SYSTEM_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, false));
+
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
                 throw new IllegalArgumentException("builder with name [" + builder.name() + "] already exists");
@@ -237,7 +244,17 @@ public class ThreadPool implements Scheduler, Closeable {
      * timestamp, see {@link #absoluteTimeInMillis()}.
      */
     public long relativeTimeInMillis() {
-        return cachedTimeThread.relativeTimeInMillis();
+        return TimeValue.nsecToMSec(relativeTimeInNanos());
+    }
+
+    /**
+     * Returns a value of nanoseconds that may be used for relative time calculations.
+     *
+     * This method should only be used for calculating time deltas. For an epoch based
+     * timestamp, see {@link #absoluteTimeInMillis()}.
+     */
+    public long relativeTimeInNanos() {
+        return cachedTimeThread.relativeTimeInNanos();
     }
 
     /**
@@ -251,6 +268,7 @@ public class ThreadPool implements Scheduler, Closeable {
         return cachedTimeThread.absoluteTimeInMillis();
     }
 
+    @Override
     public ThreadPoolInfo info() {
         return threadPoolInfo;
     }
@@ -326,9 +344,7 @@ public class ThreadPool implements Scheduler, Closeable {
     }
 
     /**
-     * Schedules a one-shot command to run after a given delay. The command is not run in the context of the calling thread. To preserve the
-     * context of the calling thread you may call <code>threadPool.getThreadContext().preserveContext</code> on the runnable before passing
-     * it to this method.
+     * Schedules a one-shot command to run after a given delay. The command is run in the context of the calling thread.
      *
      * @param command the command to run
      * @param delay delay before the task executes
@@ -342,6 +358,7 @@ public class ThreadPool implements Scheduler, Closeable {
      */
     @Override
     public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+        command = threadContext.preserveContext(command);
         if (!Names.SAME.equals(executor)) {
             command = new ThreadedRunnable(command, executor(executor));
         }
@@ -372,11 +389,6 @@ public class ThreadPool implements Scheduler, Closeable {
                 },
                 (e) -> logger.warn(() -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
                         command, executor), e));
-    }
-
-    @Override
-    public Runnable preserveContext(Runnable command) {
-        return getThreadContext().preserveContext(command);
     }
 
     protected final void stopCachedTimeThread() {
@@ -433,20 +445,20 @@ public class ThreadPool implements Scheduler, Closeable {
         return Math.min(max, Math.max(min, value));
     }
 
-    static int halfNumberOfProcessorsMaxFive(int numberOfProcessors) {
-        return boundedBy((numberOfProcessors + 1) / 2, 1, 5);
+    static int halfAllocatedProcessorsMaxFive(final int allocatedProcessors) {
+        return boundedBy((allocatedProcessors + 1) / 2, 1, 5);
     }
 
-    static int halfNumberOfProcessorsMaxTen(int numberOfProcessors) {
-        return boundedBy((numberOfProcessors + 1) / 2, 1, 10);
+    static int halfAllocatedProcessorsMaxTen(final int allocatedProcessors) {
+        return boundedBy((allocatedProcessors + 1) / 2, 1, 10);
     }
 
-    static int twiceNumberOfProcessors(int numberOfProcessors) {
-        return boundedBy(2 * numberOfProcessors, 2, Integer.MAX_VALUE);
+    static int twiceAllocatedProcessors(final int allocatedProcessors) {
+        return boundedBy(2 * allocatedProcessors, 2, Integer.MAX_VALUE);
     }
 
-    public static int searchThreadPoolSize(int availableProcessors) {
-        return ((availableProcessors * 3) / 2) + 1;
+    public static int searchThreadPoolSize(final int allocatedProcessors) {
+        return ((allocatedProcessors * 3) / 2) + 1;
     }
 
     class LoggingRunnable implements Runnable {
@@ -534,30 +546,29 @@ public class ThreadPool implements Scheduler, Closeable {
 
         final long interval;
         volatile boolean running = true;
-        volatile long relativeMillis;
+        volatile long relativeNanos;
         volatile long absoluteMillis;
 
         CachedTimeThread(String name, long interval) {
             super(name);
             this.interval = interval;
-            this.relativeMillis = TimeValue.nsecToMSec(System.nanoTime());
+            this.relativeNanos = System.nanoTime();
             this.absoluteMillis = System.currentTimeMillis();
             setDaemon(true);
         }
 
         /**
-         * Return the current time used for relative calculations. This is
-         * {@link System#nanoTime()} truncated to milliseconds.
+         * Return the current time used for relative calculations. This is {@link System#nanoTime()}.
          * <p>
          * If {@link ThreadPool#ESTIMATED_TIME_INTERVAL_SETTING} is set to 0
          * then the cache is disabled and the method calls {@link System#nanoTime()}
          * whenever called. Typically used for testing.
          */
-        long relativeTimeInMillis() {
+        long relativeTimeInNanos() {
             if (0 < interval) {
-                return relativeMillis;
+                return relativeNanos;
             }
-            return TimeValue.nsecToMSec(System.nanoTime());
+            return System.nanoTime();
         }
 
         /**
@@ -578,7 +589,7 @@ public class ThreadPool implements Scheduler, Closeable {
         @Override
         public void run() {
             while (running && 0 < interval) {
-                relativeMillis = TimeValue.nsecToMSec(System.nanoTime());
+                relativeNanos = System.nanoTime();
                 absoluteMillis = System.currentTimeMillis();
                 try {
                     Thread.sleep(interval);
@@ -745,15 +756,13 @@ public class ThreadPool implements Scheduler, Closeable {
     public static boolean terminate(ThreadPool pool, long timeout, TimeUnit timeUnit) {
         if (pool != null) {
             // Leverage try-with-resources to close the threadpool
-            try (ThreadPool c = pool) {
-                pool.shutdown();
-                if (awaitTermination(pool, timeout, timeUnit)) {
-                    return true;
-                }
-                // last resort
-                pool.shutdownNow();
-                return awaitTermination(pool, timeout, timeUnit);
+            pool.shutdown();
+            if (awaitTermination(pool, timeout, timeUnit)) {
+                return true;
             }
+            // last resort
+            pool.shutdownNow();
+            return awaitTermination(pool, timeout, timeUnit);
         }
         return false;
     }
@@ -770,11 +779,6 @@ public class ThreadPool implements Scheduler, Closeable {
             Thread.currentThread().interrupt();
         }
         return false;
-    }
-
-    @Override
-    public void close() {
-        threadContext.close();
     }
 
     public ThreadContext getThreadContext() {

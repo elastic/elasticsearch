@@ -5,19 +5,14 @@
  */
 package org.elasticsearch.xpack.security.rest.action.saml;
 
-import java.io.IOException;
-
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -25,6 +20,10 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationResponse;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -36,22 +35,31 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestSamlPrepareAuthenticationAction extends SamlBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestSamlPrepareAuthenticationAction.class));
     static final ObjectParser<SamlPrepareAuthenticationRequest, Void> PARSER = new ObjectParser<>("saml_prepare_authn",
             SamlPrepareAuthenticationRequest::new);
 
     static {
         PARSER.declareString(SamlPrepareAuthenticationRequest::setAssertionConsumerServiceURL, new ParseField("acs"));
         PARSER.declareString(SamlPrepareAuthenticationRequest::setRealmName, new ParseField("realm"));
+        PARSER.declareString(SamlPrepareAuthenticationRequest::setRelayState, new ParseField("relay_state"));
     }
 
-    public RestSamlPrepareAuthenticationAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestSamlPrepareAuthenticationAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/saml/prepare", this,
-            POST, "/_xpack/security/saml/prepare", deprecationLogger);
+        return Collections.singletonList(
+            new ReplacedRoute(POST, "/_security/saml/prepare",
+                POST, "/_xpack/security/saml/prepare")
+        );
     }
 
     @Override

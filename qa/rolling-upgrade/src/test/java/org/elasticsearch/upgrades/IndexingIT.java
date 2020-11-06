@@ -19,19 +19,25 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -44,6 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
  * duplication but for now we have no real way to share code.
  */
 public class IndexingIT extends AbstractRollingTestCase {
+
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
         case OLD:
@@ -71,35 +78,39 @@ public class IndexingIT extends AbstractRollingTestCase {
             {
                 Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
                 assertThat("this branch is not needed if we aren't compatible with 6.0",
-                        minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+                    minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
                 if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
                     XContentBuilder template = jsonBuilder();
                     template.startObject();
                     {
-                        template.field("index_patterns", "*");
+                        template.array("index_patterns", "test_index", "index_with_replicas", "empty_index");
                         template.startObject("settings");
                         template.field("number_of_shards", 5);
                         template.endObject();
                     }
                     template.endObject();
-                    Request createTemplate = new Request("PUT", "/_template/template");
+                    Request createTemplate = new Request("PUT", "/_template/prevent-bwc-deprecation-template");
                     createTemplate.setJsonEntity(Strings.toString(template));
                     client().performRequest(createTemplate);
                 }
             }
-
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(createTestIndex);
             client().performRequest(createTestIndex);
+            allowedWarnings("index [test_index] matches multiple legacy templates [global, prevent-bwc-deprecation-template], " +
+                "composable templates will only match a single template");
 
             String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
             Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");
             createIndexWithReplicas.setJsonEntity(recoverQuickly);
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(createIndexWithReplicas);
             client().performRequest(createIndexWithReplicas);
 
             Request createEmptyIndex = new Request("PUT", "/empty_index");
             // Ask for recovery to be quick
             createEmptyIndex.setJsonEntity(recoverQuickly);
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(createEmptyIndex);
             client().performRequest(createEmptyIndex);
 
             bulk("test_index", "_OLD", 5);
@@ -142,6 +153,61 @@ public class IndexingIT extends AbstractRollingTestCase {
             client().performRequest(delete);
 
             assertCount("test_index", expectedCount + 5);
+        }
+    }
+
+    public void testAutoIdWithOpTypeCreate() throws IOException {
+        final String indexName = "auto_id_and_op_type_create_index";
+        StringBuilder b = new StringBuilder();
+        b.append("{\"create\": {\"_index\": \"").append(indexName).append("\"}}\n");
+        b.append("{\"f1\": \"v\"}\n");
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.setJsonEntity(b.toString());
+
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                Settings.Builder settings = Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+                createIndex(indexName, settings.build());
+                break;
+            case MIXED:
+                Request waitForGreen = new Request("GET", "/_cluster/health");
+                waitForGreen.addParameter("wait_for_nodes", "3");
+                client().performRequest(waitForGreen);
+
+                Version minNodeVersion = null;
+                Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
+                Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+                for (Map.Entry<?, ?> node : nodes.entrySet()) {
+                    Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
+                    Version nodeVersion = Version.fromString(nodeInfo.get("version").toString());
+                    if (minNodeVersion == null) {
+                        minNodeVersion = nodeVersion;
+                    } else if (nodeVersion.before(minNodeVersion)) {
+                        minNodeVersion = nodeVersion;
+                    }
+                }
+
+                if (minNodeVersion.before(Version.V_7_5_0)) {
+                    ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
+                    assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+                    assertThat(e.getMessage(),
+                        // if request goes to 7.5+ node
+                        either(containsString("optype create not supported for indexing requests without explicit id until"))
+                            // if request goes to < 7.5 node
+                            .or(containsString("an id must be provided if version type or value are set")
+                            ));
+                } else {
+                    client().performRequest(bulk);
+                }
+                break;
+            case UPGRADED:
+                client().performRequest(bulk);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }
 

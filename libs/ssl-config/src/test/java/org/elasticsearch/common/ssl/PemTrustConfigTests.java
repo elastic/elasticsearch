@@ -22,7 +22,6 @@ package org.elasticsearch.common.ssl;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -36,6 +35,8 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.net.ssl.X509ExtendedTrustManager;
 
 public class PemTrustConfigTests extends ESTestCase {
 
@@ -57,7 +58,7 @@ public class PemTrustConfigTests extends ESTestCase {
 
     public void testBadFileFormatFails() throws Exception {
         final Path ca = createTempFile("ca", ".crt");
-        Files.write(ca, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
+        Files.write(ca, generateRandomByteArrayOfLength(128), StandardOpenOption.APPEND);
         final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(ca));
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ca));
         assertInvalidFileFormat(trustConfig, ca);
@@ -106,7 +107,7 @@ public class PemTrustConfigTests extends ESTestCase {
         Files.delete(ca1);
         assertFileNotFound(trustConfig, ca1);
 
-        Files.write(ca1, randomByteArrayOfLength(128), StandardOpenOption.CREATE);
+        Files.write(ca1, generateRandomByteArrayOfLength(128), StandardOpenOption.CREATE);
         assertInvalidFileFormat(trustConfig, ca1);
     }
 
@@ -123,18 +124,19 @@ public class PemTrustConfigTests extends ESTestCase {
 
     private void assertEmptyFile(PemTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
+        logger.info("failure", exception);
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
         assertThat(exception.getMessage(), Matchers.containsString("failed to parse any certificates"));
     }
 
     private void assertInvalidFileFormat(PemTrustConfig trustConfig, Path file) {
-        if (inFipsJvm()) {
-            // When running on BC-FIPS, an invalid file format behaves like an empty file
-            assertEmptyFile(trustConfig, file);
-            return;
-        }
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
+        // When running on BC-FIPS, an invalid file format *might* just fail to parse, without any errors (just like an empty file)
+        // or it might behave per the SUN provider, and throw a GSE (depending on exactly what was invalid)
+        if (inFipsJvm() && exception.getMessage().contains("failed to parse any certificates")) {
+            return;
+        }
         assertThat(exception.getMessage(), Matchers.containsString("cannot create trust"));
         assertThat(exception.getMessage(), Matchers.containsString("PEM"));
         assertThat(exception.getCause(), Matchers.instanceOf(GeneralSecurityException.class));
@@ -146,5 +148,25 @@ public class PemTrustConfigTests extends ESTestCase {
         assertThat(exception.getMessage(), Matchers.containsString("PEM"));
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
         assertThat(exception.getCause(), Matchers.instanceOf(NoSuchFileException.class));
+    }
+
+    private byte[] generateRandomByteArrayOfLength(int length) {
+        byte[] bytes = randomByteArrayOfLength(length);
+        /*
+         * If the bytes represent DER encoded value indicating ASN.1 SEQUENCE followed by length byte if it is zero then while trying to
+         * parse PKCS7 block from the encoded stream, it failed parsing the content type. The DerInputStream.getSequence() method in this
+         * case returns an empty DerValue array but ContentType does not check the length of array before accessing the array resulting in a
+         * ArrayIndexOutOfBoundsException. This check ensures that when we create random stream of bytes we do not create ASN.1 SEQUENCE
+         * followed by zero length which fails the test intermittently.
+         */
+        while(checkRandomGeneratedBytesRepresentZeroLengthDerSequenceCausingArrayIndexOutOfBound(bytes)) {
+            bytes = randomByteArrayOfLength(length);
+        }
+        return bytes;
+    }
+
+    private static boolean checkRandomGeneratedBytesRepresentZeroLengthDerSequenceCausingArrayIndexOutOfBound(byte[] bytes) {
+        // Tag value indicating an ASN.1 "SEQUENCE". Reference: sun.security.util.DerValue.tag_Sequence = 0x30
+        return bytes[0] == 0x30 && bytes[1] == 0x00;
     }
 }

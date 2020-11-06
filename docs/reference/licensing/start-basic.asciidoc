@@ -8,12 +8,12 @@
 
 This API starts an indefinite basic license.
 
-[float]
+[discrete]
 ==== Request
 
 `POST /_license/start_basic`
 
-[float]
+[discrete]
 ==== Description
 
 The `start basic` API enables you to initiate an indefinite basic license, which
@@ -32,18 +32,17 @@ https://www.elastic.co/subscriptions.
 
 You must have `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+<<security-privileges>>.
 
-[float]
+[discrete]
 ==== Examples
 
 The following example starts a basic license if you do not currently have a license:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 POST /_license/start_basic
 ------------------------------------------------------------
-// CONSOLE
 // TEST[skip:license testing issues]
 
 Example response:
@@ -60,11 +59,10 @@ The following example starts a basic license if you currently have a license wit
 features than a basic license. As you are losing features, you must pass the acknowledge
 parameter:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 POST /_license/start_basic?acknowledge=true
 ------------------------------------------------------------
-// CONSOLE
 // TEST[skip:license testing issues]
 
 Example response:

@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -53,7 +54,7 @@ public class RoutingAllocation {
 
     private final RoutingNodes routingNodes;
 
-    private final MetaData metaData;
+    private final Metadata metadata;
 
     private final RoutingTable routingTable;
 
@@ -62,6 +63,8 @@ public class RoutingAllocation {
     private final ImmutableOpenMap<String, ClusterState.Custom> customs;
 
     private final ClusterInfo clusterInfo;
+
+    private final SnapshotShardSizeInfo shardSizeInfo;
 
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 
@@ -73,11 +76,11 @@ public class RoutingAllocation {
 
     private final long currentNanoTime;
 
-    private final IndexMetaDataUpdater indexMetaDataUpdater = new IndexMetaDataUpdater();
+    private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
     private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-        nodesChangedObserver, indexMetaDataUpdater, restoreInProgressUpdater
+        nodesChangedObserver, indexMetadataUpdater, restoreInProgressUpdater
     );
 
 
@@ -89,14 +92,15 @@ public class RoutingAllocation {
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
     public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo,
-                             long currentNanoTime) {
+                             SnapshotShardSizeInfo shardSizeInfo, long currentNanoTime) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
-        this.metaData = clusterState.metaData();
+        this.metadata = clusterState.metadata();
         this.routingTable = clusterState.routingTable();
         this.nodes = clusterState.nodes();
         this.customs = clusterState.customs();
         this.clusterInfo = clusterInfo;
+        this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
     }
 
@@ -133,8 +137,8 @@ public class RoutingAllocation {
      * Get metadata of routing nodes
      * @return Metadata of routing nodes
      */
-    public MetaData metaData() {
-        return metaData;
+    public Metadata metadata() {
+        return metadata;
     }
 
     /**
@@ -147,6 +151,10 @@ public class RoutingAllocation {
 
     public ClusterInfo clusterInfo() {
         return clusterInfo;
+    }
+
+    public SnapshotShardSizeInfo snapshotShardSizeInfo() {
+        return shardSizeInfo;
     }
 
     public <T extends ClusterState.Custom> T custom(String key) {
@@ -222,7 +230,7 @@ public class RoutingAllocation {
      * Remove the allocation id of the provided shard from the set of in-sync shard copies
      */
     public void removeAllocationId(ShardRouting shardRouting) {
-        indexMetaDataUpdater.removeAllocationId(shardRouting);
+        indexMetadataUpdater.removeAllocationId(shardRouting);
     }
 
     /**
@@ -233,10 +241,10 @@ public class RoutingAllocation {
     }
 
     /**
-     * Returns updated {@link MetaData} based on the changes that were made to the routing nodes
+     * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
-    public MetaData updateMetaDataWithRoutingChanges(RoutingTable newRoutingTable) {
-        return indexMetaDataUpdater.applyChanges(metaData, newRoutingTable);
+    public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable) {
+        return indexMetadataUpdater.applyChanges(metadata, newRoutingTable);
     }
 
     /**

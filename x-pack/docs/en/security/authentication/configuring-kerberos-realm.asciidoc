@@ -1,7 +1,3 @@
-[role="xpack"]
-[[configuring-kerberos-realm]]
-=== Configuring a Kerberos realm
-
 Kerberos is used to protect services and uses a ticket-based authentication
 protocol to authenticate users.
 You can configure {es} to use the Kerberos V5 authentication protocol, which is 
@@ -15,9 +11,8 @@ Refer to your Kerberos installation documentation for more information about
 obtaining TGT. {es} clients must first obtain a TGT then initiate the process of 
 authenticating with {es}.
 
-For a summary of Kerberos terminology, see {stack-ov}/kerberos-realm.html[Kerberos authentication].
-
-==== Before you begin
+[[kerberos-realm-prereq]]
+===== Before you begin
 
 . Deploy Kerberos. 
 +
@@ -51,7 +46,36 @@ For more information on Java GSS, see
 https://docs.oracle.com/javase/10/security/kerberos-requirements1.htm[Java GSS Kerberos requirements]
 --
 
-==== Create a Kerberos realm
+. Enable TLS for HTTP.
++
+--
+If your {es} cluster is operating in production mode, you must configure the
+HTTP interface to use SSL/TLS before you can enable Kerberos authentication. For
+more information, see <<tls-http>>.
+
+This step is necessary to support Kerberos authentication via {kib}.
+It is not required for Kerberos authentication directly against the {es} Rest API.
+--
+
+. Enable the token service
++
+--
+The {es} Kerberos implementation makes use of the {es} token service. If you
+configure TLS on the HTTP interface, this service is automatically enabled. It
+can be explicitly configured by adding the following setting in your
+`elasticsearch.yml` file:
+
+[source, yaml]
+------------------------------------------------------------
+xpack.security.authc.token.enabled: true
+------------------------------------------------------------
+
+This step is necessary to support Kerberos authentication via {kib}.
+It is not required for Kerberos authentication directly against the {es} Rest API.
+--
+
+[[kerberos-realm-create]]
+===== Create a Kerberos realm
 
 To configure a Kerberos realm in {es}:
 
@@ -65,7 +89,7 @@ default realm, the Key Distribution Center (KDC), and other configuration detail
 required for Kerberos authentication. When the JVM needs some configuration 
 properties, it tries to find those values by locating and loading this file. The 
 JVM system property to configure the file path is `java.security.krb5.conf`. To 
-configure JVM system properties see {ref}/jvm-options.html[configuring jvm options]. 
+configure JVM system properties see <<jvm-options>>. 
 If this system property is not specified, Java tries to locate the file based on 
 the conventions.
 
@@ -133,7 +157,7 @@ set to `true`, the realm part (`@REALM`) is removed. The resulting `username`
 is used for role mapping.
 
 For detailed information of available realm settings,
-see {ref}/security-settings.html#ref-kerberos-settings[Kerberos realm settings].
+see <<ref-kerberos-settings>>.
 
 --
 
@@ -143,15 +167,15 @@ see {ref}/security-settings.html#ref-kerberos-settings[Kerberos realm settings].
 +
 --
 
-The `kerberos` realm enables you to map Kerberos users to roles. You can 
-configure these role mappings by using the 
-{ref}/security-api-role-mapping.html[role-mapping API]. You identify 
-users by their `username` field.
+The `kerberos` realm enables you to map Kerberos users to roles. You can
+configure these role mappings by using the
+<<security-api-put-role-mapping,create or update role mappings API>>. You
+identify users by their `username` field.
 
 The following example uses the role mapping API to map `user@REALM` to the roles 
 `monitoring` and `user`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role_mapping/kerbrolemapping
 {
@@ -162,7 +186,6 @@ POST /_security/role_mapping/kerbrolemapping
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 In case you want to support Kerberos cross realm authentication you may 
 need to map roles based on the Kerberos realm name. For such scenarios 
@@ -170,11 +193,10 @@ following are the additional user metadata available for role mapping:
 - `kerberos_realm` will be set to Kerberos realm name.
 - `kerberos_user_principal_name` will be set to user principal name from the Kerberos ticket.
 
-For more information, see {stack-ov}/mapping-roles.html[Mapping users and groups to roles].
+For more information, see <<mapping-roles>>.
 
 NOTE: The Kerberos realm supports
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
+<<authorization_realms,authorization realms>> as an
 alternative to role mapping.
 
 --
-

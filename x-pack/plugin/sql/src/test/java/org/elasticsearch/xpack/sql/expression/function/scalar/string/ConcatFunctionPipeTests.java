@@ -6,20 +6,20 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.BinaryPipe;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.sql.expression.Expressions.pipe;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
-import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
+import static org.elasticsearch.xpack.ql.expression.Expressions.pipe;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
+import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 
 public class ConcatFunctionPipeTests extends AbstractNodeTestCase<ConcatFunctionPipe, Pipe> {
 
@@ -68,8 +68,8 @@ public class ConcatFunctionPipeTests extends AbstractNodeTestCase<ConcatFunction
     @Override
     public void testReplaceChildren() {
         ConcatFunctionPipe b = randomInstance();
-        Pipe newLeft = pipe(((Expression) randomValueOtherThan(b.left(), () -> randomStringLiteral())));
-        Pipe newRight = pipe(((Expression) randomValueOtherThan(b.right(), () -> randomStringLiteral())));
+        Pipe newLeft = randomValueOtherThan(b.left(), () -> pipe(randomStringLiteral()));
+        Pipe newRight = randomValueOtherThan(b.right(), () -> pipe(randomStringLiteral()));
         ConcatFunctionPipe newB =
                 new ConcatFunctionPipe(b.source(), b.expression(), b.left(), b.right());
         BinaryPipe transformed = newB.replaceChildren(newLeft, b.right());
@@ -97,16 +97,16 @@ public class ConcatFunctionPipeTests extends AbstractNodeTestCase<ConcatFunction
         List<Function<ConcatFunctionPipe, ConcatFunctionPipe>> randoms = new ArrayList<>();
         randoms.add(f -> new ConcatFunctionPipe(f.source(),
                 f.expression(),
-                pipe(((Expression) randomValueOtherThan(f.left(), () -> randomStringLiteral()))),
+                randomValueOtherThan(f.left(), () -> pipe(randomStringLiteral())),
                 f.right()));
         randoms.add(f -> new ConcatFunctionPipe(f.source(),
                 f.expression(),
                 f.left(),
-                pipe(((Expression) randomValueOtherThan(f.right(), () -> randomStringLiteral())))));
+                randomValueOtherThan(f.right(), () -> pipe(randomStringLiteral()))));
         randoms.add(f -> new ConcatFunctionPipe(f.source(),
                 f.expression(),
-                pipe(((Expression) randomValueOtherThan(f.left(), () -> randomStringLiteral()))),
-                pipe(((Expression) randomValueOtherThan(f.right(), () -> randomStringLiteral())))));
+                randomValueOtherThan(f.left(), () -> pipe(randomStringLiteral())),
+                randomValueOtherThan(f.right(), () -> pipe(randomStringLiteral()))));
         
         return randomFrom(randoms).apply(instance);
     }

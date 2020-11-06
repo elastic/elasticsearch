@@ -31,6 +31,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -118,6 +119,12 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
         protected boolean shouldFilter() {
             token.updatePosition();
             return script.execute(token);
+        }
+
+        @Override
+        public void reset() throws IOException {
+            super.reset();
+            token.reset();
         }
     }
 

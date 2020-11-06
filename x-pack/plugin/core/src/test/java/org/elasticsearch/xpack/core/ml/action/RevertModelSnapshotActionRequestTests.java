@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction.Request;
 
-public class RevertModelSnapshotActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class RevertModelSnapshotActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -23,13 +23,13 @@ public class RevertModelSnapshotActionRequestTests extends AbstractStreamableXCo
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new RevertModelSnapshotAction.Request();
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
     @Override

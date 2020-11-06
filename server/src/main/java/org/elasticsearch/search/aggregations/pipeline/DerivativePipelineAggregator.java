@@ -97,8 +97,8 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
                 final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
                     return (InternalAggregation) p;
                 }).collect(Collectors.toList());
-                aggs.add(new InternalDerivative(name(), gradient, xDiff, formatter, new ArrayList<PipelineAggregator>(), metaData()));
-                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
+                aggs.add(new InternalDerivative(name(), gradient, xDiff, formatter, metadata()));
+                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
                 newBuckets.add(newBucket);
             } else {
                 newBuckets.add(bucket);

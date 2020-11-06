@@ -64,10 +64,10 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
             constructorArg(),
             (parser, context) -> {
                 Token token = parser.currentToken();
-                ensureExpectedToken(Token.START_OBJECT, token, parser::getTokenLocation);
+                ensureExpectedToken(Token.START_OBJECT, token, parser);
                 SimulateDocumentResult result = null;
                 while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                    ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+                    ensureExpectedToken(Token.FIELD_NAME, token, parser);
                     String fieldName = parser.currentName();
                     token = parser.nextToken();
                     if (token == Token.START_ARRAY) {
@@ -76,7 +76,7 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
                             while ((token = parser.nextToken()) == Token.START_OBJECT) {
                                 results.add(SimulateProcessorResult.fromXContent(parser));
                             }
-                            ensureExpectedToken(Token.END_ARRAY, token, parser::getTokenLocation);
+                            ensureExpectedToken(Token.END_ARRAY, token, parser);
                             result = new SimulateDocumentVerboseResult(results);
                         } else {
                             parser.skipChildren();
@@ -103,8 +103,21 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
             new ParseField(Fields.DOCUMENTS));
     }
 
-    public SimulatePipelineResponse() {
-
+    public SimulatePipelineResponse(StreamInput in) throws IOException {
+        super(in);
+        this.pipelineId = in.readOptionalString();
+        boolean verbose = in.readBoolean();
+        int responsesLength = in.readVInt();
+        results = new ArrayList<>();
+        for (int i = 0; i < responsesLength; i++) {
+            SimulateDocumentResult simulateDocumentResult;
+            if (verbose) {
+                simulateDocumentResult = new SimulateDocumentVerboseResult(in);
+            } else {
+                simulateDocumentResult = new SimulateDocumentBaseResult(in);
+            }
+            results.add(simulateDocumentResult);
+        }
     }
 
     public SimulatePipelineResponse(String pipelineId, boolean verbose, List<SimulateDocumentResult> responses) {
@@ -127,30 +140,11 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeOptionalString(pipelineId);
         out.writeBoolean(verbose);
         out.writeVInt(results.size());
         for (SimulateDocumentResult response : results) {
             response.writeTo(out);
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.pipelineId = in.readOptionalString();
-        boolean verbose = in.readBoolean();
-        int responsesLength = in.readVInt();
-        results = new ArrayList<>();
-        for (int i = 0; i < responsesLength; i++) {
-            SimulateDocumentResult simulateDocumentResult;
-            if (verbose) {
-                simulateDocumentResult = new SimulateDocumentVerboseResult(in);
-            } else {
-                simulateDocumentResult = new SimulateDocumentBaseResult(in);
-            }
-            results.add(simulateDocumentResult);
         }
     }
 

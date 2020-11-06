@@ -7,9 +7,11 @@ package org.elasticsearch.xpack.deprecation;
 
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -21,17 +23,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+
 
 /**
  * Index-specific deprecation checks
  */
 public class IndexDeprecationChecks {
 
-    private static void fieldLevelMappingIssue(IndexMetaData indexMetaData, BiConsumer<MappingMetaData, Map<String, Object>> checker) {
-        for (ObjectCursor<MappingMetaData> mappingMetaData : indexMetaData.getMappings().values()) {
-            Map<String, Object> sourceAsMap = mappingMetaData.value.sourceAsMap();
-            checker.accept(mappingMetaData.value, sourceAsMap);
+    private static void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
+        for (ObjectCursor<MappingMetadata> mappingMetadata : indexMetadata.getMappings().values()) {
+            Map<String, Object> sourceAsMap = mappingMetadata.value.sourceAsMap();
+            checker.accept(mappingMetadata.value, sourceAsMap);
         }
     }
 
@@ -42,11 +46,13 @@ public class IndexDeprecationChecks {
      * @param type the document type
      * @param parentMap the mapping to read properties from
      * @param predicate the predicate to check against for issues, issue is returned if predicate evaluates to true
+     * @param fieldFormatter a function that takes a type and mapping field entry and returns a formatted field representation
      * @return a list of issues found in fields
      */
     @SuppressWarnings("unchecked")
     static List<String> findInPropertiesRecursively(String type, Map<String, Object> parentMap,
-                                                    Function<Map<?,?>, Boolean> predicate) {
+                                                    Function<Map<?,?>, Boolean> predicate,
+                                                    BiFunction<String, Map.Entry<?, ?>, String> fieldFormatter) {
         List<String> issues = new ArrayList<>();
         Map<?, ?> properties = (Map<?, ?>) parentMap.get("properties");
         if (properties == null) {
@@ -55,7 +61,7 @@ public class IndexDeprecationChecks {
         for (Map.Entry<?, ?> entry : properties.entrySet()) {
             Map<String, Object> valueMap = (Map<String, Object>) entry.getValue();
             if (predicate.apply(valueMap)) {
-                issues.add("[type: " + type + ", field: " + entry.getKey() + "]");
+                issues.add("[" + fieldFormatter.apply(type, entry) + "]");
             }
 
             Map<?, ?> values = (Map<?, ?>) valueMap.get("fields");
@@ -63,39 +69,49 @@ public class IndexDeprecationChecks {
                 for (Map.Entry<?, ?> multifieldEntry : values.entrySet()) {
                     Map<String, Object> multifieldValueMap = (Map<String, Object>) multifieldEntry.getValue();
                     if (predicate.apply(multifieldValueMap)) {
-                        issues.add("[type: " + type + ", field: " + entry.getKey() + ", multifield: " + multifieldEntry.getKey() + "]");
+                        issues.add("[" + fieldFormatter.apply(type, entry) + ", multifield: " + multifieldEntry.getKey() + "]");
                     }
                     if (multifieldValueMap.containsKey("properties")) {
-                        issues.addAll(findInPropertiesRecursively(type, multifieldValueMap, predicate));
+                        issues.addAll(findInPropertiesRecursively(type, multifieldValueMap, predicate, fieldFormatter));
                     }
                 }
             }
             if (valueMap.containsKey("properties")) {
-                issues.addAll(findInPropertiesRecursively(type, valueMap, predicate));
+                issues.addAll(findInPropertiesRecursively(type, valueMap, predicate, fieldFormatter));
             }
         }
 
         return issues;
     }
 
-    static DeprecationIssue oldIndicesCheck(IndexMetaData indexMetaData) {
-        Version createdWith = indexMetaData.getCreationVersion();
+    private static String formatDateField(String type, Map.Entry<?, ?> entry) {
+        Map<?,?> value = (Map<?, ?>) entry.getValue();
+        return "type: " + type + ", field: " + entry.getKey() +", format: "+ value.get("format") +", suggestion: "
+            + JodaDeprecationPatterns.formatSuggestion((String)value.get("format"));
+    }
+
+    private static String formatField(String type, Map.Entry<?, ?> entry) {
+        return "type: " + type + ", field: " + entry.getKey();
+    }
+
+    static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
+        Version createdWith = indexMetadata.getCreationVersion();
         if (createdWith.before(Version.V_7_0_0)) {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                     "Index created before 7.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                         "breaking-changes-8.0.html",
                     "This index was created using version: " + createdWith);
-            }
+        }
         return null;
     }
 
-    static DeprecationIssue tooManyFieldsCheck(IndexMetaData indexMetaData) {
-        if (indexMetaData.getSettings().get(IndexSettings.DEFAULT_FIELD_SETTING.getKey()) == null) {
+    static DeprecationIssue tooManyFieldsCheck(IndexMetadata indexMetadata) {
+        if (indexMetadata.getSettings().get(IndexSettings.DEFAULT_FIELD_SETTING.getKey()) == null) {
             AtomicInteger fieldCount = new AtomicInteger(0);
 
-            fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> {
-                fieldCount.addAndGet(countFieldsRecursively(mappingMetaData.type(), sourceAsMap));
+            fieldLevelMappingIssue(indexMetadata, ((mappingMetadata, sourceAsMap) -> {
+                fieldCount.addAndGet(countFieldsRecursively(mappingMetadata.type(), sourceAsMap));
             }));
 
             // We can't get to the setting `indices.query.bool.max_clause_count` from here, so just check the default of that setting.
@@ -115,6 +131,75 @@ public class IndexDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue deprecatedDateTimeFormat(IndexMetadata indexMetadata) {
+        Version createdWith = indexMetadata.getCreationVersion();
+        if (createdWith.before(Version.V_7_0_0)) {
+            List<String> fields = new ArrayList<>();
+
+            fieldLevelMappingIssue(indexMetadata, ((mappingMetadata, sourceAsMap) -> fields.addAll(
+                findInPropertiesRecursively(mappingMetadata.type(), sourceAsMap,
+                    IndexDeprecationChecks::isDateFieldWithDeprecatedPattern,
+                    IndexDeprecationChecks::formatDateField))));
+
+            if (fields.size() > 0) {
+                return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "Date field format uses patterns which has changed meaning in 7.0",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
+                    "This index has date fields with deprecated formats: " + fields + ". "
+                        + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
+            }
+        }
+        return null;
+    }
+
+    private static boolean isDateFieldWithDeprecatedPattern(Map<?, ?> property) {
+        return "date".equals(property.get("type")) &&
+            property.containsKey("format") &&
+            JodaDeprecationPatterns.isDeprecatedPattern((String) property.get("format"));
+    }
+
+    static DeprecationIssue chainedMultiFieldsCheck(IndexMetadata indexMetadata) {
+        List<String> issues = new ArrayList<>();
+        fieldLevelMappingIssue(indexMetadata, ((mappingMetadata, sourceAsMap) -> issues.addAll(
+            findInPropertiesRecursively(mappingMetadata.type(), sourceAsMap,
+                IndexDeprecationChecks::containsChainedMultiFields, IndexDeprecationChecks::formatField))));
+        if (issues.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Multi-fields within multi-fields",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
+                    "#_defining_multi_fields_within_multi_fields",
+                "The names of fields that contain chained multi-fields: " + issues.toString());
+        }
+        return null;
+    }
+
+    private static boolean containsChainedMultiFields(Map<?, ?> property) {
+        if (property.containsKey("fields")) {
+            Map<?, ?> fields = (Map<?, ?>) property.get("fields");
+            for (Object rawSubField: fields.values()) {
+                Map<?, ?> subField = (Map<?, ?>) rawSubField;
+                if (subField.containsKey("fields")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * warn about existing explicit "_field_names" settings in existing mappings
+     */
+    static DeprecationIssue fieldNamesDisabledCheck(IndexMetadata indexMetadata) {
+        MappingMetadata mapping = indexMetadata.mapping();
+        if ((mapping != null) && ClusterDeprecationChecks.mapContainsFieldNamesDisabled(mapping.getSourceAsMap())) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "Index mapping contains explicit `_field_names` enabling settings.",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
+                            "#fieldnames-enabling",
+                    "The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.");
+        }
+        return null;
+    }
 
     private static final Set<String> TYPES_THAT_DONT_COUNT;
     static {
@@ -161,5 +246,20 @@ public class IndexDeprecationChecks {
         }
 
         return fields;
+    }
+
+    static DeprecationIssue translogRetentionSettingCheck(IndexMetadata indexMetadata) {
+        final boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetadata.getSettings());
+        if (softDeletesEnabled) {
+            if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())
+                || IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
+                return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "translog retention settings are ignored",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
+                    "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
+                        "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)");
+            }
+        }
+        return null;
     }
 }

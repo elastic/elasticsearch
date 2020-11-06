@@ -1,5 +1,5 @@
 [[analysis-custom-analyzer]]
-=== Custom Analyzer
+=== Create a custom analyzer
 
 When the built-in analyzers do not fulfill your needs, you can create a
 `custom` analyzer which uses the appropriate combination of:
@@ -8,7 +8,7 @@ When the built-in analyzers do not fulfill your needs, you can create a
 * a <<analysis-tokenizers,tokenizer>>
 * zero or more <<analysis-tokenfilters,token filters>>.
 
-[float]
+[discrete]
 === Configuration
 
 The `custom` analyzer accepts the following parameters:
@@ -36,7 +36,7 @@ The `custom` analyzer accepts the following parameters:
     ensure that a phrase query doesn't match two terms from different array
     elements.  Defaults to `100`. See <<position-increment-gap>> for more.
 
-[float]
+[discrete]
 === Example configuration
 
 Here is an example that combines the following:
@@ -51,15 +51,15 @@ Token Filters::
 * <<analysis-lowercase-tokenfilter,Lowercase Token Filter>>
 * <<analysis-asciifolding-tokenfilter,ASCII-Folding Token Filter>>
 
-[source,js]
+[source,console]
 --------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
       "analyzer": {
         "my_custom_analyzer": {
-          "type":      "custom", <1>
+          "type": "custom", <1>
           "tokenizer": "standard",
           "char_filter": [
             "html_strip"
@@ -74,13 +74,12 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_custom_analyzer",
   "text": "Is this <b>déjà vu</b>?"
 }
 --------------------------------
-// CONSOLE
 
 <1> Setting `type` to `custom` tells Elasticsearch that we are defining a custom analyzer.
     Compare this to how <<configuring-analyzers,built-in analyzers can be configured>>:
@@ -89,7 +88,7 @@ POST my_index/_analyze
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -124,7 +123,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -155,33 +153,33 @@ Token Filters::
 
 Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
       "analyzer": {
-        "my_custom_analyzer": {
+        "my_custom_analyzer": { <1>
           "type": "custom",
           "char_filter": [
-            "emoticons" <1>
+            "emoticons"
           ],
-          "tokenizer": "punctuation", <1>
+          "tokenizer": "punctuation",
           "filter": [
             "lowercase",
-            "english_stop" <1>
+            "english_stop"
           ]
         }
       },
       "tokenizer": {
-        "punctuation": { <1>
+        "punctuation": { <2>
           "type": "pattern",
           "pattern": "[ .,!?]"
         }
       },
       "char_filter": {
-        "emoticons": { <1>
+        "emoticons": { <3>
           "type": "mapping",
           "mappings": [
             ":) => _happy_",
@@ -190,7 +188,7 @@ PUT my_index
         }
       },
       "filter": {
-        "english_stop": { <1>
+        "english_stop": { <4>
           "type": "stop",
           "stopwords": "_english_"
         }
@@ -199,21 +197,23 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_custom_analyzer",
-  "text":     "I'm a :) person, and you?"
+  "text": "I'm a :) person, and you?"
 }
 --------------------------------------------------
-// CONSOLE
 
-<1> The `emoticons` character filter, `punctuation` tokenizer and
-    `english_stop` token filter are custom implementations which are defined
-    in the same index settings.
+<1> Assigns the index a default custom analyzer, `my_custom_analyzer`. This
+analyzer uses a custom tokenizer, character filter, and token filter that
+are defined later in the request.
+<2> Defines the custom `punctuation` tokenizer.
+<3> Defines the custom `emoticons` character filter.
+<4> Defines the custom `english_stop` token filter.
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -248,7 +248,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 

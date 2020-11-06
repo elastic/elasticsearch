@@ -240,8 +240,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         final StreamInput in = out.bytes().streamInput();
         in.setVersion(out.getVersion());
 
-        final MonitoringBulkRequest deserializedRequest = new MonitoringBulkRequest();
-        deserializedRequest.readFrom(in);
+        final MonitoringBulkRequest deserializedRequest = new MonitoringBulkRequest(in);
 
         assertThat(in.available(), equalTo(0));
 

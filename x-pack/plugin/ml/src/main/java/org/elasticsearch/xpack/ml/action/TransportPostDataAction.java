@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
+import java.io.InputStream;
 import java.util.Optional;
 
 public class TransportPostDataAction extends TransportJobTaskAction<PostDataAction.Request, PostDataAction.Response> {
@@ -33,12 +35,11 @@ public class TransportPostDataAction extends TransportJobTaskAction<PostDataActi
     }
 
     @Override
-    protected void taskOperation(PostDataAction.Request request, TransportOpenJobAction.JobTask task,
-                                 ActionListener<PostDataAction.Response> listener) {
+    protected void taskOperation(PostDataAction.Request request, JobTask task, ActionListener<PostDataAction.Response> listener) {
         TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
         DataLoadParams params = new DataLoadParams(timeRange, Optional.ofNullable(request.getDataDescription()));
-        try {
-            processManager.processData(task, analysisRegistry, request.getContent().streamInput(), request.getXContentType(),
+        try (InputStream contentStream = request.getContent().streamInput()) {
+            processManager.processData(task, analysisRegistry, contentStream, request.getXContentType(),
                     params, (dataCounts, e) -> {
                 if (dataCounts != null) {
                     listener.onResponse(new PostDataAction.Response(dataCounts));

@@ -24,6 +24,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -40,14 +43,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -188,8 +189,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             int readerIndex = 0;
             CombinedDocValues combinedDocValues = null;
             LeafReaderContext leaf = null;
-            for (int i = 0; i < scoreDocs.length; i++) {
-                ScoreDoc scoreDoc = scoreDocs[i];
+            for (ScoreDoc scoreDoc : scoreDocs) {
                 if (scoreDoc.doc >= docBase + maxDoc) {
                     do {
                         leaf = leaves.get(readerIndex++);
@@ -213,23 +213,20 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     }
 
     private TopDocs searchOperations(ScoreDoc after) throws IOException {
-        final Query rangeQuery = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo);
-        final Sort sortedBySeqNoThenByTerm = new Sort(
-            new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG),
-            new SortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)
-        );
-        return indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, sortedBySeqNoThenByTerm);
+        final Query rangeQuery = new BooleanQuery.Builder()
+            .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo), BooleanClause.Occur.MUST)
+            // exclude non-root nested documents
+            .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.MUST)
+            .build();
+        final Sort sortedBySeqNo = new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG));
+        return indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, sortedBySeqNo);
     }
 
     private Translog.Operation readDocAsOp(int docIndex) throws IOException {
         final LeafReaderContext leaf = parallelArray.leafReaderContexts[docIndex];
         final int segmentDocID = scoreDocs[docIndex].doc - leaf.docBase;
         final long primaryTerm = parallelArray.primaryTerm[docIndex];
-        // We don't have to read the nested child documents - those docs don't have primary terms.
-        if (primaryTerm == -1) {
-            skippedOperations++;
-            return null;
-        }
+        assert primaryTerm > 0 : "nested child document must be excluded";
         final long seqNo = parallelArray.seqNo[docIndex];
         // Only pick the first seen seq#
         if (seqNo == lastSeenSeqNo) {
@@ -241,7 +238,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             SourceFieldMapper.NAME;
         final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
         leaf.reader().document(segmentDocID, fields);
-        fields.postProcess(mapperService);
+        fields.postProcess(mapperService::fieldType, mapperService.documentMapper() == null ? null : mapperService.documentMapper().type());
 
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
@@ -262,7 +259,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
                     // TODO: Callers should ask for the range that source should be retained. Thus we should always
                     // check for the existence source once we make peer-recovery to send ops after the local checkpoint.
                     if (requiredFullRange) {
-                        throw new IllegalStateException("source not found for seqno=" + seqNo +
+                        throw new MissingHistoryOperationsException("source not found for seqno=" + seqNo +
                             " from_seqno=" + fromSeqNo + " to_seqno=" + toSeqNo);
                     } else {
                         skippedOperations++;
@@ -306,64 +303,4 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         }
     }
 
-    private static final class CombinedDocValues {
-        private final NumericDocValues versionDV;
-        private final NumericDocValues seqNoDV;
-        private final NumericDocValues primaryTermDV;
-        private final NumericDocValues tombstoneDV;
-        private final NumericDocValues recoverySource;
-
-        CombinedDocValues(LeafReader leafReader) throws IOException {
-            this.versionDV = Objects.requireNonNull(leafReader.getNumericDocValues(VersionFieldMapper.NAME), "VersionDV is missing");
-            this.seqNoDV = Objects.requireNonNull(leafReader.getNumericDocValues(SeqNoFieldMapper.NAME), "SeqNoDV is missing");
-            this.primaryTermDV = Objects.requireNonNull(
-                leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME), "PrimaryTermDV is missing");
-            this.tombstoneDV = leafReader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
-            this.recoverySource = leafReader.getNumericDocValues(SourceFieldMapper.RECOVERY_SOURCE_NAME);
-        }
-
-        long docVersion(int segmentDocId) throws IOException {
-            assert versionDV.docID() < segmentDocId;
-            if (versionDV.advanceExact(segmentDocId) == false) {
-                throw new IllegalStateException("DocValues for field [" + VersionFieldMapper.NAME + "] is not found");
-            }
-            return versionDV.longValue();
-        }
-
-        long docSeqNo(int segmentDocId) throws IOException {
-            assert seqNoDV.docID() < segmentDocId;
-            if (seqNoDV.advanceExact(segmentDocId) == false) {
-                throw new IllegalStateException("DocValues for field [" + SeqNoFieldMapper.NAME + "] is not found");
-            }
-            return seqNoDV.longValue();
-        }
-
-        long docPrimaryTerm(int segmentDocId) throws IOException {
-            if (primaryTermDV == null) {
-                return -1L;
-            }
-            assert primaryTermDV.docID() < segmentDocId;
-            // Use -1 for docs which don't have primary term. The caller considers those docs as nested docs.
-            if (primaryTermDV.advanceExact(segmentDocId) == false) {
-                return -1;
-            }
-            return primaryTermDV.longValue();
-        }
-
-        boolean isTombstone(int segmentDocId) throws IOException {
-            if (tombstoneDV == null) {
-                return false;
-            }
-            assert tombstoneDV.docID() < segmentDocId;
-            return tombstoneDV.advanceExact(segmentDocId) && tombstoneDV.longValue() > 0;
-        }
-
-        boolean hasRecoverySource(int segmentDocId) throws IOException {
-            if (recoverySource == null) {
-                return false;
-            }
-            assert recoverySource.docID() < segmentDocId;
-            return recoverySource.advanceExact(segmentDocId);
-        }
-    }
 }

@@ -201,55 +201,6 @@ public enum VersionType implements Writeable {
             return version >= 0L || version == Versions.MATCH_ANY;
         }
 
-    },
-    /**
-     * Warning: this version type should be used with care. Concurrent indexing may result in loss of data on replicas
-     *
-     * @deprecated this will be removed in 7.0 and should not be used! It is *ONLY* for backward compatibility with 5.0 indices
-     */
-    @Deprecated
-    FORCE((byte) 3) {
-        @Override
-        public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {
-            if (currentVersion == Versions.NOT_FOUND) {
-                return false;
-            }
-            if (expectedVersion == Versions.MATCH_ANY) {
-                throw new IllegalStateException("you must specify a version when use VersionType.FORCE");
-            }
-            return false;
-        }
-
-        @Override
-        public String explainConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {
-            throw new AssertionError("VersionType.FORCE should never result in a write conflict");
-        }
-
-        @Override
-        public boolean isVersionConflictForReads(long currentVersion, long expectedVersion) {
-            return false;
-        }
-
-        @Override
-        public String explainConflictForReads(long currentVersion, long expectedVersion) {
-            throw new AssertionError("VersionType.FORCE should never result in a read conflict");
-        }
-
-        @Override
-        public long updateVersion(long currentVersion, long expectedVersion) {
-            return expectedVersion;
-        }
-
-        @Override
-        public boolean validateVersionForWrites(long version) {
-            return version >= 0L;
-        }
-
-        @Override
-        public boolean validateVersionForReads(long version) {
-            return version >= 0L || version == Versions.MATCH_ANY;
-        }
-
     };
 
     private final byte value;
@@ -335,8 +286,6 @@ public enum VersionType implements Writeable {
             return EXTERNAL;
         } else if ("external_gte".equals(versionType)) {
             return EXTERNAL_GTE;
-        } else if ("force".equals(versionType)) {
-            return FORCE;
         }
         throw new IllegalArgumentException("No version type match [" + versionType + "]");
     }
@@ -359,8 +308,6 @@ public enum VersionType implements Writeable {
             return EXTERNAL;
         } else if (value == 2) {
             return EXTERNAL_GTE;
-        } else if (value == 3) {
-            return FORCE;
         }
         throw new IllegalArgumentException("No version type match [" + value + "]");
     }

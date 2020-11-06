@@ -10,16 +10,19 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.stats.AnalysisStats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.action.admin.cluster.stats.MappingStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -56,6 +59,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -91,14 +95,16 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         usages = emptyList();
         clusterStats = mock(ClusterStatsResponse.class);
         clusterState = mock(ClusterState.class);
+        final License.OperationMode operationMode = randomFrom(License.OperationMode.values());
         license = License.builder()
                          .uid(randomAlphaOfLength(5))
-                         .type(randomFrom(License.OperationMode.values()).name())
+                         .type(operationMode.name().toLowerCase(Locale.ROOT))
                          .issuer(randomAlphaOfLength(5))
                          .issuedTo(randomAlphaOfLength(5))
                          .issueDate(timestamp)
                          .expiryDate(timestamp + randomIntBetween(1, 10) * 1_000L)
-                         .maxNodes(randomIntBetween(1, 5))
+                         .maxNodes(License.OperationMode.ENTERPRISE == operationMode ? -1 : randomIntBetween(1, 5))
+                         .maxResourceUnits(License.OperationMode.ENTERPRISE == operationMode ? randomIntBetween(1, 42) : -1)
                          .build();
 
         final DiscoveryNode masterNode = masterNode();
@@ -175,7 +181,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                   randomAlphaOfLength(5),
                                   new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
                                   randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
-                                  singleton(randomFrom(DiscoveryNode.Role.values())),
+                                  singleton(randomFrom(DiscoveryNodeRole.BUILT_IN_ROLES)),
                                   Version.CURRENT));
         }
 
@@ -201,11 +207,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                 "_host_address",
                                                                 transportAddress,
                                                                 singletonMap("attr", "value"),
-                                                                singleton(DiscoveryNode.Role.MASTER),
+                                                                singleton(DiscoveryNodeRole.MASTER_ROLE),
                                                                 Version.V_6_0_0_beta1);
 
         final ClusterState clusterState = ClusterState.builder(clusterName)
-                                                        .metaData(MetaData.builder()
+                                                        .metadata(Metadata.builder()
                                                             .clusterUUID(clusterUuid)
                                                             .transientSettings(Settings.builder()
                                                                 .put("cluster.metadata.display_name", "my_prod_cluster")
@@ -230,14 +236,14 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                         .maxNodes(2)
                                         .build();
 
-        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, true, false, null));
+        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
         when(mockNodeInfo.getVersion()).thenReturn(Version.V_6_0_0_alpha2);
         when(mockNodeInfo.getNode()).thenReturn(discoveryNode);
 
         final TransportInfo mockTransportInfo = mock(TransportInfo.class);
-        when(mockNodeInfo.getTransport()).thenReturn(mockTransportInfo);
+        when(mockNodeInfo.getInfo(TransportInfo.class)).thenReturn(mockTransportInfo);
 
         final BoundTransportAddress bound = new BoundTransportAddress(new TransportAddress[]{transportAddress}, transportAddress);
         when(mockTransportInfo.address()).thenReturn(bound);
@@ -248,20 +254,20 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                             .build());
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
-        when(mockNodeInfo.getPlugins()).thenReturn(mockPluginsAndModules);
+        when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
         final PluginInfo pluginInfo = new PluginInfo("_plugin", "_plugin_desc", "_plugin_version", Version.CURRENT,
             "1.8", "_plugin_class", Collections.emptyList(), false);
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginInfo));
 
         final OsInfo mockOsInfo = mock(OsInfo.class);
-        when(mockNodeInfo.getOs()).thenReturn(mockOsInfo);
+        when(mockNodeInfo.getInfo(OsInfo.class)).thenReturn(mockOsInfo);
         when(mockOsInfo.getAvailableProcessors()).thenReturn(32);
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
         when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
-        when(mockNodeInfo.getJvm()).thenReturn(mockJvmInfo);
+        when(mockNodeInfo.getInfo(JvmInfo.class)).thenReturn(mockJvmInfo);
         when(mockJvmInfo.version()).thenReturn("_jvm_version");
         when(mockJvmInfo.getVmName()).thenReturn("_jvm_vm_name");
         when(mockJvmInfo.getVmVersion()).thenReturn("_jvm_vm_version");
@@ -318,11 +324,14 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.nodeStats()).thenReturn(mockNodeStats);
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[]{mockShardStats});
 
+        final Metadata metadata = clusterState.metadata();
         final ClusterStatsResponse clusterStats = new ClusterStatsResponse(1451606400000L,
                                                                             "_cluster",
                                                                             clusterName,
                                                                             singletonList(mockNodeResponse),
-                                                                            emptyList());
+                                                                            emptyList(),
+                                                                            MappingStats.of(metadata),
+                                                                            AnalysisStats.of(metadata));
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
@@ -365,6 +374,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + "\"expiry_date\":\"2017-08-07T12:03:22.133Z\","
                     + "\"expiry_date_in_millis\":1502107402133,"
                     + "\"max_nodes\":2,"
+                    + "\"max_resource_units\":null,"
                     + "\"issued_to\":\"customer\","
                     + "\"issuer\":\"elasticsearch\","
                     + "\"start_date_in_millis\":-1"
@@ -403,7 +413,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"deleted\":0"
                       + "},"
                       + "\"store\":{"
-                        + "\"size_in_bytes\":0"
+                        + "\"size_in_bytes\":0,"
+                        + "\"reserved_in_bytes\":0"
                       + "},"
                       + "\"fielddata\":{"
                         + "\"memory_size_in_bytes\":0,"
@@ -435,15 +446,29 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"fixed_bit_set_memory_in_bytes\":0,"
                         + "\"max_unsafe_auto_id_timestamp\":-9223372036854775808,"
                         + "\"file_sizes\":{}"
+                      + "},"
+                      + "\"mappings\":{"
+                        + "\"field_types\":[]"
+                      + "},"
+                      + "\"analysis\":{"
+                        + "\"char_filter_types\":[],"
+                        + "\"tokenizer_types\":[],"
+                        + "\"filter_types\":[],"
+                        + "\"analyzer_types\":[],"
+                        + "\"built_in_char_filters\":[],"
+                        + "\"built_in_tokenizers\":[],"
+                        + "\"built_in_filters\":[],"
+                        + "\"built_in_analyzers\":[]"
                       + "}"
                     + "},"
                     + "\"nodes\":{"
                       + "\"count\":{"
                         + "\"total\":1,"
-                        + "\"data\":0,"
                         + "\"coordinating_only\":0,"
+                        + "\"data\":0,"
+                        + "\"ingest\":0,"
                         + "\"master\":1,"
-                        + "\"ingest\":0"
+                        + "\"remote_cluster_client\":0"
                       + "},"
                       + "\"versions\":["
                         + "\"6.0.0-alpha2\""
@@ -534,7 +559,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                           + "\"type\":\"docker\","
                           + "\"count\":1"
                         + "}"
-                      + "]"
+                      + "],"
+                      + "\"ingest\":{"
+                          + "\"number_of_pipelines\":0,"
+                          + "\"processor_stats\":{}"
+                      + "}"
                     + "}"
                   + "},"
                   + "\"cluster_state\":{"
@@ -585,7 +614,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                  "_host_address",
                                  new TransportAddress(TransportAddress.META_ADDRESS, 9300),
                                  singletonMap("attr", "value"),
-                                 singleton(DiscoveryNode.Role.MASTER),
+                                 singleton(DiscoveryNodeRole.MASTER_ROLE),
                                  Version.CURRENT);
     }
 

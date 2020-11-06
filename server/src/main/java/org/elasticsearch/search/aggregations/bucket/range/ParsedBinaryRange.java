@@ -45,7 +45,7 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
         return buckets;
     }
 
-    private static ObjectParser<ParsedBinaryRange, Void> PARSER =
+    private static final ObjectParser<ParsedBinaryRange, Void> PARSER =
             new ObjectParser<>(ParsedBinaryRange.class.getSimpleName(), true, ParsedBinaryRange::new);
     static {
         declareMultiBucketAggregationFields(PARSER,
@@ -122,9 +122,9 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
             String currentFieldName = parser.currentName();
 
             if (keyed) {
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                 bucket.key = currentFieldName;
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             }
 
             List<Aggregation> aggregations = new ArrayList<>();

@@ -20,15 +20,19 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,6 +41,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
 public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIndexTemplateRequest> {
+
     public void testValidateErrorMessage() throws Exception {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         ActionRequestValidationException withoutNameAndPattern = request.validate();
@@ -51,6 +56,67 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         request.patterns(Collections.singletonList("test-*"));
         ActionRequestValidationException noError = request.validate();
         assertThat(noError, is(nullValue()));
+    }
+
+    public void testMappingKeyedByType() throws IOException {
+        PutIndexTemplateRequest request1 = new PutIndexTemplateRequest("foo");
+        PutIndexTemplateRequest request2 = new PutIndexTemplateRequest("bar");
+        {
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject().startObject("properties")
+                .startObject("field1")
+                    .field("type", "text")
+                .endObject()
+                .startObject("field2")
+                    .startObject("properties")
+                        .startObject("field21")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject().endObject();
+            request1.mapping("type1", builder);
+            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject().startObject("type1")
+                .startObject("properties")
+                    .startObject("field1")
+                        .field("type", "text")
+                    .endObject()
+                    .startObject("field2")
+                        .startObject("properties")
+                            .startObject("field21")
+                                .field("type", "keyword")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject().endObject();
+            request2.mapping("type1", builder);
+            assertEquals(request1.mappings(), request2.mappings());
+        }
+        {
+            request1 = new PutIndexTemplateRequest("foo");
+            request2 = new PutIndexTemplateRequest("bar");
+            String nakedMapping = "{\"properties\": {\"foo\": {\"type\": \"integer\"}}}";
+            request1.mapping("type2", nakedMapping, XContentType.JSON);
+            request2.mapping("type2", "{\"type2\": " + nakedMapping + "}", XContentType.JSON);
+            assertEquals(request1.mappings(), request2.mappings());
+        }
+        {
+            request1 = new PutIndexTemplateRequest("foo");
+            request2 = new PutIndexTemplateRequest("bar");
+            Map<String , Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
+                    .put("properties", MapBuilder.<String, Object>newMapBuilder()
+                            .put("bar", MapBuilder.<String, Object>newMapBuilder()
+                                    .put("type", "scaled_float")
+                                    .put("scaling_factor", 100)
+                            .map())
+                    .map())
+            .map();
+            request1.mapping("type3", nakedMapping);
+            request2.mapping("type3", MapBuilder.<String, Object>newMapBuilder().put("type3", nakedMapping).map());
+            assertEquals(request1.mappings(), request2.mappings());
+        }
     }
 
     @Override

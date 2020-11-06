@@ -22,27 +22,27 @@ package org.elasticsearch.action.admin.indices.segments;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.engine.Segment;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-public class ShardSegments implements Streamable, Iterable<Segment> {
+public class ShardSegments implements Writeable, Iterable<Segment> {
 
-    private ShardRouting shardRouting;
+    private final ShardRouting shardRouting;
 
-    private List<Segment> segments;
-
-    ShardSegments() {
-    }
+    private final List<Segment> segments;
 
     ShardSegments(ShardRouting shardRouting, List<Segment> segments) {
         this.shardRouting = shardRouting;
         this.segments = segments;
+    }
+
+    ShardSegments(StreamInput in) throws IOException {
+        shardRouting = new ShardRouting(in);
+        segments = in.readList(Segment::new);
     }
 
     @Override
@@ -78,32 +78,9 @@ public class ShardSegments implements Streamable, Iterable<Segment> {
         return count;
     }
 
-    public static ShardSegments readShardSegments(StreamInput in) throws IOException {
-        ShardSegments shard = new ShardSegments();
-        shard.readFrom(in);
-        return shard;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        shardRouting = new ShardRouting(in);
-        int size = in.readVInt();
-        if (size == 0) {
-            segments = Collections.emptyList();
-        } else {
-            segments = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                segments.add(Segment.readSegment(in));
-            }
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardRouting.writeTo(out);
-        out.writeVInt(segments.size());
-        for (Segment segment : segments) {
-            segment.writeTo(out);
-        }
+        out.writeList(segments);
     }
 }

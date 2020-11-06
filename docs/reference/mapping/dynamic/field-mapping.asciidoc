@@ -8,10 +8,10 @@ setting the <<dynamic,`dynamic`>> parameter to `false` (to ignore new fields) or
 an exception if an unknown field is encountered).
 
 Assuming `dynamic` field mapping is enabled, some simple rules are used to
-determine which datatype the field should have:
+determine which data type the field should have:
 
 [horizontal]
-*JSON datatype*::                   *Elasticsearch datatype*
+*JSON data type*::                   *Elasticsearch data type*
 
 `null`::                            No field is added.
 `true` or `false`::                 <<boolean,`boolean`>> field
@@ -25,8 +25,8 @@ string::                            Either a <<date,`date`>> field
                                         (if the value passes <<numeric-detection,numeric detection>>)
                                     or a <<text,`text`>> field, with a <<keyword,`keyword`>> sub-field.
 
-These are the only <<mapping-types,field datatypes>> that are dynamically
-detected.  All other datatypes must be mapped explicitly.
+These are the only <<mapping-types,field data types>> that are dynamically
+detected.  All other data types must be mapped explicitly.
 
 Besides the options listed below, dynamic field mapping rules can be further
 customised with <<dynamic-templates,`dynamic_templates`>>.
@@ -46,16 +46,16 @@ The default value for `dynamic_date_formats` is:
 For example:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "create_date": "2015/09/02"
 }
 
-GET my_index/_mapping <1>
+GET my-index-000001/_mapping <1>
 --------------------------------------------------
-// CONSOLE
+
 <1> The `create_date` field has been added as a <<date,`date`>>
     field with the <<mapping-date-format,`format`>>: +
     `"yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"`.
@@ -64,21 +64,20 @@ GET my_index/_mapping <1>
 
 Dynamic date detection can be disabled by setting `date_detection` to `false`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "date_detection": false
   }
 }
 
-PUT my_index/_doc/1 <1>
+PUT my-index-000001/_doc/1 <1>
 {
   "create": "2015/09/02"
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The `create_date` field has been added as a <<text,`text`>> field.
 
@@ -87,48 +86,47 @@ PUT my_index/_doc/1 <1>
 Alternatively, the `dynamic_date_formats` can be customised to support your
 own <<mapping-date-format,date formats>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic_date_formats": ["MM/dd/yyyy"]
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "create_date": "09/25/2015"
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [[numeric-detection]]
 ==== Numeric detection
 
-While JSON has support for native floating point and integer datatypes, some
+While JSON has support for native floating point and integer data types, some
 applications or languages may sometimes render numbers as strings. Usually the
 correct solution is to map these fields explicitly, but numeric detection
 (which is disabled by default) can be enabled to do this automatically:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "numeric_detection": true
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_float":   "1.0", <1>
   "my_integer": "1" <2>
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `my_float` field is added as a <<number,`float`>> field.
 <2> The `my_integer` field is added as a <<number,`long`>> field.
 

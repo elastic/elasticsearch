@@ -59,11 +59,11 @@ client = Elasticsearch::Client.new log: true
 
 client.cluster.health
 
-client.index index: 'my-index', type: 'my-document', id: 1, body: { title: 'Test' }
+client.index index: 'my-index-00001', type: 'my-document', id: 1, body: { title: 'Test' }
 
-client.indices.refresh index: 'my-index'
+client.indices.refresh index: 'my-index-00001'
 
-client.search index: 'my-index', body: { query: { match: { title: 'test' } } }
+client.search index: 'my-index-00001', body: { query: { match: { title: 'test' } } }
 ------------------------------------
 
 

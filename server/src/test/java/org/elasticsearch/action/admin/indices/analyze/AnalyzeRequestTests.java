@@ -26,11 +26,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class AnalyzeRequestTests extends ESTestCase {
 
-    public void testValidation() throws Exception {
-        AnalyzeRequest request = new AnalyzeRequest();
+    public void testValidation() {
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
 
         ActionRequestValidationException e = request.validate();
         assertNotNull("text validation should fail", e);
@@ -60,16 +61,45 @@ public class AnalyzeRequestTests extends ESTestCase {
         e = request.validate();
         assertTrue(e.getMessage().contains("tokenizer/analyze should be null if normalizer is specified"));
 
-        AnalyzeRequest requestAnalyzer = new AnalyzeRequest("index");
+        AnalyzeAction.Request requestAnalyzer = new AnalyzeAction.Request("index");
         requestAnalyzer.normalizer("some normalizer");
         requestAnalyzer.text("something");
         requestAnalyzer.analyzer("analyzer");
         e = requestAnalyzer.validate();
         assertTrue(e.getMessage().contains("tokenizer/analyze should be null if normalizer is specified"));
+
+        {
+            AnalyzeAction.Request analyzerPlusDefs = new AnalyzeAction.Request("index");
+            analyzerPlusDefs.text("text");
+            analyzerPlusDefs.analyzer("analyzer");
+            analyzerPlusDefs.addTokenFilter("tokenfilter");
+            e = analyzerPlusDefs.validate();
+            assertNotNull(e);
+            assertThat(e.getMessage(), containsString("cannot define extra components on a named analyzer"));
+        }
+
+        {
+            AnalyzeAction.Request analyzerPlusDefs = new AnalyzeAction.Request("index");
+            analyzerPlusDefs.text("text");
+            analyzerPlusDefs.normalizer("normalizer");
+            analyzerPlusDefs.addTokenFilter("tokenfilter");
+            e = analyzerPlusDefs.validate();
+            assertNotNull(e);
+            assertThat(e.getMessage(), containsString("cannot define extra components on a named normalizer"));
+        }
+        {
+            AnalyzeAction.Request analyzerPlusDefs = new AnalyzeAction.Request("index");
+            analyzerPlusDefs.text("text");
+            analyzerPlusDefs.field("field");
+            analyzerPlusDefs.addTokenFilter("tokenfilter");
+            e = analyzerPlusDefs.validate();
+            assertNotNull(e);
+            assertThat(e.getMessage(), containsString("cannot define extra components on a field-specific analyzer"));
+        }
     }
 
     public void testSerialization() throws IOException {
-        AnalyzeRequest request = new AnalyzeRequest("foo");
+        AnalyzeAction.Request request = new AnalyzeAction.Request("foo");
         request.text("a", "b");
         request.tokenizer("tokenizer");
         request.addTokenFilter("tokenfilter");
@@ -79,8 +109,7 @@ public class AnalyzeRequestTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             request.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
-                AnalyzeRequest serialized = new AnalyzeRequest();
-                serialized.readFrom(in);
+                AnalyzeAction.Request serialized = new AnalyzeAction.Request(in);
                 assertArrayEquals(request.text(), serialized.text());
                 assertEquals(request.tokenizer().name, serialized.tokenizer().name);
                 assertEquals(request.tokenFilters().get(0).name, serialized.tokenFilters().get(0).name);

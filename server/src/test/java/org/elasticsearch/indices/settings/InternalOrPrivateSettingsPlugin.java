@@ -19,20 +19,20 @@
 
 package org.elasticsearch.indices.settings;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -62,13 +62,13 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         return Arrays.asList(INDEX_INTERNAL_SETTING, INDEX_PRIVATE_SETTING);
     }
 
-    public static class UpdateInternalOrPrivateAction extends Action<UpdateInternalOrPrivateAction.Response> {
+    public static class UpdateInternalOrPrivateAction extends ActionType<UpdateInternalOrPrivateAction.Response> {
 
         public static final UpdateInternalOrPrivateAction INSTANCE = new UpdateInternalOrPrivateAction();
         private static final String NAME = "indices:admin/settings/update-internal-or-private-index";
 
         public UpdateInternalOrPrivateAction() {
-            super(NAME);
+            super(NAME, UpdateInternalOrPrivateAction.Response::new);
         }
 
         public static class Request extends MasterNodeRequest<Request> {
@@ -77,8 +77,13 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             private String key;
             private String value;
 
-            Request() {
+            Request() {}
 
+            Request(StreamInput in) throws IOException {
+                super(in);
+                index = in.readString();
+                key = in.readString();
+                value = in.readString();
             }
 
             public Request(final String index, final String key, final String value) {
@@ -93,14 +98,6 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             }
 
             @Override
-            public void readFrom(final StreamInput in) throws IOException {
-                super.readFrom(in);
-                index = in.readString();
-                key = in.readString();
-                value = in.readString();
-            }
-
-            @Override
             public void writeTo(final StreamOutput out) throws IOException {
                 super.writeTo(out);
                 out.writeString(index);
@@ -111,12 +108,14 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         }
 
         static class Response extends ActionResponse {
+            Response() {}
 
-        }
+            Response(StreamInput in) throws IOException {
+                super(in);
+            }
 
-        @Override
-        public UpdateInternalOrPrivateAction.Response newResponse() {
-            return new UpdateInternalOrPrivateAction.Response();
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {}
         }
 
     }
@@ -137,18 +136,8 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                     clusterService,
                     threadPool,
                     actionFilters,
-                    indexNameExpressionResolver,
-                    UpdateInternalOrPrivateAction.Request::new);
-        }
-
-        @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        protected UpdateInternalOrPrivateAction.Response newResponse() {
-            return new UpdateInternalOrPrivateAction.Response();
+                    UpdateInternalOrPrivateAction.Request::new,
+                    indexNameExpressionResolver, UpdateInternalOrPrivateAction.Response::new, ThreadPool.Names.SAME);
         }
 
         @Override
@@ -159,16 +148,16 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             clusterService.submitStateUpdateTask("update-index-internal-or-private", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(final ClusterState currentState) throws Exception {
-                    final MetaData.Builder builder = MetaData.builder(currentState.metaData());
-                    final IndexMetaData.Builder imdBuilder = IndexMetaData.builder(currentState.metaData().index(request.index));
+                    final Metadata.Builder builder = Metadata.builder(currentState.metadata());
+                    final IndexMetadata.Builder imdBuilder = IndexMetadata.builder(currentState.metadata().index(request.index));
                     final Settings.Builder settingsBuilder =
                             Settings.builder()
-                                    .put(currentState.metaData().index(request.index).getSettings())
+                                    .put(currentState.metadata().index(request.index).getSettings())
                                     .put(request.key, request.value);
                     imdBuilder.settings(settingsBuilder);
                     imdBuilder.settingsVersion(1 + imdBuilder.settingsVersion());
                     builder.put(imdBuilder.build(), true);
-                    return ClusterState.builder(currentState).metaData(builder).build();
+                    return ClusterState.builder(currentState).metadata(builder).build();
                 }
 
                 @Override

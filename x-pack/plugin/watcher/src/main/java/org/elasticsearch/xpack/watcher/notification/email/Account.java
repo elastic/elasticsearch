@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -22,12 +23,17 @@ import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocketFactory;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.watcher.WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX;
 
 public class Account {
 
@@ -184,7 +190,7 @@ public class Account {
         final Smtp smtp;
         final EmailDefaults defaults;
 
-        Config(String name, Settings settings) {
+        Config(String name, Settings settings, @Nullable SSLSocketFactory sslSocketFactory, Logger logger) {
             this.name = name;
             profile = Profile.resolve(settings.get("profile"), Profile.STANDARD);
             defaults = new EmailDefaults(name, settings.getAsSettings("email_defaults"));
@@ -192,6 +198,18 @@ public class Account {
             if (smtp.host == null) {
                 String msg = "missing required email account setting for account [" + name + "]. 'smtp.host' must be configured";
                 throw new SettingsException(msg);
+            }
+            if (sslSocketFactory != null) {
+                String sslKeys = smtp.properties.keySet().stream()
+                    .map(String::valueOf)
+                    .filter(key -> key.startsWith("mail.smtp.ssl."))
+                    .collect(Collectors.joining(","));
+                if (sslKeys.isEmpty() == false) {
+                    logger.warn("The SMTP SSL settings [{}] that are configured for Account [{}]" +
+                            " will be ignored due to the notification SSL settings in [{}]",
+                        sslKeys, name, EMAIL_NOTIFICATION_SSL_PREFIX);
+                }
+                smtp.setSocketFactory(sslSocketFactory);
             }
         }
 
@@ -220,7 +238,7 @@ public class Account {
             /**
              * Finds a setting, and then a secure setting if the setting is null, or returns null if one does not exist. This differs
              * from other getSetting calls in that it allows for null whereas the other methods throw an exception.
-             *
+             * <p>
              * Note: if your setting was not previously secure, than the string reference that is in the setting object is still
              * insecure. This is only constructing a new SecureString with the char[] of the insecure setting.
              */
@@ -273,6 +291,10 @@ public class Account {
                 if (value != null) {
                     settings.put(newKey, TimeValue.parseTimeValue(value, currentKey).millis());
                 }
+            }
+
+            public void setSocketFactory(SocketFactory socketFactory) {
+                this.properties.put("mail.smtp.ssl.socketFactory", socketFactory);
             }
         }
 

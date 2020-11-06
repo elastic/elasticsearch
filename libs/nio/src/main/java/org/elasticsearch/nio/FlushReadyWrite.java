@@ -27,7 +27,7 @@ public class FlushReadyWrite extends FlushOperation implements WriteOperation {
     private final SocketChannelContext channelContext;
     private final ByteBuffer[] buffers;
 
-    FlushReadyWrite(SocketChannelContext channelContext, ByteBuffer[] buffers, BiConsumer<Void, Exception> listener) {
+    public FlushReadyWrite(SocketChannelContext channelContext, ByteBuffer[] buffers, BiConsumer<Void, Exception> listener) {
         super(buffers, listener);
         this.channelContext = channelContext;
         this.buffers = buffers;

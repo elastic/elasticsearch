@@ -65,6 +65,6 @@ public class MinimumScoreCollector extends SimpleCollector {
 
     @Override
     public ScoreMode scoreMode() {
-        return ScoreMode.COMPLETE;
+        return collector.scoreMode() == ScoreMode.TOP_SCORES ? ScoreMode.TOP_SCORES :  ScoreMode.COMPLETE;
     }
 }

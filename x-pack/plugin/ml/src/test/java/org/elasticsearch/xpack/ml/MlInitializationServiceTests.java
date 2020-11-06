@@ -18,7 +18,6 @@ import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -32,6 +31,7 @@ public class MlInitializationServiceTests extends ESTestCase {
     private ExecutorService executorService;
     private ClusterService clusterService;
     private Client client;
+    private MlAssignmentNotifier mlAssignmentNotifier;
 
     @Before
     public void setUpMocks() {
@@ -39,6 +39,7 @@ public class MlInitializationServiceTests extends ESTestCase {
         executorService = mock(ExecutorService.class);
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
+        mlAssignmentNotifier = mock(MlAssignmentNotifier.class);
 
         doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
@@ -53,37 +54,27 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     public void testInitialize() {
-        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
+        MlInitializationService initializationService =
+            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
         initializationService.onMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
     }
 
     public void testInitialize_noMasterNode() {
-        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
+        MlInitializationService initializationService =
+            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
         initializationService.offMaster();
-        assertThat(initializationService.getDailyMaintenanceService(), is(nullValue()));
-    }
-
-    public void testInitialize_alreadyInitialized() {
-        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
-        MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
-        initializationService.setDailyMaintenanceService(initialDailyMaintenanceService);
-        initializationService.onMaster();
-
-        assertSame(initialDailyMaintenanceService, initializationService.getDailyMaintenanceService());
+        assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(false));
     }
 
     public void testNodeGoesFromMasterToNonMasterAndBack() {
-        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
-        initializationService.setDailyMaintenanceService(initialDailyMaintenanceService);
 
+        MlInitializationService initializationService = new MlInitializationService(client, initialDailyMaintenanceService, clusterService);
         initializationService.offMaster();
         verify(initialDailyMaintenanceService).stop();
 
         initializationService.onMaster();
-        MlDailyMaintenanceService finalDailyMaintenanceService = initializationService.getDailyMaintenanceService();
-        assertNotSame(initialDailyMaintenanceService, finalDailyMaintenanceService);
-        assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
+        verify(initialDailyMaintenanceService).start();
     }
 }

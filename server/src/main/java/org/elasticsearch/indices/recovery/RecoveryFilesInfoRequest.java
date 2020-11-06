@@ -22,13 +22,12 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class RecoveryFilesInfoRequest extends TransportRequest {
+public class RecoveryFilesInfoRequest extends RecoveryTransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
@@ -40,33 +39,10 @@ public class RecoveryFilesInfoRequest extends TransportRequest {
 
     int totalTranslogOps;
 
-    public RecoveryFilesInfoRequest() {
-    }
-
-    RecoveryFilesInfoRequest(long recoveryId, ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes,
-                             List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes, int totalTranslogOps) {
-        this.recoveryId = recoveryId;
-        this.shardId = shardId;
-        this.phase1FileNames = phase1FileNames;
-        this.phase1FileSizes = phase1FileSizes;
-        this.phase1ExistingFileNames = phase1ExistingFileNames;
-        this.phase1ExistingFileSizes = phase1ExistingFileSizes;
-        this.totalTranslogOps = totalTranslogOps;
-    }
-
-    public long recoveryId() {
-        return this.recoveryId;
-    }
-
-    public ShardId shardId() {
-        return shardId;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public RecoveryFilesInfoRequest(StreamInput in) throws IOException {
+        super(in);
         recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         int size = in.readVInt();
         phase1FileNames = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -91,6 +67,27 @@ public class RecoveryFilesInfoRequest extends TransportRequest {
             phase1ExistingFileSizes.add(in.readVLong());
         }
         totalTranslogOps = in.readVInt();
+    }
+
+    RecoveryFilesInfoRequest(long recoveryId, long requestSeqNo, ShardId shardId, List<String> phase1FileNames,
+                             List<Long> phase1FileSizes, List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes,
+                             int totalTranslogOps) {
+        super(requestSeqNo);
+        this.recoveryId = recoveryId;
+        this.shardId = shardId;
+        this.phase1FileNames = phase1FileNames;
+        this.phase1FileSizes = phase1FileSizes;
+        this.phase1ExistingFileNames = phase1ExistingFileNames;
+        this.phase1ExistingFileSizes = phase1ExistingFileSizes;
+        this.totalTranslogOps = totalTranslogOps;
+    }
+
+    public long recoveryId() {
+        return this.recoveryId;
+    }
+
+    public ShardId shardId() {
+        return shardId;
     }
 
     @Override

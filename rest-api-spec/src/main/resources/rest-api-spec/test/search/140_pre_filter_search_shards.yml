@@ -9,7 +9,7 @@ setup:
               properties:
                 created_at:
                    type: date
-                   format: "yyyy-MM-dd"
+                   format: "strict_date"
   - do:
       indices.create:
           index: index_2
@@ -20,7 +20,8 @@ setup:
               properties:
                 created_at:
                    type: date
-                   format: "yyyy-MM-dd"
+                   format: "strict_date"
+
   - do:
       indices.create:
           index: index_3
@@ -31,7 +32,7 @@ setup:
               properties:
                 created_at:
                    type: date
-                   format: "yyyy-MM-dd"
+                   format: "strict_date"
 
 
 ---
@@ -153,3 +154,4 @@ setup:
   - match: { _shards.failed: 0 }
   - match: { hits.total: 2 }
   - length: { aggregations.idx_terms.buckets: 2 }
+

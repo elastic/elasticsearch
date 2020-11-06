@@ -20,12 +20,15 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -36,14 +39,19 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -131,7 +139,18 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getNodes().size(), equalTo(1));
     }
 
-    public void testCreateSnapshot() throws IOException {
+    public void testCleanupRepository() throws IOException {
+        AcknowledgedResponse putRepositoryResponse = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        CleanupRepositoryRequest request = new CleanupRepositoryRequest("test");
+        CleanupRepositoryResponse response = execute(request, highLevelClient().snapshot()::cleanupRepository,
+            highLevelClient().snapshot()::cleanupRepositoryAsync);
+        assertThat(response.result().bytes(), equalTo(0L));
+        assertThat(response.result().blobs(), equalTo(0L));
+    }
+
+    public void testCreateSnapshot() throws Exception {
         String repository = "test_repository";
         assertTrue(createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
@@ -139,6 +158,9 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotRequest request = new CreateSnapshotRequest(repository, snapshot);
         boolean waitForCompletion = randomBoolean();
         request.waitForCompletion(waitForCompletion);
+        if (randomBoolean()) {
+            request.userMetadata(randomUserMetadata());
+        }
         request.partial(randomBoolean());
         request.includeGlobalState(randomBoolean());
 
@@ -147,8 +169,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         if (waitForCompletion == false) {
             // If we don't wait for the snapshot to complete we have to cancel it to not leak the snapshot task
             AcknowledgedResponse deleteResponse = execute(
-                new DeleteSnapshotRequest(repository, snapshot),
-                highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
+                    new DeleteSnapshotRequest(repository, snapshot),
+                    highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
             );
             assertTrue(deleteResponse.isAcknowledged());
         }
@@ -167,6 +189,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotResponse putSnapshotResponse1 = createTestSnapshot(createSnapshotRequest1);
         CreateSnapshotRequest createSnapshotRequest2 = new CreateSnapshotRequest(repository, snapshot2);
         createSnapshotRequest2.waitForCompletion(true);
+        Map<String, Object> originalMetadata = randomUserMetadata();
+        createSnapshotRequest2.userMetadata(originalMetadata);
         CreateSnapshotResponse putSnapshotResponse2 = createTestSnapshot(createSnapshotRequest2);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
         assertEquals(RestStatus.OK, putSnapshotResponse1.status());
@@ -186,6 +210,15 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertEquals(2, response.getSnapshots().size());
         assertThat(response.getSnapshots().stream().map((s) -> s.snapshotId().getName()).collect(Collectors.toList()),
             contains("test_snapshot1", "test_snapshot2"));
+        Optional<Map<String, Object>> returnedMetadata = response.getSnapshots().stream()
+            .filter(s -> s.snapshotId().getName().equals("test_snapshot2"))
+            .findFirst()
+            .map(SnapshotInfo::userMetadata);
+        if (returnedMetadata.isPresent()) {
+            assertEquals(originalMetadata, returnedMetadata.get());
+        } else {
+            assertNull("retrieved metadata is null, expected non-null metadata", originalMetadata);
+        }
     }
 
     public void testSnapshotsStatus() throws IOException {
@@ -231,6 +264,9 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(testRepository, testSnapshot);
         createSnapshotRequest.indices(testIndex);
         createSnapshotRequest.waitForCompletion(true);
+        if (randomBoolean()) {
+            createSnapshotRequest.userMetadata(randomUserMetadata());
+        }
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
 
@@ -252,6 +288,48 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(restoreInfo.failedShards(), equalTo(0));
     }
 
+    public void testSnapshotHidden() throws IOException {
+        String testRepository = "test";
+        String testSnapshot = "snapshot_1";
+        String testIndex = "test_index";
+
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        createIndex(testIndex, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1,3))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .build());
+        assertTrue("index [" + testIndex + "] should have been created", indexExists(testIndex));
+
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(testRepository, testSnapshot);
+        createSnapshotRequest.indices("*");
+        createSnapshotRequest.waitForCompletion(true);
+        if (randomBoolean()) {
+            createSnapshotRequest.userMetadata(randomUserMetadata());
+        }
+        CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
+        assertEquals(RestStatus.OK, createSnapshotResponse.status());
+
+        deleteIndex(testIndex);
+        assertFalse("index [" + testIndex + "] should have been deleted", indexExists(testIndex));
+
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(testRepository, testSnapshot);
+        request.waitForCompletion(true);
+        request.indices(randomFrom(testIndex, "test_*"));
+        request.renamePattern(testIndex);
+
+        RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
+            highLevelClient().snapshot()::restoreAsync);
+
+        RestoreInfo restoreInfo = response.getRestoreInfo();
+        assertThat(restoreInfo.name(), equalTo(testSnapshot));
+        assertThat(restoreInfo.indices(), equalTo(Collections.singletonList(testIndex)));
+        assertThat(restoreInfo.successfulShards(), greaterThan(0));
+        assertThat(restoreInfo.failedShards(), equalTo(0));
+    }
+
     public void testDeleteSnapshot() throws IOException {
         String repository = "test_repository";
         String snapshot = "test_snapshot";
@@ -261,6 +339,9 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
         createSnapshotRequest.waitForCompletion(true);
+        if (randomBoolean()) {
+            createSnapshotRequest.userMetadata(randomUserMetadata());
+        }
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
@@ -269,5 +350,53 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse response = execute(request, highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync);
 
         assertTrue(response.isAcknowledged());
+    }
+
+    public void testCloneSnapshot() throws IOException {
+        String repository = "test_repository";
+        String snapshot = "source_snapshot";
+        String targetSnapshot = "target_snapshot";
+        final String testIndex =  "test_idx";
+
+        createIndex(testIndex, Settings.EMPTY);
+        assertTrue("index [" + testIndex + "] should have been created", indexExists(testIndex));
+
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
+        createSnapshotRequest.waitForCompletion(true);
+
+        CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
+        assertEquals(RestStatus.OK, createSnapshotResponse.status());
+
+        CloneSnapshotRequest request = new CloneSnapshotRequest(repository, snapshot, targetSnapshot, new String[]{testIndex});
+        AcknowledgedResponse response = execute(request, highLevelClient().snapshot()::clone, highLevelClient().snapshot()::cloneAsync);
+
+        assertTrue(response.isAcknowledged());
+    }
+
+    private static Map<String, Object> randomUserMetadata() {
+        if (randomBoolean()) {
+            return null;
+        }
+
+        Map<String, Object> metadata = new HashMap<>();
+        long fields = randomLongBetween(0, 4);
+        for (int i = 0; i < fields; i++) {
+            if (randomBoolean()) {
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
+                    randomAlphaOfLengthBetween(5, 5));
+            } else {
+                Map<String, Object> nested = new HashMap<>();
+                long nestedFields = randomLongBetween(0, 4);
+                for (int j = 0; j < nestedFields; j++) {
+                    nested.put(randomValueOtherThanMany(nested::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
+                        randomAlphaOfLengthBetween(5, 5));
+                }
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)), nested);
+            }
+        }
+        return metadata;
     }
 }

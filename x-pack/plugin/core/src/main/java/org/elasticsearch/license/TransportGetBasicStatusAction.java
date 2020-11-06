@@ -24,28 +24,18 @@ public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetBasicStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                GetBasicStatusRequest::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetBasicStatusResponse newResponse() {
-        return new GetBasicStatusResponse();
+                GetBasicStatusRequest::new, indexNameExpressionResolver, GetBasicStatusResponse::new, ThreadPool.Names.SAME);
     }
 
     @Override
     protected void masterOperation(GetBasicStatusRequest request, ClusterState state,
                                    ActionListener<GetBasicStatusResponse> listener) throws Exception {
-        LicensesMetaData licensesMetaData = state.metaData().custom(LicensesMetaData.TYPE);
-        if (licensesMetaData == null) {
+        LicensesMetadata licensesMetadata = state.metadata().custom(LicensesMetadata.TYPE);
+        if (licensesMetadata == null) {
             listener.onResponse(new GetBasicStatusResponse(true));
         } else {
-            License license = licensesMetaData.getLicense();
-            listener.onResponse(new GetBasicStatusResponse(license == null || license.type().equals("basic") == false));
+            License license = licensesMetadata.getLicense();
+            listener.onResponse(new GetBasicStatusResponse(license == null || License.LicenseType.isBasic(license.type()) == false));
         }
 
     }

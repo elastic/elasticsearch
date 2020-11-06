@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,8 +51,9 @@ public class StringProcessor implements Processor {
         LCASE((String s) -> s.toLowerCase(Locale.ROOT)),
         UCASE((String s) -> s.toUpperCase(Locale.ROOT)),
         LENGTH((String s) -> StringFunctionUtils.trimTrailingWhitespaces(s).length()),
-        RTRIM((String s) -> StringFunctionUtils.trimTrailingWhitespaces(s)),
-        LTRIM((String s) -> StringFunctionUtils.trimLeadingWhitespaces(s)),
+        RTRIM(StringFunctionUtils::trimTrailingWhitespaces),
+        LTRIM(StringFunctionUtils::trimLeadingWhitespaces),
+        TRIM(String::trim),
         SPACE((Number n) -> {
             int i = n.intValue();
             if (i < 0) {

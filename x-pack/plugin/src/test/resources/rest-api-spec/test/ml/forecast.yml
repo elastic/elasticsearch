@@ -48,9 +48,24 @@ setup:
         duration: "-1s"
 
 ---
+"Test forecast given duration is too large":
+  - do:
+      catch: /\[duration\] must be 3650d or less[:] \[3651d\]/
+      ml.forecast:
+        job_id: "forecast-job"
+        duration: "3651d"
+
+---
 "Test forecast given expires_in is negative":
   - do:
       catch: /\[expires_in\] must be non-negative[:] \[-1\]/
       ml.forecast:
         job_id: "forecast-job"
         expires_in: "-1s"
+---
+"Test forecast given max_model_memory is too large":
+  - do:
+      catch: /\[max_model_memory\] must be less than 500mb/
+      ml.forecast:
+        job_id: "forecast-job"
+        max_model_memory: "1000mb"

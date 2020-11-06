@@ -22,36 +22,52 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
-class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoBoundsAggregatorFactory> {
+class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final boolean wrapLongitude;
 
-    GeoBoundsAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, boolean wrapLongitude,
-            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+    GeoBoundsAggregatorFactory(String name,
+                                ValuesSourceConfig config,
+                                boolean wrapLongitude,
+                                AggregationContext context,
+                                AggregatorFactory parent,
+                                AggregatorFactories.Builder subFactoriesBuilder,
+                                Map<String, Object> metadata) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.wrapLongitude = wrapLongitude;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        return new GeoBoundsAggregator(name, context, parent, null, wrapLongitude, pipelineAggregators, metaData);
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            Map<String, Object> metadata) throws IOException {
+        return new GeoBoundsAggregator(name, searchContext, parent, config, wrapLongitude, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new GeoBoundsAggregator(name, context, parent, valuesSource, wrapLongitude, pipelineAggregators, metaData);
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return context.getValuesSourceRegistry()
+            .getAggregator(GeoBoundsAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, searchContext, parent, config, wrapLongitude, metadata);
+    }
+
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoBoundsAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.GEOPOINT, GeoBoundsAggregator::new, true);
     }
 }

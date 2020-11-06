@@ -25,10 +25,12 @@ public interface FileStructureFinderFactory {
      * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
      *                    can be appended by this method.
      * @param sample A sample from the file to be ingested.
+     * @param allowedFractionOfBadLines How many lines of the passed sample are allowed to be considered "bad".
+     *                                  Provided as a fraction from interval [0, 1]
      * @return <code>true</code> if this factory can create an appropriate
      *         file structure given the sample; otherwise <code>false</code>.
      */
-    boolean canCreateFromSample(List<String> explanation, String sample);
+    boolean canCreateFromSample(List<String> explanation, String sample, double allowedFractionOfBadLines);
 
     /**
      * Create an object representing the structure of a file.
@@ -37,6 +39,7 @@ public interface FileStructureFinderFactory {
      * @param sample A sample from the file to be ingested.
      * @param charsetName The name of the character set in which the sample was provided.
      * @param hasByteOrderMarker Did the sample have a byte order marker?  <code>null</code> means "not relevant".
+     * @param lineMergeSizeLimit Maximum number of characters permitted when lines are merged to create messages.
      * @param overrides Stores structure decisions that have been made by the end user, and should
      *                  take precedence over anything the {@link FileStructureFinder} may decide.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
@@ -44,5 +47,6 @@ public interface FileStructureFinderFactory {
      * @throws Exception if something goes wrong during creation.
      */
     FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
-                                         FileStructureOverrides overrides, TimeoutChecker timeoutChecker) throws Exception;
+                                         int lineMergeSizeLimit, FileStructureOverrides overrides,
+                                         TimeoutChecker timeoutChecker) throws Exception;
 }

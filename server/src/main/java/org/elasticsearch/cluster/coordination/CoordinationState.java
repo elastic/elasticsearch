@@ -21,16 +21,19 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
 
@@ -44,6 +47,8 @@ public class CoordinationState {
 
     private final DiscoveryNode localNode;
 
+    private final ElectionStrategy electionStrategy;
+
     // persisted state
     private final PersistedState persistedState;
 
@@ -55,11 +60,12 @@ public class CoordinationState {
     private VotingConfiguration lastPublishedConfiguration;
     private VoteCollection publishVotes;
 
-    public CoordinationState(Settings settings, DiscoveryNode localNode, PersistedState persistedState) {
+    public CoordinationState(DiscoveryNode localNode, PersistedState persistedState, ElectionStrategy electionStrategy) {
         this.localNode = localNode;
 
         // persisted state
         this.persistedState = persistedState;
+        this.electionStrategy = electionStrategy;
 
         // transient state
         this.joinVotes = new VoteCollection();
@@ -86,8 +92,8 @@ public class CoordinationState {
         return getLastAcceptedState().version();
     }
 
-    private long getLastAcceptedVersionOrMetaDataVersion() {
-        return getLastAcceptedState().getVersionOrMetaDataVersion();
+    private long getLastAcceptedVersionOrMetadataVersion() {
+        return getLastAcceptedState().getVersionOrMetadataVersion();
     }
 
     public VotingConfiguration getLastCommittedConfiguration() {
@@ -106,13 +112,9 @@ public class CoordinationState {
         return electionWon;
     }
 
-    public boolean isElectionQuorum(VoteCollection votes) {
-        return isElectionQuorum(votes, getLastAcceptedState());
-    }
-
-    static boolean isElectionQuorum(VoteCollection votes, ClusterState lastAcceptedState) {
-        return votes.isQuorum(lastAcceptedState.getLastCommittedConfiguration())
-            && votes.isQuorum(lastAcceptedState.getLastAcceptedConfiguration());
+    public boolean isElectionQuorum(VoteCollection joinVotes) {
+        return electionStrategy.isElectionQuorum(localNode, getCurrentTerm(), getLastAcceptedTerm(), getLastAcceptedVersion(),
+            getLastCommittedConfiguration(), getLastAcceptedConfiguration(), joinVotes);
     }
 
     public boolean isPublishQuorum(VoteCollection votes) {
@@ -121,6 +123,11 @@ public class CoordinationState {
 
     public boolean containsJoinVoteFor(DiscoveryNode node) {
         return joinVotes.containsVoteFor(node);
+    }
+
+    // used for tests
+    boolean containsJoin(Join join) {
+        return joinVotes.getJoins().contains(join);
     }
 
     public boolean joinVotesHaveQuorumFor(VotingConfiguration votingConfiguration) {
@@ -198,7 +205,7 @@ public class CoordinationState {
         publishVotes = new VoteCollection();
 
         return new Join(localNode, startJoinRequest.getSourceNode(), getCurrentTerm(), getLastAcceptedTerm(),
-            getLastAcceptedVersionOrMetaDataVersion());
+            getLastAcceptedVersionOrMetadataVersion());
     }
 
     /**
@@ -231,12 +238,12 @@ public class CoordinationState {
                 " of join higher than current last accepted term " + lastAcceptedTerm);
         }
 
-        if (join.getLastAcceptedTerm() == lastAcceptedTerm && join.getLastAcceptedVersion() > getLastAcceptedVersionOrMetaDataVersion()) {
+        if (join.getLastAcceptedTerm() == lastAcceptedTerm && join.getLastAcceptedVersion() > getLastAcceptedVersionOrMetadataVersion()) {
             logger.debug(
                 "handleJoin: ignored join as joiner has a better last accepted version (expected: <=[{}], actual: [{}]) in term {}",
-                getLastAcceptedVersionOrMetaDataVersion(), join.getLastAcceptedVersion(), lastAcceptedTerm);
+                getLastAcceptedVersionOrMetadataVersion(), join.getLastAcceptedVersion(), lastAcceptedTerm);
             throw new CoordinationStateRejectedException("incoming last accepted version " + join.getLastAcceptedVersion() +
-                " of join higher than current last accepted version " + getLastAcceptedVersionOrMetaDataVersion()
+                " of join higher than current last accepted version " + getLastAcceptedVersionOrMetadataVersion()
                 + " in term " + lastAcceptedTerm);
         }
 
@@ -249,10 +256,11 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("rejecting join since this node has not received its initial configuration yet");
         }
 
-        boolean added = joinVotes.addVote(join.getSourceNode());
+        boolean added = joinVotes.addJoinVote(join);
         boolean prevElectionWon = electionWon;
         electionWon = isElectionQuorum(joinVotes);
-        assert !prevElectionWon || electionWon; // we cannot go from won to not won
+        assert !prevElectionWon || electionWon : // we cannot go from won to not won
+            "locaNode= " + localNode + ", join=" + join + ", joinVotes=" + joinVotes;
         logger.debug("handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}", join,
             join.getSourceNode(), electionWon, lastAcceptedTerm, getLastAcceptedVersion());
 
@@ -438,11 +446,14 @@ public class CoordinationState {
         assert publishVotes.isEmpty() || electionWon();
     }
 
+    public void close() throws IOException {
+        persistedState.close();
+    }
+
     /**
      * Pluggable persistence layer for {@link CoordinationState}.
-     *
      */
-    public interface PersistedState {
+    public interface PersistedState extends Closeable {
 
         /**
          * Returns the current term
@@ -476,44 +487,63 @@ public class CoordinationState {
          */
         default void markLastAcceptedStateAsCommitted() {
             final ClusterState lastAcceptedState = getLastAcceptedState();
-            MetaData.Builder metaDataBuilder = null;
+            Metadata.Builder metadataBuilder = null;
             if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
-                final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder(lastAcceptedState.coordinationMetaData())
+                final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(lastAcceptedState.coordinationMetadata())
                         .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
                         .build();
-                metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
-                metaDataBuilder.coordinationMetaData(coordinationMetaData);
+                metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
+                metadataBuilder.coordinationMetadata(coordinationMetadata);
             }
             // if we receive a commit from a Zen1 master that has not recovered its state yet, the cluster uuid might not been known yet.
-            assert lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false ||
+            assert lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false ||
                 lastAcceptedState.term() == ZEN1_BWC_TERM :
                 "received cluster state with empty cluster uuid but not Zen1 BWC term: " + lastAcceptedState;
-            if (lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false &&
-                lastAcceptedState.metaData().clusterUUIDCommitted() == false) {
-                if (metaDataBuilder == null) {
-                    metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
+            if (lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false &&
+                lastAcceptedState.metadata().clusterUUIDCommitted() == false) {
+                if (metadataBuilder == null) {
+                    metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
                 }
-                metaDataBuilder.clusterUUIDCommitted(true);
+                metadataBuilder.clusterUUIDCommitted(true);
+
+                if (lastAcceptedState.term() != ZEN1_BWC_TERM) {
+                    // Zen1 masters never publish a committed cluster UUID so if we logged this it'd happen on on every update. Let's just
+                    // not log it at all in a 6.8/7.x rolling upgrade.
+                    logger.info("cluster UUID set to [{}]", lastAcceptedState.metadata().clusterUUID());
+                }
             }
-            if (metaDataBuilder != null) {
-                setLastAcceptedState(ClusterState.builder(lastAcceptedState).metaData(metaDataBuilder).build());
+            if (metadataBuilder != null) {
+                setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(metadataBuilder).build());
             }
+        }
+
+        default void close() throws IOException {
         }
     }
 
     /**
-     * A collection of votes, used to calculate quorums.
+     * A collection of votes, used to calculate quorums. Optionally records the Joins as well.
      */
     public static class VoteCollection {
 
         private final Map<String, DiscoveryNode> nodes;
+        private final Set<Join> joins;
 
         public boolean addVote(DiscoveryNode sourceNode) {
-            return nodes.put(sourceNode.getId(), sourceNode) == null;
+            return sourceNode.isMasterNode() && nodes.put(sourceNode.getId(), sourceNode) == null;
+        }
+
+        public boolean addJoinVote(Join join) {
+            final boolean added = addVote(join.getSourceNode());
+            if (added) {
+                joins.add(join);
+            }
+            return added;
         }
 
         public VoteCollection() {
             nodes = new HashMap<>();
+            joins = new HashSet<>();
         }
 
         public boolean isQuorum(VotingConfiguration configuration) {
@@ -532,24 +562,31 @@ public class CoordinationState {
             return Collections.unmodifiableCollection(nodes.values());
         }
 
+        public Set<Join> getJoins() {
+            return Collections.unmodifiableSet(joins);
+        }
+
         @Override
         public String toString() {
-            return "VoteCollection{" + String.join(",", nodes.keySet()) + "}";
+            return "VoteCollection{votes=" + nodes.keySet() + ", joins=" + joins + "}";
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (!(o instanceof VoteCollection)) return false;
 
             VoteCollection that = (VoteCollection) o;
 
-            return nodes.equals(that.nodes);
+            if (!nodes.equals(that.nodes)) return false;
+            return joins.equals(that.joins);
         }
 
         @Override
         public int hashCode() {
-            return nodes.hashCode();
+            int result = nodes.hashCode();
+            result = 31 * result + joins.hashCode();
+            return result;
         }
     }
 }

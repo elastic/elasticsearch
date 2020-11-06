@@ -1,35 +1,37 @@
 [[query-dsl-span-not-query]]
-=== Span Not Query
+=== Span not query
+++++
+<titleabbrev>Span not</titleabbrev>
+++++
 
 Removes matches which overlap with another span query or which are
 within x tokens before (controlled by the parameter `pre`) or y tokens
 after (controlled by the parameter `post`) another SpanQuery. The span not
 query maps to Lucene `SpanNotQuery`. Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "span_not" : {
-            "include" : {
-                "span_term" : { "field1" : "hoya" }
-            },
-            "exclude" : {
-                "span_near" : { 
-                    "clauses" : [
-                        { "span_term" : { "field1" : "la" } },
-                        { "span_term" : { "field1" : "hoya" } }
-                    ],
-                    "slop" : 0,
-                    "in_order" : true
-                }
-            }
+  "query": {
+    "span_not": {
+      "include": {
+        "span_term": { "field1": "hoya" }
+      },
+      "exclude": {
+        "span_near": {
+          "clauses": [
+            { "span_term": { "field1": "la" } },
+            { "span_term": { "field1": "hoya" } }
+          ],
+          "slop": 0,
+          "in_order": true
         }
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `include` and `exclude` clauses can be any span type query. The
 `include` clause is the span query whose matches are filtered, and the

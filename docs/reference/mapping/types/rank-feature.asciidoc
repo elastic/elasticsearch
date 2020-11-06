@@ -1,12 +1,15 @@
 [[rank-feature]]
-=== Rank feature datatype
+=== Rank feature field type
+++++
+<titleabbrev>Rank feature</titleabbrev>
+++++
 
 A `rank_feature` field can index numbers so that they can later be used to boost
 documents in queries with a <<query-dsl-rank-feature-query,`rank_feature`>> query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -21,13 +24,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "pagerank": 8,
   "url_length": 22
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "rank_feature": {
@@ -36,7 +39,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Rank feature fields must use the `rank_feature` field type
 <2> Rank features that correlate negatively with the score need to declare it
 

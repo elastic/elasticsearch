@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
@@ -121,11 +121,11 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
     }
 
     String getClusterDisplayName() {
-        MetaData metaData = this.clusterState.getMetaData();
-        if (metaData == null) {
+        Metadata metadata = this.clusterState.getMetadata();
+        if (metadata == null) {
             return null;
         }
-        return metaData.settings().get(SETTING_DISPLAY_NAME);
+        return metadata.settings().get(SETTING_DISPLAY_NAME);
     }
 
     @Override

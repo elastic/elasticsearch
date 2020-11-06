@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.xpack.sql.type.Schema;
+import org.elasticsearch.xpack.ql.type.Schema;
 
 import java.util.List;
 
@@ -13,12 +13,19 @@ public class ListRowSet extends AbstractRowSet implements SchemaRowSet {
 
     private final Schema schema;
     private final List<List<?>> list;
+    private final int columnCount;
     private int pos = 0;
 
-    protected ListRowSet(Schema schema, List<List<?>> list) {
+    ListRowSet(Schema schema, List<List<?>> list) {
+        this(schema, list, schema.size());
+    }
+
+    ListRowSet(Schema schema, List<List<?>> list, int columnCount) {
         this.schema = schema;
+        this.columnCount = columnCount;
         this.list = list;
     }
+
 
     @Override
     protected boolean doHasCurrent() {
@@ -50,12 +57,12 @@ public class ListRowSet extends AbstractRowSet implements SchemaRowSet {
     }
 
     @Override
-    public Cursor nextPageCursor() {
-        return Cursor.EMPTY;
+    public Schema schema() {
+        return schema;
     }
 
     @Override
-    public Schema schema() {
-        return schema;
+    public int columnCount() {
+        return columnCount;
     }
 }

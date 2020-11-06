@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
@@ -221,6 +222,10 @@ public class SecurityClient {
     }
 
     public PutUserRequestBuilder preparePutUser(String username, char[] password, Hasher hasher, String... roles) {
+        return new PutUserRequestBuilder(client).username(username).password(password, hasher).roles(roles);
+    }
+
+    public PutUserRequestBuilder preparePutUser(String username, SecureString password, Hasher hasher, String... roles) {
         return new PutUserRequestBuilder(client).username(username).password(password, hasher).roles(roles);
     }
 

@@ -19,9 +19,14 @@
 
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo.Failure;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -43,14 +48,16 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiLettersOfLength;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomUnicodeOfLengthBetween;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 public final class RandomObjects {
@@ -129,19 +136,15 @@ public final class RandomObjects {
      */
     public static Object getExpectedParsedValue(XContentType xContentType, Object value) {
         if (value instanceof BytesArray) {
-            if (xContentType == XContentType.JSON || xContentType == XContentType.YAML) {
-                //JSON and YAML write the base64 format
+            if (xContentType == XContentType.JSON) {
+                //JSON writes base64 format
                 return Base64.getEncoder().encodeToString(((BytesArray)value).toBytesRef().bytes);
             }
         }
         if (value instanceof Float) {
-            if (xContentType == XContentType.CBOR) {
-                //with CBOR we get back a float
+            if (xContentType == XContentType.CBOR || xContentType == XContentType.SMILE) {
+                // with binary content types we pass back the object as is
                 return value;
-            }
-            if (xContentType == XContentType.SMILE) {
-                //with SMILE we get back a double (this will change in Jackson 2.9 where it will return a Float)
-                return ((Float)value).doubleValue();
             }
             //with JSON AND YAML we get back a double, but with float precision.
             return Double.parseDouble(value.toString());
@@ -340,5 +343,44 @@ public final class RandomObjects {
         Failure expected = new Failure(new ShardId(index, INDEX_UUID_NA_VALUE, shardId), nodeId, expectedException, status, primary);
 
         return Tuple.tuple(actual, expected);
+    }
+
+    public static AnalyzeToken randomToken(Random random) {
+        String token = RandomStrings.randomAsciiLettersOfLengthBetween(random, 1, 20);
+        int position = RandomizedTest.randomIntBetween(0, 1000);
+        int startOffset = RandomizedTest.randomIntBetween(0, 1000);
+        int endOffset = RandomizedTest.randomIntBetween(0, 1000);
+        int posLength = RandomizedTest.randomIntBetween(1, 5);
+        String type =  RandomStrings.randomAsciiLettersOfLengthBetween(random, 1, 20);
+        Map<String, Object> extras = new HashMap<>();
+        if (random.nextBoolean()) {
+            int entryCount = RandomNumbers.randomIntBetween(random, 0, 6);
+            for (int i = 0; i < entryCount; i++) {
+                switch (RandomNumbers.randomIntBetween(random, 0, 6)) {
+                    case 0:
+                    case 1:
+                    case 2:
+                    case 3:
+                        String key = RandomStrings.randomAsciiLettersOfLength(random, 5);
+                        String value = RandomStrings.randomAsciiLettersOfLength(random, 10);
+                        extras.put(key, value);
+                        break;
+                    case 4:
+                        String objkey = RandomStrings.randomAsciiLettersOfLength(random, 5);
+                        Map<String, String> obj = new HashMap<>();
+                        obj.put(RandomStrings.randomAsciiLettersOfLength(random, 5), RandomStrings.randomAsciiLettersOfLength(random, 10));
+                        extras.put(objkey, obj);
+                        break;
+                    case 5:
+                        String listkey = RandomStrings.randomAsciiLettersOfLength(random, 5);
+                        List<String> list = new ArrayList<>();
+                        list.add(RandomStrings.randomAsciiLettersOfLength(random, 4));
+                        list.add(RandomStrings.randomAsciiLettersOfLength(random, 6));
+                        extras.put(listkey, list);
+                        break;
+                }
+            }
+        }
+        return new AnalyzeAction.AnalyzeToken(token, position, startOffset, endOffset, posLength, type, extras);
     }
 }

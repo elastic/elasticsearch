@@ -19,6 +19,8 @@
 
 package org.elasticsearch.http.nio;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -28,7 +30,6 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -40,6 +41,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class NioHttpRequest implements HttpRequest {
@@ -47,17 +49,33 @@ public class NioHttpRequest implements HttpRequest {
     private final FullHttpRequest request;
     private final BytesReference content;
     private final HttpHeadersMap headers;
-    private final int sequence;
+    private final AtomicBoolean released;
+    private final Exception inboundException;
+    private final boolean pooled;
 
-    NioHttpRequest(FullHttpRequest request, int sequence) {
+    NioHttpRequest(FullHttpRequest request) {
+        this(request, new HttpHeadersMap(request.headers()), new AtomicBoolean(false), true,
+            ByteBufUtils.toBytesReference(request.content()));
+    }
+
+    NioHttpRequest(FullHttpRequest request, Exception inboundException) {
+        this(request, new HttpHeadersMap(request.headers()), new AtomicBoolean(false), true,
+            ByteBufUtils.toBytesReference(request.content()), inboundException);
+    }
+
+    private NioHttpRequest(FullHttpRequest request, HttpHeadersMap headers, AtomicBoolean released, boolean pooled,
+                           BytesReference content) {
+        this(request, headers, released, pooled, content, null);
+    }
+
+    private NioHttpRequest(FullHttpRequest request, HttpHeadersMap headers, AtomicBoolean released, boolean pooled,
+                           BytesReference content, Exception inboundException) {
         this.request = request;
-        headers = new HttpHeadersMap(request.headers());
-        this.sequence = sequence;
-        if (request.content().isReadable()) {
-            this.content = ByteBufUtils.toBytesReference(request.content());
-        } else {
-            this.content = BytesArray.EMPTY;
-        }
+        this.headers = headers;
+        this.content = content;
+        this.pooled = pooled;
+        this.released = released;
+        this.inboundException = inboundException;
     }
 
     @Override
@@ -105,9 +123,33 @@ public class NioHttpRequest implements HttpRequest {
 
     @Override
     public BytesReference content() {
+        assert released.get() == false;
         return content;
     }
 
+    @Override
+    public void release() {
+        if (pooled && released.compareAndSet(false, true)) {
+            request.release();
+        }
+    }
+
+    @Override
+    public HttpRequest releaseAndCopy() {
+        assert released.get() == false;
+        if (pooled == false) {
+            return this;
+        }
+        try {
+            final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
+            return new NioHttpRequest(
+                new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(), copiedContent, request.headers(),
+                    request.trailingHeaders()),
+                headers, new AtomicBoolean(false), false, ByteBufUtils.toBytesReference(copiedContent));
+        } finally {
+            release();
+        }
+    }
 
     @Override
     public final Map<String, List<String>> getHeaders() {
@@ -147,20 +189,21 @@ public class NioHttpRequest implements HttpRequest {
         trailingHeaders.remove(header);
         FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
             request.content(), headersWithoutContentTypeHeader, trailingHeaders);
-        return new NioHttpRequest(requestWithoutHeader, sequence);
+        return new NioHttpRequest(requestWithoutHeader, new HttpHeadersMap(requestWithoutHeader.headers()), released, pooled, content);
     }
 
     @Override
     public NioHttpResponse createResponse(RestStatus status, BytesReference content) {
-        return new NioHttpResponse(this, status, content);
+        return new NioHttpResponse(request.headers(), request.protocolVersion(), status, content);
+    }
+
+    @Override
+    public Exception getInboundException() {
+        return inboundException;
     }
 
     public FullHttpRequest nettyRequest() {
         return request;
-    }
-
-    int sequence() {
-        return sequence;
     }
 
     /**

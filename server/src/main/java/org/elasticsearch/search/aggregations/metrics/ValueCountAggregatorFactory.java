@@ -22,32 +22,45 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
-class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, ValueCountAggregatorFactory> {
+class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    ValueCountAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, SearchContext context,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, ValueCountAggregator::new, true);
+    }
+
+    ValueCountAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
+                                AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                Map<String, Object> metadata) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        return new ValueCountAggregator(name, null, context, parent, pipelineAggregators, metaData);
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            Map<String, Object> metadata) throws IOException {
+        return new ValueCountAggregator(name, config, searchContext, parent, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new ValueCountAggregator(name, valuesSource, context, parent, pipelineAggregators, metaData);
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        CardinalityUpperBound bucketCardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return context.getValuesSourceRegistry()
+            .getAggregator(ValueCountAggregationBuilder.REGISTRY_KEY, config)
+            .build(name, config, searchContext, parent, metadata);
     }
 }

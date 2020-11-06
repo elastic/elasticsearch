@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +53,7 @@ public class ReconfiguratorTests extends ESTestCase {
 
         check(nodes("a"), conf("a"), true, conf("a"));
         check(nodes("a", "b"), conf("a"), true, conf("a"));
-        check(nodes("a", "b"), conf("b"), true, conf("b"));
+        check(nodes("a", "b"), conf("b"), true, conf("a"));
         check(nodes("a", "b"), conf("a", "c"), true, conf("a"));
         check(nodes("a", "b"), conf("a", "b"), true, conf("a"));
         check(nodes("a", "b"), conf("a", "b", "e"), true, conf("a", "b", "e"));

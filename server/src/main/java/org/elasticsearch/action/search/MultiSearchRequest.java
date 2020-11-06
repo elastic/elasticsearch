@@ -23,16 +23,21 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -42,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -56,9 +62,11 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;
-    private List<SearchRequest> requests = new ArrayList<>();
+    private final List<SearchRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+
+    public MultiSearchRequest() {}
 
     /**
      * Add a search request to execute. Note, the order is important, the search response will be returned in the
@@ -129,9 +137,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return this;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+
+    public MultiSearchRequest(StreamInput in) throws IOException {
+        super(in);
         maxConcurrentSearchRequests = in.readVInt();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -175,7 +183,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            String searchType,
                                            Boolean ccsMinimizeRoundtrips,
                                            NamedXContentRegistry registry,
-                                           boolean allowExplicitIndex) throws IOException {
+                                           boolean allowExplicitIndex,
+                                           DeprecationLogger deprecationLogger) throws IOException {
         int from = 0;
         byte marker = xContent.streamSeparator();
         while (true) {
@@ -186,6 +195,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // support first line with \n
             if (nextMarker == 0) {
                 from = nextMarker + 1;
+                deprecationLogger.deprecate("multi_search_empty_first_line",
+                    "support for empty first line before any action metadata in msearch API is deprecated and " +
+                    "will be removed in the next major version");
                 continue;
             }
 
@@ -314,15 +326,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             xContentBuilder.field("index", request.indices());
         }
         if (request.indicesOptions() != null && request.indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {
-            if (request.indicesOptions().expandWildcardsOpen() && request.indicesOptions().expandWildcardsClosed()) {
-                xContentBuilder.field("expand_wildcards", "all");
-            } else if (request.indicesOptions().expandWildcardsOpen()) {
-                xContentBuilder.field("expand_wildcards", "open");
-            } else if (request.indicesOptions().expandWildcardsClosed()) {
-                xContentBuilder.field("expand_wildcards", "closed");
-            } else {
-                xContentBuilder.field("expand_wildcards", "none");
-            }
+            WildcardStates.toXContent(request.indicesOptions().getExpandWildcards(), xContentBuilder);
             xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
             xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
         }
@@ -348,4 +352,20 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         xContentBuilder.endObject();
     }
 
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+            @Override
+            public String getDescription() {
+                return requests.stream()
+                    .map(SearchRequest::buildDescription)
+                    .collect(Collectors.joining(action + "[", ",", "]"));
+            }
+
+            @Override
+            public boolean shouldCancelChildrenOnCancellation() {
+                return true;
+            }
+        };
+    }
 }

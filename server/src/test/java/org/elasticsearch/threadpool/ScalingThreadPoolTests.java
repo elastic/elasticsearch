@@ -48,13 +48,17 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             core = "generic".equals(threadPoolName) ? 4 : 1; // the defaults
         }
 
+        final int availableProcessors = Runtime.getRuntime().availableProcessors();
         final int maxBasedOnNumberOfProcessors;
+        final int processorsUsed;
         if (randomBoolean()) {
             final int processors = randomIntBetween(1, 64);
             maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, processors);
-            builder.put("processors", processors);
+            builder.put("node.processors", processors);
+            processorsUsed = processors;
         } else {
-            maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, Runtime.getRuntime().availableProcessors());
+            maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, availableProcessors);
+            processorsUsed = availableProcessors;
         }
 
         final int expectedMax;
@@ -93,18 +97,23 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             assertThat(info.getMax(), equalTo(expectedMax));
             assertThat(esThreadPoolExecutor.getMaximumPoolSize(), equalTo(expectedMax));
         });
+
+        if (processorsUsed > availableProcessors) {
+            assertWarnings("setting [node.processors] to value [" + processorsUsed +
+                "] which is more than available processors [" + availableProcessors + "] is deprecated");
+        }
     }
 
     private int expectedSize(final String threadPoolName, final int numberOfProcessors) {
         final Map<String, Function<Integer, Integer>> sizes = new HashMap<>();
         sizes.put(ThreadPool.Names.GENERIC, n -> ThreadPool.boundedBy(4 * n, 128, 512));
         sizes.put(ThreadPool.Names.MANAGEMENT, n -> 5);
-        sizes.put(ThreadPool.Names.FLUSH, ThreadPool::halfNumberOfProcessorsMaxFive);
-        sizes.put(ThreadPool.Names.REFRESH, ThreadPool::halfNumberOfProcessorsMaxTen);
-        sizes.put(ThreadPool.Names.WARMER, ThreadPool::halfNumberOfProcessorsMaxFive);
-        sizes.put(ThreadPool.Names.SNAPSHOT, ThreadPool::halfNumberOfProcessorsMaxFive);
-        sizes.put(ThreadPool.Names.FETCH_SHARD_STARTED, ThreadPool::twiceNumberOfProcessors);
-        sizes.put(ThreadPool.Names.FETCH_SHARD_STORE, ThreadPool::twiceNumberOfProcessors);
+        sizes.put(ThreadPool.Names.FLUSH, ThreadPool::halfAllocatedProcessorsMaxFive);
+        sizes.put(ThreadPool.Names.REFRESH, ThreadPool::halfAllocatedProcessorsMaxTen);
+        sizes.put(ThreadPool.Names.WARMER, ThreadPool::halfAllocatedProcessorsMaxFive);
+        sizes.put(ThreadPool.Names.SNAPSHOT, ThreadPool::halfAllocatedProcessorsMaxFive);
+        sizes.put(ThreadPool.Names.FETCH_SHARD_STARTED, ThreadPool::twiceAllocatedProcessors);
+        sizes.put(ThreadPool.Names.FETCH_SHARD_STORE, ThreadPool::twiceAllocatedProcessors);
         return sizes.get(threadPoolName).apply(numberOfProcessors);
     }
 

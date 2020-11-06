@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.XPackSettings.FIPS_MODE_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.TOKEN_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
@@ -69,22 +70,13 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public String description() {
-        return "Security for the Elastic Stack";
-    }
-
-    @Override
     public boolean available() {
-        return licenseState != null && licenseState.isSecurityAvailable();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.SECURITY);
     }
 
     @Override
     public boolean enabled() {
-        if (licenseState != null) {
-            return XPackSettings.SECURITY_ENABLED.get(settings) &&
-                licenseState.isSecurityDisabledByTrialLicense() == false;
-        }
-        return false;
+        return licenseState != null && licenseState.isSecurityEnabled();
     }
 
     @Override
@@ -100,17 +92,19 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         Map<String, Object> auditUsage = auditUsage(settings);
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
         Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
+        Map<String, Object> fips140Usage = fips140Usage(settings);
 
         final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> realmsUsageRef = new AtomicReference<>();
+
+        final boolean enabled = licenseState.isSecurityEnabled();
         final CountDown countDown = new CountDown(3);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
                 listener.onResponse(new SecurityFeatureSetUsage(available(), enabled(), realmsUsageRef.get(), rolesUsageRef.get(),
                         roleMappingUsageRef.get(), sslUsage, auditUsage, ipFilterUsage, anonymousUsage, tokenServiceUsage,
-                        apiKeyServiceUsage));
-            }
+                        apiKeyServiceUsage, fips140Usage)); }
         };
 
         final ActionListener<Map<String, Object>> rolesStoreUsageListener =
@@ -132,17 +126,17 @@ public class SecurityFeatureSet implements XPackFeatureSet {
                 doCountDown.run();
             }, listener::onFailure);
 
-        if (rolesStore == null) {
+        if (rolesStore == null || enabled == false) {
             rolesStoreUsageListener.onResponse(Collections.emptyMap());
         } else {
             rolesStore.usageStats(rolesStoreUsageListener);
         }
-        if (roleMappingStore == null) {
+        if (roleMappingStore == null || enabled == false) {
             roleMappingStoreUsageListener.onResponse(Collections.emptyMap());
         } else {
             roleMappingStore.usageStats(roleMappingStoreUsageListener);
         }
-        if (realms == null) {
+        if (realms == null || enabled == false) {
             realmsUsageListener.onResponse(Collections.emptyMap());
         } else {
             realms.usageStats(realmsUsageListener);
@@ -189,4 +183,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         return ipFilter.usageStats();
     }
 
+    static Map<String, Object> fips140Usage(Settings settings) {
+        return singletonMap("enabled", FIPS_MODE_ENABLED.get(settings));
+    }
 }

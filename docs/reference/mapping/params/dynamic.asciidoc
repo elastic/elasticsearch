@@ -5,9 +5,9 @@ By default, fields can be added _dynamically_ to a document, or to
 <<object,inner objects>> within a document, just by indexing a document
 containing the new field.  For instance:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index/_doc/1 <1>
+PUT my-index-000001/_doc/1 <1>
 {
   "username": "johnsmith",
   "name": {
@@ -16,9 +16,9 @@ PUT my_index/_doc/1 <1>
   }
 }
 
-GET my_index/_mapping <2>
+GET my-index-000001/_mapping <2>
 
-PUT my_index/_doc/2 <3>
+PUT my-index-000001/_doc/2 <3>
 {
   "username": "marywhite",
   "email": "mary@white.com",
@@ -29,9 +29,9 @@ PUT my_index/_doc/2 <3>
   }
 }
 
-GET my_index/_mapping <4>
+GET my-index-000001/_mapping <4>
 --------------------------------------------------
-// CONSOLE
+
 <1> This document introduces the string field `username`, the object field
     `name`, and two string fields under the `name` object which can be
     referred to as `name.first` and `name.last`.
@@ -56,9 +56,9 @@ The `dynamic` setting may be set at the mapping type level, and on each
 <<object,inner object>>.  Inner objects inherit the setting from their parent
 object or from the mapping type.  For instance:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "dynamic": false, <1>
@@ -78,7 +78,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Dynamic mapping is disabled at the type level, so no new top-level fields will be added dynamically.
 <2> The `user` object inherits the type-level setting.
 <3> The `user.social_networks` object enables dynamic mapping, so new fields may be added to this inner object.

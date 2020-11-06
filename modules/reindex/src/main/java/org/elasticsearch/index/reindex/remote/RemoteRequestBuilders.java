@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -53,6 +54,12 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * because the version constants have been removed.
  */
 final class RemoteRequestBuilders {
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(RemoteRequestBuilders.class);
+
+    static final String DEPRECATED_URL_ENCODED_INDEX_WARNING =
+        "Specifying index name using URL escaped index names for reindex from remote is deprecated. " +
+        "Instead specify index name without URL escaping.";
+
     private RemoteRequestBuilders() {}
 
     static Request initialSearch(SearchRequest searchRequest, BytesReference query, Version remoteVersion) {
@@ -75,14 +82,13 @@ final class RemoteRequestBuilders {
             request.addParameter("scroll", keepAlive.getStringRep());
         }
         request.addParameter("size", Integer.toString(searchRequest.source().size()));
-        if (searchRequest.source().version() == null || searchRequest.source().version() == true) {
-            /*
-             * Passing `null` here just add the `version` request parameter
-             * without any value. This way of requesting the version works
-             * for all supported versions of Elasticsearch.
-             */
-            request.addParameter("version", null);
+
+        if (searchRequest.source().version() == null || searchRequest.source().version() == false) {
+            request.addParameter("version", Boolean.FALSE.toString());
+        } else {
+            request.addParameter("version", Boolean.TRUE.toString());
         }
+
         if (searchRequest.source().sorts() != null) {
             boolean useScan = false;
             // Detect if we should use search_type=scan rather than a sort
@@ -125,6 +131,11 @@ final class RemoteRequestBuilders {
             // V_5_0_0
             String storedFieldsParamName = remoteVersion.before(Version.fromId(5000099)) ? "fields" : "stored_fields";
             request.addParameter(storedFieldsParamName, fields.toString());
+        }
+
+        if (remoteVersion.onOrAfter(Version.fromId(6030099))) {
+            // allow_partial_results introduced in 6.3, running remote reindex against earlier versions still silently discards RED shards.
+            request.addParameter("allow_partial_search_results", "false");
         }
 
         // EMPTY is safe here because we're not calling namedObject
@@ -173,6 +184,7 @@ final class RemoteRequestBuilders {
     private static String encodeIndex(String s) {
         if (s.contains("%")) { // already encoded, pass-through to allow this in mixed version clusters
             checkIndexOrType("Index", s);
+            DEPRECATION_LOGGER.deprecate("reindex_url_encoded_index", DEPRECATED_URL_ENCODED_INDEX_WARNING);
             return s;
         }
         try {

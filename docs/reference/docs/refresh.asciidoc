@@ -1,5 +1,5 @@
 [[docs-refresh]]
-== `?refresh`
+=== `?refresh`
 
 The <<docs-index_,Index>>, <<docs-update,Update>>, <<docs-delete,Delete>>, and
 <<docs-bulk,Bulk>> APIs support setting `refresh` to control when changes made
@@ -29,17 +29,17 @@ to return.
 Take no refresh related actions. The changes made by this request will be made
 visible at some point after the request returns.
 
-[float]
-=== Choosing which setting to use
-
-Unless you have a good reason to wait for the change to become visible always
-use `refresh=false`, or, because that is the default, just leave the `refresh`
-parameter out of the URL. That is the simplest and fastest choice.
+[discrete]
+==== Choosing which setting to use
+// tag::refresh-default[]
+Unless you have a good reason to wait for the change to become visible, always
+use `refresh=false` (the default setting). The simplest and fastest choice is to omit the `refresh` parameter from the URL.
 
 If you absolutely must have the changes made by a request visible synchronously
-with the request then you must pick between putting more load on
-Elasticsearch (`true`) and waiting longer for the response (`wait_for`). Here
-are a few points that should inform that decision:
+with the request, you must choose between putting more load on
+Elasticsearch (`true`) and waiting longer for the response (`wait_for`).
+// end::refresh-default[]
+Here are a few points that should inform that decision:
 
 * The more changes being made to the index the more work `wait_for` saves
 compared to `true`. In the case that the index is only changed once every
@@ -62,8 +62,9 @@ refresh immediately, `refresh=true` will affect other ongoing request. In
 general, if you have a running system you don't wish to disturb then
 `refresh=wait_for` is a smaller modification.
 
-[float]
-=== `refresh=wait_for` Can Force a Refresh
+[discrete]
+[[refresh_wait_for-force-refresh]]
+==== `refresh=wait_for` Can Force a Refresh
 
 If a `refresh=wait_for` request comes in when there are already
 `index.max_refresh_listeners` (defaults to 1000) requests waiting for a refresh
@@ -77,37 +78,34 @@ contain `"forced_refresh": true`.
 Bulk requests only take up one slot on each shard that they touch no matter how
 many times they modify the shard.
 
-[float]
-=== Examples
+[discrete]
+==== Examples
 
 These will create a document and immediately refresh the index so it is visible:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test/_doc/1?refresh
 {"test": "test"}
 PUT /test/_doc/2?refresh=true
 {"test": "test"}
 --------------------------------------------------
-// CONSOLE
 
 These will create a document without doing anything to make it visible for
 search:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test/_doc/3
 {"test": "test"}
 PUT /test/_doc/4?refresh=false
 {"test": "test"}
 --------------------------------------------------
-// CONSOLE
 
 This will create a document and wait for it to become visible for search:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test/_doc/4?refresh=wait_for
 {"test": "test"}
 --------------------------------------------------
-// CONSOLE

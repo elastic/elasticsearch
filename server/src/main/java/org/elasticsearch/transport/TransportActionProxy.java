@@ -92,11 +92,6 @@ public final class TransportActionProxy {
                 throw new UncheckedIOException(e);
             }
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 
     static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
@@ -112,11 +107,6 @@ public final class TransportActionProxy {
             super(in);
             targetNode = new DiscoveryNode(in);
             wrapped = reader.read(in);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

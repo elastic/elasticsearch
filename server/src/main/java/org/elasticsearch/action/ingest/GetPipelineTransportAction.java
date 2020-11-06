@@ -39,17 +39,7 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
                                       TransportService transportService, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, GetPipelineRequest::new,
-                indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetPipelineResponse newResponse() {
-        return new GetPipelineResponse();
+                indexNameExpressionResolver, GetPipelineResponse::new, ThreadPool.Names.SAME);
     }
 
     @Override

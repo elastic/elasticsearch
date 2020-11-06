@@ -27,33 +27,35 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestNoopBulkAction extends BaseRestHandler {
-    public RestNoopBulkAction(Settings settings, RestController controller) {
-        super(settings);
 
-        controller.registerHandler(POST, "/_noop_bulk", this);
-        controller.registerHandler(PUT, "/_noop_bulk", this);
-        controller.registerHandler(POST, "/{index}/_noop_bulk", this);
-        controller.registerHandler(PUT, "/{index}/_noop_bulk", this);
-        controller.registerHandler(POST, "/{index}/{type}/_noop_bulk", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_noop_bulk", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(POST, "/_noop_bulk"),
+            new Route(PUT, "/_noop_bulk"),
+            new Route(POST, "/{index}/_noop_bulk"),
+            new Route(PUT, "/{index}/_noop_bulk"),
+            new Route(POST, "/{index}/{type}/_noop_bulk"),
+            new Route(PUT, "/{index}/{type}/_noop_bulk")));
     }
 
     @Override
@@ -68,6 +70,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
         String defaultType = request.param("type");
         String defaultRouting = request.param("routing");
         String defaultPipeline = request.param("pipeline");
+        Boolean defaultRequireAlias = request.paramAsBoolean("require_alias", null);
 
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
@@ -76,7 +79,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultType, defaultRouting,
-            null, defaultPipeline, true, request.getXContentType());
+            null, defaultPipeline, defaultRequireAlias, true, request.getXContentType());
 
         // short circuit the call to the transport layer
         return channel -> {
@@ -87,7 +90,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
 
     private static class BulkRestBuilderListener extends RestBuilderListener<BulkRequest> {
         private final BulkItemResponse ITEM_RESPONSE = new BulkItemResponse(1, DocWriteRequest.OpType.UPDATE,
-            new UpdateResponse(new ShardId("mock", "", 1), "mock_type", "1", 1L, DocWriteResponse.Result.CREATED));
+            new UpdateResponse(new ShardId("mock", "", 1), "mock_type", "1", 0L, 1L, 1L, DocWriteResponse.Result.CREATED));
 
         private final RestRequest request;
 

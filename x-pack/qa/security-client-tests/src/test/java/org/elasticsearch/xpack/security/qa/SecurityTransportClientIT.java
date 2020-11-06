@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -51,9 +52,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
 
     public void testThatTransportClientWithoutAuthenticationDoesNotWork() throws Exception {
         try (TransportClient client = transportClient(Settings.EMPTY)) {
-            boolean connected = awaitBusy(() -> {
-                return client.connectedNodes().size() > 0;
-            }, 5L, TimeUnit.SECONDS);
+            boolean connected = waitUntil(() -> client.connectedNodes().size() > 0, 5L, TimeUnit.SECONDS);
 
             assertThat(connected, is(false));
         }
@@ -64,11 +63,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
                 .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_USER_PW)
                 .build();
         try (TransportClient client = transportClient(settings)) {
-            boolean connected = awaitBusy(() -> {
-                return client.connectedNodes().size() > 0;
-            }, 5L, TimeUnit.SECONDS);
-
-            assertThat(connected, is(true));
+            assertBusy(() -> assertFalse(client.connectedNodes().isEmpty()), 5L, TimeUnit.SECONDS);
 
             // this checks that the transport client is really running in a limited state
             try {
@@ -86,11 +81,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
                 .put(SecurityField.USER_SETTING.getKey(), useTransportUser ? TRANSPORT_USER_PW : ADMIN_USER_PW)
                 .build();
         try (TransportClient client = transportClient(settings)) {
-            boolean connected = awaitBusy(() -> {
-                return client.connectedNodes().size() > 0;
-            }, 5L, TimeUnit.SECONDS);
-
-            assertThat(connected, is(true));
+            assertBusy(() -> assertFalse(client.connectedNodes().isEmpty()), 5L, TimeUnit.SECONDS);
 
             // this checks that the transport client is really running in a limited state
             ClusterHealthResponse response;
@@ -110,7 +101,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         List<NodeInfo> nodes = nodeInfos.getNodes();
         assertTrue(nodes.isEmpty() == false);
-        TransportAddress publishAddress = randomFrom(nodes).getTransport().address().publishAddress();
+        TransportAddress publishAddress = randomFrom(nodes).getInfo(TransportInfo.class).address().publishAddress();
         String clusterName = nodeInfos.getClusterName().value();
 
         Settings settings = Settings.builder()

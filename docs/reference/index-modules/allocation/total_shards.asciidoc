@@ -9,6 +9,7 @@ shards evenly.
 The following _dynamic_ setting allows you to specify a hard limit on the total
 number of shards from a single index allowed per node:
 
+[[total-shards-per-node]]
 `index.routing.allocation.total_shards_per_node`::
 
     The maximum number of shards (replicas and primaries) that will be

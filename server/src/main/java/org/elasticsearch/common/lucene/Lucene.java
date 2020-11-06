@@ -22,12 +22,10 @@ package org.elasticsearch.common.lucene;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
@@ -95,9 +93,9 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -105,24 +103,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.LongConsumer;
 
 public class Lucene {
-    public static final String LATEST_DOC_VALUES_FORMAT = "Lucene70";
-    public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = "Lucene80";
-
-    static {
-        Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
-        assert annotation == null : "PostingsFromat " + LATEST_POSTINGS_FORMAT + " is deprecated" ;
-        annotation = DocValuesFormat.forName(LATEST_DOC_VALUES_FORMAT).getClass().getAnnotation(Deprecated.class);
-        assert annotation == null : "DocValuesFormat " + LATEST_DOC_VALUES_FORMAT + " is deprecated" ;
-    }
+    public static final String LATEST_CODEC = "Lucene87";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
+    public static final NamedAnalyzer WHITESPACE_ANALYZER
+        = new NamedAnalyzer("_whitespace", AnalyzerScope.GLOBAL, new WhitespaceAnalyzer());
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
@@ -259,7 +249,8 @@ public class Lucene {
                 .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
                 .setCommitOnClose(false) // no commits
-                .setOpenMode(IndexWriterConfig.OpenMode.CREATE))) // force creation - don't append...
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE) // force creation - don't append...
+        ))
         {
             // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
         }
@@ -316,9 +307,15 @@ public class Lucene {
             TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
 
-            ScoreDoc[] scoreDocs = new ScoreDoc[in.readVInt()];
-            for (int i = 0; i < scoreDocs.length; i++) {
-                scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
+            final int scoreDocCount = in.readVInt();
+            final ScoreDoc[] scoreDocs;
+            if (scoreDocCount == 0) {
+                scoreDocs = EMPTY_SCORE_DOCS;
+            } else {
+                scoreDocs = new ScoreDoc[scoreDocCount];
+                for (int i = 0; i < scoreDocs.length; i++) {
+                    scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
+                }
             }
             return new TopDocsAndMaxScore(new TopDocs(totalHits, scoreDocs), maxScore);
         } else if (type == 1) {
@@ -373,6 +370,8 @@ public class Lucene {
                 cFields[j] = in.readBoolean();
             } else if (type == 9) {
                 cFields[j] = in.readBytesRef();
+            } else if (type == 10) {
+                cFields[j] = new BigInteger(in.readString());
             } else {
                 throw new IOException("Can't match type [" + type + "]");
             }
@@ -402,6 +401,8 @@ public class Lucene {
             return in.readBoolean();
         } else if (type == 9) {
             return in.readBytesRef();
+        }else if (type == 10) {
+            return new BigInteger(in.readString());
         } else {
             throw new IOException("Can't match type [" + type + "]");
         }
@@ -521,6 +522,10 @@ public class Lucene {
             } else if (type == BytesRef.class) {
                 out.writeByte((byte) 9);
                 out.writeBytesRef((BytesRef) field);
+            } else if (type == BigInteger.class) {
+                //TODO: improve serialization of BigInteger
+                out.writeByte((byte) 10);
+                out.writeString(field.toString());
             } else {
                 throw new IOException("Can't handle sort field value of type [" + type + "]");
             }
@@ -819,16 +824,27 @@ public class Lucene {
     }
 
     /**
-     * Given a {@link ScorerSupplier}, return a {@link Bits} instance that will match
-     * all documents contained in the set. Note that the returned {@link Bits}
-     * instance MUST be consumed in order.
+     * Return a {@link Bits} view of the provided scorer.
+     * <b>NOTE</b>: that the returned {@link Bits} instance MUST be consumed in order.
+     * @see #asSequentialAccessBits(int, ScorerSupplier, long)
      */
     public static Bits asSequentialAccessBits(final int maxDoc, @Nullable ScorerSupplier scorerSupplier) throws IOException {
+        return asSequentialAccessBits(maxDoc, scorerSupplier, 0L);
+    }
+
+    /**
+     * Given a {@link ScorerSupplier}, return a {@link Bits} instance that will match
+     * all documents contained in the set.
+     * <b>NOTE</b>: that the returned {@link Bits} instance MUST be consumed in order.
+     * @param estimatedGetCount an estimation of the number of times that {@link Bits#get} will get called
+     */
+    public static Bits asSequentialAccessBits(final int maxDoc, @Nullable ScorerSupplier scorerSupplier,
+            long estimatedGetCount) throws IOException {
         if (scorerSupplier == null) {
             return new Bits.MatchNoBits(maxDoc);
         }
         // Since we want bits, we need random-access
-        final Scorer scorer = scorerSupplier.get(Long.MAX_VALUE); // this never returns null
+        final Scorer scorer = scorerSupplier.get(estimatedGetCount); // this never returns null
         final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
         final DocIdSetIterator iterator;
         if (twoPhase == null) {
@@ -1064,40 +1080,5 @@ public class Lucene {
                 return null;
             }
         };
-    }
-
-    /**
-     * Scans sequence numbers (i.e., {@link SeqNoFieldMapper#NAME}) between {@code fromSeqNo}(inclusive) and {@code toSeqNo}(inclusive)
-     * in the provided directory reader. This method invokes the callback {@code onNewSeqNo} whenever a sequence number value is found.
-     *
-     * @param directoryReader the directory reader to scan
-     * @param fromSeqNo       the lower bound of a range of seq_no to scan (inclusive)
-     * @param toSeqNo         the upper bound of a range of seq_no to scan (inclusive)
-     * @param onNewSeqNo      the callback to be called whenever a new valid sequence number is found
-     */
-    public static void scanSeqNosInReader(DirectoryReader directoryReader, long fromSeqNo, long toSeqNo,
-                                          LongConsumer onNewSeqNo) throws IOException {
-        final DirectoryReader reader = Lucene.wrapAllDocsLive(directoryReader);
-        final IndexSearcher searcher = new IndexSearcher(reader);
-        searcher.setQueryCache(null);
-        final Query query = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo);
-        final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-        for (LeafReaderContext leaf : reader.leaves()) {
-            final Scorer scorer = weight.scorer(leaf);
-            if (scorer == null) {
-                continue;
-            }
-            final DocIdSetIterator docIdSetIterator = scorer.iterator();
-            final NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-            int docId;
-            while ((docId = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                if (seqNoDocValues == null || seqNoDocValues.advanceExact(docId) == false) {
-                    throw new IllegalStateException("seq_no doc_values not found for doc_id=" + docId);
-                }
-                final long seqNo = seqNoDocValues.longValue();
-                assert fromSeqNo <= seqNo && seqNo <= toSeqNo : "from_seq_no=" + fromSeqNo + " seq_no=" + seqNo + " to_seq_no=" + toSeqNo;
-                onNewSeqNo.accept(seqNo);
-            }
-        }
     }
 }

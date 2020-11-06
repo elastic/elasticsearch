@@ -1,14 +1,17 @@
 [[analysis-keyword-tokenizer]]
-=== Keyword Tokenizer
+=== Keyword tokenizer
+++++
+<titleabbrev>Keyword</titleabbrev>
+++++
 
 The `keyword` tokenizer  is a ``noop'' tokenizer that accepts whatever text it
 is given and outputs the exact same text as a single term.  It can be combined
 with token filters to normalise output, e.g. lower-casing email addresses.
 
-[float]
+[discrete]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -16,11 +19,10 @@ POST _analyze
   "text": "New York"
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -34,7 +36,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -46,7 +47,55 @@ The above sentence would produce the following term:
 [ New York ]
 ---------------------------
 
-[float]
+[discrete]
+[[analysis-keyword-tokenizer-token-filters]]
+=== Combine with token filters
+You can combine the `keyword` tokenizer with token filters to normalise
+structured data, such as product IDs or email addresses.
+
+For example, the following <<indices-analyze,analyze API>> request uses the
+`keyword` tokenizer and <<analysis-lowercase-tokenfilter,`lowercase`>> filter to
+convert an email address to lowercase.
+
+[source,console]
+---------------------------
+POST _analyze
+{
+  "tokenizer": "keyword",
+  "filter": [ "lowercase" ],
+  "text": "john.SMITH@example.COM"
+}
+---------------------------
+
+/////////////////////
+
+[source,console-result]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "john.smith@example.com",
+      "start_offset": 0,
+      "end_offset": 22,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+
+/////////////////////
+
+
+The request produces the following token:
+
+[source,text]
+---------------------------
+[ john.smith@example.com ]
+---------------------------
+
+
+[discrete]
 === Configuration
 
 The `keyword` tokenizer accepts the following parameters:

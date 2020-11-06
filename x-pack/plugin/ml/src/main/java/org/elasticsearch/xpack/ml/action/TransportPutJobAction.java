@@ -35,21 +35,11 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                                  ThreadPool threadPool, XPackLicenseState licenseState, ActionFilters actionFilters,
                                  IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager,
                                  AnalysisRegistry analysisRegistry) {
-        super(PutJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutJobAction.Request::new);
+        super(PutJobAction.NAME, transportService, clusterService, threadPool, actionFilters, PutJobAction.Request::new,
+            indexNameExpressionResolver, PutJobAction.Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.jobManager = jobManager;
         this.analysisRegistry = analysisRegistry;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutJobAction.Response newResponse() {
-        return new PutJobAction.Response();
     }
 
     @Override
@@ -65,7 +55,7 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
 
     @Override
     protected void doExecute(Task task, PutJobAction.Request request, ActionListener<PutJobAction.Response> listener) {
-        if (licenseState.isMachineLearningAllowed()) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

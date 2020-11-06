@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.sql.execution.search.extractor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -42,15 +44,15 @@ public class CompositeKeyExtractor implements BucketExtractor {
     CompositeKeyExtractor(StreamInput in) throws IOException {
         key = in.readString();
         property = in.readEnum(Property.class);
-        zoneId = ZoneId.of(in.readString());
         isDateTimeBased = in.readBoolean();
+
+        zoneId = SqlStreamInput.asSqlStream(in).zoneId();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(key);
         out.writeEnum(property);
-        out.writeString(zoneId.getId());
         out.writeBoolean(isDateTimeBased);
     }
 

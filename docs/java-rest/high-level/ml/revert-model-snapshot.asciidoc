@@ -3,15 +3,17 @@
 :request: RevertModelSnapshotRequest
 :response: RevertModelSnapshotResponse
 --
-[id="{upid}-{api}"]
-=== Revert Model Snapshot API
+[role="xpack"]
 
-The Revert Model Snapshot API provides the ability to revert to a previous {ml} model snapshot.
+[id="{upid}-{api}"]
+=== Revert model snapshots API
+
+Reverts to a previous {ml} model snapshot.
 It accepts a +{request}+ object and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Revert Model Snapshot Request
+==== Revert model snapshots request
 
 A +{request}+ requires the following arguments:
 
@@ -21,7 +23,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing existing `jobId` and `snapshotId` values.
 
-==== Optional Arguments
+==== Optional arguments
 
 The following arguments are optional:
 
@@ -35,7 +37,7 @@ include-tagged::{doc-tests-file}[{api}-delete-intervening-results]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Revert Job Response
+==== Revert job response
 
 A +{response}+ contains the full representation of the reverted `ModelSnapshot`.
 

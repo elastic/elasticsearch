@@ -30,6 +30,7 @@
         id: q4
         refresh: true
         body:
+          id: q4
           query:
             bool:
               minimum_should_match: 2
@@ -57,7 +58,7 @@
         rest_total_hits_as_int: true
         index: queries
         body:
-          sort: _id
+          sort: id
           query:
             percolate:
               field: query
@@ -86,15 +87,23 @@
 ---
 "Find a task result record from the old cluster":
   - skip:
-      features: headers
+      features:
+        - headers
+        - allowed_warnings
 
   - do:
+      # We don't require this warning because there's a very brief window during upgrades before the IndexMetaData is upgraded when warnings
+      # may not be emitted. That they do get upgraded is tested specifically by FullClusterRestartIT#testSystemIndexMetadataIsUpgraded().
+      allowed_warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
       search:
         rest_total_hits_as_int: true
         index: .tasks
         body:
           query:
-            match_all: {}
+            match:
+              task.description:
+                query: 'reindexed_index_copy'
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: '/.+:\d+/' }
   - set: {hits.hits.0._id: task_id}

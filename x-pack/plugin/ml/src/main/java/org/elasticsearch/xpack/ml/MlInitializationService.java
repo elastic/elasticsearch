@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -19,40 +18,75 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-class MlInitializationService implements LocalNodeMasterListener, ClusterStateListener {
+class MlInitializationService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(MlInitializationService.class);
 
-    private final Settings settings;
-    private final ThreadPool threadPool;
-    private final ClusterService clusterService;
     private final Client client;
     private final AtomicBoolean isIndexCreationInProgress = new AtomicBoolean(false);
 
-    private volatile MlDailyMaintenanceService mlDailyMaintenanceService;
+    private final MlDailyMaintenanceService mlDailyMaintenanceService;
 
-    MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client) {
-        this.settings = settings;
-        this.threadPool = threadPool;
-        this.clusterService = clusterService;
-        this.client = client;
+    private boolean isMaster = false;
+
+    MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client,
+                            MlAssignmentNotifier mlAssignmentNotifier) {
+        this(client,
+            new MlDailyMaintenanceService(
+                settings,
+                Objects.requireNonNull(clusterService).getClusterName(),
+                threadPool,
+                client,
+                clusterService,
+                mlAssignmentNotifier
+            ),
+            clusterService);
+    }
+
+    // For testing
+    MlInitializationService(Client client, MlDailyMaintenanceService dailyMaintenanceService, ClusterService clusterService) {
+        this.client = Objects.requireNonNull(client);
+        this.mlDailyMaintenanceService = dailyMaintenanceService;
         clusterService.addListener(this);
+        clusterService.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void afterStart() {
+                clusterService.getClusterSettings().addSettingsUpdateConsumer(
+                    MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
+                    mlDailyMaintenanceService::setDeleteExpiredDataRequestsPerSecond
+                );
+            }
+
+            @Override
+            public void beforeStop() {
+                offMaster();
+            }
+        });
     }
 
-    @Override
     public void onMaster() {
-        installDailyMaintenanceService();
+        mlDailyMaintenanceService.start();
     }
 
-    @Override
     public void offMaster() {
-        uninstallDailyMaintenanceService();
+        mlDailyMaintenanceService.stop();
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        final boolean prevIsMaster = this.isMaster;
+        if (prevIsMaster != event.localNodeMaster()) {
+            this.isMaster = event.localNodeMaster();
+            if (this.isMaster) {
+                onMaster();
+            } else {
+                offMaster();
+            }
+        }
+
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // Wait until the gateway has recovered from disk.
             return;
@@ -60,43 +94,13 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
 
         // The atomic flag prevents multiple simultaneous attempts to create the
         // index if there is a flurry of cluster state updates in quick succession
-        if (event.localNodeMaster() && isIndexCreationInProgress.compareAndSet(false, true)) {
-            AnnotationIndex.createAnnotationsIndexIfNecessary(settings, client, event.state(), ActionListener.wrap(
-                r -> {
-                    isIndexCreationInProgress.set(false);
-                    if (r) {
-                        logger.info("Created ML annotations index and aliases");
-                    }
-                },
+        if (this.isMaster && isIndexCreationInProgress.compareAndSet(false, true)) {
+            AnnotationIndex.createAnnotationsIndexIfNecessary(client, event.state(), ActionListener.wrap(
+                r -> isIndexCreationInProgress.set(false),
                 e -> {
                     isIndexCreationInProgress.set(false);
                     logger.error("Error creating ML annotations index or aliases", e);
                 }));
-        }
-    }
-
-    @Override
-    public String executorName() {
-        return ThreadPool.Names.GENERIC;
-    }
-
-    private void installDailyMaintenanceService() {
-        if (mlDailyMaintenanceService == null) {
-            mlDailyMaintenanceService = new MlDailyMaintenanceService(clusterService.getClusterName(), threadPool, client);
-            mlDailyMaintenanceService.start();
-            clusterService.addLifecycleListener(new LifecycleListener() {
-                @Override
-                public void beforeStop() {
-                    uninstallDailyMaintenanceService();
-                }
-            });
-        }
-    }
-
-    private void uninstallDailyMaintenanceService() {
-        if (mlDailyMaintenanceService != null) {
-            mlDailyMaintenanceService.stop();
-            mlDailyMaintenanceService = null;
         }
     }
 
@@ -105,9 +109,5 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
         return mlDailyMaintenanceService;
     }
 
-    /** For testing */
-    void setDailyMaintenanceService(MlDailyMaintenanceService service) {
-        mlDailyMaintenanceService = service;
-    }
 }
 

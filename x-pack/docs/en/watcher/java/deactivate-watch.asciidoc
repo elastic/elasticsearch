@@ -1,12 +1,12 @@
-[float]
+[discrete]
 [[api-java-deactivate-watch]]
-=== Deactivate Watch API
+=== Deactivate watch API
 
-A watch can be either <<watch-active-state, active or inactive>>. This API
+A watch can be either <<watch-active-state,active or inactive>>. This API
 enables you to deactivate a currently active watch.
 
 The status of an active watch is returned with the watch definition
-when you call the <<api-java-get-watch, Get Watch API>>:
+when you call the <<api-java-get-watch,get watch API>>:
 
 [source,java]
 --------------------------------------------------

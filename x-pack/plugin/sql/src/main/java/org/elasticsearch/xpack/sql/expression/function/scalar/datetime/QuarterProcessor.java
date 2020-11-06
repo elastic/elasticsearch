@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -16,6 +17,10 @@ import java.util.Locale;
 import java.util.Objects;
 
 public class QuarterProcessor extends BaseDateTimeProcessor {
+
+    public static final String NAME = "q";
+    private static final DateTimeFormatter QUARTER_FORMAT = DateTimeFormatter.ofPattern("q", Locale.ROOT);
+
     
     public QuarterProcessor(ZoneId zoneId) {
         super(zoneId);
@@ -25,8 +30,8 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
         super(in);
     }
     
-    public static final String NAME = "q";
-    private static final DateTimeFormatter QUARTER_FORMAT = DateTimeFormatter.ofPattern("q", Locale.ROOT);
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getWriteableName() {

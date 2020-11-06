@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
@@ -81,10 +82,10 @@ public final class Validation {
             return null;
         }
 
-        public static Error validatePassword(char[] password) {
-            return password.length >= MIN_PASSWD_LENGTH ?
-                    null :
-                    new Error("passwords must be at least [" + MIN_PASSWD_LENGTH + "] characters long");
+        public static Error validatePassword(SecureString password) {
+            return password.length() >= MIN_PASSWD_LENGTH ?
+                null :
+                new Error("passwords must be at least [" + MIN_PASSWD_LENGTH + "] characters long");
         }
 
     }

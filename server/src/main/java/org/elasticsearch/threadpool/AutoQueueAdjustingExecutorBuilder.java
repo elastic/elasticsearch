@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -66,33 +67,39 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
         final String frameSizeKey = settingsKey(prefix, "auto_queue_frame_size");
         final String targetedResponseTimeKey = settingsKey(prefix, "target_response_time");
         this.targetedResponseTimeSetting = Setting.timeSetting(targetedResponseTimeKey, TimeValue.timeValueSeconds(1),
-                TimeValue.timeValueMillis(10), Setting.Property.NodeScope);
+                TimeValue.timeValueMillis(10), Setting.Property.NodeScope, Setting.Property.Deprecated);
         this.queueSizeSetting = Setting.intSetting(queueSizeKey, initialQueueSize, Setting.Property.NodeScope);
         // These temp settings are used to validate the min and max settings below
-        Setting<Integer> tempMaxQueueSizeSetting = Setting.intSetting(maxSizeKey, maxQueueSize, Setting.Property.NodeScope);
-        Setting<Integer> tempMinQueueSizeSetting = Setting.intSetting(minSizeKey, minQueueSize, Setting.Property.NodeScope);
+        Setting<Integer> tempMaxQueueSizeSetting = Setting.intSetting(maxSizeKey, maxQueueSize, Setting.Property.NodeScope,
+            Setting.Property.Deprecated);
+        Setting<Integer> tempMinQueueSizeSetting = Setting.intSetting(minSizeKey, minQueueSize, Setting.Property.NodeScope,
+            Setting.Property.Deprecated);
 
         this.minQueueSizeSetting = new Setting<>(
             minSizeKey,
             Integer.toString(minQueueSize),
             s -> Setting.parseInt(s, 0, minSizeKey),
             new Setting.Validator<Integer>() {
+
                 @Override
-                public void validate(Integer value) {
+                public void validate(final Integer value) {
+
                 }
 
                 @Override
-                public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
-                    if (value > settings.get(tempMaxQueueSizeSetting)) {
+                public void validate(final Integer value, final Map<Setting<?>, Object> settings) {
+                    if (value > (int) settings.get(tempMaxQueueSizeSetting)) {
                         throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + minSizeKey
                             + "] must be <= " + settings.get(tempMaxQueueSizeSetting));
                     }
                 }
 
                 @Override
-                public Iterator<Setting<Integer>> settings() {
-                    return Arrays.asList(tempMaxQueueSizeSetting).iterator();
+                public Iterator<Setting<?>> settings() {
+                    final List<Setting<?>> settings = Collections.singletonList(tempMaxQueueSizeSetting);
+                    return settings.iterator();
                 }
+
             },
             Setting.Property.NodeScope);
         this.maxQueueSizeSetting = new Setting<>(
@@ -100,25 +107,30 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
                 Integer.toString(maxQueueSize),
                 s -> Setting.parseInt(s, 0, maxSizeKey),
                 new Setting.Validator<Integer>() {
+
                     @Override
                     public void validate(Integer value) {
+
                     }
 
                     @Override
-                    public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
-                        if (value < settings.get(tempMinQueueSizeSetting)) {
+                    public void validate(final Integer value, final Map<Setting<?>, Object> settings) {
+                        if (value < (int) settings.get(tempMinQueueSizeSetting)) {
                             throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + minSizeKey
                                 + "] must be >= " + settings.get(tempMinQueueSizeSetting));
                         }
                     }
 
                     @Override
-                    public Iterator<Setting<Integer>> settings() {
-                        return Arrays.asList(tempMinQueueSizeSetting).iterator();
+                    public Iterator<Setting<?>> settings() {
+                        final List<Setting<?>> settings = Collections.singletonList(tempMinQueueSizeSetting);
+                        return settings.iterator();
                     }
+
                 },
-                Setting.Property.NodeScope);
-        this.frameSizeSetting = Setting.intSetting(frameSizeKey, frameSize, 100, Setting.Property.NodeScope);
+                Setting.Property.NodeScope, Setting.Property.Deprecated);
+        this.frameSizeSetting = Setting.intSetting(frameSizeKey, frameSize, 100, Setting.Property.NodeScope, Setting.Property.Deprecated,
+            Setting.Property.Deprecated);
     }
 
     @Override

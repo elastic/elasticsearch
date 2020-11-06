@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.junit.Assume;
 
@@ -18,7 +18,7 @@ import java.time.ZoneId;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
-public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase<NamedDateTimeProcessor> {
+public class NamedDateTimeProcessorTests extends AbstractSqlWireSerializingTestCase<NamedDateTimeProcessor> {
     
     public static NamedDateTimeProcessor randomNamedDateTimeProcessor() {
         return new NamedDateTimeProcessor(randomFrom(NameExtractor.values()), UTC);
@@ -38,6 +38,11 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
     protected NamedDateTimeProcessor mutateInstance(NamedDateTimeProcessor instance) throws IOException {
         NameExtractor replaced = randomValueOtherThan(instance.extractor(), () -> randomFrom(NameExtractor.values()));
         return new NamedDateTimeProcessor(replaced, UTC);
+    }
+
+    @Override
+    protected ZoneId instanceZoneId(NamedDateTimeProcessor instance) {
+        return instance.zoneId();
     }
 
     public void testValidDayNamesInUTC() {

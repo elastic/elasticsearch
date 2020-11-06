@@ -28,18 +28,8 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
                                      LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetLicenseRequest::new, indexNameExpressionResolver);
+            GetLicenseRequest::new, indexNameExpressionResolver, GetLicenseResponse::new, ThreadPool.Names.MANAGEMENT);
         this.licenseService = licenseService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected GetLicenseResponse newResponse() {
-        return new GetLicenseResponse();
     }
 
     @Override

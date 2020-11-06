@@ -15,8 +15,10 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
@@ -40,14 +42,16 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptCache;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -55,7 +59,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -138,6 +141,7 @@ import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 import org.elasticsearch.xpack.watcher.rest.action.RestAckWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction;
+import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction.DeactivateRestHandler;
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestGetWatchAction;
@@ -199,7 +203,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
-public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, ReloadablePlugin {
+public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, ReloadablePlugin {
 
     // This setting is only here for backward compatibility reasons as 6.x indices made use of it. It can be removed in 8.x.
     @Deprecated
@@ -209,6 +213,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
+    public static final Setting<Boolean> USE_ILM_INDEX_MANAGEMENT =
+        Setting.boolSetting("xpack.watcher.use_ilm_index_management", XPackSettings.INDEX_LIFECYCLE_ENABLED, NodeScope);
     private static final Setting<Integer> SETTING_BULK_ACTIONS =
         Setting.intSetting("xpack.watcher.bulk.actions", 1, 1, 10000, NodeScope);
     private static final Setting<Integer> SETTING_BULK_CONCURRENT_REQUESTS =
@@ -220,7 +226,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             new ByteSizeValue(1, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB), NodeScope);
 
     public static final ScriptContext<TemplateScript.Factory> SCRIPT_TEMPLATE_CONTEXT
-        = new ScriptContext<>("xpack_template", TemplateScript.Factory.class);
+        = new ScriptContext<>("xpack_template", TemplateScript.Factory.class,
+        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple());
 
     private static final Logger logger = LogManager.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
@@ -251,7 +258,9 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -267,13 +276,16 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             throw new UncheckedIOException(e);
         }
 
-        new WatcherIndexTemplateRegistry(clusterService, threadPool, client, xContentRegistry);
+        WatcherIndexTemplateRegistry templateRegistry = new WatcherIndexTemplateRegistry(environment.settings(),
+            clusterService, threadPool, client, xContentRegistry);
+        templateRegistry.initialize();
 
+        final SSLService sslService = getSslService();
         // http client
-        httpClient = new HttpClient(settings, getSslService(), cryptoService, clusterService);
+        httpClient = new HttpClient(settings, sslService, cryptoService, clusterService);
 
         // notification
-        EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
+        EmailService emailService = new EmailService(settings, cryptoService, sslService, clusterService.getClusterSettings());
         JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
         SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
         PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
@@ -287,7 +299,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
-        emailAttachmentParsers.put(ReportingAttachmentParser.TYPE, new ReportingAttachmentParser(settings, httpClient, templateEngine));
+        emailAttachmentParsers.put(ReportingAttachmentParser.TYPE,
+            new ReportingAttachmentParser(settings, httpClient, templateEngine, clusterService.getClusterSettings()));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(emailAttachmentParsers);
 
         // conditions
@@ -326,7 +339,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final InputRegistry inputRegistry = new InputRegistry(inputFactories);
         inputFactories.put(ChainInput.TYPE, new ChainInputFactory(inputRegistry));
 
-        bulkProcessor = BulkProcessor.builder(ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN), new BulkProcessor.Listener() {
+        bulkProcessor = BulkProcessor.builder(new OriginSettingClient(client, WATCHER_ORIGIN)::bulk, new BulkProcessor.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
             }
@@ -334,14 +347,23 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                 if (response.hasFailures()) {
-                    Map<String, String> triggeredWatches = Arrays.stream(response.getItems())
+                    Map<String, String> triggeredFailures = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
                         .filter(r -> r.getIndex().startsWith(TriggeredWatchStoreField.INDEX_NAME))
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
-                    if (triggeredWatches.isEmpty() == false) {
-                        String failure = triggeredWatches.values().stream().collect(Collectors.joining(", "));
+                    Map<String, String> historyFailures = Arrays.stream(response.getItems())
+                        .filter(BulkItemResponse::isFailed)
+                        .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
+                        .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                    if (triggeredFailures.isEmpty() == false) {
+                        String failure = triggeredFailures.values().stream().collect(Collectors.joining(", "));
                         logger.error("triggered watches could not be deleted {}, failure [{}]",
-                            triggeredWatches.keySet(), Strings.substring(failure, 0, 2000));
+                            triggeredFailures.keySet(), Strings.substring(failure, 0, 2000));
+                    }
+                    if (historyFailures.isEmpty() == false) {
+                        String failure = historyFailures.values().stream().collect(Collectors.joining(", "));
+                        logger.error("watch history could not be written {}, failure [{}]",
+                            historyFailures.keySet(), Strings.substring(failure, 0, 2000));
                     }
 
                     Map<String, String> overwrittenIds = Arrays.stream(response.getItems())
@@ -368,7 +390,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
             .build();
 
-        HistoryStore historyStore = new HistoryStore(bulkProcessor);
+        HistoryStore historyStore = new HistoryStore(bulkProcessor, clusterService::state);
 
         // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
@@ -409,7 +431,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final WatcherLifeCycleService watcherLifeCycleService =
                 new WatcherLifeCycleService(clusterService, watcherService);
 
-        listener = new WatcherIndexingListener(watchParser, getClock(), triggerService);
+        listener = new WatcherIndexingListener(watchParser, getClock(), triggerService, watcherLifeCycleService.getState());
         clusterService.addListener(listener);
 
         return Arrays.asList(registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
@@ -454,6 +476,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         settings.add(Setting.intSetting("xpack.watcher.watch.scroll.size", 0, Setting.Property.NodeScope));
         settings.add(ENCRYPT_SENSITIVE_DATA_SETTING);
         settings.add(WatcherField.ENCRYPTION_KEY_SETTING);
+        settings.add(USE_ILM_INDEX_MANAGEMENT);
 
         settings.add(Setting.simpleString("xpack.watcher.internal.ops.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.internal.ops.bulk.default_timeout", Setting.Property.NodeScope));
@@ -477,8 +500,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         settings.addAll(HtmlSanitizer.getSettings());
         settings.addAll(JiraService.getSettings());
         settings.addAll(PagerDutyService.getSettings());
-        settings.add(ReportingAttachmentParser.RETRIES_SETTING);
-        settings.add(ReportingAttachmentParser.INTERVAL_SETTING);
+        settings.addAll(ReportingAttachmentParser.getSettings());
 
         // http settings
         settings.addAll(HttpSettings.getSettings());
@@ -523,11 +545,13 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
      * @param settings The current settings
      * @return A number between 5 and the number of processors
      */
-    static int getWatcherThreadPoolSize(Settings settings) {
-        boolean isDataNode = Node.NODE_DATA_SETTING.get(settings);
+    static int getWatcherThreadPoolSize(final Settings settings) {
+        return getWatcherThreadPoolSize(DiscoveryNode.isDataNode(settings), EsExecutors.allocatedProcessors(settings));
+    }
+
+    static int getWatcherThreadPoolSize(final boolean isDataNode, final int allocatedProcessors) {
         if (isDataNode) {
-            int numberOfProcessors = EsExecutors.numberOfProcessors(settings);
-            long size = Math.max(Math.min(5 * numberOfProcessors, 50), numberOfProcessors);
+            final long size = Math.max(Math.min(5 * allocatedProcessors, 50), allocatedProcessors);
             return Math.toIntExact(size);
         } else {
             return 1;
@@ -557,14 +581,16 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             return emptyList();
         }
         return Arrays.asList(
-                new RestPutWatchAction(settings, restController),
-                new RestDeleteWatchAction(settings, restController),
-                new RestWatcherStatsAction(settings, restController),
-                new RestGetWatchAction(settings, restController),
-                new RestWatchServiceAction(settings, restController),
-                new RestAckWatchAction(settings, restController),
-                new RestActivateWatchAction(settings, restController),
-                new RestExecuteWatchAction(settings, restController));
+                new RestPutWatchAction(),
+                new RestDeleteWatchAction(),
+                new RestWatcherStatsAction(),
+                new RestGetWatchAction(),
+                new RestWatchServiceAction(),
+                new RestWatchServiceAction.StopRestHandler(),
+                new RestAckWatchAction(),
+                new RestActivateWatchAction(),
+                new DeactivateRestHandler(),
+                new RestExecuteWatchAction());
     }
 
     @Override
@@ -601,14 +627,14 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         indices.add(".watches");
         indices.add(".triggered_watches");
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6)));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now, null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6), null));
         for (String index : indices) {
             boolean matched = false;
             for (String match : matches) {
@@ -641,7 +667,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     // These are all old templates from pre 6.0 era, that need to be deleted
     @Override
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
             map.keySet().removeIf(name -> name.startsWith("watch_history_"));
             return map;
@@ -682,5 +708,13 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             return;
         }
         reloadableServices.forEach(s -> s.reload(settings));
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return Collections.unmodifiableList(Arrays.asList(
+            new SystemIndexDescriptor(Watch.INDEX, "Contains Watch definitions"),
+            new SystemIndexDescriptor(TriggeredWatchStoreField.INDEX_NAME, "Used to track current and queued Watch execution")
+        ));
     }
 }

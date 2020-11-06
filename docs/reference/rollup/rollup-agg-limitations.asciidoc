@@ -1,15 +1,15 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-agg-limitations]]
-== Rollup Aggregation Limitations
+=== {rollup-cap} aggregation limitations
 
 experimental[]
 
 There are some limitations to how fields can be rolled up / aggregated.  This page highlights the major limitations so that
 you are aware of them.
 
-[float]
-=== Limited aggregation components
+[discrete]
+==== Limited aggregation components
 
 The Rollup functionality allows fields to be grouped with the following aggregations:
 

@@ -42,7 +42,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -60,18 +60,18 @@ import java.util.function.Predicate;
  * as deleted. See {@link org.apache.lucene.index.IndexWriter#deleteDocuments(Query...)}
  */
 final class ShardSplittingQuery extends Query {
-    private final IndexMetaData indexMetaData;
+    private final IndexMetadata indexMetadata;
     private final int shardId;
     private final BitSetProducer nestedParentBitSetProducer;
 
-    ShardSplittingQuery(IndexMetaData indexMetaData, int shardId, boolean hasNested) {
-        if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_rc2)) {
+    ShardSplittingQuery(IndexMetadata indexMetadata, int shardId, boolean hasNested) {
+        if (indexMetadata.getCreationVersion().before(Version.V_6_0_0_rc2)) {
             throw new IllegalArgumentException("Splitting query can only be executed on an index created with version "
                 + Version.V_6_0_0_rc2 + " or higher");
         }
-        this.indexMetaData = indexMetaData;
+        this.indexMetadata = indexMetadata;
         this.shardId = shardId;
-        this.nestedParentBitSetProducer =  hasNested ? newParentDocBitSetProducer(indexMetaData.getCreationVersion()) : null;
+        this.nestedParentBitSetProducer =  hasNested ? newParentDocBitSetProducer(indexMetadata.getCreationVersion()) : null;
     }
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
@@ -87,7 +87,7 @@ final class ShardSplittingQuery extends Query {
                 FixedBitSet bitSet = new FixedBitSet(leafReader.maxDoc());
                 Terms terms = leafReader.terms(RoutingFieldMapper.NAME);
                 Predicate<BytesRef> includeInShard = ref -> {
-                    int targetShardId = OperationRouting.generateShardId(indexMetaData,
+                    int targetShardId = OperationRouting.generateShardId(indexMetadata,
                         Uid.decodeId(ref.bytes, ref.offset, ref.length), null);
                     return shardId == targetShardId;
                 };
@@ -95,7 +95,7 @@ final class ShardSplittingQuery extends Query {
                     // this is the common case - no partitioning and no _routing values
                     // in this case we also don't do anything special with regards to nested docs since we basically delete
                     // by ID and parent and nested all have the same id.
-                    assert indexMetaData.isRoutingPartitionedIndex() == false;
+                    assert indexMetadata.isRoutingPartitionedIndex() == false;
                     findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, bitSet::set);
                 } else {
                     final BitSet parentBitSet;
@@ -107,7 +107,7 @@ final class ShardSplittingQuery extends Query {
                             return null; // no matches
                         }
                     }
-                    if (indexMetaData.isRoutingPartitionedIndex()) {
+                    if (indexMetadata.isRoutingPartitionedIndex()) {
                         // this is the heaviest invariant. Here we have to visit all docs stored fields do extract _id and _routing
                         // this this index is routing partitioned.
                         Visitor visitor = new Visitor(leafReader);
@@ -131,7 +131,7 @@ final class ShardSplittingQuery extends Query {
                         };
                         // in the _routing case we first go and find all docs that have a routing value and mark the ones we have to delete
                         findSplitDocs(RoutingFieldMapper.NAME, ref -> {
-                            int targetShardId = OperationRouting.generateShardId(indexMetaData, null, ref.utf8ToString());
+                            int targetShardId = OperationRouting.generateShardId(indexMetadata, null, ref.utf8ToString());
                             return shardId == targetShardId;
                         }, leafReader, maybeWrapConsumer.apply(bitSet::set));
 
@@ -192,12 +192,12 @@ final class ShardSplittingQuery extends Query {
         ShardSplittingQuery that = (ShardSplittingQuery) o;
 
         if (shardId != that.shardId) return false;
-        return indexMetaData.equals(that.indexMetaData);
+        return indexMetadata.equals(that.indexMetadata);
     }
 
     @Override
     public int hashCode() {
-        int result = indexMetaData.hashCode();
+        int result = indexMetadata.hashCode();
         result = 31 * result + shardId;
         return classHash() ^ result;
     }
@@ -275,7 +275,7 @@ final class ShardSplittingQuery extends Query {
             leftToVisit = 2;
             leafReader.document(doc, this);
             assert id != null : "docID must not be null - we might have hit a nested document";
-            int targetShardId = OperationRouting.generateShardId(indexMetaData, id, routing);
+            int targetShardId = OperationRouting.generateShardId(indexMetadata, id, routing);
             return targetShardId != shardId;
         }
     }

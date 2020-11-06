@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.ml.job.util.PageParams;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -35,6 +35,9 @@ public class GetCategoriesRequestTests extends AbstractXContentTestCase<GetCateg
             int from = randomInt(10000);
             int size = randomInt(10000);
             request.setPageParams(new PageParams(from, size));
+        }
+        if (randomBoolean()) {
+            request.setPartitionFieldValue(randomAlphaOfLength(10));
         }
         return request;
     }

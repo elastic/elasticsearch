@@ -5,22 +5,22 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.inject.Binder;
@@ -34,22 +34,24 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.FrozenEngine;
+import org.elasticsearch.index.shard.IndexSettingProvider;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.license.LicensesMetaData;
+import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -57,19 +59,30 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
+import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.rest.action.RestFreezeIndexAction;
+import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
-import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.RestClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.RestOpenPointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.TransportClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.TransportOpenPointInTimeAction;
+import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -77,20 +90,23 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, ExtensiblePlugin, RepositoryPlugin, EnginePlugin {
+public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin, ClusterPlugin {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(XPackPlugin.class);
 
-    private static Logger logger = LogManager.getLogger(XPackPlugin.class);
-    private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-
+    public static final String ASYNC_RESULTS_INDEX = ".async-search";
     public static final String XPACK_INSTALLED_NODE_ATTR = "xpack.installed";
 
     // TODO: clean up this library to not ask for write access to all system properties!
@@ -132,17 +148,18 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
+    private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
 
     public XPackPlugin(
             final Settings settings,
             final Path configPath) {
         super(settings);
+        // FIXME: The settings might be changed after this (e.g. from "additionalSettings" method in other plugins)
+        // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
         this.transportClientMode = transportClientMode(settings);
-        Environment env = transportClientMode ? null : new Environment(settings, configPath);
 
-        setSslService(new SSLService(settings, env));
-        setLicenseState(new XPackLicenseState(settings));
+        setLicenseState(new XPackLicenseState(settings, () -> getEpochMillisSupplier().getAsLong()));
 
         this.licensing = new Licensing(settings);
     }
@@ -155,12 +172,24 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     protected SSLService getSslService() { return getSharedSslService(); }
     protected LicenseService getLicenseService() { return getSharedLicenseService(); }
     protected XPackLicenseState getLicenseState() { return getSharedLicenseState(); }
+    protected LongSupplier getEpochMillisSupplier() { return getSharedEpochMillisSupplier(); }
     protected void setSslService(SSLService sslService) { XPackPlugin.sslService.set(sslService); }
     protected void setLicenseService(LicenseService licenseService) { XPackPlugin.licenseService.set(licenseService); }
     protected void setLicenseState(XPackLicenseState licenseState) { XPackPlugin.licenseState.set(licenseState); }
-    public static SSLService getSharedSslService() { return sslService.get(); }
+    protected void setEpochMillisSupplier(LongSupplier epochMillisSupplier) {
+        XPackPlugin.epochMillisSupplier.set(epochMillisSupplier);
+    }
+
+    public static SSLService getSharedSslService() {
+        final SSLService ssl = XPackPlugin.sslService.get();
+        if (ssl == null) {
+            throw new IllegalStateException("SSL Service is not constructed yet");
+        }
+        return ssl;
+    }
     public static LicenseService getSharedLicenseService() { return licenseService.get(); }
     public static XPackLicenseState getSharedLicenseState() { return licenseState.get(); }
+    public static LongSupplier getSharedEpochMillisSupplier() { return epochMillisSupplier.get(); }
 
     /**
      * Checks if the cluster state allows this node to add x-pack metadata to the cluster state,
@@ -209,11 +238,11 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     }
 
     private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
-        final MetaData metaData = clusterState.metaData();
-        return metaData.custom(LicensesMetaData.TYPE) != null ||
-            metaData.custom(MlMetadata.TYPE) != null ||
-            metaData.custom(WatcherMetaData.TYPE) != null ||
-            clusterState.custom(TokenMetaData.TYPE) != null;
+        final Metadata metadata = clusterState.metadata();
+        return metadata.custom(LicensesMetadata.TYPE) != null ||
+            metadata.custom(MlMetadata.TYPE) != null ||
+            metadata.custom(WatcherMetadata.TYPE) != null ||
+            clusterState.custom(TokenMetadata.TYPE) != null;
     }
 
     @Override
@@ -240,7 +269,11 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
 
         if (transportClientMode) {
             modules.add(b -> b.bind(XPackLicenseState.class).toProvider(Providers.of(null)));
+            return modules;
         }
+
+        modules.add(b -> XPackPlugin.bindFeatureSet(b, DataTiersFeatureSet.class));
+
         return modules;
     }
 
@@ -248,17 +281,19 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         List<Object> components = new ArrayList<>();
 
-        // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
-        new SSLConfigurationReloader(environment, getSslService(), resourceWatcherService);
-
+        final SSLService sslService = createSSLService(environment, resourceWatcherService);
         setLicenseService(new LicenseService(settings, clusterService, getClock(),
                 environment, resourceWatcherService, getLicenseState()));
 
+        setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
+
         // It is useful to override these as they are what guice is injecting into actions
-        components.add(getSslService());
+        components.add(sslService);
         components.add(getLicenseService());
         components.add(getLicenseState());
 
@@ -270,15 +305,17 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, TransportXPackInfoAction.class));
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, TransportXPackUsageAction.class));
-        actions.add(new ActionHandler<>(TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
-            TransportFreezeIndexAction.class));
         actions.addAll(licensing.getActions());
+        actions.add(new ActionHandler<>(ReloadAnalyzerAction.INSTANCE, TransportReloadAnalyzersAction.class));
+        actions.add(new ActionHandler<>(DeleteAsyncResultAction.INSTANCE, TransportDeleteAsyncResultAction.class));
+        actions.add(new ActionHandler<>(OpenPointInTimeAction.INSTANCE, TransportOpenPointInTimeAction.class));
+        actions.add(new ActionHandler<>(ClosePointInTimeAction.INSTANCE, TransportClosePointInTimeAction.class));
         return actions;
     }
 
     @Override
-    public List<Action<? extends ActionResponse>> getClientActions() {
-        List<Action<? extends ActionResponse>> actions = new ArrayList<>();
+    public List<ActionType<? extends ActionResponse>> getClientActions() {
+        List<ActionType<? extends ActionResponse>> actions = new ArrayList<>();
         actions.addAll(licensing.getClientActions());
         actions.addAll(super.getClientActions());
         return actions;
@@ -296,11 +333,13 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
-        handlers.add(new RestXPackInfoAction(settings, restController));
-        handlers.add(new RestXPackUsageAction(settings, restController));
-        handlers.add(new RestFreezeIndexAction(settings, restController));
+        handlers.add(new RestXPackInfoAction());
+        handlers.add(new RestXPackUsageAction());
+        handlers.add(new RestReloadAnalyzersAction());
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
+        handlers.add(new RestOpenPointInTimeAction());
+        handlers.add(new RestClosePointInTimeAction());
         return handlers;
     }
 
@@ -323,7 +362,8 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         if (Files.exists(config) == false) {
             Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
-                deprecationLogger.deprecated("Config file [" + name + "] is in a deprecated location. Move from " +
+                deprecationLogger.deprecate("config_file_path",
+                    "Config file [" + name + "] is in a deprecated location. Move from " +
                     legacyConfig.toString() + " to " + config.toString());
                 return legacyConfig;
             }
@@ -340,7 +380,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
 
     }
 
-    public interface XPackMetaDataCustom extends MetaData.Custom {
+    public interface XPackMetadataCustom extends Metadata.Custom {
 
         @Override
         default Optional<String> getRequiredFeature() {
@@ -358,7 +398,9 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
+                                                           ClusterService clusterService, BigArrays bigArrays,
+                                                           RecoverySettings recoverySettings) {
         return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
     }
 
@@ -366,8 +408,6 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
             return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
-        } else if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN)) {
-            return Optional.of(FrozenEngine::new);
         }
 
         return Optional.empty();
@@ -377,15 +417,46 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
-        settings.add(FrozenEngine.INDEX_FROZEN);
+        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING);
+        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING);
+        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING);
+        settings.add(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING);
+        settings.add(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING);
+        settings.add(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING);
+        settings.add(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING);
         return settings;
     }
 
     @Override
-    public void onIndexModule(IndexModule indexModule) {
-        if (FrozenEngine.INDEX_FROZEN.get(indexModule.getSettings())) {
-            indexModule.addSearchOperationListener(new FrozenEngine.ReacquireEngineSearcherListener());
-        }
-        super.onIndexModule(indexModule);
+    public Set<DiscoveryNodeRole> getRoles() {
+        return new HashSet<>(Arrays.asList(
+            DataTier.DATA_CONTENT_NODE_ROLE,
+            DataTier.DATA_HOT_NODE_ROLE,
+            DataTier.DATA_WARM_NODE_ROLE,
+            DataTier.DATA_COLD_NODE_ROLE));
+    }
+
+    @Override
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return Collections.singleton(new DataTierAllocationDecider(clusterSettings));
+    }
+
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        return Collections.singleton(new DataTier.DefaultHotAllocationSettingProvider());
+    }
+
+    /**
+     * Handles the creation of the SSLService along with the necessary actions to enable reloading
+     * of SSLContexts when configuration files change on disk.
+     */
+    private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
+        final Map<String, SSLConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment.settings());
+        final SSLConfigurationReloader reloader =
+            new SSLConfigurationReloader(environment, resourceWatcherService, sslConfigurations.values());
+        final SSLService sslService = new SSLService(environment, sslConfigurations);
+        reloader.setSSLService(sslService);
+        setSslService(sslService);
+        return sslService;
     }
 }

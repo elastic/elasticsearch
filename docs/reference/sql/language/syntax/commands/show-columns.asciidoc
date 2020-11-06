@@ -3,10 +3,12 @@
 [[sql-syntax-show-columns]]
 === SHOW COLUMNS
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-SHOW COLUMNS [ FROM | IN ]? [ table identifier<1> | [ LIKE pattern<2> ] ]
+SHOW COLUMNS [ FROM | IN ]?
+    [table identifier | <1>
+    [LIKE pattern] ]    <2>
 ----
 
 <1> single table identifier or double quoted es multi index
@@ -15,11 +17,9 @@ SHOW COLUMNS [ FROM | IN ]? [ table identifier<1> | [ LIKE pattern<2> ] ]
 See <<sql-index-patterns, index patterns>> for more information about
 patterns.
 
-.Description
+*Description*: List the columns in table and their data type (and other attributes).
 
-List the columns in table and their data type (and other attributes).
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[showColumns]
 ----

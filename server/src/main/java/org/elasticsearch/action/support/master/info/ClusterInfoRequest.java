@@ -88,12 +88,7 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        // TODO(talevy): once all ClusterInfoRequest objects are converted, remove this
-        super.readFrom(in);
-        indices = in.readStringArray();
-        types = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        // throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    public boolean includeDataStreams() {
+        return true;
     }
 }

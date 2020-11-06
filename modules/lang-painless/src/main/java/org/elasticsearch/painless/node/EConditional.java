@@ -19,93 +19,49 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a conditional expression.
  */
-public final class EConditional extends AExpression {
+public class EConditional extends AExpression {
 
-    private AExpression condition;
-    private AExpression left;
-    private AExpression right;
+    private final AExpression conditionNode;
+    private final AExpression trueNode;
+    private final AExpression falseNode;
 
-    public EConditional(Location location, AExpression condition, AExpression left, AExpression right) {
-        super(location);
+    public EConditional(int identifier, Location location, AExpression conditionNode, AExpression trueNode, AExpression falseNode) {
+        super(identifier, location);
 
-        this.condition = Objects.requireNonNull(condition);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
+        this.conditionNode = Objects.requireNonNull(conditionNode);
+        this.trueNode = Objects.requireNonNull(trueNode);
+        this.falseNode = Objects.requireNonNull(falseNode);
+    }
+
+    public AExpression getConditionNode() {
+        return conditionNode;
+    }
+
+    public AExpression getTrueNode() {
+        return trueNode;
+    }
+
+    public AExpression getFalseNode() {
+        return falseNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-        left.extractVariables(variables);
-        right.extractVariables(variables);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitConditional(this, scope);
     }
 
     @Override
-    void analyze(Locals locals) {
-        condition.expected = boolean.class;
-        condition.analyze(locals);
-        condition = condition.cast(locals);
-
-        if (condition.constant != null) {
-            throw createError(new IllegalArgumentException("Extraneous conditional statement."));
-        }
-
-        left.expected = expected;
-        left.explicit = explicit;
-        left.internal = internal;
-        right.expected = expected;
-        right.explicit = explicit;
-        right.internal = internal;
-        actual = expected;
-
-        left.analyze(locals);
-        right.analyze(locals);
-
-        if (expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(left.actual, right.actual, left.constant, right.constant);
-
-            left.expected = promote;
-            right.expected = promote;
-            actual = promote;
-        }
-
-        left = left.cast(locals);
-        right = right.cast(locals);
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-
-        Label fals = new Label();
-        Label end = new Label();
-
-        condition.write(writer, globals);
-        writer.ifZCmp(Opcodes.IFEQ, fals);
-
-        left.write(writer, globals);
-        writer.goTo(end);
-        writer.mark(fals);
-        right.write(writer, globals);
-        writer.mark(end);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(condition, left, right);
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        conditionNode.visit(userTreeVisitor, scope);
+        trueNode.visit(userTreeVisitor, scope);
+        falseNode.visit(userTreeVisitor, scope);
     }
 }

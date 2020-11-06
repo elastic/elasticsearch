@@ -103,22 +103,19 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeStringCollection(invalidatedApiKeys);
         out.writeStringCollection(previouslyInvalidatedApiKeys);
         out.writeCollection(errors, StreamOutput::writeException);
     }
 
-    static ConstructingObjectParser<InvalidateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key_response",
-            args -> {
-                return new InvalidateApiKeyResponse((List<String>) args[0], (List<String>) args[1], (List<ElasticsearchException>) args[3]);
-            });
+    @SuppressWarnings("unchecked")
+    static final ConstructingObjectParser<InvalidateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "invalidate_api_key_response",
+        args -> {
+            return new InvalidateApiKeyResponse((List<String>) args[0], (List<String>) args[1], (List<ElasticsearchException>) args[3]);
+        }
+    );
     static {
         PARSER.declareStringArray(constructorArg(), new ParseField("invalidated_api_keys"));
         PARSER.declareStringArray(constructorArg(), new ParseField("previously_invalidated_api_keys"));

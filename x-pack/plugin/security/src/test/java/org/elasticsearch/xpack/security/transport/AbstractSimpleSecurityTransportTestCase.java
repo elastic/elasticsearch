@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -19,7 +20,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
-import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
@@ -27,7 +27,6 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TestProfiles;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
@@ -53,7 +52,6 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -83,7 +81,11 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         // Some tests use a client profile. Put the passphrase in the secure settings for the profile (secure settings cannot be set twice)
         secureSettings.setString("transport.profiles.client.xpack.security.ssl.secure_key_passphrase", "testnode");
-        Settings settings1 = Settings.builder()
+        Settings.Builder builder = Settings.builder();
+        if (inFipsJvm()) {
+            builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
+        }
+        Settings settings1 = builder
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.key", testnodeKey)
             .put("xpack.security.transport.ssl.certificate", testnodeCert)
@@ -116,24 +118,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             Throwable cause = e.getCause();
             assertThat(cause, instanceOf(IOException.class));
         }
-    }
 
-    public void testBindUnavailableAddress() {
-        // this is on a lower level since it needs access to the TransportService before it's started
-        int port = serviceA.boundAddress().publishAddress().getPort();
-        Settings settings = Settings.builder()
-            .put(TransportSettings.PORT.getKey(), port)
-            .build();
-        BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService = buildService("TS_C", Version.CURRENT, settings);
-            try {
-                transportService.start();
-            } finally {
-                transportService.stop();
-                transportService.close();
-            }
-        });
-        assertEquals("Failed to bind to [" + port + "]", bindTransportException.getMessage());
     }
 
     @Override
@@ -155,7 +140,11 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
     @SuppressForbidden(reason = "Need to open socket connection")
     public void testRenegotiation() throws Exception {
-        SSLService sslService = createSSLService();
+        assumeFalse("BCTLS doesn't support renegotiation: https://github.com/bcgit/bc-java/issues/593#issuecomment-533518845",
+            inFipsJvm());
+        // force TLSv1.2 since renegotiation is not supported by 1.3
+        SSLService sslService =
+            createSSLService(Settings.builder().put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2").build());
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SocketFactory factory = sslService.sslSocketFactory(sslConfiguration);
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
@@ -257,7 +246,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
-                    EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+                    DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
 
                 new Thread(() -> {
                     try {
@@ -304,7 +293,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
-                    EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+                    DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
 
                 ConnectTransportException connectException = expectThrows(ConnectTransportException.class,
                     () -> serviceC.connectToNode(node, TestProfiles.LIGHT_PROFILE));

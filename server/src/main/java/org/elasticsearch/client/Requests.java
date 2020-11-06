@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -472,6 +473,16 @@ public class Requests {
     }
 
     /**
+     * Cleanup repository
+     *
+     * @param name repository name
+     * @return cleanup repository request
+     */
+    public static CleanupRepositoryRequest cleanupRepositoryRequest(String name) {
+        return new CleanupRepositoryRequest(name);
+    }
+
+    /**
      * Verifies snapshot repository
      *
      * @param name repository name
@@ -515,14 +526,14 @@ public class Requests {
     }
 
     /**
-     * Deletes a snapshot
+     * Deletes snapshots
      *
-     * @param snapshot   snapshot name
+     * @param snapshots  snapshot names
      * @param repository repository name
      * @return delete snapshot request
      */
-    public static DeleteSnapshotRequest deleteSnapshotRequest(String repository, String snapshot) {
-        return new DeleteSnapshotRequest(repository, snapshot);
+    public static DeleteSnapshotRequest deleteSnapshotRequest(String repository, String... snapshots) {
+        return new DeleteSnapshotRequest(repository, snapshots);
     }
 
     /**
@@ -534,5 +545,4 @@ public class Requests {
     public static SnapshotsStatusRequest snapshotsStatusRequest(String repository) {
         return new SnapshotsStatusRequest(repository);
     }
-
 }

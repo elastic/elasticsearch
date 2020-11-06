@@ -19,35 +19,34 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestDeleteAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
         "document index requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
-    public RestDeleteAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(DELETE, "/{index}/_doc/{id}", this);
-
-        // Deprecated typed endpoint.
-        controller.registerHandler(DELETE, "/{index}/{type}/{id}", this);
+    @Override
+    public List<Route> routes() {
+        return unmodifiableList(asList(
+            new Route(DELETE, "/{index}/_doc/{id}"),
+            // Deprecated typed endpoint.
+            new Route(DELETE, "/{index}/{type}/{id}")));
     }
 
     @Override
@@ -59,7 +58,7 @@ public class RestDeleteAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteRequest deleteRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("delete_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("delete_with_types", TYPES_DEPRECATION_MESSAGE);
             deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
         } else {
             deleteRequest = new DeleteRequest(request.param("index"), request.param("id"));

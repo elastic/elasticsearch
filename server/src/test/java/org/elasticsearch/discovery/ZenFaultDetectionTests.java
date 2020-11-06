@@ -89,7 +89,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         threadPool = new TestThreadPool(getClass().getName());
-        circuitBreakerService = new HierarchyCircuitBreakerService(settings, clusterSettings);
+        circuitBreakerService = new HierarchyCircuitBreakerService(settings, Collections.emptyList(), clusterSettings);
         settingsA = Settings.builder().put("node.name", "TS_A").put(settings).build();
         serviceA = build(settingsA, version0);
         nodeA = serviceA.getLocalDiscoNode();
@@ -102,12 +102,12 @@ public class ZenFaultDetectionTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(2);
         TransportConnectionListener waitForConnection = new TransportConnectionListener() {
             @Override
-            public void onNodeConnected(DiscoveryNode node) {
+            public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
                 latch.countDown();
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node) {
+            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                 fail("disconnect should not be called " + node);
             }
         };

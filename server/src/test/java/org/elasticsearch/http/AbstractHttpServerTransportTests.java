@@ -19,17 +19,31 @@
 
 package org.elasticsearch.http;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -115,8 +129,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             }
 
             @Override
-            public void dispatchBadRequest(final RestRequest request,
-                                           final RestChannel channel,
+            public void dispatchBadRequest(final RestChannel channel,
                                            final ThreadContext threadContext,
                                            final Throwable cause) {
                 threadContext.putHeader("foo_bad", "bar");
@@ -126,7 +139,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         };
 
         try (AbstractHttpServerTransport transport =
-                 new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher) {
+                 new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher,
+                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
 
                      @Override
                      protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -157,6 +171,141 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
             assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
         }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.http.HttpTracer:trace",
+        reason = "to ensure we log REST requests on TRACE level")
+    public void testTracerLog() throws Exception {
+        final String includeSettings;
+        final String excludeSettings;
+        if (randomBoolean()) {
+            includeSettings = randomBoolean() ? "*" : "";
+        } else {
+            includeSettings = "/internal/test";
+        }
+        excludeSettings = "/internal/testNotSeen";
+
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        try (AbstractHttpServerTransport transport =
+                 new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(),
+                     new HttpServerTransport.Dispatcher() {
+                         @Override
+                         public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                             channel.sendResponse(emptyResponse(RestStatus.OK));
+                         }
+
+                         @Override
+                         public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                             channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                         }
+                     }, clusterSettings) {
+                     @Override
+                     protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                         return null;
+                     }
+
+                     @Override
+                     protected void doStart() {
+
+                     }
+
+                     @Override
+                     protected void stopInternal() {
+
+                     }
+
+                     @Override
+                     public HttpStats stats() {
+                         return null;
+                     }
+                 }) {
+            clusterSettings.applySettings(Settings.builder()
+                .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE.getKey(), includeSettings)
+                .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
+                .build());
+            MockLogAppender appender = new MockLogAppender();
+            final String traceLoggerName = "org.elasticsearch.http.HttpTracer";
+            try {
+                appender.start();
+                Loggers.addAppender(LogManager.getLogger(traceLoggerName), appender);
+
+                final String opaqueId = UUIDs.randomBase64UUID(random());
+                appender.addExpectation(
+                    new MockLogAppender.PatternSeenEventExpectation(
+                        "received request", traceLoggerName, Level.TRACE,
+                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/test\\] received request from \\[.*"));
+
+                final boolean badRequest = randomBoolean();
+
+                appender.addExpectation(
+                    new MockLogAppender.PatternSeenEventExpectation(
+                        "sent response", traceLoggerName, Level.TRACE,
+                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[" +
+                            (badRequest ? "BAD_REQUEST" : "OK")
+                            + "\\]\\[null\\]\\[0\\] sent response to \\[.*"));
+
+                appender.addExpectation(
+                    new MockLogAppender.UnseenEventExpectation(
+                        "received other request", traceLoggerName, Level.TRACE,
+                        "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"));
+
+                final Exception inboundException;
+                if (badRequest) {
+                    inboundException = new RuntimeException();
+                } else {
+                    inboundException = null;
+                }
+
+                final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+                    .withMethod(RestRequest.Method.OPTIONS)
+                    .withPath("/internal/test")
+                    .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .withInboundException(inboundException)
+                    .build();
+
+                transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+
+                final Exception inboundExceptionExcludedPath;
+                if (randomBoolean()) {
+                    inboundExceptionExcludedPath = new RuntimeException();
+                } else {
+                    inboundExceptionExcludedPath = null;
+                }
+
+                final FakeRestRequest fakeRestRequestExcludedPath = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+                    .withMethod(RestRequest.Method.OPTIONS)
+                    .withPath("/internal/testNotSeen")
+                    .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .withInboundException(inboundExceptionExcludedPath)
+                    .build();
+
+                transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), fakeRestRequestExcludedPath.getHttpChannel());
+                appender.assertAllExpectationsMatched();
+            } finally {
+                Loggers.removeAppender(LogManager.getLogger(traceLoggerName), appender);
+                appender.stop();
+            }
+        }
+    }
+
+    private static RestResponse emptyResponse(RestStatus status) {
+        return new RestResponse() {
+            @Override
+            public String contentType() {
+                return null;
+            }
+
+            @Override
+            public BytesReference content() {
+                return BytesArray.EMPTY;
+            }
+
+            @Override
+            public RestStatus status() {
+                return status;
+            }
+        };
     }
 
     private TransportAddress address(String host, int port) throws UnknownHostException {

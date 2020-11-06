@@ -19,64 +19,35 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a decimal constant.
  */
-public final class EDecimal extends AExpression {
+public class EDecimal extends AExpression {
 
-    private final String value;
+    private final String decimal;
 
-    public EDecimal(Location location, String value) {
-        super(location);
+    public EDecimal(int identifier, Location location, String decimal) {
+        super(identifier, location);
 
-        this.value = Objects.requireNonNull(value);
+        this.decimal = Objects.requireNonNull(decimal);
+    }
+
+    public String getDecimal() {
+        return decimal;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {}
-
-    @Override
-    void analyze(Locals locals) {
-        if (!read) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
-        }
-
-        if (value.endsWith("f") || value.endsWith("F")) {
-            try {
-                constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                actual = float.class;
-            } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
-            }
-        } else {
-            String toParse = value;
-            if (toParse.endsWith("d") || value.endsWith("D")) {
-                toParse = toParse.substring(0, value.length() - 1);
-            }
-            try {
-                constant = Double.parseDouble(toParse);
-                actual = double.class;
-            } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
-            }
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitDecimal(this, scope);
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(value);
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

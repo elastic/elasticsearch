@@ -1,103 +1,139 @@
 [[query-dsl-has-parent-query]]
-=== Has Parent Query
+=== Has parent query
+++++
+<titleabbrev>Has parent</titleabbrev>
+++++
 
-The `has_parent` query accepts a query and a parent type. The query is
-executed in the parent document space, which is specified by the parent
-type. This query returns child documents which associated parents have
-matched. For the rest `has_parent` query has the same options and works
-in the same manner as the `has_child` query.
+Returns child documents whose <<parent-join,joined>> parent document matches a
+provided query. You can create parent-child relationships between documents in
+the same index using a <<parent-join,join>> field mapping.
 
-[source,js]
---------------------------------------------------
+[WARNING]
+====
+Because it performs a join, the `has_parent` query is slow compared to other queries.
+Its performance degrades as the number of matching parent documents increases.
+Each `has_parent` query in a search can increase query time significantly.
+====
+
+[[has-parent-query-ex-request]]
+==== Example request
+
+[[has-parent-index-setup]]
+===== Index setup
+To use the `has_parent` query, your index must include a <<parent-join,join>>
+field mapping. For example:
+
+[source,console]
+----
+PUT /my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "my-join-field": {
+        "type": "join",
+        "relations": {
+          "parent": "child"
+        }
+      },
+      "tag": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+----
+// TESTSETUP
+
+[[has-parent-query-ex-query]]
+===== Example query
+
+[source,console]
+----
+GET /my-index-000001/_search
+{
+  "query": {
+    "has_parent": {
+      "parent_type": "parent",
+      "query": {
+        "term": {
+          "tag": {
+            "value": "Elasticsearch"
+          }
+        }
+      }
+    }
+  }
+}
+----
+
+[[has-parent-top-level-params]]
+==== Top-level parameters for `has_parent`
+
+`parent_type`::
+(Required, string) Name of the parent relationship mapped for the
+<<parent-join,join>> field.
+
+`query`::
+(Required, query object) Query you wish to run on parent documents of the
+`parent_type` field. If a parent document matches the search, the query returns
+its child documents.
+
+`score`::
++
+--
+(Optional, Boolean) Indicates whether the <<query-filter-context,relevance
+score>> of a matching parent document is aggregated into its child documents.
+Defaults to `false`.
+
+If `false`, {es} ignores the relevance score of the parent document. {es} also
+assigns each child document a relevance score equal to the `query`'s `boost`,
+which defaults to `1`.
+
+If `true`, the relevance score of the matching parent document is aggregated
+into its child documents' relevance scores.
+--
+
+`ignore_unmapped`::
++
+--
+(Optional, Boolean) Indicates whether to ignore an unmapped `parent_type` and
+not return any documents instead of an error. Defaults to `false`.
+
+If `false`, {es} returns an error if the `parent_type` is unmapped.
+
+You can use this parameter to query multiple indices that may not contain the
+`parent_type`.
+--
+
+[[has-parent-query-notes]]
+==== Notes
+
+[[has-parent-query-performance]]
+===== Sorting
+You cannot sort the results of a `has_parent` query using standard
+<<sort-search-results,sort options>>.
+
+If you need to sort returned documents by a field in their parent documents, use
+a `function_score` query and sort by `_score`. For example, the following query
+sorts returned documents by the `view_count` field of their parent documents.
+
+[source,console]
+----
 GET /_search
 {
-    "query": {
-        "has_parent" : {
-            "parent_type" : "blog",
-            "query" : {
-                "term" : {
-                    "tag" : "something"
-                }
-            }
+  "query": {
+    "has_parent": {
+      "parent_type": "parent",
+      "score": true,
+      "query": {
+        "function_score": {
+          "script_score": {
+            "script": "_score * doc['view_count'].value"
+          }
         }
+      }
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
-
-Note that the `has_parent` is a slow query compared to other queries in the
-query dsl due to the fact that it performs a join. The performance degrades
-as the number of matching parent documents increases. If you care about query
-performance you should not use this query. However if you do happen to use
-this query then use it as less as possible. Each `has_parent` query that gets
-added to a search request can increase query time significantly.
-
-[float]
-==== Scoring capabilities
-
-The `has_parent` also has scoring support. The default is `false` which
-ignores the score from the parent document. The score is in this
-case equal to the boost on the `has_parent` query (Defaults to 1). If
-the score is set to `true`, then the score of the matching parent
-document is aggregated into the child documents belonging to the
-matching parent document. The score mode can be specified with the
-`score` field inside the `has_parent` query:
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "has_parent" : {
-            "parent_type" : "blog",
-            "score" : true,
-            "query" : {
-                "term" : {
-                    "tag" : "something"
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
-==== Ignore Unmapped
-
-When set to `true` the `ignore_unmapped` option will ignore an unmapped `type`
-and will not match any documents for this query. This can be useful when
-querying multiple indexes which might have different mappings. When set to
-`false` (the default value) the query will throw an exception if the `type`
-is not mapped.
-
-[float]
-==== Sorting
-
-Child documents can't be sorted by fields in matching parent documents via the
-regular sort options. If you need to sort child documents by field in the parent
-documents then you should use the `function_score` query and then just sort
-by `_score`.
-
-Sorting tags by parent document' `view_count` field:
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "has_parent" : {
-            "parent_type" : "blog",
-            "score" : true,
-            "query" : {
-                "function_score" : {
-                    "script_score": {
-                        "script": "_score * doc['view_count'].value"
-                    }
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
+----

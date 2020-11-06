@@ -1,73 +1,16 @@
 [[get-pipeline-api]]
-=== Get Pipeline API
+=== Get pipeline API
+++++
+<titleabbrev>Get pipeline</titleabbrev>
+++++
 
-The get pipeline API returns pipelines based on ID. This API always returns a local reference of the pipeline.
+Returns information about one or more ingest pipelines.
+This API returns a local reference of the pipeline.
 
-//////////////////////////
-
-[source,js]
---------------------------------------------------
-PUT _ingest/pipeline/my-pipeline-id
-{
-  "description" : "describe pipeline",
-  "processors" : [
-    {
-      "set" : {
-        "field": "foo",
-        "value": "bar"
-      }
-    }
-  ]
-}
---------------------------------------------------
-// CONSOLE
-
-//////////////////////////
-
-[source,js]
---------------------------------------------------
-GET _ingest/pipeline/my-pipeline-id
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Example response:
-
-[source,js]
---------------------------------------------------
-{
-  "my-pipeline-id" : {
-    "description" : "describe pipeline",
-    "processors" : [
-      {
-        "set" : {
-          "field" : "foo",
-          "value" : "bar"
-        }
-      }
-    ]
-  }
-}
---------------------------------------------------
-// TESTRESPONSE
-
-For each returned pipeline, the source and the version are returned.
-The version is useful for knowing which version of the pipeline the node has.
-You can specify multiple IDs to return more than one pipeline. Wildcards are also supported.
-
-[float]
-[[versioning-pipelines]]
-==== Pipeline Versioning
-
-Pipelines can optionally add a `version` number, which can be any integer value,
-in order to simplify pipeline management by external systems. The `version`
-field is completely optional and it is meant solely for external management of
-pipelines. To unset a `version`, simply replace the pipeline without specifying
-one.
-
-[source,js]
---------------------------------------------------
-PUT _ingest/pipeline/my-pipeline-id
+////
+[source,console]
+----
+PUT /_ingest/pipeline/my-pipeline-id
 {
   "description" : "describe pipeline",
   "version" : 123,
@@ -80,47 +23,114 @@ PUT _ingest/pipeline/my-pipeline-id
     }
   ]
 }
---------------------------------------------------
-// CONSOLE
+----
+////
 
-To check for the `version`, you can
-<<common-options-response-filtering, filter responses>>
-using `filter_path` to limit the response to just the `version`:
-
-[source,js]
---------------------------------------------------
-GET /_ingest/pipeline/my-pipeline-id?filter_path=*.version
---------------------------------------------------
-// CONSOLE
+[source,console]
+----
+GET /_ingest/pipeline/my-pipeline-id
+----
 // TEST[continued]
 
-This should give a small response that makes it both easy and inexpensive to parse:
 
-[source,js]
---------------------------------------------------
+
+[[get-pipeline-api-request]]
+==== {api-request-title}
+
+`GET /_ingest/pipeline/<pipeline>`
+
+`GET /_ingest/pipeline`
+
+
+[[get-pipeline-api-path-params]]
+==== {api-path-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=path-pipeline]
+
+
+
+[[get-pipeline-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+
+[[get-pipeline-api-api-example]]
+==== {api-examples-title}
+
+
+[[get-pipeline-api-specific-ex]]
+===== Get information for a specific ingest pipeline
+
+[source,console]
+----
+GET /_ingest/pipeline/my-pipeline-id
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "my-pipeline-id" : {
+    "description" : "describe pipeline",
+    "version" : 123,
+    "processors" : [
+      {
+        "set" : {
+          "field" : "foo",
+          "value" : "bar"
+        }
+      }
+    ]
+  }
+}
+----
+
+
+[[get-pipeline-api-version-ex]]
+===== Get the version of an ingest pipeline
+
+When you create or update an ingest pipeline,
+you can specify an optional `version` parameter.
+The version is useful for managing changes to pipeline
+and viewing the current pipeline for an ingest node.
+
+
+To check the pipeline version,
+use the `filter_path` query parameter
+to <<common-options-response-filtering, filter the response>>
+to only the version.
+
+[source,console]
+----
+GET /_ingest/pipeline/my-pipeline-id?filter_path=*.version
+----
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
 {
   "my-pipeline-id" : {
     "version" : 123
   }
 }
---------------------------------------------------
-// TESTRESPONSE
+----
 
-//////////////////////////
-
-[source,js]
---------------------------------------------------
+////
+[source,console]
+----
 DELETE /_ingest/pipeline/my-pipeline-id
---------------------------------------------------
-// CONSOLE
+----
 // TEST[continued]
 
-[source,js]
---------------------------------------------------
+[source,console-result]
+----
 {
 "acknowledged": true
 }
---------------------------------------------------
-// TESTRESPONSE
-
-//////////////////////////
+----
+////

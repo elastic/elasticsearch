@@ -26,18 +26,8 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
                                          LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PostStartBasicAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PostStartBasicRequest::new);
+                PostStartBasicRequest::new, indexNameExpressionResolver, PostStartBasicResponse::new, ThreadPool.Names.SAME);
         this.licenseService = licenseService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PostStartBasicResponse newResponse() {
-        return new PostStartBasicResponse();
     }
 
     @Override

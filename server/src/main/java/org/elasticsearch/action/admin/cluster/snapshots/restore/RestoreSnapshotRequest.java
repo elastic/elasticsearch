@@ -19,17 +19,18 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -50,6 +51,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  */
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestoreSnapshotRequest.class);
+
     private String snapshot;
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -60,9 +63,11 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
-    private Settings settings = EMPTY_SETTINGS;
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
+
+    @Nullable // if any snapshot UUID will do
+    private String snapshotUuid;
 
     public RestoreSnapshotRequest() {
     }
@@ -90,9 +95,14 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        settings = readSettingsFromStream(in);
+        if (in.getVersion().before(Version.V_7_7_0)) {
+            readSettingsFromStream(in); // formerly the unused settings field
+        }
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            snapshotUuid = in.readOptionalString();
+        }
     }
 
     @Override
@@ -108,9 +118,17 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        writeSettingsToStream(settings, out);
+        if (out.getVersion().before(Version.V_7_7_0)) {
+            writeSettingsToStream(Settings.EMPTY, out); // formerly the unused settings field
+        }
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeOptionalString(snapshotUuid);
+        } else if (snapshotUuid != null) {
+            throw new IllegalStateException(
+                    "restricting the snapshot UUID is forbidden in a cluster with version [" + out.getVersion() + "] nodes");
+        }
     }
 
     @Override
@@ -127,9 +145,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         }
         if (indicesOptions == null) {
             validationException = addValidationError("indicesOptions is missing", validationException);
-        }
-        if (settings == null) {
-            validationException = addValidationError("settings are missing", validationException);
         }
         if (indexSettings == null) {
             validationException = addValidationError("indexSettings are missing", validationException);
@@ -325,74 +340,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
-     * Sets repository-specific restore settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this request
-     */
-    public RestoreSnapshotRequest settings(Settings settings) {
-        this.settings = settings;
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this request
-     */
-    public RestoreSnapshotRequest settings(Settings.Builder settings) {
-        this.settings = settings.build();
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings in JSON or YAML format
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
-     * @param xContentType the content type of the source
-     * @return this request
-     */
-    public RestoreSnapshotRequest settings(String source, XContentType xContentType) {
-        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
-     * @return this request
-     */
-    public RestoreSnapshotRequest settings(Map<String, Object> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            settings(Strings.toString(builder), builder.contentType());
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
-        return this;
-    }
-
-    /**
-     * Returns repository-specific restore settings
-     *
-     * @return restore settings
-     */
-    public Settings settings() {
-        return this.settings;
-    }
-
-    /**
      * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
      */
     public RestoreSnapshotRequest ignoreIndexSettings(String... ignoreIndexSettings) {
@@ -485,13 +432,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * Sets settings that should be added/changed in all restored indices
      */
     public RestoreSnapshotRequest indexSettings(Map<String, Object> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            indexSettings(Strings.toString(builder), builder.contentType());
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        this.indexSettings = Settings.builder().loadFromMap(source).build();
         return this;
     }
 
@@ -500,6 +441,28 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      */
     public Settings indexSettings() {
         return this.indexSettings;
+    }
+
+    /**
+     * Sometimes a client has identified precisely which snapshot is to be restored via a separate mechanism and wishes to guarantee that
+     * this is the snapshot that this request restores. If the client can only identify a snapshot by its name then there is a risk that the
+     * desired snapshot may be deleted and replaced by a new snapshot with the same name which is inconsistent with the original one. This
+     * method lets us fail the restore if the precise snapshot we want is not available.
+     *
+     * This is for internal use only and is not exposed in the REST layer.
+     */
+    public RestoreSnapshotRequest snapshotUuid(String snapshotUuid) {
+        this.snapshotUuid = snapshotUuid;
+        return this;
+    }
+
+    /**
+     * @return the UUID that identifies the specific snapshot in the repository to be restored, or {@code null} if the snapshot name is
+     * a sufficient identifier.
+     */
+    @Nullable
+    public String snapshotUuid() {
+        return snapshotUuid;
     }
 
     /**
@@ -526,7 +489,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section");
                 }
-                settings((Map<String, Object>) entry.getValue());
+                DEPRECATION_LOGGER.deprecate("RestoreSnapshotRequest#settings",
+                    "specifying [settings] when restoring a snapshot has no effect and will not be supported in a future version");
             } else if (name.equals("include_global_state")) {
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             } else if (name.equals("include_aliases")) {
@@ -586,13 +550,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
         builder.field("include_aliases", includeAliases);
-        if (settings != null) {
-            builder.startObject("settings");
-            if (settings.isEmpty() == false) {
-                settings.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
         if (indexSettings != null) {
             builder.startObject("index_settings");
             if (indexSettings.isEmpty() == false) {
@@ -607,11 +564,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         builder.endArray();
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -634,15 +586,15 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             Objects.equals(indicesOptions, that.indicesOptions) &&
             Objects.equals(renamePattern, that.renamePattern) &&
             Objects.equals(renameReplacement, that.renameReplacement) &&
-            Objects.equals(settings, that.settings) &&
             Objects.equals(indexSettings, that.indexSettings) &&
-            Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings);
+            Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings) &&
+            Objects.equals(snapshotUuid, that.snapshotUuid);
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(snapshot, repository, indicesOptions, renamePattern, renameReplacement, waitForCompletion,
-            includeGlobalState, partial, includeAliases, settings, indexSettings);
+            includeGlobalState, partial, includeAliases, indexSettings, snapshotUuid);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         return result;

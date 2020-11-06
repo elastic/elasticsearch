@@ -11,6 +11,7 @@ import org.hamcrest.TypeSafeMatcher;
 import org.junit.Assert;
 import org.junit.Before;
 
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.IOException;
@@ -20,6 +21,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.GeneralSecurityException;
+import java.security.Provider;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -32,6 +34,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.test.ESIntegTestCase.inFipsJvm;
 
 public class RestrictedTrustManagerTests extends ESTestCase {
 
@@ -132,9 +136,21 @@ public class RestrictedTrustManagerTests extends ESTestCase {
             if (cert.endsWith("/ca")) {
                 assertTrusted(trustManager, cert);
             } else {
-                assertNotValid(trustManager, cert, "PKIX path building failed.*");
+                assertNotValid(trustManager, cert, isUsingBouncyCastleJSSE() ?
+                    "unable to process certificates: Unable to find certificate chain.":
+                    "PKIX path building failed.*");
             }
         }
+    }
+
+    private boolean isUsingBouncyCastleJSSE() throws GeneralSecurityException {
+        if (inFipsJvm() == false) {
+            return false;
+        }
+        final SSLContext defaultSSL = SSLContext.getDefault();
+        final Provider provider = defaultSSL.getProvider();
+        logger.debug("Default SSL provider is [{}] ([{}])", provider.getName(), provider.getInfo());
+        return "BCJSSE".equals(provider.getName());
     }
 
     private void assertSingleClusterIsTrusted(int trustedCluster, RestrictedTrustManager trustManager, List<String> trustedNames)

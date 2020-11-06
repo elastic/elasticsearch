@@ -20,16 +20,19 @@ package org.elasticsearch.repositories.hdfs;
 
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
 import java.io.FileNotFoundException;
@@ -41,6 +44,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 final class HdfsBlobContainer extends AbstractBlobContainer {
@@ -57,23 +61,38 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         this.bufferSize = bufferSize;
     }
 
+    // TODO: See if we can get precise result reporting.
+    private static final DeleteResult DELETE_RESULT = new DeleteResult(1L, 0L);
+
     @Override
-    public boolean blobExists(String blobName) {
-        try {
-            return store.execute(fileContext -> fileContext.util().exists(new Path(path, blobName)));
-        } catch (Exception e) {
-            return false;
-        }
+    public boolean blobExists(String blobName) throws IOException {
+        return store.execute(fileContext -> fileContext.util().exists(new Path(path, blobName)));
     }
 
     @Override
-    public void deleteBlob(String blobName) throws IOException {
-        try {
-            if (store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true)) == false) {
-                throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+    public DeleteResult delete() throws IOException {
+        store.execute(fileContext -> fileContext.delete(path, true));
+        return DELETE_RESULT;
+    }
+
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(final List<String> blobNames) throws IOException {
+        IOException ioe = null;
+        for (String blobName : blobNames) {
+            try {
+                store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true));
+            } catch (final FileNotFoundException ignored) {
+                // This exception is ignored
+            } catch (IOException e) {
+                if (ioe == null) {
+                    ioe = e;
+                } else {
+                    ioe.addSuppressed(e);
+                }
             }
-        } catch (FileNotFoundException fnfe) {
-            throw new NoSuchFileException("[" + blobName + "] blob not found");
+        }
+        if (ioe != null) {
+            throw ioe;
         }
     }
 
@@ -93,18 +112,19 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public InputStream readBlob(String blobName, long position, long length) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        Path blob = new Path(path, blobName);
+        // we pass CREATE, which means it fails if a blob already exists.
+        final EnumSet<CreateFlag> flags = failIfAlreadyExists ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
+            : EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
         store.execute((Operation<Void>) fileContext -> {
-            Path blob = new Path(path, blobName);
-            // we pass CREATE, which means it fails if a blob already exists.
-            EnumSet<CreateFlag> flags = failIfAlreadyExists ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
-                : EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
-            try (FSDataOutputStream stream = fileContext.create(blob, flags, CreateOpts.bufferSize(bufferSize))) {
-                int bytesRead;
-                byte[] buffer = new byte[bufferSize];
-                while ((bytesRead = inputStream.read(buffer)) != -1) {
-                    stream.write(buffer, 0, bytesRead);
-                }
+            try {
+                writeToPath(inputStream, blobSize, fileContext, blob, flags);
             } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
                 throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
             }
@@ -115,17 +135,10 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         final String tempBlob = FsBlobContainer.tempBlobName(blobName);
+        final Path tempBlobPath = new Path(path, tempBlob);
+        final Path blob = new Path(path, blobName);
         store.execute((Operation<Void>) fileContext -> {
-            final Path tempBlobPath = new Path(path, tempBlob);
-            try (FSDataOutputStream stream = fileContext.create(
-                tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK),  CreateOpts.bufferSize(bufferSize))) {
-                int bytesRead;
-                byte[] buffer = new byte[bufferSize];
-                while ((bytesRead = inputStream.read(buffer)) != -1) {
-                    stream.write(buffer, 0, bytesRead);
-                }
-            }
-            final Path blob = new Path(path, blobName);
+            writeToPath(inputStream, blobSize, fileContext, tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK));
             try {
                 fileContext.rename(tempBlobPath, blob, failIfAlreadyExists ? Options.Rename.NONE : Options.Rename.OVERWRITE);
             } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
@@ -135,20 +148,46 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         });
     }
 
+    private void writeToPath(InputStream inputStream, long blobSize, FileContext fileContext, Path blobPath,
+                             EnumSet<CreateFlag> createFlags) throws IOException {
+        final byte[] buffer = new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize];
+        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, CreateOpts.bufferSize(buffer.length))) {
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                stream.write(buffer, 0, bytesRead);
+            }
+        }
+    }
+
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable final String prefix) throws IOException {
-        FileStatus[] files = store.execute(fileContext -> (fileContext.util().listStatus(path,
-            path -> prefix == null || path.getName().startsWith(prefix))));
-        Map<String, BlobMetaData> map = new LinkedHashMap<String, BlobMetaData>();
+    public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable final String prefix) throws IOException {
+        FileStatus[] files = store.execute(fileContext -> fileContext.util().listStatus(path,
+            path -> prefix == null || path.getName().startsWith(prefix)));
+        Map<String, BlobMetadata> map = new LinkedHashMap<>();
         for (FileStatus file : files) {
-            map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
+            if (file.isFile()) {
+                map.put(file.getPath().getName(), new PlainBlobMetadata(file.getPath().getName(), file.getLen()));
+            }
         }
         return Collections.unmodifiableMap(map);
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetadata> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
+    }
+
+    @Override
+    public Map<String, BlobContainer> children() throws IOException {
+        FileStatus[] files = store.execute(fileContext -> fileContext.util().listStatus(path));
+        Map<String, BlobContainer> map = new LinkedHashMap<>();
+        for (FileStatus file : files) {
+            if (file.isDirectory()) {
+                final String name = file.getPath().getName();
+                map.put(name, new HdfsBlobContainer(path().add(name), store, new Path(path, name), bufferSize, securityContext));
+            }
+        }
+        return Collections.unmodifiableMap(map);
     }
 
     /**

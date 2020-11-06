@@ -73,11 +73,14 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         assertNotNull(stats.getShards());
         assertThat(stats.getShards(), arrayWithSize(1));
         assertNotNull(stats.getShards()[0].getRetentionLeaseStats());
-        assertThat(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
-        final RetentionLease retentionLease = stats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases().iterator().next();
+        assertThat(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(2));
+        final RetentionLease retentionLease = stats.getShards()[0].getRetentionLeaseStats().retentionLeases().get(id);
         assertThat(retentionLease.id(), equalTo(id));
         assertThat(retentionLease.retainingSequenceNumber(), equalTo(retainingSequenceNumber == RETAIN_ALL ? 0L : retainingSequenceNumber));
         assertThat(retentionLease.source(), equalTo(source));
+
+        assertTrue(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().contains(
+            ReplicationTracker.getPeerRecoveryRetentionLeaseId(stats.getShards()[0].getShardRouting())));
     }
 
     public void testAddAlreadyExists() {
@@ -160,9 +163,11 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         assertNotNull(initialStats.getShards());
         assertThat(initialStats.getShards(), arrayWithSize(1));
         assertNotNull(initialStats.getShards()[0].getRetentionLeaseStats());
-        assertThat(initialStats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
+        assertThat(initialStats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(2));
+        assertTrue(initialStats.getShards()[0].getRetentionLeaseStats().retentionLeases().contains(
+            ReplicationTracker.getPeerRecoveryRetentionLeaseId(initialStats.getShards()[0].getShardRouting())));
         final RetentionLease initialRetentionLease =
-                initialStats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases().iterator().next();
+                initialStats.getShards()[0].getRetentionLeaseStats().retentionLeases().get(id);
 
         final long nextRetainingSequenceNumber =
                 retainingSequenceNumber == RETAIN_ALL && randomBoolean() ? RETAIN_ALL
@@ -195,9 +200,11 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         assertNotNull(renewedStats.getShards());
         assertThat(renewedStats.getShards(), arrayWithSize(1));
         assertNotNull(renewedStats.getShards()[0].getRetentionLeaseStats());
-        assertThat(renewedStats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
+        assertThat(renewedStats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(2));
+        assertTrue(renewedStats.getShards()[0].getRetentionLeaseStats().retentionLeases().contains(
+            ReplicationTracker.getPeerRecoveryRetentionLeaseId(initialStats.getShards()[0].getShardRouting())));
         final RetentionLease renewedRetentionLease =
-                renewedStats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases().iterator().next();
+                renewedStats.getShards()[0].getRetentionLeaseStats().retentionLeases().get(id);
         assertThat(renewedRetentionLease.id(), equalTo(id));
         assertThat(
                 renewedRetentionLease.retainingSequenceNumber(),
@@ -265,7 +272,9 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         assertNotNull(stats.getShards());
         assertThat(stats.getShards(), arrayWithSize(1));
         assertNotNull(stats.getShards()[0].getRetentionLeaseStats());
-        assertThat(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(0));
+        assertThat(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
+        assertTrue(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().contains(
+            ReplicationTracker.getPeerRecoveryRetentionLeaseId(stats.getShards()[0].getShardRouting())));
     }
 
     public void testRemoveNotFound() {
@@ -328,8 +337,10 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         assertNotNull(stats.getShards());
         assertThat(stats.getShards(), arrayWithSize(1));
         assertNotNull(stats.getShards()[0].getRetentionLeaseStats());
-        assertThat(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
-        final RetentionLease retentionLease = stats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases().iterator().next();
+        assertThat(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(2));
+        assertTrue(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().contains(
+            ReplicationTracker.getPeerRecoveryRetentionLeaseId(stats.getShards()[0].getShardRouting())));
+        final RetentionLease retentionLease = stats.getShards()[0].getRetentionLeaseStats().retentionLeases().get(id);
         assertThat(retentionLease.id(), equalTo(id));
         assertThat(retentionLease.retainingSequenceNumber(), equalTo(retainingSequenceNumber == RETAIN_ALL ? 0L : retainingSequenceNumber));
         assertThat(retentionLease.source(), equalTo(source));
@@ -378,9 +389,10 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         assertNotNull(initialStats.getShards());
         assertThat(initialStats.getShards(), arrayWithSize(1));
         assertNotNull(initialStats.getShards()[0].getRetentionLeaseStats());
-        assertThat(initialStats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
-        final RetentionLease initialRetentionLease =
-                initialStats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases().iterator().next();
+        assertThat(initialStats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(2));
+        assertTrue(initialStats.getShards()[0].getRetentionLeaseStats().retentionLeases().contains(
+            ReplicationTracker.getPeerRecoveryRetentionLeaseId(initialStats.getShards()[0].getShardRouting())));
+        final RetentionLease initialRetentionLease = initialStats.getShards()[0].getRetentionLeaseStats().retentionLeases().get(id);
 
         final long nextRetainingSequenceNumber =
                 retainingSequenceNumber == RETAIN_ALL && randomBoolean() ? RETAIN_ALL
@@ -427,9 +439,10 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         assertNotNull(renewedStats.getShards());
         assertThat(renewedStats.getShards(), arrayWithSize(1));
         assertNotNull(renewedStats.getShards()[0].getRetentionLeaseStats());
-        assertThat(renewedStats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
-        final RetentionLease renewedRetentionLease =
-                renewedStats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases().iterator().next();
+        assertThat(renewedStats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(2));
+        assertTrue(renewedStats.getShards()[0].getRetentionLeaseStats().retentionLeases().contains(
+            ReplicationTracker.getPeerRecoveryRetentionLeaseId(renewedStats.getShards()[0].getShardRouting())));
+        final RetentionLease renewedRetentionLease = renewedStats.getShards()[0].getRetentionLeaseStats().retentionLeases().get(id);
         assertThat(renewedRetentionLease.id(), equalTo(id));
         assertThat(
                 renewedRetentionLease.retainingSequenceNumber(),
@@ -484,7 +497,9 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         assertNotNull(stats.getShards());
         assertThat(stats.getShards(), arrayWithSize(1));
         assertNotNull(stats.getShards()[0].getRetentionLeaseStats());
-        assertThat(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(0));
+        assertThat(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
+        assertTrue(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().contains(
+            ReplicationTracker.getPeerRecoveryRetentionLeaseId(stats.getShards()[0].getShardRouting())));
     }
 
     /*

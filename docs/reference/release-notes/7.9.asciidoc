@@ -1,0 +1,639 @@
+[[release-notes-7.9.3]]
+== {es} version 7.9.3
+
+Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
+
+[[bug-7.9.3]]
+[float]
+=== Bug fixes
+
+Allocation::
+* InternalClusterInfoService should not ignore hidden indices {es-pull}62995[#62995]
+
+Audit::
+* Move RestRequestFilter to core {es-pull}63507[#63507]
+
+Authentication::
+* Ensure domain_name setting for AD realm is present {es-pull}61983[#61983] (issue: {es-issue}61859[#61859])
+
+Authorization::
+* Fix API key role descriptors rewrite bug for upgraded clusters {es-pull}62917[#62917] (issue: {es-issue}62911[#62911])
+
+CCR::
+* Retry CCR shard follow task when no seed node left {es-pull}63225[#63225]
+
+Cluster Coordination::
+* Uniquely associate term with update task during election {es-pull}62212[#62212] (issue: {es-issue}61437[#61437])
+
+EQL::
+* Avoid filtering on tiebreakers {es-pull}63215[#63215] (issue: {es-issue}62781[#62781])
+* Fix bug in sequences with any pattern {es-pull}63007[#63007] (issue: {es-issue}62967[#62967])
+
+Engine::
+* Fix to actually throttle indexing on getting activated {es-pull}61768[#61768]
+
+Features/Data streams::
+* Fix querying a data stream name in index field {es-pull}63170[#63170]
+
+Features/Ingest::
+* Handle error conditions when simulating ingest pipelines with verbosity enabled {es-pull}63327[#63327] (issue: {es-issue}63199[#63199])
+* Make for each processor resistant to field modification {es-pull}62791[#62791] (issue: {es-issue}62790[#62790])
+
+Machine Learning::
+* Fix online updates with custom rules referencing filters {es-pull}63057[#63057] (issue: {es-issue}62948[#62948])
+* Reset reindexing progress when data frame analytics job resumes with incomplete reindexing {es-pull}62772[#62772]
+
+SQL::
+* Fix exception when using CAST on inexact field {es-pull}62943[#62943] (issue: {es-issue}60178[#60178])
+
+Search::
+* Async search should retry updates on version conflict {es-pull}63652[#63652] (issue: {es-issue}63213[#63213])
+
+Transform::
+* Fix possible NPE if transform task has no node assigned {es-pull}62946[#62946] (issue: {es-issue}62847[#62847])
+* Filter null objects from field caps request {es-pull}62945[#62945]
+
+
+
+[[upgrade-7.9.3]]
+[float]
+=== Upgrades
+
+Infra/Packaging::
+* Switch bundled JDK back to Oracle JDK {es-pull}63288[#63288] (issue: {es-issue}62709[#62709])
+
+
+[[release-notes-7.9.2]]
+== {es} version 7.9.2
+
+Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
+
+[[deprecation-7.9.2]]
+[float]
+=== Deprecations
+
+Infra/Plugins::
+* Deprecate xpack.eql.enabled setting and make it a no-op {es-pull}61375[#61375] (issue: {es-issue}54745[#54745])
+
+[[enhancement-7.9.2]]
+[float]
+=== Enhancements
+
+Mapping::
+* Improve error messages on bad [format] and [null_value] params for date mapper {es-pull}61932[#61932] (issue: {es-issue}61712[#61712])
+
+[[bug-7.9.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Cardinality request breaker leak {es-pull}62685[#62685] (issue: {es-issue}62439[#62439])
+* Fix bug with terms' min_doc_count {es-pull}62130[#62130] (issue: {es-issue}62084[#62084])
+
+Analysis::
+* Fix standard filter BWC check to allow for cacheing bug {es-pull}62649[#62649] (issues: {es-issue}33310[#33310], {es-issue}51092[#51092], {es-issue}62644[#62644])
+
+Authentication::
+* Ensure domain_name setting for AD realm is present {es-pull}61859[#61859]
+* Update authc failure headers on license change {es-pull}61734[#61734] (issue: {es-issue}56318[#56318])
+
+Authorization::
+* Ensure authz operation overrides transient authz headers {es-pull}61621[#61621]
+
+CCR::
+* CCR should retry on CircuitBreakingException {es-pull}62013[#62013] (issue: {es-issue}55633[#55633])
+
+EQL::
+* Create the search request with a list of indices {es-pull}62005[#62005] (issue: {es-issue}60793[#60793])
+
+Engine::
+* Allow enabling soft-deletes on restore from snapshot {es-pull}62018[#62018] (issue: {es-issue}61969[#61969])
+
+Features/Data streams::
+* Always validate that only a create op is allowed in bulk api for data streams {es-pull}62766[#62766] (issue: {es-issue}62762[#62762])
+* Fix NPE when deleting multiple backing indices on a data stream {es-pull}62274[#62274] (issue: {es-issue}62272[#62272])
+* Fix data stream wildcard resolution bug in eql search api. {es-pull}61904[#61904] (issue: {es-issue}60828[#60828])
+* Prohibit the usage of create index api in namespaces managed by data stream templates {es-pull}62527[#62527]
+
+Features/ILM+SLM::
+* Fix condition in ILM step that cannot be met {es-pull}62377[#62377]
+
+Features/Ingest::
+* Add Missing NamedWritable Registration for ExecuteEnrichPolicyStatus {es-pull}62364[#62364]
+
+Features/Java High Level REST Client::
+* Drop assertion that rest client response warnings conform to RFC 7234 {es-pull}61365[#61365] (issues: {es-issue}60889[#60889], {es-issue}61259[#61259])
+
+Infra/Packaging::
+* Check glibc version {es-pull}62728[#62728] (issue: {es-issue}62709[#62709])
+
+Machine Learning::
+* Add null checks for C++ log handler {es-pull}62238[#62238]
+* Persist progress when setting data frame analytics task to failed {es-pull}61782[#61782]
+* Fix reporting of peak memory usage in memory stats for data frame analytics {ml-pull}1468[#1468]
+* Fix reporting of peak memory usage in model size stats for anomaly detection {ml-pull}1484[#1484]
+
+Mapping::
+* Allow empty null values for date and IP field mappers {es-pull}62487[#62487] (issues: {es-issue}57666[#57666], {es-issue}62363[#62363])
+* Take resolution into account when parsing date null value {es-pull}61994[#61994]
+
+Network::
+* Log alloc description after netty processors set {es-pull}62741[#62741]
+
+SQL::
+* Do not resolve self-referencing aliases {es-pull}62382[#62382] (issue: {es-issue}62296[#62296])
+
+Search::
+* Fix disabling `allow_leading_wildcard` {es-pull}62300[#62300] (issues: {es-issue}60959[#60959], {es-issue}62267[#62267])
+* Search memory leak {es-pull}61788[#61788]
+
+Transform::
+* Disable optimizations when using scripts in group_by {es-pull}60724[#60724] (issue: {es-issue}57332[#57332])
+
+
+
+[[upgrade-7.9.2]]
+[float]
+=== Upgrades
+
+Infra/Packaging::
+* Upgrade the bundled JDK to JDK 15 {es-pull}62580[#62580]
+
+[[release-notes-7.9.1]]
+== {es} version 7.9.1
+
+Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
+
+[[feature-7.9.1]]
+[float]
+=== New features
+
+Search::
+* QL: Wildcard field type support {es-pull}58062[#58062] (issues: {es-issue}54184[#54184], {es-issue}58044[#58044])
+
+
+
+[[enhancement-7.9.1]]
+[float]
+=== Enhancements
+
+CRUD::
+* Log more information when mappings fail on index creation {es-pull}61577[#61577]
+
+EQL::
+* Make endsWith function use a wildcard ES query wherever possible {es-pull}61160[#61160] (issue: {es-issue}61154[#61154])
+* Make stringContains function use a wildcard ES query wherever possible {es-pull}61189[#61189] (issue: {es-issue}58922[#58922])
+
+Features/Stats::
+* Change severity of negative stats messages from WARN to DEBUG {es-pull}60375[#60375]
+
+Search::
+* Fix handling of alias filter in SearchService#canMatch {es-pull}59368[#59368] (issue: {es-issue}59367[#59367])
+* QL: Add filtering Query DSL support to IndexResolver {es-pull}60514[#60514] (issue: {es-issue}57358[#57358])
+
+Snapshot/Restore::
+* Do not access snapshot repo on dedicated voting-only master node {es-pull}61016[#61016] (issue: {es-issue}59649[#59649])
+
+
+
+[[bug-7.9.1]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Call ActionListener.onResponse exactly once {es-pull}61584[#61584]
+
+Authorization::
+* Relax the index access control check for scroll searches {es-pull}61446[#61446]
+
+CCR::
+* Relax ShardFollowTasksExecutor validation {es-pull}60054[#60054] (issue: {es-issue}59625[#59625])
+* Set timeout of auto put-follow request to unbounded {es-pull}61679[#61679] (issue: {es-issue}56891[#56891])
+* Set timeout of master node requests on follower to unbounded {es-pull}60070[#60070] (issue: {es-issue}56891[#56891])
+
+Cluster Coordination::
+* Restrict testing of legacy discovery to tests {es-pull}61178[#61178] (issue: {es-issue}61177[#61177])
+
+EQL::
+* Return sequence join keys in the original type {es-pull}61268[#61268] (issue: {es-issue}59707[#59707])
+
+Features/Data streams::
+* "no such index [null]" when indexing into data stream with op_type=index [ISSUE] {es-pull}60581[#60581]
+* Data streams: throw ResourceAlreadyExists exception {es-pull}60518[#60518]
+* Track backing indices in data streams stats from cluster state {es-pull}59817[#59817]
+
+Features/ILM+SLM::
+* Fix race in SLM master/cluster state listeners {es-pull}59801[#59801]
+
+Features/Ingest::
+* Fix handling of final pipelines when destination is changed {es-pull}59522[#59522] (issue: {es-issue}57968[#57968])
+* Fix wrong pipeline name in debug log {es-pull}58817[#58817] (issue: {es-issue}58478[#58478])
+* Fix wrong result when executing bulk requests with and without pipeline {es-pull}60818[#60818] (issue: {es-issue}60437[#60437])
+* Update regex file for es user agent node processor {es-pull}59697[#59697] (issue: {es-issue}59694[#59694])
+
+IdentityProvider::
+* Only call listener once (SP template registration) {es-pull}60497[#60497] (issues: {es-issue}54285[#54285], {es-issue}54423[#54423])
+
+Machine Learning::
+* Always write prediction_probability and prediction_score for classification inference {es-pull}60335[#60335]
+* Ensure .ml-config index is updated before clearing anomaly job's finished_time {es-pull}61064[#61064] (issue: {es-issue}61157[#61157])
+* Ensure annotations index mappings are up to date {es-pull}61107[#61107] (issue: {es-issue}74935[#74935])
+* Handle node closed exception in ML result processing {es-pull}60238[#60238] (issue: {es-issue}60130[#60130])
+* Recover data frame extraction search from latest sort key {es-pull}61544[#61544]
+
+SQL::
+* Fix NPE on ambiguous GROUP BY {es-pull}59370[#59370] (issues: {es-issue}46396[#46396], {es-issue}56489[#56489])
+* Fix SYS COLUMNS schema in ODBC mode {es-pull}59513[#59513] (issue: {es-issue}59506[#59506])
+
+Search::
+* Disable sort optimization on search collapsing {es-pull}60838[#60838]
+* Search fix: query_string regex searches not working on wildcard fields {es-pull}60959[#60959] (issue: {es-issue}60957[#60957])
+
+Snapshot/Restore::
+* Cleanly Handle S3 SDK Exceptions in Request Counting {es-pull}61686[#61686] (issue: {es-issue}61670[#61670])
+* Fix Concurrent Snapshot Create+Delete + Delete Index {es-pull}61770[#61770] (issue: {es-issue}61762[#61762])
+
+
+
+[[upgrade-7.9.1]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade to Lucene 8.6.2 {es-pull}61688[#61688] (issue: {es-issue}61512[#61512])
+
+
+
+[[release-notes-7.9.0]]
+== {es} version 7.9.0
+
+Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
+
+[float]
+[[security-updates-7.9.0]]
+=== Security updates
+
+* A field disclosure flaw was found in {es} when running a scrolling search with
+field level security. If a user runs the same query another more privileged user
+recently ran, the scrolling search can leak fields that should be hidden. This
+could result in an attacker gaining additional permissions against a restricted
+index. All versions of {es} before 7.9.0 and 6.8.12 are affected by this flaw.
+You must upgrade to {es} version 7.9.0 or 6.8.12 to obtain the fix.
+https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-7019[CVE-2020-7019]
+
+[[known-issues-7.9.0]]
+[discrete]
+=== Known issues
+
+* Upgrading to 7.9.0 from an earlier version will result in incorrect mappings
+on the {ml} annotations index, and possibly also on the {ml} config index. This
+will lead to some pages in the {ml} UI not displaying correctly, and may prevent
+{ml-jobs} being created or updated. The best way to avoid this problem if you
+read about this known issue before upgrading is to manually update the mappings
+on these indices in your old {es} version _before_ upgrading to 7.9.0. If you
+find out about the issue after upgrading then reindexing is required to recover.
+Full details of the mitigations are in
+{ml-docs}/ml-troubleshooting.html#ml-troubleshooting-mappings[Upgrade to 7.9.0 causes incorrect mappings].
+
+* Lucene 8.6.0, on which Elasticsearch 7.9.0 is based,
+  https://issues.apache.org/jira/browse/LUCENE-9478[contains a memory
+  leak]. This memory leak manifests in Elasticsearch when a single document is
+  updated repeatedly with a forced refresh. The cluster state storage layer in
+  Elasticsearch is based on Lucene and does use single-document updates with
+  forced refreshes, meaning that this memory leak manifests in Elasticsearch under
+  normal conditions. It also manifests when user-controlled workloads update a
+  single document in an index repeatedly with a forced refresh. In both cases,
+  the memory leak is around 500 bytes per update, so it does take some time for
+  the leak to show any meaningful impact on the system. Symptoms of this memory
+  leak are the size of the used heap slowly rising over time, requests
+  eventually being rejected by the real memory circuit breaker, and potentially
+  out-of-memory errors. A workaround is to restart any nodes exhibiting these
+  symptoms.  We are actively working with the Lucene community to release a
+  https://github.com/apache/lucene-solr/pull/1779[fix] in Lucene 8.6.2 to
+  deliver in Elasticsearch 7.9.1 that will address this memory leak.
+
+[[breaking-7.9.0]]
+[discrete]
+=== Breaking changes
+
+Script Cache::
+* Script cache size and rate limiting are per-context {es-pull}55753[#55753] (issue: {es-issue}50152[#50152])
+
+Field capabilities API::
+* Constant_keyword fields are now described by their family type `keyword` instead of `constant_keyword` {es-pull}58483[#58483] (issue: {es-issue}53175[#53175])
+
+Snapshot restore throttling::
+* Restoring from a snapshot (which is a particular form of recovery) is now
+  properly taking recovery throttling into account (i.e. the
+  `indices.recovery.max_bytes_per_sec` setting).
+  The `max_restore_bytes_per_sec` setting is also now defaulting to
+  unlimited, whereas previously it was set to `40mb`, which is the
+  default that's used for `indices.recovery.max_bytes_per_sec`. This means
+  that no behavioral change will be observed by clusters where the recovery
+  and restore settings had not been adapted from the defaults. {es-pull}58658[#58658]
+
+Thread pool write queue size::
+* The WRITE thread pool default queue size (`thread_pool.write.size`) has been
+  increased from 200 to 10000. A small queue size (200) caused issues when users
+  wanted to send small indexing requests with a high client count. Additional
+  memory-oriented back pressure has been introduced with the
+  `indexing_pressure.memory.limit` setting. This setting configures a limit to
+  the number of bytes allowed to be consumed by outstanding indexing requests.
+  {es-issue}59263[#59263]
+
+Dangling indices::
+* Automatically importing dangling indices is now deprecated, disabled by
+  default, and will be removed in {es} 8.0. See the
+  <<deprecate_auto_import_dangling_indices,migration notes>>.
+  {es-pull}58176[#58176] {es-pull}58898[#58898] (issue: {es-issue}48366[#48366])
+
+[[breaking-java-7.9.0]]
+[discrete]
+=== Breaking Java changes
+
+Aggregations::
+* Improve cardinality measure used to build aggs {es-pull}56533[#56533] (issue: {es-issue}56487[#56487])
+
+Features/Ingest::
+* Add optional description parameter to ingest processors. {es-pull}57906[#57906] (issue: {es-issue}56000[#56000])
+
+
+
+[[feature-7.9.0]]
+[discrete]
+=== New features
+
+Aggregations::
+* Add moving percentiles pipeline aggregation {es-pull}55441[#55441] (issue: {es-issue}49452[#49452])
+* Add normalize pipeline aggregation {es-pull}56399[#56399] (issue: {es-issue}51005[#51005])
+* Add variable width histogram aggregation {es-pull}42035[#42035] (issues: {es-issue}9572[#9572], {es-issue}50863[#50863])
+* Add pipeline inference aggregation {es-pull}58193[#58193]
+* Speed up time interval arounding around daylight savings time (DST) {es-pull}56371[#56371] (issue: {es-issue}55559[#55559])
+
+Geo::
+* Override doc_value parameter in Spatial XPack module {es-pull}53286[#53286] (issue: {es-issue}37206[#37206])
+
+Machine Learning::
+* Add update data frame analytics jobs API {es-pull}58302[#58302] (issue: {es-issue}45720[#45720])
+* Introduce model_plot_config.annotations_enabled setting for anomaly detection jobs {es-pull}57539[#57539] (issue: {es-issue}55781[#55781])
+* Report significant changes to anomaly detection models in annotations of the results {ml-pull}1247[#1247], {es-pull}56342[#56342], {es-pull}56417[#56417], {es-pull}57144[#57144], {es-pull}57278[#57278], {es-pull}57539[#57539]
+
+Mapping::
+* Merge mappings for composable index templates {es-pull}58521[#58521] (issue: {es-issue}53101[#53101])
+* Wildcard field optimised for wildcard queries {es-pull}49993[#49993] (issue: {es-issue}48852[#48852])
+
+Search::
+* Allow index filtering in field capabilities API {es-pull}57276[#57276] (issue: {es-issue}56195[#56195])
+
+
+
+[[enhancement-7.9.0]]
+[discrete]
+=== Enhancements
+
+Aggregations::
+* Add support for numeric range keys {es-pull}56452[#56452] (issue: {es-issue}56402[#56402])
+* Added standard deviation / variance sampling to extended stats {es-pull}49782[#49782] (issue: {es-issue}49554[#49554])
+* Give significance lookups their own home {es-pull}57903[#57903]
+* Increase search.max_buckets to 65,535 {es-pull}57042[#57042] (issue: {es-issue}51731[#51731])
+* Optimize date_histograms across daylight savings time {es-pull}55559[#55559]
+* Return clear error message if aggregation type is invalid {es-pull}58255[#58255] (issue: {es-issue}58146[#58146])
+* Save memory on numeric significant terms when not top {es-pull}56789[#56789] (issue: {es-issue}55873[#55873])
+* Save memory when auto_date_histogram is not on top {es-pull}57304[#57304] (issue: {es-issue}56487[#56487])
+* Save memory when date_histogram is not on top {es-pull}56921[#56921] (issues: {es-issue}55873[#55873], {es-issue}56487[#56487])
+* Save memory when histogram agg is not on top {es-pull}57277[#57277]
+* Save memory when numeric terms agg is not top {es-pull}55873[#55873]
+* Save memory when parent and child are not on top {es-pull}57892[#57892] (issue: {es-issue}55873[#55873])
+* Save memory when rare_terms is not on top {es-pull}57948[#57948] (issue: {es-issue}55873[#55873])
+* Save memory when significant_text is not on top {es-pull}58145[#58145] (issue: {es-issue}55873[#55873])
+* Save memory when string terms are not on top {es-pull}57758[#57758]
+* Speed up reducing auto_date_histo with a time zone {es-pull}57933[#57933] (issue: {es-issue}56124[#56124])
+* Speed up rounding in auto_date_histogram {es-pull}56384[#56384] (issue: {es-issue}55559[#55559])
+
+Allocation::
+* Account for remaining recovery in disk allocator {es-pull}58029[#58029]
+
+Analysis::
+* Add max_token_length setting to the CharGroupTokenizer {es-pull}56860[#56860] (issue: {es-issue}56676[#56676])
+* Expose discard_compound_token option to kuromoji_tokenizer {es-pull}57421[#57421]
+* Support multiple tokens on LHS in stemmer_override rules (#56113) {es-pull}56484[#56484] (issue: {es-issue}56113[#56113])
+
+Authentication::
+* Add http proxy support for OIDC realm {es-pull}57039[#57039] (issue: {es-issue}53379[#53379])
+* Improve threadpool usage and error handling for API key validation {es-pull}58090[#58090] (issue: {es-issue}58088[#58088])
+* Support handling LogoutResponse from SAML idP {es-pull}56316[#56316] (issues: {es-issue}40901[#40901], {es-issue}43264[#43264])
+
+Authorization::
+* Add cache for application privileges {es-pull}55836[#55836] (issue: {es-issue}54317[#54317])
+* Add monitor and view_index_metadata privileges to built-in `kibana_system` role {es-pull}57755[#57755]
+* Improve role cache efficiency for API key roles {es-pull}58156[#58156] (issue: {es-issue}53939[#53939])
+
+CCR::
+* Allow follower indices to override leader settings {es-pull}58103[#58103]
+
+CRUD::
+* Retry failed replication due to transient errors {es-pull}55633[#55633]
+
+Engine::
+* Don't log on RetentionLeaseSync error handler after an index has been deleted {es-pull}58098[#58098] (issue: {es-issue}57864[#57864])
+
+Features/Data streams::
+* Add support for snapshot and restore to data streams {es-pull}57675[#57675] (issues: {es-issue}53100[#53100], {es-issue}57127[#57127])
+* Data stream creation validation allows for prefixed indices {es-pull}57750[#57750] (issue: {es-issue}53100[#53100])
+* Disallow deletion of composable template if in use by data stream {es-pull}57957[#57957] (issue: {es-issue}57004[#57004])
+* Validate alias operations don't target data streams {es-pull}58327[#58327] (issue: {es-issue}53100[#53100])
+
+Features/ILM+SLM::
+* Add data stream support to searchable snapshot action {es-pull}57873[#57873] (issue: {es-issue}53100[#53100])
+* Add data stream support to the shrink action {es-pull}57616[#57616] (issue: {es-issue}53100[#53100])
+* Add support for rolling over data streams  {es-pull}57295[#57295] (issues: {es-issue}53100[#53100], {es-issue}53488[#53488])
+* Check the managed index is not a data stream write index {es-pull}58239[#58239] (issue: {es-issue}53100[#53100])
+
+Features/Indices APIs::
+* Add default composable templates for new indexing strategy {es-pull}57629[#57629] (issue: {es-issue}56709[#56709])
+* Add index block api {es-pull}58094[#58094]
+* Add new flag to check whether alias exists on remove {es-pull}58100[#58100]
+* Add prefer_v2_templates parameter to reindex {es-pull}56253[#56253] (issue: {es-issue}53101[#53101])
+* Add template simulation API for simulating template composition {es-pull}56842[#56842] (issues: {es-issue}53101[#53101], {es-issue}55686[#55686], {es-issue}56255[#56255], {es-issue}56390[#56390])
+
+Features/Ingest::
+* Add ignore_empty_value parameter in set ingest processor {es-pull}57030[#57030] (issue: {es-issue}54783[#54783])
+* Support `if_seq_no` and `if_primary_term` for ingest {es-pull}55430[#55430] (issue: {es-issue}41255[#41255])
+
+Features/Java High Level REST Client::
+* Add support for data streams {es-pull}58106[#58106] (issue: {es-issue}53100[#53100])
+* Enable decompression of response within LowLevelRestClient {es-pull}55413[#55413] (issues: {es-issue}24349[#24349], {es-issue}53555[#53555])
+
+Features/Java Low Level REST Client::
+* Add isRunning method to RestClient {es-pull}57973[#57973] (issue: {es-issue}42133[#42133])
+* Add RequestConfig support to RequestOptions {es-pull}57972[#57972]
+
+Infra/Circuit Breakers::
+* Enhance real memory circuit breaker with G1 GC {es-pull}58674[#58674] (issue: {es-issue}57202[#57202])
+
+Infra/Core::
+* Introduce node.roles setting {es-pull}54998[#54998]
+
+Infra/Packaging::
+* Remove DEBUG-level logging from actions in Docker {es-pull}57389[#57389] (issues: {es-issue}51198[#51198], {es-issue}51459[#51459])
+
+Infra/Plugins::
+* Improved ExtensiblePlugin {es-pull}58234[#58234]
+
+Infra/Resiliency::
+* Adds resiliency to read-only filesystems #45286 {es-pull}52680[#52680] (issue: {es-issue}45286[#45286])
+
+Machine Learning::
+* Accounting for model size when models are not cached. {es-pull}58670[#58670]
+* Adds new for_export flag to GET _ml/inference API {es-pull}57351[#57351]
+* Adds WKT geometry detection in find_file_structure {es-pull}57014[#57014] (issue: {es-issue}56967[#56967])
+* Calculate cache misses for inference and return in stats {es-pull}58252[#58252]
+* Delete auto-generated annotations when job is deleted. {es-pull}58169[#58169] (issue: {es-issue}57976[#57976])
+* Delete auto-generated annotations when model snapshot is reverted {es-pull}58240[#58240] (issue: {es-issue}57982[#57982])
+* Delete expired data by job {es-pull}57337[#57337]
+* Introduce Annotation.event field {es-pull}57144[#57144] (issue: {es-issue}55781[#55781])
+* Add support for larger forecasts in memory via max_model_memory setting {ml-pull}1238[#1238], {es-pull}57254[#57254]
+* Don't lose precision when saving model state {ml-pull}1274[#1274]
+* Parallelize the feature importance calculation for classification and regression over trees {ml-pull}1277[#1277]
+* Add an option to do categorization independently for each partition {ml-pull}1293[#1293], {ml-pull}1318[#1318], {ml-pull}1356[#1356], {es-pull}57683[#57683]
+* Memory usage is reported during job initialization {ml-pull}1294[#1294]
+* More realistic memory estimation for classification and regression means that these analyses will require lower memory limits than before {ml-pull}1298[#1298]
+* Checkpoint state to allow efficient failover during coarse parameter search for classification and regression {ml-pull}1300[#1300]
+* Improve data access patterns to speed up classification and regression {ml-pull}1312[#1312]
+* Performance improvements for classification and regression, particularly running multithreaded {ml-pull}1317[#1317]
+* Improve runtime and memory usage training deep trees for classification and regression {ml-pull}1340[#1340]
+* Improvement in handling large inference model definitions {ml-pull}1349[#1349]
+* Add a peak_model_bytes field to model_size_stats {ml-pull}1389[#1389]
+
+Mapping::
+* Add regex query support to wildcard field {es-pull}55548[#55548] (issue: {es-issue}54725[#54725])
+* Make `keyword` a family of field types {es-pull}58315[#58315] (issue: {es-issue}53175[#53175])
+* Store parsed mapping settings in IndexSettings {es-pull}57492[#57492] (issue: {es-issue}57395[#57395])
+* Wildcard field - add support for custom null values {es-pull}57047[#57047]
+
+Network::
+* Make the number of transport threads equal to the number of available CPUs {es-pull}56488[#56488]
+
+Recovery::
+* Implement dangling indices API {es-pull}50920[#50920] (issue: {es-issue}48366[#48366])
+* Reestablish peer recovery after network errors {es-pull}55274[#55274]
+* Sending operations concurrently in peer recovery {es-pull}58018[#58018] (issue: {es-issue}58011[#58011])
+
+Reindex::
+* Throw an illegal_argument_exception when max_docs is less than slices {es-pull}54901[#54901] (issue: {es-issue}52786[#52786])
+
+SQL::
+* Implement TIME_PARSE function for parsing strings into TIME values {es-pull}55223[#55223] (issues: {es-issue}54963[#54963], {es-issue}55095[#55095])
+* Implement TOP as an alternative to LIMIT {es-pull}57428[#57428] (issue: {es-issue}41195[#41195])
+* Implement TRIM function {es-pull}57518[#57518] (issue: {es-issue}41195[#41195])
+* Improve performances of LTRIM/RTRIM {es-pull}57603[#57603] (issue: {es-issue}57594[#57594])
+* Make CASTing string to DATETIME more lenient {es-pull}57451[#57451]
+* Redact credentials in connection exceptions {es-pull}58650[#58650] (issue: {es-issue}56474[#56474])
+* Relax parsing of date/time escaped literals {es-pull}58336[#58336] (issue: {es-issue}58262[#58262])
+* Add support for scalars within LIKE/RLIKE {es-pull}56495[#56495] (issue: {es-issue}55058[#55058])
+
+Search::
+* Add description to submit and get async search, as well as cancel tasks {es-pull}57745[#57745]
+* Add matchBoolPrefix static method in query builders {es-pull}58637[#58637] (issue: {es-issue}58388[#58388])
+* Add range query support to wildcard field {es-pull}57881[#57881] (issue: {es-issue}57816[#57816])
+* Group docIds by segment in FetchPhase to better use LRU cache {es-pull}57273[#57273]
+* Improve error handling when decoding async execution ids {es-pull}56285[#56285]
+* Specify reason whenever async search gets cancelled {es-pull}57761[#57761]
+* Use index sort range query when possible. {es-pull}56657[#56657] (issue: {es-issue}48665[#48665])
+
+Security::
+* Add machine learning admin permissions to the kibana_system role {es-pull}58061[#58061]
+* Just log 401 stacktraces {es-pull}55774[#55774]
+
+Snapshot/Restore::
+* Deduplicate Index Metadata in BlobStore {es-pull}50278[#50278] (issues: {es-issue}45736[#45736], {es-issue}46250[#46250], {es-issue}49800[#49800])
+* Default to zero replicas for searchable snapshots {es-pull}57802[#57802] (issue: {es-issue}50999[#50999])
+* Enable fully concurrent snapshot operations {es-pull}56911[#56911]
+* Support cloning of searchable snapshot indices {es-pull}56595[#56595]
+* Track GET/LIST Azure Storage API calls  {es-pull}56773[#56773]
+* Track GET/LIST GoogleCloudStorage API calls {es-pull}56585[#56585]
+* Track PUT/PUT_BLOCK operations on AzureBlobStore. {es-pull}56936[#56936]
+* Track multipart/resumable uploads GCS API calls {es-pull}56821[#56821]
+* Track upload requests on S3 repositories {es-pull}56826[#56826]
+
+Task Management::
+* Add index name to refresh mapping task {es-pull}57598[#57598]
+* Cancel task and descendants on channel disconnects {es-pull}56620[#56620] (issues: {es-issue}56327[#56327], {es-issue}56619[#56619])
+
+Transform::
+* Add support for terms agg in transforms {es-pull}56696[#56696]
+* Adds geotile_grid support in group_by {es-pull}56514[#56514] (issue: {es-issue}56121[#56121])
+
+
+
+[[bug-7.9.0]]
+[discrete]
+=== Bug fixes
+
+Aggregations::
+* Fix auto_date_histogram interval {es-pull}56252[#56252] (issue: {es-issue}56116[#56116])
+* Fix bug in faster interval rounding {es-pull}56433[#56433] (issue: {es-issue}56400[#56400])
+* Fix bug in parent and child aggregators when parent field not defined {es-pull}57089[#57089] (issue: {es-issue}42997[#42997])
+* Fix missing null values for std_deviation_bounds in ext. stats aggs {es-pull}58000[#58000]
+
+Allocation::
+* Reword INDEX_READ_ONLY_ALLOW_DELETE_BLOCK message {es-pull}58410[#58410] (issues: {es-issue}42559[#42559], {es-issue}50166[#50166], {es-issue}58376[#58376])
+
+Authentication::
+* Map only specific type of OIDC Claims {es-pull}58524[#58524]
+
+Authorization::
+* Change privilege of enrich stats API to monitor {es-pull}52027[#52027] (issue: {es-issue}51677[#51677])
+
+Engine::
+* Fix local translog recovery not updating safe commit in edge case {es-pull}57350[#57350] (issue: {es-issue}57010[#57010])
+* Hide AlreadyClosedException on IndexCommit release {es-pull}57986[#57986] (issue: {es-issue}57797[#57797])
+
+Features/ILM+SLM::
+* Normalized prefix for rollover API {es-pull}57271[#57271] (issue: {es-issue}53388[#53388])
+
+Features/Indices APIs::
+* Don't allow invalid template combinations {es-pull}56397[#56397] (issues: {es-issue}53101[#53101], {es-issue}56314[#56314])
+* Handle `cluster.max_shards_per_node` in YAML config {es-pull}57234[#57234] (issue: {es-issue}40803[#40803])
+
+Features/Ingest::
+* Fix ingest simulate verbose on failure with conditional {es-pull}56478[#56478] (issue: {es-issue}56004[#56004])
+
+Geo::
+* Check for degenerated lines when calculating the centroid {es-pull}58027[#58027] (issue: {es-issue}55851[#55851])
+* Fix bug in circuit-breaker check for geoshape grid aggregations {es-pull}57962[#57962] (issue: {es-issue}57847[#57847])
+
+Infra/Scripting::
+* Fix source return bug in scripting {es-pull}56831[#56831] (issue: {es-issue}52103[#52103])
+
+Machine Learning::
+* Fix wire serialization for flush acknowledgements {es-pull}58413[#58413]
+* Make waiting for renormalization optional for internally flushing job {es-pull}58537[#58537] (issue: {es-issue}58395[#58395])
+* Tail the C++ logging pipe before connecting other pipes {es-pull}56632[#56632] (issue: {es-issue}56366[#56366])
+* Fix numerical issues leading to blow up of the model plot bounds {ml-pull}1268[#1268]
+* Fix causes for inverted forecast confidence interval bounds {ml-pull}1369[#1369] (issue: {ml-issue}1357[#1357])
+* Restrict growth of max matching string length for categories {ml-pull}1406[#1406]
+
+Mapping::
+* Wildcard field fix for scripts - changed value type from BytesRef to String  {es-pull}58060[#58060] (issue: {es-issue}58044[#58044])
+
+SQL::
+* Introduce JDBC option for meta pattern escaping {es-pull}40661[#40661] (issue: {es-issue}40640[#40640])
+
+Search::
+* Don't omit empty arrays when filtering _source {es-pull}56527[#56527] (issues: {es-issue}20736[#20736], {es-issue}22593[#22593], {es-issue}23796[#23796])
+* Fix casting of scaled_float in sorts {es-pull}57207[#57207]
+
+Snapshot/Restore::
+* Account for recovery throttling when restoring snapshot {es-pull}58658[#58658] (issue: {es-issue}57023[#57023])
+* Fix noisy logging during snapshot delete {es-pull}56264[#56264]
+* Fix S3ClientSettings leak {es-pull}56703[#56703] (issue: {es-issue}56702[#56702])
+
+
+
+[[upgrade-7.9.0]]
+[discrete]
+=== Upgrades
+
+Search::
+* Update to lucene snapshot e7c625430ed {es-pull}57981[#57981]

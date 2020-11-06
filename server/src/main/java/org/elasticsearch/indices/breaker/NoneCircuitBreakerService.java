@@ -48,8 +48,4 @@ public class NoneCircuitBreakerService extends CircuitBreakerService {
         return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
     }
 
-    @Override
-    public void registerBreaker(BreakerSettings breakerSettings) {
-        // ignore
-    }
 }

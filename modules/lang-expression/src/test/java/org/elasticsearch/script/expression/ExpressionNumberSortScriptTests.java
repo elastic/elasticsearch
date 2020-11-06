@@ -22,10 +22,9 @@ package org.elasticsearch.script.expression;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.Collections;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.script.NumberSortScript;
@@ -46,16 +45,13 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        NumberFieldType fieldType = new NumberFieldType(NumberType.DOUBLE);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName("field")).thenReturn(fieldType);
-        when(mapperService.fullName("alias")).thenReturn(fieldType);
+        NumberFieldType fieldType = new NumberFieldType("field", NumberType.DOUBLE);
 
         SortedNumericDoubleValues doubleValues = mock(SortedNumericDoubleValues.class);
         when(doubleValues.advanceExact(anyInt())).thenReturn(true);
         when(doubleValues.nextValue()).thenReturn(2.718);
 
-        AtomicNumericFieldData atomicFieldData = mock(AtomicNumericFieldData.class);
+        LeafNumericFieldData atomicFieldData = mock(LeafNumericFieldData.class);
         when(atomicFieldData.getDoubleValues()).thenReturn(doubleValues);
 
         IndexNumericFieldData fieldData = mock(IndexNumericFieldData.class);
@@ -63,7 +59,7 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, ignored -> fieldData, null);
+        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, lookup) -> fieldData, null);
     }
 
     private NumberSortScript.LeafFactory compile(String expression) {
@@ -88,14 +84,6 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
 
     public void testFieldAccess() throws IOException {
         NumberSortScript script = compile("doc['field'].value").newInstance(null);
-        script.setDocument(1);
-
-        double result = script.execute();
-        assertEquals(2.718, result, 0.0);
-    }
-
-    public void testFieldAccessWithFieldAlias() throws IOException {
-        NumberSortScript script = compile("doc['alias'].value").newInstance(null);
         script.setDocument(1);
 
         double result = script.execute();

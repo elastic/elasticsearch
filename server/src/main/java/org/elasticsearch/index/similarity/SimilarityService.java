@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.similarity;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.CollectionStatistics;
@@ -33,6 +32,7 @@ import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -40,18 +40,17 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class SimilarityService extends AbstractIndexComponent {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SimilarityService.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimilarityService.class);
     public static final String DEFAULT_SIMILARITY = "BM25";
     private static final String CLASSIC_SIMILARITY = "classic";
     private static final Map<String, Function<Version, Supplier<Similarity>>> DEFAULTS;
@@ -67,7 +66,8 @@ public final class SimilarityService extends AbstractIndexComponent {
             } else {
                 final ClassicSimilarity similarity = SimilarityProviders.createClassicSimilarity(Settings.EMPTY, version);
                 return () -> {
-                    deprecationLogger.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
+                    deprecationLogger.deprecate("classic_similarity",
+                        "The [classic] similarity is now deprecated in favour of BM25, which is generally "
                             + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                             + "instead.");
                     return similarity;
@@ -90,7 +90,8 @@ public final class SimilarityService extends AbstractIndexComponent {
                         throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
                                 + "similarity or build a custom [scripted] similarity instead.");
                     } else {
-                        deprecationLogger.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
+                        deprecationLogger.deprecate("classic_similarity",
+                            "The [classic] similarity is now deprecated in favour of BM25, which is generally "
                                 + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                                 + "instead.");
                         return SimilarityProviders.createClassicSimilarity(settings, version);
@@ -154,13 +155,13 @@ public final class SimilarityService extends AbstractIndexComponent {
         defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
                                                               : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
-            deprecationLogger.deprecated("The [base] similarity is ignored since query normalization and coords have been removed");
+            deprecationLogger.deprecate("base_similarity_ignored",
+                "The [base] similarity is ignored since query normalization and coords have been removed");
         }
     }
 
-    public Similarity similarity(MapperService mapperService) {
-        // TODO we can maybe factor out MapperService here entirely by introducing an interface for the lookup?
-        return (mapperService != null) ? new PerFieldSimilarity(defaultSimilarity, mapperService) :
+    public Similarity similarity(@Nullable Function<String, MappedFieldType> fieldTypeLookup) {
+        return (fieldTypeLookup != null) ? new PerFieldSimilarity(defaultSimilarity, fieldTypeLookup) :
                 defaultSimilarity;
     }
 
@@ -181,18 +182,19 @@ public final class SimilarityService extends AbstractIndexComponent {
     static class PerFieldSimilarity extends PerFieldSimilarityWrapper {
 
         private final Similarity defaultSimilarity;
-        private final MapperService mapperService;
+        private final Function<String, MappedFieldType> fieldTypeLookup;
 
-        PerFieldSimilarity(Similarity defaultSimilarity, MapperService mapperService) {
+        PerFieldSimilarity(Similarity defaultSimilarity, Function<String, MappedFieldType> fieldTypeLookup) {
             super();
             this.defaultSimilarity = defaultSimilarity;
-            this.mapperService = mapperService;
+            this.fieldTypeLookup = Objects.requireNonNull(fieldTypeLookup, "fieldTypeLookup cannot be null");
         }
 
         @Override
         public Similarity get(String name) {
-            MappedFieldType fieldType = mapperService.fullName(name);
-            return (fieldType != null && fieldType.similarity() != null) ? fieldType.similarity().get() : defaultSimilarity;
+            MappedFieldType fieldType = fieldTypeLookup.apply(name);
+            return (fieldType != null && fieldType.getTextSearchInfo().getSimilarity() != null)
+                ? fieldType.getTextSearchInfo().getSimilarity().get() : defaultSimilarity;
         }
     }
 
@@ -270,7 +272,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException(message);
         } else if (indexCreatedVersion.onOrAfter(Version.V_6_5_0)) {
-            deprecationLogger.deprecated(message);
+            deprecationLogger.deprecate("similarity_failure", message);
         }
     }
 

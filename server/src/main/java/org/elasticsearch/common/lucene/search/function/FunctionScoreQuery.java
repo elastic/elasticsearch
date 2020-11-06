@@ -22,10 +22,12 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
@@ -196,6 +198,12 @@ public class FunctionScoreQuery extends Query {
     }
 
     @Override
+    public void visit(QueryVisitor visitor) {
+        // Highlighters must visit the child query to extract terms
+        subQuery.visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));
+    }
+
+    @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = super.rewrite(reader);
         if (rewritten != this) {
@@ -261,6 +269,7 @@ public class FunctionScoreQuery extends Query {
             if (subQueryScorer == null) {
                 return null;
             }
+            final long leadCost = subQueryScorer.iterator().cost();
             final LeafScoreFunction[] leafFunctions = new LeafScoreFunction[functions.length];
             final Bits[] docSets = new Bits[functions.length];
             for (int i = 0; i < functions.length; i++) {
@@ -268,7 +277,7 @@ public class FunctionScoreQuery extends Query {
                 leafFunctions[i] = function.getLeafScoreFunction(context);
                 if (filterWeights[i] != null) {
                     ScorerSupplier filterScorerSupplier = filterWeights[i].scorerSupplier(context);
-                    docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier);
+                    docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier, leadCost);
                 } else {
                     docSets[i] = new Bits.MatchAllBits(context.reader().maxDoc());
                 }

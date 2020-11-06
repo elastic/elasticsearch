@@ -30,7 +30,8 @@ import java.io.IOException;
  */
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
-    public ClusterStatsRequest() {
+    public ClusterStatsRequest(StreamInput in) throws IOException {
+        super(in);
     }
 
     /**
@@ -39,11 +40,6 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
      */
     public ClusterStatsRequest(String... nodesIds) {
         super(nodesIds);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
     }
 
     @Override

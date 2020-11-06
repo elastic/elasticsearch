@@ -61,8 +61,22 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         this.failures = new HashMap<>(failures);
     }
 
-    RankEvalResponse() {
-        // only used in RankEvalAction#newResponse()
+    RankEvalResponse(StreamInput in) throws IOException {
+        super(in);
+        this.metricScore = in.readDouble();
+        int partialResultSize = in.readVInt();
+        this.details = new HashMap<>(partialResultSize);
+        for (int i = 0; i < partialResultSize; i++) {
+            String queryId = in.readString();
+            EvalQueryQuality partial = new EvalQueryQuality(in);
+            this.details.put(queryId, partial);
+        }
+        int failuresSize = in.readVInt();
+        this.failures = new HashMap<>(failuresSize);
+        for (int i = 0; i < failuresSize; i++) {
+            String queryId = in.readString();
+            this.failures.put(queryId, in.readException());
+        }
     }
 
     public double getMetricScore() {
@@ -84,7 +98,6 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeDouble(metricScore);
         out.writeVInt(details.size());
         for (String queryId : details.keySet()) {
@@ -95,25 +108,6 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         for (String queryId : failures.keySet()) {
             out.writeString(queryId);
             out.writeException(failures.get(queryId));
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.metricScore = in.readDouble();
-        int partialResultSize = in.readVInt();
-        this.details = new HashMap<>(partialResultSize);
-        for (int i = 0; i < partialResultSize; i++) {
-            String queryId = in.readString();
-            EvalQueryQuality partial = new EvalQueryQuality(in);
-            this.details.put(queryId, partial);
-        }
-        int failuresSize = in.readVInt();
-        this.failures = new HashMap<>(failuresSize);
-        for (int i = 0; i < failuresSize; i++) {
-            String queryId = in.readString();
-            this.failures.put(queryId, in.readException());
         }
     }
 
@@ -150,10 +144,10 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> EvalQueryQuality.fromXContent(p, n),
                 DETAILS_FIELD);
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p::getTokenLocation);
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
             Tuple<String, ElasticsearchException> tuple = new Tuple<>(n, ElasticsearchException.failureFromXContent(p));
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
             return tuple;
         }, FAILURES_FIELD);
 

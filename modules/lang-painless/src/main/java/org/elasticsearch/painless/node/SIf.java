@@ -19,83 +19,45 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an if block.
  */
-public final class SIf extends AStatement {
+public class SIf extends AStatement {
 
-    AExpression condition;
-    final SBlock ifblock;
+    private final AExpression conditionNode;
+    private final SBlock ifBlockNode;
 
-    public SIf(Location location, AExpression condition, SBlock ifblock) {
-        super(location);
+    public SIf(int identifier, Location location, AExpression conditionNode, SBlock ifBlockNode) {
+        super(identifier, location);
 
-        this.condition = Objects.requireNonNull(condition);
-        this.ifblock = ifblock;
+        this.conditionNode = Objects.requireNonNull(conditionNode);
+        this.ifBlockNode = ifBlockNode;
+    }
+
+    public AExpression getConditionNode() {
+        return conditionNode;
+    }
+
+    public SBlock getIfBlockNode() {
+        return ifBlockNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitIf(this, scope);
+    }
 
-        if (ifblock != null) {
-            ifblock.extractVariables(variables);
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        conditionNode.visit(userTreeVisitor, scope);
+
+        if (ifBlockNode != null) {
+            ifBlockNode.visit(userTreeVisitor, scope);
         }
-    }
-
-    @Override
-    void analyze(Locals locals) {
-        condition.expected = boolean.class;
-        condition.analyze(locals);
-        condition = condition.cast(locals);
-
-        if (condition.constant != null) {
-            throw createError(new IllegalArgumentException("Extraneous if statement."));
-        }
-
-        if (ifblock == null) {
-            throw createError(new IllegalArgumentException("Extraneous if statement."));
-        }
-
-        ifblock.lastSource = lastSource;
-        ifblock.inLoop = inLoop;
-        ifblock.lastLoop = lastLoop;
-
-        ifblock.analyze(Locals.newLocalScope(locals));
-
-        anyContinue = ifblock.anyContinue;
-        anyBreak = ifblock.anyBreak;
-        statementCount = ifblock.statementCount;
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
-
-        Label fals = new Label();
-
-        condition.write(writer, globals);
-        writer.ifZCmp(Opcodes.IFEQ, fals);
-
-        ifblock.continu = continu;
-        ifblock.brake = brake;
-        ifblock.write(writer, globals);
-
-        writer.mark(fals);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(condition, ifblock);
     }
 }

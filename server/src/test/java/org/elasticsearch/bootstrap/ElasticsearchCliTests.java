@@ -26,7 +26,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
 import java.util.Locale;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -53,29 +53,29 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
     private void runTestThatVersionIsMutuallyExclusiveToOtherOptions(String... args) throws Exception {
         runTestVersion(
                 ExitCodes.USAGE,
-                output -> assertThat(
-                        output,
+                (output, error) -> assertThat(
+                        error,
                         allOf(containsString("ERROR:"),
                               containsString("are unavailable given other options on the command line"))),
                 args);
     }
 
     private void runTestThatVersionIsReturned(String... args) throws Exception {
-        runTestVersion(ExitCodes.OK, output -> {
+        runTestVersion(ExitCodes.OK, (output, error) -> {
             assertThat(output, containsString("Version: " + Build.CURRENT.getQualifiedVersion()));
             final String expectedBuildOutput = String.format(
                     Locale.ROOT,
                     "Build: %s/%s/%s/%s",
                     Build.CURRENT.flavor().displayName(),
                     Build.CURRENT.type().displayName(),
-                    Build.CURRENT.shortHash(),
+                    Build.CURRENT.hash(),
                     Build.CURRENT.date());
             assertThat(output, containsString(expectedBuildOutput));
             assertThat(output, containsString("JVM: " + JvmInfo.jvmInfo().version()));
         }, args);
     }
 
-    private void runTestVersion(int expectedStatus, Consumer<String> outputConsumer, String... args) throws Exception {
+    private void runTestVersion(int expectedStatus, BiConsumer<String, String> outputConsumer, String... args) throws Exception {
         runTest(expectedStatus, false, outputConsumer, (foreground, pidFile, quiet, esSettings) -> {}, args);
     }
 
@@ -83,19 +83,19 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
         runTest(
             ExitCodes.USAGE,
             false,
-            output -> assertThat(output, containsString("Positional arguments not allowed, found [foo]")),
+            (output, error) -> assertThat(error, containsString("Positional arguments not allowed, found [foo]")),
             (foreground, pidFile, quiet, esSettings) -> {},
             "foo");
         runTest(
             ExitCodes.USAGE,
             false,
-            output -> assertThat(output, containsString("Positional arguments not allowed, found [foo, bar]")),
+            (output, error) -> assertThat(error, containsString("Positional arguments not allowed, found [foo, bar]")),
             (foreground, pidFile, quiet, esSettings) -> {},
             "foo", "bar");
         runTest(
             ExitCodes.USAGE,
             false,
-            output -> assertThat(output, containsString("Positional arguments not allowed, found [foo]")),
+            (output, error) -> assertThat(error, containsString("Positional arguments not allowed, found [foo]")),
             (foreground, pidFile, quiet, esSettings) -> {},
             "-E", "foo=bar", "foo", "-E", "baz=qux");
     }
@@ -104,12 +104,12 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
         Path tmpDir = createTempDir();
         Path pidFile = tmpDir.resolve("pid");
         runPidFileTest(ExitCodes.USAGE, false,
-                output -> assertThat(output, containsString("Option p/pidfile requires an argument")), pidFile, "-p");
-        runPidFileTest(ExitCodes.OK, true, output -> {}, pidFile, "-p", pidFile.toString());
-        runPidFileTest(ExitCodes.OK, true, output -> {}, pidFile, "--pidfile", tmpDir.toString() + "/pid");
+            (output, error) -> assertThat(error, containsString("Option p/pidfile requires an argument")), pidFile, "-p");
+        runPidFileTest(ExitCodes.OK, true, (output, error) -> {}, pidFile, "-p", pidFile.toString());
+        runPidFileTest(ExitCodes.OK, true, (output, error) -> {}, pidFile, "--pidfile", tmpDir.toString() + "/pid");
     }
 
-    private void runPidFileTest(final int expectedStatus, final boolean expectedInit, Consumer<String> outputConsumer,
+    private void runPidFileTest(final int expectedStatus, final boolean expectedInit, BiConsumer<String, String> outputConsumer,
                                 Path expectedPidFile, final String... args)
             throws Exception {
         runTest(
@@ -130,7 +130,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
         runTest(
                 ExitCodes.OK,
                 true,
-                output -> {},
+                (output, error) -> {},
                 (foreground, pidFile, quiet, esSettings) -> assertThat(foreground, equalTo(!expectedDaemonize)),
                 args);
     }
@@ -145,7 +145,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
         runTest(
                 ExitCodes.OK,
                 true,
-                output -> {},
+                (output, error) -> {},
                 (foreground, pidFile, quiet, esSettings) -> assertThat(quiet, equalTo(expectedQuiet)),
                 args);
     }
@@ -154,7 +154,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
         runTest(
                 ExitCodes.OK,
                 true,
-                output -> {},
+                (output, error) -> {},
                 (foreground, pidFile, quiet, env) -> {
                     Settings settings = env.settings();
                     assertEquals("bar", settings.get("foo"));
@@ -167,7 +167,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
         runTest(
                 ExitCodes.USAGE,
                 false,
-                output -> assertThat(output, containsString("setting [foo] must not be empty")),
+                (output, error) -> assertThat(error, containsString("setting [foo] must not be empty")),
                 (foreground, pidFile, quiet, esSettings) -> {},
                 "-E", "foo=");
     }
@@ -176,7 +176,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
         runTest(
                 ExitCodes.USAGE,
                 false,
-                output -> assertThat(output, containsString("setting [foo] already set, saw [bar] and [baz]")),
+                (output, error) -> assertThat(error, containsString("setting [foo] already set, saw [bar] and [baz]")),
                 (foreground, pidFile, quiet, initialEnv) -> {},
                 "-E", "foo=bar", "-E", "foo=baz");
     }
@@ -185,7 +185,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
         runTest(
                 ExitCodes.USAGE,
                 false,
-                output -> assertThat(output, containsString("network.host is not a recognized option")),
+                (output, error) -> assertThat(error, containsString("network.host is not a recognized option")),
                 (foreground, pidFile, quiet, esSettings) -> {},
                 "--network.host");
     }

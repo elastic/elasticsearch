@@ -32,12 +32,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -123,9 +123,9 @@ public class FiltersAggregator extends BucketsAggregator {
     private final int totalNumKeys;
 
     public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Supplier<Weight[]> filters, boolean keyed,
-            String otherBucketKey, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+            String otherBucketKey, SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
+            Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, cardinality.multiply(keys.length + (otherBucketKey == null ? 0 : 1)), metadata);
         this.keyed = keyed;
         this.keys = keys;
         this.filters = filters;
@@ -165,23 +165,15 @@ public class FiltersAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        consumeBucketsAndMaybeBreak(keys.length + (showOtherBucket ? 1 : 0));
-        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(keys.length);
-        for (int i = 0; i < keys.length; i++) {
-            long bucketOrd = bucketOrd(owningBucketOrdinal, i);
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(keys[i], bucketDocCount(bucketOrd),
-                    bucketAggregations(bucketOrd), keyed);
-            buckets.add(bucket);
-        }
-        // other bucket
-        if (showOtherBucket) {
-            long bucketOrd = bucketOrd(owningBucketOrdinal, keys.length);
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, bucketDocCount(bucketOrd),
-                    bucketAggregations(bucketOrd), keyed);
-            buckets.add(bucket);
-        }
-        return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metaData());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForFixedBucketCount(owningBucketOrds, keys.length + (showOtherBucket ? 1 : 0),
+            (offsetInOwningOrd, docCount, subAggregationResults) -> {
+                if (offsetInOwningOrd < keys.length) {
+                    return new InternalFilters.InternalBucket(keys[offsetInOwningOrd], docCount,
+                            subAggregationResults, keyed);
+                }
+                return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults, keyed);
+            }, buckets -> new InternalFilters(name, buckets, keyed, metadata())); 
     }
 
     @Override
@@ -198,7 +190,7 @@ public class FiltersAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
 
-        return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metaData());
+        return new InternalFilters(name, buckets, keyed, metadata());
     }
 
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {

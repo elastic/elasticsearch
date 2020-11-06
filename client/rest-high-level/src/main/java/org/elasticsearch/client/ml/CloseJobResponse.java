@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -31,7 +30,7 @@ import java.util.Objects;
 /**
  * Response indicating if the Job(s) closed or not
  */
-public class CloseJobResponse extends ActionResponse implements ToXContentObject {
+public class CloseJobResponse implements ToXContentObject {
 
     private static final ParseField CLOSED = new ParseField("closed");
 

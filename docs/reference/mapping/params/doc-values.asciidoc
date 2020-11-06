@@ -15,15 +15,15 @@ Doc values are the on-disk data structure, built at document index time, which
 makes this data access pattern possible. They store the same values as the
 `_source` but in a column-oriented fashion that is way more efficient for
 sorting and aggregations. Doc values are supported on almost all field types,
-with the __notable exception of `analyzed` string fields__.
+with the __notable exception of `text` and `annotated_text` fields__.
 
 All fields which support doc values have them enabled by default. If you are
 sure that you don't need to sort or aggregate on a field, or access the field
 value from a script, you can disable doc values in order to save disk space:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -38,7 +38,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `status_code` field has `doc_values` enabled by default.
 <2> The `session_id` has `doc_values` disabled, but can still be queried.
 

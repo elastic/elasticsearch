@@ -42,11 +42,7 @@ public class VersionConflictEngineException extends EngineException {
     }
 
     public VersionConflictEngineException(ShardId shardId, String id, String explanation) {
-        this(shardId, null, id, explanation);
-    }
-
-    public VersionConflictEngineException(ShardId shardId, Throwable cause, String id, String explanation) {
-        this(shardId, "[{}]: version conflict, {}", cause, id, explanation);
+        this(shardId, "[{}]: version conflict, {}", null, id, explanation);
     }
 
     public VersionConflictEngineException(ShardId shardId, String msg, Throwable cause, Object... params) {
@@ -60,5 +56,11 @@ public class VersionConflictEngineException extends EngineException {
 
     public VersionConflictEngineException(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public Throwable fillInStackTrace() {
+        // This is on the hot path for updates; stack traces are expensive to compute and not very useful for VCEEs, so don't fill it in.
+        return this;
     }
 }

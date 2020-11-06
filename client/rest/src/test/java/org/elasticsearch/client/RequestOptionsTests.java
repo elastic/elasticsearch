@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
+import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
 import java.util.ArrayList;
@@ -90,6 +91,22 @@ public class RequestOptionsTests extends RestClientTestCase {
         assertSame(factory, options.getHttpAsyncResponseConsumerFactory());
     }
 
+    public void testSetRequestBuilder() {
+        RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+
+        RequestConfig.Builder requestConfigBuilder = RequestConfig.custom();
+        int socketTimeout = 10000;
+        int connectTimeout = 100;
+        requestConfigBuilder.setSocketTimeout(socketTimeout).setConnectTimeout(connectTimeout);
+        RequestConfig requestConfig = requestConfigBuilder.build();
+
+        builder.setRequestConfig(requestConfig);
+        RequestOptions options = builder.build();
+        assertSame(options.getRequestConfig(), requestConfig);
+        assertEquals(options.getRequestConfig().getSocketTimeout(), socketTimeout);
+        assertEquals(options.getRequestConfig().getConnectTimeout(), connectTimeout);
+    }
+
     public void testEqualsAndHashCode() {
         RequestOptions request = randomBuilder().build();
         assertEquals(request, request);
@@ -120,6 +137,10 @@ public class RequestOptionsTests extends RestClientTestCase {
 
         if (randomBoolean()) {
             builder.setWarningsHandler(randomBoolean() ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE);
+        }
+
+        if (randomBoolean()) {
+            builder.setRequestConfig(RequestConfig.custom().build());
         }
 
         return builder;

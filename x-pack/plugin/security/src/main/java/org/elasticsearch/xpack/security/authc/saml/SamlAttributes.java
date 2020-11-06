@@ -46,9 +46,6 @@ public class SamlAttributes {
         if (name != null && NameIDType.PERSISTENT.equals(name.format) && attributeId.equals(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE)) {
             return Collections.singletonList(name.value);
         }
-        if (Strings.isNullOrEmpty(attributeId)) {
-            return Collections.emptyList();
-        }
         return attributes.stream()
                 .filter(attr -> attributeId.equals(attr.name) || attributeId.equals(attr.friendlyName))
                 .flatMap(attr -> attr.values.stream())
@@ -79,7 +76,10 @@ public class SamlAttributes {
 
         SamlAttribute(Attribute attribute) {
             this(attribute.getName(), attribute.getFriendlyName(),
-                    attribute.getAttributeValues().stream().map(x -> x.getDOM().getTextContent()).collect(Collectors.toList()));
+                    attribute.getAttributeValues().stream()
+                        .map(x -> x.getDOM().getTextContent())
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList()));
         }
 
         SamlAttribute(String name, @Nullable String friendlyName, List<String> values) {

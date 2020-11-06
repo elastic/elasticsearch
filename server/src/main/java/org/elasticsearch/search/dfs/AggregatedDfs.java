@@ -28,17 +28,28 @@ import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public class AggregatedDfs implements Streamable {
+public class AggregatedDfs implements Writeable {
 
     private ObjectObjectHashMap<Term, TermStatistics> termStatistics;
     private ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics;
     private long maxDoc;
 
-    private AggregatedDfs() {
+    public AggregatedDfs(StreamInput in) throws IOException {
+        int size = in.readVInt();
+        termStatistics = HppcMaps.newMap(size);
+        for (int i = 0; i < size; i++) {
+            Term term = new Term(in.readString(), in.readBytesRef());
+            TermStatistics stats = new TermStatistics(in.readBytesRef(),
+                in.readVLong(),
+                DfsSearchResult.subOne(in.readVLong()));
+            termStatistics.put(term, stats);
+        }
+        fieldStatistics = DfsSearchResult.readFieldStats(in);
+        maxDoc = in.readVLong();
     }
 
     public AggregatedDfs(ObjectObjectHashMap<Term, TermStatistics> termStatistics,
@@ -58,27 +69,6 @@ public class AggregatedDfs implements Streamable {
 
     public long maxDoc() {
         return maxDoc;
-    }
-
-    public static AggregatedDfs readAggregatedDfs(StreamInput in) throws IOException {
-        AggregatedDfs result = new AggregatedDfs();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        termStatistics = HppcMaps.newMap(size);
-        for (int i = 0; i < size; i++) {
-            Term term = new Term(in.readString(), in.readBytesRef());
-            TermStatistics stats = new TermStatistics(in.readBytesRef(),
-                    in.readVLong(),
-                    DfsSearchResult.subOne(in.readVLong()));
-            termStatistics.put(term, stats);
-        }
-        fieldStatistics = DfsSearchResult.readFieldStats(in);
-        maxDoc = in.readVLong();
     }
 
     @Override

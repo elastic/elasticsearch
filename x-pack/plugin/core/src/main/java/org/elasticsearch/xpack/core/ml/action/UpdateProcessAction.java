@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -19,28 +19,19 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
+public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response> {
 
     public static final UpdateProcessAction INSTANCE = new UpdateProcessAction();
     public static final String NAME = "cluster:internal/xpack/ml/job/update/process";
 
     private UpdateProcessAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, UpdateProcessAction.Response::new);
     }
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
@@ -109,6 +100,7 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
     public static class Request extends JobTaskRequest<Request> {
 
         private ModelPlotConfig modelPlotConfig;
+        private PerPartitionCategorizationConfig perPartitionCategorizationConfig;
         private List<JobUpdate.DetectorUpdate> detectorUpdates;
         private MlFilter filter;
         private boolean updateScheduledEvents = false;
@@ -118,6 +110,9 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
+            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+                perPartitionCategorizationConfig = in.readOptionalWriteable(PerPartitionCategorizationConfig::new);
+            }
             if (in.readBoolean()) {
                 detectorUpdates = in.readList(JobUpdate.DetectorUpdate::new);
             }
@@ -131,6 +126,9 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalWriteable(modelPlotConfig);
+            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+                out.writeOptionalWriteable(perPartitionCategorizationConfig);
+            }
             boolean hasDetectorUpdates = detectorUpdates != null;
             out.writeBoolean(hasDetectorUpdates);
             if (hasDetectorUpdates) {
@@ -142,10 +140,11 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
             }
         }
 
-        public Request(String jobId, ModelPlotConfig modelPlotConfig, List<JobUpdate.DetectorUpdate> detectorUpdates, MlFilter filter,
-                       boolean updateScheduledEvents) {
+        public Request(String jobId, ModelPlotConfig modelPlotConfig, PerPartitionCategorizationConfig perPartitionCategorizationConfig,
+                       List<JobUpdate.DetectorUpdate> detectorUpdates, MlFilter filter, boolean updateScheduledEvents) {
             super(jobId);
             this.modelPlotConfig = modelPlotConfig;
+            this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
             this.detectorUpdates = detectorUpdates;
             this.filter = filter;
             this.updateScheduledEvents = updateScheduledEvents;
@@ -153,6 +152,10 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
 
         public ModelPlotConfig getModelPlotConfig() {
             return modelPlotConfig;
+        }
+
+        public PerPartitionCategorizationConfig getPerPartitionCategorizationConfig() {
+            return perPartitionCategorizationConfig;
         }
 
         public List<JobUpdate.DetectorUpdate> getDetectorUpdates() {
@@ -169,7 +172,8 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(getJobId(), modelPlotConfig, detectorUpdates, filter, updateScheduledEvents);
+            return Objects.hash(getJobId(), modelPlotConfig, perPartitionCategorizationConfig, detectorUpdates, filter,
+                updateScheduledEvents);
         }
 
         @Override
@@ -184,6 +188,7 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
 
             return Objects.equals(getJobId(), other.getJobId()) &&
                     Objects.equals(modelPlotConfig, other.modelPlotConfig) &&
+                    Objects.equals(perPartitionCategorizationConfig, other.perPartitionCategorizationConfig) &&
                     Objects.equals(detectorUpdates, other.detectorUpdates) &&
                     Objects.equals(filter, other.filter) &&
                     Objects.equals(updateScheduledEvents, other.updateScheduledEvents);

@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -265,9 +264,7 @@ public abstract class TransportTasksAction<
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
                                     public NodeTasksResponse read(StreamInput in) throws IOException {
-                                        NodeTasksResponse response = new NodeTasksResponse();
-                                        response.readFrom(in);
-                                        return response;
+                                        return new NodeTasksResponse(in);
                                     }
 
                                     @Override
@@ -278,11 +275,6 @@ public abstract class TransportTasksAction<
                                     @Override
                                     public void handleException(TransportException exp) {
                                         onFailure(idx, node.getId(), exp);
-                                    }
-
-                                    @Override
-                                    public String executor() {
-                                        return ThreadPool.Names.SAME;
                                     }
                                 });
                         }
@@ -329,19 +321,8 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
-            nodeOperation(request, new ActionListener<NodeTasksResponse>() {
-                @Override
-                public void onResponse(
-                        TransportTasksAction<OperationTask, TasksRequest, TasksResponse, TaskResponse>.NodeTasksResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Exception e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
+            nodeOperation(request, ActionListener.wrap(channel::sendResponse,
+                e -> {
                     try {
                         channel.sendResponse(e);
                     } catch (IOException e1) {
@@ -349,10 +330,9 @@ public abstract class TransportTasksAction<
                         logger.warn("Failed to send failure", e1);
                     }
                 }
-            });
+            ));
         }
     }
-
 
     private class NodeTaskRequest extends TransportRequest {
         private TasksRequest tasksRequest;
@@ -380,7 +360,24 @@ public abstract class TransportTasksAction<
         protected List<TaskOperationFailure> exceptions;
         protected List<TaskResponse> results;
 
-        NodeTasksResponse() {
+        NodeTasksResponse(StreamInput in) throws IOException {
+            super(in);
+            nodeId = in.readString();
+            int resultsSize = in.readVInt();
+            results = new ArrayList<>(resultsSize);
+            for (; resultsSize > 0; resultsSize--) {
+                final TaskResponse result = in.readBoolean() ? responseReader.read(in) : null;
+                results.add(result);
+            }
+            if (in.readBoolean()) {
+                int taskFailures = in.readVInt();
+                exceptions = new ArrayList<>(taskFailures);
+                for (int i = 0; i < taskFailures; i++) {
+                    exceptions.add(new TaskOperationFailure(in));
+                }
+            } else {
+                exceptions = null;
+            }
         }
 
         NodeTasksResponse(String nodeId,
@@ -400,29 +397,7 @@ public abstract class TransportTasksAction<
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            nodeId = in.readString();
-            int resultsSize = in.readVInt();
-            results = new ArrayList<>(resultsSize);
-            for (; resultsSize > 0; resultsSize--) {
-                final TaskResponse result = in.readBoolean() ? responseReader.read(in) : null;
-                results.add(result);
-            }
-            if (in.readBoolean()) {
-                int taskFailures = in.readVInt();
-                exceptions = new ArrayList<>(taskFailures);
-                for (int i = 0; i < taskFailures; i++) {
-                    exceptions.add(new TaskOperationFailure(in));
-                }
-            } else {
-                exceptions = null;
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(nodeId);
             out.writeVInt(results.size());
             for (TaskResponse result : results) {

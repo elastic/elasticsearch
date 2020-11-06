@@ -42,18 +42,8 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
                                           ThreadPool threadPool, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
         super(GetStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetStoredScriptRequest::new, indexNameExpressionResolver);
+            GetStoredScriptRequest::new, indexNameExpressionResolver, GetStoredScriptResponse::new, ThreadPool.Names.SAME);
         this.scriptService = scriptService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetStoredScriptResponse newResponse() {
-        return new GetStoredScriptResponse();
     }
 
     @Override
@@ -66,5 +56,4 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
     protected ClusterBlockException checkBlock(GetStoredScriptRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
-
 }

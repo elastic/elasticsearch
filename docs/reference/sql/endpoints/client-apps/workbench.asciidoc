@@ -3,15 +3,13 @@
 [[sql-client-apps-workbench]]
 === SQL Workbench/J
 
-[quote, https://www.sql-workbench.eu/]
-____
-https://www.sql-workbench.eu/[SQL Workbench/J] is a free, DBMS-independent, cross-platform SQL query tool.
-____
+You can use the {es} JDBC driver to access {es} data from SQL Workbench/J.
 
 IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 
+* https://www.sql-workbench.eu/[SQL Workbench/J] build 125 or higher
 * {es-sql} <<sql-jdbc, JDBC driver>>
 
 ==== Add {es} JDBC driver
@@ -20,15 +18,19 @@ Add the {es} JDBC driver to SQL Workbench/J through *Manage Drivers* either from
 
 image:images/sql/client-apps/workbench-1-manage-drivers.png[]
 
-Add a new entry to the list through the blank page button in the upper left corner. Add the JDBC jar, provide a name and click on the magnifier button to have the driver *Classname* picked-up automatically:
+Select *Elasticsearch* profile from the left-hand side (if it is missing check the SQL Workbench/J version or add a new entry to the list through the blank page button in the upper left corner):
 
-image:images/sql/client-apps/workbench-2-add-driver.png[]
+image:images/sql/client-apps/workbench-2-select-driver.png[]
+
+Add the JDBC jar (if the driver name hasn't been picked up already,  click on the magnifier button):
+
+image:images/sql/client-apps/workbench-3-add-jar.png[]
 
 ==== Create a new connection profile
 
 With the driver configured, create a new connection profile through *File* > *Connect Window* (or Alt+C shortcut):
 
-image:images/sql/client-apps/workbench-3-connection.png[]
+image:images/sql/client-apps/workbench-4-connection.png[]
 
 Select the previously configured driver and set the URL of your cluster using the JDBC syntax.
 Verify the connection through the *Test* button - a confirmation window should appear that everything is properly configured.
@@ -39,4 +41,4 @@ The setup is complete.
 
 SQL Workbench/J is ready to talk to {es} through SQL: click on the profile created to execute statements or explore the data:
 
-image:images/sql/client-apps/workbench-4-data.png[]
+image:images/sql/client-apps/workbench-5-data.png[]

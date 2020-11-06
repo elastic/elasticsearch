@@ -1,0 +1,20 @@
+[[data-rollup-transform]]
+= Roll up or transform your data
+
+[partintro]
+--
+
+{es} offers the following methods for manipulating your data:
+
+* <<xpack-rollup,Rolling up your historical data>>
++
+include::rollup/index.asciidoc[tag=rollup-intro]
+* <<transforms,Transforming your data>>
++
+include::transform/transforms.asciidoc[tag=transform-intro]
+
+--
+
+include::rollup/index.asciidoc[]
+
+include::transform/index.asciidoc[]

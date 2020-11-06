@@ -25,30 +25,44 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
 
-public final class RecoveryFileChunkRequest extends TransportRequest {
-    private boolean lastChunk;
-    private long recoveryId;
-    private ShardId shardId;
-    private long position;
-    private BytesReference content;
-    private StoreFileMetaData metaData;
-    private long sourceThrottleTimeInNanos;
+public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
+    private final boolean lastChunk;
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final long position;
+    private final BytesReference content;
+    private final StoreFileMetadata metadata;
+    private final long sourceThrottleTimeInNanos;
 
-    private int totalTranslogOps;
+    private final int totalTranslogOps;
 
-    public RecoveryFileChunkRequest() {
+    public RecoveryFileChunkRequest(StreamInput in) throws IOException {
+        super(in);
+        recoveryId = in.readLong();
+        shardId = new ShardId(in);
+        String name = in.readString();
+        position = in.readVLong();
+        long length = in.readVLong();
+        String checksum = in.readString();
+        content = in.readBytesReference();
+        Version writtenBy = Lucene.parseVersionLenient(in.readString(), null);
+        assert writtenBy != null;
+        metadata = new StoreFileMetadata(name, length, checksum, writtenBy);
+        lastChunk = in.readBoolean();
+        totalTranslogOps = in.readVInt();
+        sourceThrottleTimeInNanos = in.readLong();
     }
 
-    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content,
-                                    boolean lastChunk, int totalTranslogOps, long sourceThrottleTimeInNanos) {
+    public RecoveryFileChunkRequest(long recoveryId, final long requestSeqNo, ShardId shardId, StoreFileMetadata metadata, long position,
+                                    BytesReference content, boolean lastChunk, int totalTranslogOps, long sourceThrottleTimeInNanos) {
+        super(requestSeqNo);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
-        this.metaData = metaData;
+        this.metadata = metadata;
         this.position = position;
         this.content = content;
         this.lastChunk = lastChunk;
@@ -65,19 +79,15 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
     }
 
     public String name() {
-        return metaData.name();
+        return metadata.name();
     }
 
     public long position() {
         return position;
     }
 
-    public String checksum() {
-        return metaData.checksum();
-    }
-
     public long length() {
-        return metaData.length();
+        return metadata.length();
     }
 
     public BytesReference content() {
@@ -93,34 +103,16 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
-        String name = in.readString();
-        position = in.readVLong();
-        long length = in.readVLong();
-        String checksum = in.readString();
-        content = in.readBytesReference();
-        Version writtenBy = Lucene.parseVersionLenient(in.readString(), null);
-        assert writtenBy != null;
-        metaData = new StoreFileMetaData(name, length, checksum, writtenBy);
-        lastChunk = in.readBoolean();
-        totalTranslogOps = in.readVInt();
-        sourceThrottleTimeInNanos = in.readLong();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
-        out.writeString(metaData.name());
+        out.writeString(metadata.name());
         out.writeVLong(position);
-        out.writeVLong(metaData.length());
-        out.writeString(metaData.checksum());
+        out.writeVLong(metadata.length());
+        out.writeString(metadata.checksum());
         out.writeBytesReference(content);
-        out.writeString(metaData.writtenBy().toString());
+        out.writeString(metadata.writtenBy().toString());
         out.writeBoolean(lastChunk);
         out.writeVInt(totalTranslogOps);
         out.writeLong(sourceThrottleTimeInNanos);
@@ -133,8 +125,8 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
                 ", length=" + length();
     }
 
-    public StoreFileMetaData metadata() {
-        return metaData;
+    public StoreFileMetadata metadata() {
+        return metadata;
     }
 
     /**

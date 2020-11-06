@@ -24,16 +24,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -54,36 +53,24 @@ import java.util.function.IntFunction;
  * Main class to initiate resizing (shrink / split) an index into a new index
  */
 public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, ResizeResponse> {
-    private final MetaDataCreateIndexService createIndexService;
+    private final MetadataCreateIndexService createIndexService;
     private final Client client;
 
     @Inject
     public TransportResizeAction(TransportService transportService, ClusterService clusterService,
-                                 ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
+                                 ThreadPool threadPool, MetadataCreateIndexService createIndexService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
         this(ResizeAction.NAME, transportService, clusterService, threadPool, createIndexService, actionFilters,
             indexNameExpressionResolver, client);
     }
 
     protected TransportResizeAction(String actionName, TransportService transportService, ClusterService clusterService,
-                                 ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
+                                 ThreadPool threadPool, MetadataCreateIndexService createIndexService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
-        super(actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            ResizeRequest::new);
+        super(actionName, transportService, clusterService, threadPool, actionFilters, ResizeRequest::new, indexNameExpressionResolver,
+                ResizeResponse::new, ThreadPool.Names.SAME);
         this.createIndexService = createIndexService;
         this.client = client;
-    }
-
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ResizeResponse newResponse() {
-        return new ResizeResponse();
     }
 
     @Override
@@ -98,25 +85,18 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         // there is no need to fetch docs stats for split but we keep it simple and do it anyway for simplicity of the code
         final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
         final String targetIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
-        client.admin().indices().prepareStats(sourceIndex).clear().setDocs(true).execute(new ActionListener<IndicesStatsResponse>() {
-            @Override
-            public void onResponse(IndicesStatsResponse indicesStatsResponse) {
+        client.admin().indices().prepareStats(sourceIndex).clear().setDocs(true).execute(
+            ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
                 CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state,
-                    (i) -> {
+                    i -> {
                         IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                         return shard == null ? null : shard.getPrimary().getDocs();
                     }, sourceIndex, targetIndex);
                 createIndexService.createIndex(
-                    updateRequest, ActionListener.map(listener,
+                    updateRequest, ActionListener.map(delegatedListener,
                         response -> new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(), updateRequest.index()))
                 );
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+            }));
 
     }
 
@@ -124,23 +104,30 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final ResizeRequest resizeRequest, final ClusterState state
         , final IntFunction<DocsStats> perShardDocStats, String sourceIndexName, String targetIndexName) {
         final CreateIndexRequest targetIndex = resizeRequest.getTargetIndexRequest();
-        final IndexMetaData metaData = state.metaData().index(sourceIndexName);
-        if (metaData == null) {
+        final IndexMetadata metadata = state.metadata().index(sourceIndexName);
+        if (metadata == null) {
             throw new IndexNotFoundException(sourceIndexName);
         }
-        final Settings targetIndexSettings = Settings.builder().put(targetIndex.settings())
-            .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
+        final Settings.Builder targetIndexSettingsBuilder = Settings.builder().put(targetIndex.settings())
+            .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
+        targetIndexSettingsBuilder.remove(IndexMetadata.SETTING_HISTORY_UUID);
+        final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
         final int numShards;
-        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
-            numShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
+        if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
+            numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
         } else {
-            assert resizeRequest.getResizeType() == ResizeType.SHRINK : "split must specify the number of shards explicitly";
-            numShards = 1;
+            assert resizeRequest.getResizeType() != ResizeType.SPLIT : "split must specify the number of shards explicitly";
+            if (resizeRequest.getResizeType() == ResizeType.SHRINK) {
+                numShards = 1;
+            } else {
+                assert resizeRequest.getResizeType() == ResizeType.CLONE;
+                numShards = metadata.getNumberOfShards();
+            }
         }
 
         for (int i = 0; i < numShards; i++) {
             if (resizeRequest.getResizeType() == ResizeType.SHRINK) {
-                Set<ShardId> shardIds = IndexMetaData.selectShrinkShards(i, metaData, numShards);
+                Set<ShardId> shardIds = IndexMetadata.selectShrinkShards(i, metadata, numShards);
                 long count = 0;
                 for (ShardId id : shardIds) {
                     DocsStats docsStats = perShardDocStats.apply(id.id());
@@ -152,24 +139,26 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                             + "] docs - too many documents in shards " + shardIds);
                     }
                 }
-            } else {
-                Objects.requireNonNull(IndexMetaData.selectSplitShard(i, metaData, numShards));
+            } else if (resizeRequest.getResizeType() == ResizeType.SPLIT) {
+                Objects.requireNonNull(IndexMetadata.selectSplitShard(i, metadata, numShards));
                 // we just execute this to ensure we get the right exceptions if the number of shards is wrong or less then etc.
+            } else {
+                Objects.requireNonNull(IndexMetadata.selectCloneShard(i, metadata, numShards));
+                // we just execute this to ensure we get the right exceptions if the number of shards is wrong etc.
             }
         }
 
-        if (IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexSettings)) {
+        if (IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexSettings)) {
             throw new IllegalArgumentException("cannot provide a routing partition size value when resizing an index");
-
         }
-        if (IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(targetIndexSettings)) {
+        if (IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(targetIndexSettings)) {
             // if we have a source index with 1 shards it's legal to set this
-            final boolean splitFromSingleShards = resizeRequest.getResizeType() == ResizeType.SPLIT && metaData.getNumberOfShards() == 1;
+            final boolean splitFromSingleShards = resizeRequest.getResizeType() == ResizeType.SPLIT && metadata.getNumberOfShards() == 1;
             if (splitFromSingleShards == false) {
                 throw new IllegalArgumentException("cannot provide index.number_of_routing_shards on resize");
             }
         }
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(metaData.getSettings()) &&
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(metadata.getSettings()) &&
             IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(targetIndexSettings) &&
             IndexSettings.INDEX_SOFT_DELETES_SETTING.get(targetIndexSettings) == false) {
             throw new IllegalArgumentException("Can't disable [index.soft_deletes.enabled] setting on resize");
@@ -180,7 +169,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         settingsBuilder.put("index.number_of_shards", numShards);
         targetIndex.settings(settingsBuilder);
 
-        return new CreateIndexClusterStateUpdateRequest(targetIndex, cause, targetIndex.index(), targetIndexName)
+        return new CreateIndexClusterStateUpdateRequest(cause, targetIndex.index(), targetIndexName)
                 // mappings are updated on the node when creating in the shards, this prevents race-conditions since all mapping must be
                 // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we
                 // miss the mappings for everything is corrupted and hard to debug
@@ -189,7 +178,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                 .settings(targetIndex.settings())
                 .aliases(targetIndex.aliases())
                 .waitForActiveShards(targetIndex.waitForActiveShards())
-                .recoverFrom(metaData.getIndex())
+                .recoverFrom(metadata.getIndex())
                 .resizeType(resizeRequest.getResizeType())
                 .copySettings(resizeRequest.getCopySettings() == null ? false : resizeRequest.getCopySettings());
     }

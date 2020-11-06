@@ -20,17 +20,18 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
@@ -41,8 +42,8 @@ public class IndexStorePluginTests extends ESTestCase {
     public static class BarStorePlugin extends Plugin implements IndexStorePlugin {
 
         @Override
-        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
-            return Collections.singletonMap("store", IndexStore::new);
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Collections.singletonMap("store", new FsDirectoryFactory());
         }
 
     }
@@ -50,8 +51,8 @@ public class IndexStorePluginTests extends ESTestCase {
     public static class FooStorePlugin extends Plugin implements IndexStorePlugin {
 
         @Override
-        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
-            return Collections.singletonMap("store", IndexStore::new);
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Collections.singletonMap("store", new FsDirectoryFactory());
         }
 
     }
@@ -65,11 +66,43 @@ public class IndexStorePluginTests extends ESTestCase {
         }
 
         @Override
-        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
-            return Collections.singletonMap(TYPE, IndexStore::new);
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Collections.singletonMap(TYPE, new FsDirectoryFactory());
         }
 
     }
+
+    public static class FooCustomRecoveryStore extends Plugin implements IndexStorePlugin {
+        @Override
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Collections.singletonMap("store-a", new FsDirectoryFactory());
+        }
+
+        @Override
+        public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+            return Collections.singletonMap("recovery-type", new RecoveryFactory());
+        }
+    }
+
+    public static class BarCustomRecoveryStore extends Plugin implements IndexStorePlugin {
+        @Override
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Collections.singletonMap("store-b", new FsDirectoryFactory());
+        }
+
+        @Override
+        public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+            return Collections.singletonMap("recovery-type", new RecoveryFactory());
+        }
+    }
+
+    public static class RecoveryFactory implements IndexStorePlugin.RecoveryStateFactory {
+        @Override
+        public RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, DiscoveryNode sourceNode) {
+            return new RecoveryState(shardRouting, targetNode, sourceNode);
+        }
+    }
+
 
     public void testIndexStoreFactoryConflictsWithBuiltInIndexStoreType() {
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
@@ -86,12 +119,25 @@ public class IndexStorePluginTests extends ESTestCase {
         if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
             assertThat(e, hasToString(matches(
                     "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values " +
-                            "org.elasticsearch.plugins.IndexStorePluginTests\\$BarStorePlugin.* " +
-                            "and org.elasticsearch.plugins.IndexStorePluginTests\\$FooStorePlugin.*\\)")));
+                            "org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+ " +
+                            "and org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)")));
         } else {
             assertThat(e, hasToString(matches(
-                    "java.lang.IllegalStateException: Duplicate key org.elasticsearch.plugins.IndexStorePluginTests\\$BarStorePlugin.*")));
+                    "java.lang.IllegalStateException: Duplicate key org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+")));
         }
     }
 
+    public void testDuplicateIndexStoreRecoveryStateFactories() {
+        final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class, () -> new MockNode(settings, Arrays.asList(FooCustomRecoveryStore.class,
+                                                                                    BarCustomRecoveryStore.class)));
+        if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
+            assertThat(e.getMessage(), containsString("Duplicate key recovery-type"));
+        } else {
+            assertThat(e, hasToString(matches(
+                "java.lang.IllegalStateException: Duplicate key " +
+                    "org.elasticsearch.plugins.IndexStorePluginTests\\$RecoveryFactory@[\\w\\d]+")));
+        }
+    }
 }

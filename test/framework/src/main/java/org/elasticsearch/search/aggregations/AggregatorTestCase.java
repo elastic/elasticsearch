@@ -230,7 +230,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Create a {@linkplain SearchContext} for testing an {@link Aggregator}.
      */
-    protected SearchContext createSearchContext(
+    protected SearchContext createSearchContext(  // TODO replace me with AggregationContext
         IndexSearcher indexSearcher,
         Query query,
         MappedFieldType... fieldTypes
@@ -239,7 +239,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return createSearchContext(indexSearcher, createIndexSettings(), query, breakerService, fieldTypes);
     }
 
-    protected SearchContext createSearchContext(IndexSearcher indexSearcher,
+    protected SearchContext createSearchContext(IndexSearcher indexSearcher, // TODO replace me with AggregationContext
                                                 IndexSettings indexSettings,
                                                 Query query,
                                                 CircuitBreakerService circuitBreakerService,

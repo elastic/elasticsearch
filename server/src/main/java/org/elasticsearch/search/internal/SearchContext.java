@@ -223,7 +223,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SimilarityService similarityService();
 
-    public abstract BigArrays bigArrays();
+    public abstract BigArrays bigArrays();  // TODO this is only used in aggs land and should be contained
 
     public abstract BitsetFilterCache bitsetFilterCache();
 

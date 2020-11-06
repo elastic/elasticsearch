@@ -47,19 +47,23 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.http.AbstractHttpServerTransport.resolvePublishPort;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class AbstractHttpServerTransportTests extends ESTestCase {
 
@@ -170,6 +174,63 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.dispatchRequest(null, null, new Exception());
             assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
             assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
+        }
+    }
+
+    public void testIncorrectHeaderHandling() {
+
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        try (AbstractHttpServerTransport transport =
+                 new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(),
+                     new HttpServerTransport.Dispatcher() {
+                         @Override
+                         public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                             Assert.fail();
+                         }
+
+                         @Override
+                         public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                             assertThat(cause, instanceOf(RestRequest.MediaTypeHeaderException.class));
+                         }
+                     }, clusterSettings) {
+                     @Override
+                     protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                         return null;
+                     }
+
+                     @Override
+                     protected void doStart() {
+                     }
+
+                     @Override
+                     protected void stopInternal() {
+                     }
+
+                     @Override
+                     public HttpStats stats() {
+                         return null;
+                     }
+                 }) {
+
+            {
+                Map<String, List<String>> headers = new HashMap<>();
+                headers.put("Accept", Collections.singletonList("incorrectheader"));
+
+                FakeRestRequest.FakeHttpRequest fakeHttpRequest =
+                    new FakeRestRequest.FakeHttpRequest(RestRequest.Method.GET, "/", null, headers);
+
+                transport.incomingRequest(fakeHttpRequest, null);
+            }
+            {
+                Map<String, List<String>> headers = new HashMap<>();
+                headers.put("Accept", Collections.singletonList("application/json"));
+                headers.put("Content-Type", Collections.singletonList("incorrectheader"));
+
+                FakeRestRequest.FakeHttpRequest fakeHttpRequest =
+                    new FakeRestRequest.FakeHttpRequest(RestRequest.Method.GET, "/", null, headers);
+
+                transport.incomingRequest(fakeHttpRequest, null);
+            }
         }
     }
 

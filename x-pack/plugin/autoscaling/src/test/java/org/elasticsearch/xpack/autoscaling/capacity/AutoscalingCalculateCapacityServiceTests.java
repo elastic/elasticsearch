@@ -221,23 +221,12 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             new TreeMap<>(
                 Map.of(
                     FixedAutoscalingDeciderService.NAME,
-                    Settings.builder()
-                        .put(
-                            FixedAutoscalingDeciderService.STORAGE.getKey(),
-                            value
-                        )
-                        .build()
+                    Settings.builder().put(FixedAutoscalingDeciderService.STORAGE.getKey(), value).build()
                 )
             )
         );
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
-        assertThat(
-            exception.getMessage(),
-            containsString("[" + value + "]")
-        );
-        assertThat(
-            exception.getMessage(),
-            containsString("[" + FixedAutoscalingDeciderService.STORAGE.getKey() + "]")
-        );
+        assertThat(exception.getMessage(), containsString("[" + value + "]"));
+        assertThat(exception.getMessage(), containsString("[" + FixedAutoscalingDeciderService.STORAGE.getKey() + "]"));
     }
 }

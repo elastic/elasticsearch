@@ -70,7 +70,7 @@ public class ParsedMediaType {
      * @throws IllegalArgumentException if the header is malformed
      */
     public static ParsedMediaType parseMediaType(String headerValue) {
-        if (DEFAULT_ACCEPT_STRING.equals(headerValue) || "*/*".equals(headerValue)) {
+        if (isMediaRange(headerValue) || "*/*".equals(headerValue)) {
             return null;
         }
         if (headerValue != null) {
@@ -106,6 +106,11 @@ public class ParsedMediaType {
             }
         }
         return null;
+    }
+
+    // simplistic check for media ranges. do not validate if this is a correct header
+    private static boolean isMediaRange(String headerValue) {
+        return headerValue.contains(",");
     }
 
     /**

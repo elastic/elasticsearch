@@ -296,3 +296,15 @@ SQL::
 * Allow unescaped wildcard (*) in LIKE pattern {es-pull}63428[#63428] (issue: {es-issue}55108[#55108])
 * Validate integer paramete in string functions {es-pull}63728[#63728] (issue: {es-issue}58923[#58923])
 * Remove filter from field_caps requests {es-pull}63840[#63840] (issue: {es-issue}63832[#63832])
+
+
+
+[[upgrade-7.10.0]]
+[discrete]
+=== Upgrades
+
+Infra/Packaging::
+* Upgrade bundled JDK to 15.0.1 and switch to AdoptOpenJDK {es-pull}64253[#64253]
+
+Store::
+* Upgrade to Lucene-8.7.0 {es-pull}64532[#64532]

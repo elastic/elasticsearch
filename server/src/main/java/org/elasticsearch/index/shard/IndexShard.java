@@ -45,7 +45,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -1097,28 +1096,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine engine = getEngine();
         engine.forceMerge(forceMerge.flush(), forceMerge.maxNumSegments(),
             forceMerge.onlyExpungeDeletes(), false, false, forceMerge.forceMergeUUID());
-    }
-
-    /**
-     * Upgrades the shard to the current version of Lucene and returns the minimum segment version
-     */
-    public org.apache.lucene.util.Version upgrade(UpgradeRequest upgrade) throws IOException {
-        verifyActive();
-        if (logger.isTraceEnabled()) {
-            logger.trace("upgrade with {}", upgrade);
-        }
-        org.apache.lucene.util.Version previousVersion = minimumCompatibleVersion();
-        // we just want to upgrade the segments, not actually forge merge to a single segment
-        final Engine engine = getEngine();
-        engine.forceMerge(true,  // we need to flush at the end to make sure the upgrade is durable
-            Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
-            false, true, upgrade.upgradeOnlyAncientSegments(), null);
-        org.apache.lucene.util.Version version = minimumCompatibleVersion();
-        if (logger.isTraceEnabled()) {
-            logger.trace("upgraded segments for {} from version {} to version {}", shardId, previousVersion, version);
-        }
-
-        return version;
     }
 
     public org.apache.lucene.util.Version minimumCompatibleVersion() {

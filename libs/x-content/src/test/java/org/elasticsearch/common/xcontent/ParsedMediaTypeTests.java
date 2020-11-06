@@ -81,14 +81,6 @@ public class ParsedMediaTypeTests extends ESTestCase {
             ParsedMediaType.parseMediaType(mediaType + "; compatible-with=123;charset=UTF-8").getParameters());
     }
 
-    public void testWhiteSpaces() {
-        //be lenient with white space since it can be really hard to troubleshoot
-        String mediaType = "  application/foo  ";
-        ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaType + "    ;  compatible-with =  123  ;  charset=UTF-8");
-        assertEquals("application/foo", parsedMediaType.mediaTypeWithoutParameters());
-        assertEquals((Map.of("charset", "utf-8", "compatible-with", "123")), parsedMediaType.getParameters());
-    }
-
     public void testEmptyParams() {
         String mediaType = "application/foo";
         ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaType + randomFrom("", " ", ";", ";;", ";;;"));
@@ -105,6 +97,18 @@ public class ParsedMediaTypeTests extends ESTestCase {
         exception = expectThrows(IllegalArgumentException.class,
             () -> ParsedMediaType.parseMediaType(mediaType + "; char=set=unknown"));
         assertThat(exception.getMessage(), equalTo("invalid parameters for header [application/foo; char=set=unknown]"));
+
+        // do not allow white space in parameters between `=`
+        exception = expectThrows(IllegalArgumentException.class,
+            () -> ParsedMediaType.parseMediaType(mediaType + "    ;  compatible-with =  123  ;  charset=UTF-8"));
+        assertThat(exception.getMessage(),
+            equalTo("invalid parameters for header [application/foo    ;  compatible-with =  123  ;  charset=UTF-8]"));
+
+        expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(mediaType + ";k =y"));
+        expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(mediaType + ";k= y"));
+        expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(mediaType + ";k = y"));
+        expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(mediaType + ";= y"));
+        expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(mediaType + ";k="));
     }
 
     public void testDefaultAcceptHeader() {

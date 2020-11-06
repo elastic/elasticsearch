@@ -33,11 +33,6 @@ import java.util.regex.Pattern;
  * @see MediaTypeRegistry
  */
 public class ParsedMediaType {
-    // TODO this should be removed once strict parsing is implemented https://github.com/elastic/elasticsearch/issues/63080
-    // sun.net.www.protocol.http.HttpURLConnection sets a default Accept header if it was not provided on a request.
-    // For this value Parsing returns null.
-    public static final String DEFAULT_ACCEPT_STRING = "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2";
-
     private final String type;
     private final String subType;
     private final Map<String, String> parameters;

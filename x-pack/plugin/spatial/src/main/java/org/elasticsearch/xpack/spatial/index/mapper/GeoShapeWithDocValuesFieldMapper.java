@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.AbstractLatLonShapeIndexFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.util.Arrays;
@@ -119,16 +118,12 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     @Override
     @SuppressWarnings({"rawtypes", "unchecked"})
     protected void addDocValuesFields(String name, Geometry shape, List<IndexableField> fields, ParseContext context) {
-        CentroidCalculator calculator = new CentroidCalculator(shape);
-        BinaryGeoShapeDocValuesField docValuesField =
-            (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
+        BinaryGeoShapeDocValuesField docValuesField = (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
         if (docValuesField == null) {
-            docValuesField = new BinaryGeoShapeDocValuesField(name, fields, calculator);
+            docValuesField = new BinaryGeoShapeDocValuesField(name);
             context.doc().addWithKey(name, docValuesField);
-
-        } else {
-            docValuesField.add(fields, calculator);
         }
+        docValuesField.add(fields, shape);
     }
 
     public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType implements GeoShapeQueryable {

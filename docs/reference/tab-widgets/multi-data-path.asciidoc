@@ -1,4 +1,6 @@
 // tag::unix[]
+Linux and macOS installations support multiple Unix-style paths in `path.data`:
+
 [source,yaml]
 ----
 path:
@@ -11,12 +13,14 @@ path:
 
 
 // tag::win[]
+Windows installations support multiple traditional DOS and Microsoft UNC paths in `path.data`:
+
 [source,yaml]
 ----
 path:
   data:
     - "C:\\Elastic\\Elasticsearch_1"
-    - "C:\\Elastic\\Elasticsearch_2"
-    - "C:\\Elastic\\Elasticsearch_3"
+    - "\\\\MY_SERVER\\Elastic\\Elasticsearch_2"
+    - "E:\\Elastic\\Elasticsearch_3"
 ----
 // end::win[]

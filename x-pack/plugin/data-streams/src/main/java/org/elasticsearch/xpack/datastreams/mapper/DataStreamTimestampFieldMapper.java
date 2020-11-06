@@ -87,7 +87,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper build(BuilderContext context) {
+        public MetadataFieldMapper build() {
             return new DataStreamTimestampFieldMapper(new TimestampFieldType(), enabled.getValue());
         }
     }

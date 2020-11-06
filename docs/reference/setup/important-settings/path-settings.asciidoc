@@ -5,14 +5,14 @@
 For <<targz,macOS `.tar.gz`>>, <<targz,Linux `.tar.gz`>>, and
 <<zip-windows,Windows `.zip`>> installations, {es} writes data and logs to the
 respective `data` and `logs` subdirectories of `$ES_HOME` by default. However,
-these files risk deletion during an upgrade.
+files in `$ES_HOME` risk deletion during an upgrade.
 
 In production, we strongly recommend you use the `path.data` and `path.logs`
 settings in `elasticsearch.yml` to write data and logs to locations outside of
 `$ES_HOME`.
 
 TIP: <<docker,Docker>>, <<deb,Debian>>, <<rpm,RPM>>, <<brew,macOS Homebrew>>,
-and <<windows,Windows `.msi`>> installations already use data and log locations
+and <<windows,Windows `.msi`>> installations write data and log to locations
 outside of `$ES_HOME` by default.
 
 include::{es-repo-dir}/tab-widgets/code.asciidoc[]

@@ -6,16 +6,12 @@
 
 package org.elasticsearch.xpack.spatial.index.mapper;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
@@ -56,15 +52,8 @@ public abstract class CartesianFieldMapperTests  extends MapperTestCase {
 
     public void testWKT() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "POINT (2000.1 305.6)")
-                .endObject()),
-            XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("field"), notNullValue());
+        ParsedDocument doc = mapper.parse(source(b -> b.field(FIELD_NAME, "POINT (2000.1 305.6)")));
+        assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
     }
 
 
@@ -74,70 +63,67 @@ public abstract class CartesianFieldMapperTests  extends MapperTestCase {
             b.field("ignore_malformed", true);
         }));
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field(FIELD_NAME, "1234.333").endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "1234.333"))).rootDoc().getField(FIELD_NAME), nullValue());
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("lat", "-").field("x", 1.3).endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(
+            source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("y", "-").endObject())).rootDoc().getField(FIELD_NAME),
+            nullValue()
+        );
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("lat", 1.3).field("y", "-").endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(
+            source(b -> b.startObject(FIELD_NAME).field("x", "-").field("y", 1.3).endObject())).rootDoc().getField(FIELD_NAME),
+            nullValue()
+        );
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field(FIELD_NAME, "-,1.3").endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "-,1.3"))).rootDoc().getField(FIELD_NAME), nullValue());
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field(FIELD_NAME, "1.3,-").endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "1.3,-"))).rootDoc().getField(FIELD_NAME), nullValue());
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("x", "NaN").field("y", "NaN").endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(
+            source(b -> b.startObject(FIELD_NAME).field("lon", 1.3).field("y", 1.3).endObject())).rootDoc().getField(FIELD_NAME),
+            nullValue()
+        );
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("lat", 12).field("y", "NaN").endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(
+            source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("lat", 1.3).endObject())).rootDoc().getField(FIELD_NAME),
+            nullValue()
+        );
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("x", "NaN").field("y", 10).endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(
+            source(b -> b.startObject(FIELD_NAME).field("x", "NaN").field("y", "NaN").endObject())).rootDoc().getField(FIELD_NAME),
+            nullValue()
+        );
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field(FIELD_NAME, "NaN,NaN").endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(
+            source(b -> b.startObject(FIELD_NAME).field("x", "NaN").field("y", 1.3).endObject())).rootDoc().getField(FIELD_NAME),
+            nullValue()
+        );
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field(FIELD_NAME, "10,NaN").endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(
+            source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("y", "NaN").endObject())).rootDoc().getField(FIELD_NAME),
+            nullValue()
+        );
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field(FIELD_NAME, "NaN,12").endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(
+            source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("y", "NaN").endObject())).rootDoc().getField(FIELD_NAME),
+            nullValue()
+        );
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startObject(FIELD_NAME).nullField("y").field("x", 1).endObject().endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "NaN,NaN"))).rootDoc().getField(FIELD_NAME), nullValue());
 
-        assertThat(mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startObject(FIELD_NAME).nullField("x").nullField("y").endObject().endObject()
-            ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "10,NaN"))).rootDoc().getField(FIELD_NAME), nullValue());
+
+        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "NaN,12"))).rootDoc().getField(FIELD_NAME), nullValue());
+
+        assertThat(mapper.parse(
+            source(b -> b.startObject(FIELD_NAME).field("x", 1.3).nullField("y").endObject())).rootDoc().getField(FIELD_NAME),
+            nullValue()
+        );
+
+        assertThat(mapper.parse(
+            source(b -> b.startObject(FIELD_NAME).nullField("x").field("y", 1.3).endObject())).rootDoc().getField(FIELD_NAME),
+            nullValue()
+        );
     }
 
     public void testZValue() throws IOException {
@@ -146,12 +132,7 @@ public abstract class CartesianFieldMapperTests  extends MapperTestCase {
             b.field("ignore_z_value", true);
         }));
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test1", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .field(FIELD_NAME, "POINT (2000.1 305.6 34567.33)")
-                .endObject()),
-            XContentType.JSON));
+        ParsedDocument doc = mapper.parse(source(b -> b.field(FIELD_NAME, "POINT (2000.1 305.6 34567.33)")));
 
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
 
@@ -161,12 +142,7 @@ public abstract class CartesianFieldMapperTests  extends MapperTestCase {
         }));
 
         MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapper2.parse(new SourceToParse("test2", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(FIELD_NAME, "POINT (2000.1 305.6 34567.33)")
-                    .endObject()),
-                XContentType.JSON))
+            () -> mapper2.parse(source(b -> b.field(FIELD_NAME, "POINT (2000.1 305.6 34567.33)")))
         );
         assertThat(e.getMessage(), containsString("failed to parse field [" + FIELD_NAME + "] of type"));
         assertThat(e.getRootCause().getMessage(),

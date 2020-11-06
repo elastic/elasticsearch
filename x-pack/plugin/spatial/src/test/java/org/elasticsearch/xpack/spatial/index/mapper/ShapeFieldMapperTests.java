@@ -7,11 +7,8 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -205,22 +202,20 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        BytesReference arrayedDoc = BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startArray("shape")
-            .startObject()
-            .field("type", "Point")
-            .startArray("coordinates").value(176.0).value(15.0).endArray()
-            .endObject()
-            .startObject()
-            .field("type", "Point")
-            .startArray("coordinates").value(76.0).value(-15.0).endArray()
-            .endObject()
-            .endArray()
-            .endObject()
+        SourceToParse sourceToParse = source(b -> {
+                b.startArray("shape")
+                    .startObject()
+                    .field("type", "Point")
+                    .startArray("coordinates").value(176.0).value(15.0).endArray()
+                    .endObject()
+                    .startObject()
+                    .field("type", "Point")
+                    .startArray("coordinates").value(76.0).value(-15.0).endArray()
+                    .endObject()
+                    .endArray();
+            }
         );
 
-        SourceToParse sourceToParse = new SourceToParse("test", "1", arrayedDoc, XContentType.JSON);
         ParsedDocument document = mapper.parse(sourceToParse);
         assertThat(document.docs(), hasSize(1));
         IndexableField[] fields = document.docs().get(0).getFields("shape.type");
@@ -236,7 +231,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         }
     }
 
-    public String toXContentString(ShapeFieldMapper mapper) throws IOException {
+    public String toXContentString(ShapeFieldMapper mapper)  {
         return toXContentString(mapper, true);
     }
 }

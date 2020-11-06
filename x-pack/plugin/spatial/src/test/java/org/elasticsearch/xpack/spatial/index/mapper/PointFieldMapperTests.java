@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -49,14 +47,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.field("type", "point");
             b.field("store", true);
         }));
-
-        SourceToParse sourceToParse = new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(FIELD_NAME).field("x", 2000.1).field("y", 305.6).endObject()
-                .endObject()),
-            XContentType.JSON);
-
+        SourceToParse sourceToParse = source(b -> b.startObject(FIELD_NAME).field("x", 2000.1).field("y", 305.6).endObject());
         ParsedDocument doc = mapper.parse(sourceToParse);
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
     }
@@ -68,16 +59,12 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.field("store", true);
         }));
 
-
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startArray(FIELD_NAME)
-                        .startObject().field("x", 1.2).field("y", 1.3).endObject()
-                        .startObject().field("x", 1.4).field("y", 1.5).endObject()
-                        .endArray()
-                        .endObject()),
-                XContentType.JSON));
+        SourceToParse sourceToParse = source(b ->
+             b.startArray(FIELD_NAME)
+            .startObject().field("x", 1.2).field("y", 1.3).endObject()
+            .startObject().field("x", 1.4).field("y", 1.5).endObject()
+            .endArray());
+        ParsedDocument doc = mapper.parse(sourceToParse);
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
         assertThat(doc.rootDoc().getFields(FIELD_NAME), notNullValue());
@@ -85,36 +72,21 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     }
 
     public void testXYInOneValue() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", "point");
-        }));
-
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field(FIELD_NAME, "1.2,1.3")
-                        .endObject()),
-                XContentType.JSON));
-
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        SourceToParse sourceToParse = source(b -> b.field(FIELD_NAME, "1.2,1.3"));
+        ParsedDocument doc = mapper.parse(sourceToParse);
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
     }
 
 
     public void testInOneValueStored() throws Exception {
-
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "point");
             b.field("store", true);
         }));
-
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("point", "1.2,1.3")
-                        .endObject()),
-                XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("point"), notNullValue());
+        SourceToParse sourceToParse = source(b -> b.field(FIELD_NAME, "1.2,1.3"));
+        ParsedDocument doc = mapper.parse(sourceToParse);
+        assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
     }
 
     public void testXYInOneValueArray() throws Exception {
@@ -123,16 +95,8 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.field("doc_values", false);
             b.field("store", true);
         }));
-
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startArray(FIELD_NAME)
-                        .value("1.2,1.3")
-                        .value("1.4,1.5")
-                        .endArray()
-                        .endObject()),
-                XContentType.JSON));
+        SourceToParse sourceToParse = source(b -> b.startArray(FIELD_NAME).value("1.2,1.3").value("1.4,1.5").endArray());
+        ParsedDocument doc = mapper.parse(sourceToParse);
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
         assertThat(doc.rootDoc().getFields(FIELD_NAME), notNullValue());
@@ -141,14 +105,8 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
 
     public void testArray() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startArray(FIELD_NAME).value(1.3).value(1.2).endArray()
-                        .endObject()),
-                XContentType.JSON));
-
+        SourceToParse sourceToParse = source(b -> b.startArray(FIELD_NAME).value(1.3).value(1.2).endArray());
+        ParsedDocument doc = mapper.parse(sourceToParse);
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
     }
 
@@ -174,14 +132,8 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.field("type", "point");
             b.field("store", true);
         }));
-
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startArray(FIELD_NAME).value(1.3).value(1.2).endArray()
-                        .endObject()),
-                XContentType.JSON));
-
+        SourceToParse sourceToParse = source(b -> b.startArray(FIELD_NAME).value(1.3).value(1.2).endArray());
+        ParsedDocument doc = mapper.parse(sourceToParse);
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
         assertThat(doc.rootDoc().getFields(FIELD_NAME).length, equalTo(3));
     }
@@ -193,15 +145,12 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.field("doc_values", false);
         }));
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startArray(FIELD_NAME)
-                        .startArray().value(1.3).value(1.2).endArray()
-                        .startArray().value(1.5).value(1.4).endArray()
-                        .endArray()
-                        .endObject()),
-                XContentType.JSON));
+        SourceToParse sourceToParse = source(b ->
+            b.startArray(FIELD_NAME)
+                .startArray().value(1.3).value(1.2).endArray()
+                .startArray().value(1.5).value(1.4).endArray()
+                .endArray());
+        ParsedDocument doc = mapper.parse(sourceToParse);
 
         assertThat(doc.rootDoc().getFields(FIELD_NAME), notNullValue());
         assertThat(doc.rootDoc().getFields(FIELD_NAME).length, equalTo(4));
@@ -219,31 +168,16 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         Object nullValue = ((PointFieldMapper) fieldMapper).getNullValue();
         assertThat(nullValue, equalTo(new CartesianPoint(1, 2)));
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .nullField(FIELD_NAME)
-                    .endObject()),
-            XContentType.JSON));
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField(FIELD_NAME)));
 
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
         BytesRef defaultValue = doc.rootDoc().getBinaryValue(FIELD_NAME);
 
-        doc = mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(FIELD_NAME, "1, 2")
-                    .endObject()),
-            XContentType.JSON));
+        doc = mapper.parse(source(b -> b.field(FIELD_NAME, "1, 2")));
         // Shouldn't matter if we specify the value explicitly or use null value
         assertThat(defaultValue, equalTo(doc.rootDoc().getBinaryValue(FIELD_NAME)));
 
-        doc = mapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(FIELD_NAME, "3, 4")
-                    .endObject()),
-            XContentType.JSON));
+        doc = mapper.parse(source(b -> b.field(FIELD_NAME, "3, 4")));
         // Shouldn't matter if we specify the value explicitly or use null value
         assertThat(defaultValue, not(equalTo(doc.rootDoc().getBinaryValue(FIELD_NAME))));
     }

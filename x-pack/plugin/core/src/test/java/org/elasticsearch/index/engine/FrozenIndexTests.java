@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -22,9 +24,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.IndicesService;
@@ -60,8 +64,24 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(XPackPlugin.class);
+        return pluginList(XPackPlugin.class, SearcherWrapperPlugin.class);
     }
+
+    public static class SearcherWrapperPlugin extends Plugin {
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            super.onIndexModule(indexModule);
+            if (randomBoolean()) {
+                indexModule.setSearcherWrapper(indexService -> new IndexSearcherWrapper() {
+                    @Override
+                    protected DirectoryReader wrap(DirectoryReader reader) throws IOException {
+                        return new EngineTestCase.MatchingDirectoryReader(reader, new MatchAllDocsQuery());
+                    }
+                });
+            }
+        }
+    }
+
 
     public void testCloseFreezeAndOpen() throws ExecutionException, InterruptedException {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());

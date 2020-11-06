@@ -28,6 +28,8 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -37,15 +39,21 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterModule;
@@ -104,6 +112,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -1158,6 +1167,61 @@ public abstract class EngineTestCase extends ESTestCase {
         @Override
         public long getAsLong() {
             return get();
+        }
+    }
+
+    public static final class MatchingDirectoryReader extends FilterDirectoryReader {
+        private final Query query;
+
+        public MatchingDirectoryReader(DirectoryReader in, Query query) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader leaf) {
+                    try {
+                        final IndexSearcher searcher = new IndexSearcher(leaf);
+                        final Weight weight = searcher.createWeight(query, randomBoolean(), 1.0f);
+                        final Scorer scorer = weight.scorer(leaf.getContext());
+                        final DocIdSetIterator iterator = scorer != null ? scorer.iterator() : null;
+                        final FixedBitSet liveDocs = new FixedBitSet(leaf.maxDoc());
+                        if (iterator != null) {
+                            for (int docId = iterator.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
+                                if (leaf.getLiveDocs() == null || leaf.getLiveDocs().get(docId)) {
+                                    liveDocs.set(docId);
+                                }
+                            }
+                        }
+                        return new FilterLeafReader(leaf) {
+                            @Override
+                            public Bits getLiveDocs() {
+                                return liveDocs;
+                            }
+
+                            @Override
+                            public CacheHelper getCoreCacheHelper() {
+                                return leaf.getCoreCacheHelper();
+                            }
+
+                            @Override
+                            public CacheHelper getReaderCacheHelper() {
+                                return null; // modify liveDocs
+                            }
+                        };
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            });
+            this.query = query;
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new MatchingDirectoryReader(in, query);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
         }
     }
 }

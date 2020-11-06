@@ -222,7 +222,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 case "segments":
                 case "segments_stats":
                 case "completion_stats":
-                case "can_match": // special case for can_match phase - we use the cached point values reader
+                case CAN_MATCH_SEARCH_SOURCE: // special case for can_match phase - we use the cached point values reader
                     maybeOpenReader = false;
                     break;
                 default:
@@ -235,7 +235,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 // we just hand out a searcher on top of an empty reader that we opened for the ReadOnlyEngine in the #open(IndexCommit)
                 // method. this is the case when we don't have a reader open right now and we get a stats call any other that falls in
                 // the category that doesn't trigger a reopen
-                if ("can_match".equals(source)) {
+                if (CAN_MATCH_SEARCH_SOURCE.equals(source)) {
                     canMatchReader.incRef();
                     return new Searcher(source, new IndexSearcher(canMatchReader), canMatchReader::decRef);
                 }

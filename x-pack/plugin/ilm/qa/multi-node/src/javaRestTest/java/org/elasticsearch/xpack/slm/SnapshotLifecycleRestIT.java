@@ -96,7 +96,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50358")
     public void testFullPolicySnapshot() throws Exception {
         final String indexName = "test";
         final String policyName = "full-policy";
@@ -109,6 +108,9 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
         // Create a snapshot repo
         initializeRepo(repoId);
+
+        // allow arbitrarily frequent slm snapshots
+        disableSLMMinimumIntervalValidation();
 
         createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName, true);
 
@@ -185,15 +187,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         initializeRepo(repoName);
 
         // allow arbitrarily frequent slm snapshots
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
-        req.transientSettings(Settings.builder().put(LifecycleSettings.SLM_MINIMUM_INTERVAL, "0s"));
-        try (XContentBuilder builder = jsonBuilder()) {
-            req.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Request r = new Request("PUT", "/_cluster/settings");
-            r.setJsonEntity(Strings.toString(builder));
-            Response updateSettingsResp = client().performRequest(r);
-            assertAcked(updateSettingsResp);
-        }
+        disableSLMMinimumIntervalValidation();
 
         // Create a policy with ignore_unavailable: false and an index that doesn't exist
         createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoName, indexPattern, false);
@@ -721,6 +715,18 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
         final Response response = client().performRequest(putLifecycle);
         assertAcked(response);
+    }
+
+    private void disableSLMMinimumIntervalValidation() throws IOException {
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
+        req.transientSettings(Settings.builder().put(LifecycleSettings.SLM_MINIMUM_INTERVAL, "0s"));
+        try (XContentBuilder builder = jsonBuilder()) {
+            req.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            Request r = new Request("PUT", "/_cluster/settings");
+            r.setJsonEntity(Strings.toString(builder));
+            Response updateSettingsResp = client().performRequest(r);
+            assertAcked(updateSettingsResp);
+        }
     }
 
     private void initializeRepo(String repoName) throws IOException {

@@ -61,7 +61,8 @@ values.
 [[aggregated-data-types]]
 ==== Aggregate data types
 
-<<histogram,`histogram`>>:: Pre-aggregated numerical values.
+<<aggregate-metric-double,`aggregate_metric_double`>>:: Pre-aggregated metric values.
+<<histogram,`histogram`>>:: Pre-aggregated numerical values in the form of a histogram.
 
 
 [discrete]
@@ -125,6 +126,8 @@ the <<analysis-standard-analyzer,`standard` analyzer>>, the
 
 This is the purpose of _multi-fields_. Most field types support multi-fields
 via the <<multi-fields>> parameter.
+
+include::types/aggregate-metric-double.asciidoc[]
 
 include::types/alias.asciidoc[]
 

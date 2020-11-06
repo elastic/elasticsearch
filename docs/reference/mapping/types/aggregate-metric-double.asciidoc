@@ -1,0 +1,131 @@
+[role="xpack"]
+[testenv="basic"]
+[[aggregate-metric-double]]
+=== Aggregate metric field type
+++++
+<titleabbrev>Aggregate metric</titleabbrev>
+++++
+
+The `aggregate_metric_double` field stores pre-aggregated numeric values (`min`, `max`, `sum` and `value_count`) that can be directly
+accessed by metric aggregations. An `aggregate_metric_double` field is defined as an object with any of the following sub-fields
+
+The power of the `aggregate_metric_double` field comes from the fact that when an `aggregate_metric_double` field
+participates in a metric aggregation, it returns the value of the associated sub-field for that aggregation.
+Foe example, an `aggregate_metric_double` field that stores a `min` and a `max` metrics will return the `min` metric when
+collected by a <<search-aggregations-metrics-min-aggregation,min>> aggregation and the `max` metric
+when participating in a <<search-aggregations-metrics-max-aggregation-histogram-fields,max>> aggregation.
+
+[IMPORTANT]
+========
+* An `aggregate_metric_double` field can only store a single value for each `metric` sub-field per document.
+Nested arrays are not supported.
+* The values of the `min`, `max`, `sum` can be any `double` number. The values of `value_count` can only be
+a positive long number.
+========
+
+[[aggregate-metric-double-uses]]
+==== Uses
+
+All metric sub-fields of the `aggregate_metric_double` fields are stored as numeric <<doc-values,doc values>>
+and are primarily intended for use with the following aggregations:
+
+* <<search-aggregations-metrics-min-aggregation,min>> aggregation
+* <<search-aggregations-metrics-max-aggregation,max>> aggregation
+* <<search-aggregations-metrics-sum-aggregation,sum>> aggregation
+* <<search-aggregations-metrics-valuecount-aggregation,value_count>> aggregation
+* <<search-aggregations-metrics-avg-aggregation,avg>> aggregation
+
+[[aggregate-metric-double-default]]
+==== Default metric
+
+When an `aggregate_metric_double` field does not participate in any of the above mentioned aggregations,
+it behaves as a simple numeric field. To achieve this, its mapping must define one of its supported
+metrics as the `default_metric`. Field type `aggregate_metric_double` will return the `default_metric`
+sub-field when accessed in a script or by any of the following queries:
+
+* <<query-dsl-exists-query,exists>> query
+* <<query-dsl-range-query,range>> query
+* <<query-dsl-term-query,term>> query
+* <<query-dsl-terms-query,terms>> query
+
+[[aggregate-metric-double-example]]
+==== Examples
+
+The following <<indices-create-index, create index>> API request creates a new index with an `aggregate_metric_double` field used
+to store aggregate metric data:
+
+[source,console]
+--------------------------------------------------
+PUT stats-index
+{
+  "mappings": {
+    "properties": {
+      "agg_metric": {
+        "type": "aggregate_metric_double",
+        "metrics": [ "min", "max", sum", "value_count"],
+        "default_metric": "max"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+The following <<docs-index_,index>> API requests store pre-aggregated data:
+
+[source,console]
+--------------------------------------------------
+PUT stats-index/_doc/1
+{
+    "agg_metric": {
+        "min": -302.50,
+        "max": 702.30,
+        "sum": 200.0,
+        "value_count": 25
+    }
+}
+
+PUT stats-index/_doc/2
+{
+    "agg_metric": {
+        "min": -93.00,
+        "max": 1702.30,
+        "sum": 300.00,
+        "value_count": 25
+    }
+}
+--------------------------------------------------
+
+The `agg_metric` field allows us to run (`min`, `max`, `sum`, `value_count`, `avg`) aggregations
+as in the following example:
+
+[source,console]
+--------------------------------------------------
+POST stats-index/_search?size=0
+{
+    "aggs" : {
+        "metric_max" : { "max" : { "field" : "agg_metric" } },
+        "metric_min" : { "min" : { "field" : "agg_metric" } },
+        "metric_sum" : { "sum" : { "field" : "agg_metric" } },
+        "metric_value_count" : { "value_count" : { "field" : "agg_metric" } },
+        "metric_avg" : { "avg" : { "field" : "agg_metric" } }
+    }
+}
+--------------------------------------------------
+
+This will return the following results:
+
+[source,console-result]
+--------------------------------------------------
+{
+...
+    "aggregations": {
+        "metric_min": { "value": -302.50 },
+        "metric_max": { "value": 1702.30 },
+        "metric_sum": { "value": 500 },
+        "metric_value_count": { "value": 50 },
+        "metric_avg": { "value": 10 },
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+

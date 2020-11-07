@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionAc
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
@@ -174,6 +175,7 @@ import org.elasticsearch.xpack.security.action.saml.TransportSamlInvalidateSessi
 import org.elasticsearch.xpack.security.action.saml.TransportSamlLogoutAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlCompleteLogoutAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlPrepareAuthenticationAction;
+import org.elasticsearch.xpack.security.action.saml.TransportSamlSpMetadataAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportRefreshTokenAction;
@@ -243,6 +245,7 @@ import org.elasticsearch.xpack.security.rest.action.saml.RestSamlInvalidateSessi
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlCompleteLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlPrepareAuthenticationAction;
+import org.elasticsearch.xpack.security.rest.action.saml.RestSamlSpMetadataAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUserPrivilegesAction;
@@ -781,6 +784,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new ActionHandler<>(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
                 new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
                 new ActionHandler<>(SamlCompleteLogoutAction.INSTANCE, TransportSamlCompleteLogoutAction.class),
+                new ActionHandler<>(SamlSpMetadataAction.INSTANCE, TransportSamlSpMetadataAction.class),
                 new ActionHandler<>(OpenIdConnectPrepareAuthenticationAction.INSTANCE,
                     TransportOpenIdConnectPrepareAuthenticationAction.class),
                 new ActionHandler<>(OpenIdConnectAuthenticateAction.INSTANCE, TransportOpenIdConnectAuthenticateAction.class),
@@ -841,6 +845,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new RestSamlLogoutAction(settings, getLicenseState()),
                 new RestSamlInvalidateSessionAction(settings, getLicenseState()),
                 new RestSamlCompleteLogoutAction(settings, getLicenseState()),
+                new RestSamlSpMetadataAction(settings, getLicenseState()),
                 new RestOpenIdConnectPrepareAuthenticationAction(settings, getLicenseState()),
                 new RestOpenIdConnectAuthenticateAction(settings, getLicenseState()),
                 new RestOpenIdConnectLogoutAction(settings, getLicenseState()),

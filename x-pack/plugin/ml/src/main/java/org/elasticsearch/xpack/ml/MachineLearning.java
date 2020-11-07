@@ -259,6 +259,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
+import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -806,7 +807,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         }
 
         return Arrays.asList(
-                new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get(),
+                new OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get(),
                     memoryTracker.get(), client, expressionResolver),
                 new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedManager.get(), expressionResolver),
                 new TransportStartDataFrameAnalyticsAction.TaskExecutor(settings, client, clusterService, dataFrameAnalyticsManager.get(),

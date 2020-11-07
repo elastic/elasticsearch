@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.analytics.ttest;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -31,7 +30,7 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
     PairedTTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, DocValueFormat format,
                           SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, valuesSources, tails, format, context, parent, metadata);
-        statsBuilder = new TTestStatsBuilder(context.bigArrays());
+        statsBuilder = new TTestStatsBuilder(bigArrays());
     }
 
     @Override
@@ -55,7 +54,6 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues docAValues = valuesSources.getField(A_FIELD.getPreferredName(), ctx);
         final SortedNumericDoubleValues docBValues = valuesSources.getField(B_FIELD.getPreferredName(), ctx);
         final CompensatedSum compDiffSum = new CompensatedSum(0, 0);
@@ -69,7 +67,7 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
                         throw new AggregationExecutionException("Encountered more than one value for a " +
                             "single document. Use a script to combine multiple values per doc into a single value.");
                     }
-                    statsBuilder.grow(bigArrays, bucket + 1);
+                    statsBuilder.grow(bigArrays(), bucket + 1);
                     // There should always be one value if advanceExact lands us here, either
                     // a real value or a `missing` value
                     assert docAValues.docValueCount() == 1;

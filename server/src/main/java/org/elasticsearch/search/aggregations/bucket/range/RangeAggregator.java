@@ -353,11 +353,19 @@ public class RangeAggregator extends BucketsAggregator {
         private final InternalRange.Factory factory;
         private final DocValueFormat format;
 
-        public Unmapped(String name, R[] ranges, boolean keyed, DocValueFormat format, SearchContext context, Aggregator parent,
-                InternalRange.Factory factory, Map<String, Object> metadata)
-                throws IOException {
+        public Unmapped(
+            String name,
+            AggregatorFactories factories,
+            R[] ranges,
+            boolean keyed,
+            DocValueFormat format,
+            SearchContext context,
+            Aggregator parent,
+            InternalRange.Factory factory,
+            Map<String, Object> metadata
+        ) throws IOException {
 
-            super(name, context, parent, metadata);
+            super(name, context, parent, factories, metadata);
             this.ranges = ranges;
             this.keyed = keyed;
             this.format = format;

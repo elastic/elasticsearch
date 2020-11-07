@@ -193,7 +193,7 @@ public class AggregatorFactories {
         Aggregator[] aggregators = new Aggregator[countAggregators()];
         for (int i = 0; i < factories.length; ++i) {
             Aggregator factory = factories[i].create(searchContext, parent, cardinality);
-            Profilers profilers = factory.context().getProfilers();
+            Profilers profilers = searchContext.getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
             }
@@ -211,7 +211,7 @@ public class AggregatorFactories {
              * *exactly* what CardinalityUpperBound.ONE *means*.  
              */
             Aggregator factory = factories[i].create(searchContext, null, CardinalityUpperBound.ONE);
-            Profilers profilers = factory.context().getProfilers();
+            Profilers profilers = searchContext.getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
             }

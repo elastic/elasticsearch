@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingContext;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
@@ -97,43 +99,76 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathPr
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.DATE_FORMAT;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.TIME_FORMAT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorTests extends ESTestCase {
 
-    private static SqlFunctionRegistry sqlFunctionRegistry;
-    private static SqlParser parser;
-    private static Analyzer analyzer;
-    private static Optimizer optimizer;
-    private static Planner planner;
+    private static class TestContext {
+        private SqlFunctionRegistry sqlFunctionRegistry;
+        private SqlParser parser;
+        private Analyzer analyzer;
+        private Optimizer optimizer;
+        private Planner planner;
+
+        TestContext(String mappingFile) {
+            parser = new SqlParser();
+            sqlFunctionRegistry = new SqlFunctionRegistry();
+
+            Map<String, EsField> mapping = SqlTypesTests.loadMapping(mappingFile);
+            EsIndex test = new EsIndex("test", mapping);
+            IndexResolution getIndexResult = IndexResolution.valid(test);
+            analyzer = new Analyzer(SqlTestUtils.TEST_CFG, sqlFunctionRegistry, getIndexResult, new Verifier(new Metrics()));
+            optimizer = new Optimizer();
+            planner = new Planner();
+        }
+
+        public LogicalPlan plan(String sql) {
+            return plan(sql, DateUtils.UTC);
+        }
+
+        public LogicalPlan plan(String sql, ZoneId zoneId) {
+            return analyzer.analyze(parser.createStatement(sql, zoneId), true);
+        }
+
+        private PhysicalPlan optimizeAndPlan(String sql) {
+            return optimizeAndPlan(plan(sql));
+        }
+
+        private PhysicalPlan optimizeAndPlan(LogicalPlan plan) {
+            return planner.plan(optimizer.optimize(plan),true);
+        }
+
+        private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
+            return analyzer.analyze(parser.createStatement(sql, Arrays.asList(params), DateUtils.UTC), true);
+        }
+    }
+
+    private static TestContext defaultTestContext;
 
     @BeforeClass
     public static void init() {
-        parser = new SqlParser();
-        sqlFunctionRegistry = new SqlFunctionRegistry();
-
-        Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-variation.json");
-        EsIndex test = new EsIndex("test", mapping);
-        IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, sqlFunctionRegistry, getIndexResult, new Verifier(new Metrics()));
-        optimizer = new Optimizer();
-        planner = new Planner();
+        defaultTestContext = new TestContext("mapping-multi-field-variation.json");
     }
 
     private LogicalPlan plan(String sql) {
-        return plan(sql, UTC);
+        return defaultTestContext.plan(sql, DateUtils.UTC);
     }
 
     private LogicalPlan plan(String sql, ZoneId zoneId) {
-        return analyzer.analyze(parser.createStatement(sql, zoneId), true);
+        return defaultTestContext.plan(sql, zoneId);
     }
 
     private PhysicalPlan optimizeAndPlan(String sql) {
-        return  planner.plan(optimizer.optimize(plan(sql)), true);
+        return defaultTestContext.optimizeAndPlan(sql);
+    }
+
+    private PhysicalPlan optimizeAndPlan(LogicalPlan plan) {
+        return defaultTestContext.optimizeAndPlan(plan);
     }
 
     private QueryTranslation translate(Expression condition) {
@@ -142,6 +177,10 @@ public class QueryTranslatorTests extends ESTestCase {
 
     private QueryTranslation translateWithAggs(Expression condition) {
         return QueryTranslator.toQuery(condition, true);
+    }
+
+    private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
+        return defaultTestContext.parameterizedSql(sql, params);
     }
 
     public void testTermEqualityAnalyzer() {
@@ -415,7 +454,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(lowerOperator.equals("<="), rq.includeUpper());
         assertEquals(upperOperator.equals(">="), rq.includeLower());
         assertEquals(pattern, rq.format());
-        assertEquals(UTC, rq.zoneId());
+        assertEquals(DateUtils.UTC, rq.zoneId());
     }
 
     public void testDateRangeWithESDateMath() {
@@ -2093,7 +2132,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testScriptsInsideAggregateFunctions() {
-        for (FunctionDefinition fd : sqlFunctionRegistry.listFunctions()) {
+        for (FunctionDefinition fd : defaultTestContext.sqlFunctionRegistry.listFunctions()) {
             if (AggregateFunction.class.isAssignableFrom(fd.clazz()) && (MatrixStatsEnclosed.class.isAssignableFrom(fd.clazz()) == false)) {
                 String aggFunction = fd.name() + "(ABS((int * 10) / 3) + 1";
                 if (fd.clazz() == Percentile.class || fd.clazz() == PercentileRank.class) {
@@ -2131,7 +2170,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testScriptsInsideAggregateFunctions_WithHaving() {
-        for (FunctionDefinition fd : sqlFunctionRegistry.listFunctions()) {
+        for (FunctionDefinition fd : defaultTestContext.sqlFunctionRegistry.listFunctions()) {
             if (AggregateFunction.class.isAssignableFrom(fd.clazz())
                     && (MatrixStatsEnclosed.class.isAssignableFrom(fd.clazz()) == false)
                     // First/Last don't support having: https://github.com/elastic/elasticsearch/issues/37938
@@ -2184,7 +2223,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testScriptsInsideAggregateFunctions_ExtendedStats() {
-        for (FunctionDefinition fd : sqlFunctionRegistry.listFunctions()) {
+        for (FunctionDefinition fd : defaultTestContext.sqlFunctionRegistry.listFunctions()) {
             if (ExtendedStatsEnclosed.class.isAssignableFrom(fd.clazz())) {
                 String aggFunction = fd.name() + "(ABS((int * 10) / 3) + 1)";
                 PhysicalPlan p = optimizeAndPlan("SELECT " + aggFunction + " FROM test");
@@ -2238,5 +2277,65 @@ public class QueryTranslatorTests extends ESTestCase {
             + "{\"a0\":\"" + aggName + ".min\"},\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt("
             + "InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\","
             + "\"params\":{\"v0\":\"2020-05-03T00:00:00.000Z\"}},\"gap_policy\":\"skip\"}}}}}}"));
+    }
+
+    public void testFoldingWithParamsWithoutIndex() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ?, ? FROM test",
+            new SqlTypedParamValue("integer", 100),
+            new SqlTypedParamValue("integer", 100),
+            new SqlTypedParamValue("integer", 200)));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(2).toString(), startsWith("?{r}#"));
+        assertNotEquals(p.output().get(1).id(), p.output().get(2).id());
+    }
+
+    public void testSameAliasForParamAndField() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, int as \"?\" FROM test",
+            new SqlTypedParamValue("integer", 100)));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
+        assertNotEquals(p.output().get(0).id(), p.output().get(1).id());
+    }
+
+    public void testSameAliasOnSameField() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT int as \"int\", int as \"int\" FROM test"));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("int{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("int{r}#"));
+    }
+
+    public void testFoldingWithMixedParamsWithoutAlias() {
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ? FROM test",
+            new SqlTypedParamValue("integer", 100),
+            new SqlTypedParamValue("text", "200")));
+        assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
+        assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
+        assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
+    }
+
+    public void testSameExpressionWithoutAlias() {
+        PhysicalPlan physicalPlan = optimizeAndPlan("SELECT 100, 100 FROM test");
+        assertEquals(EsQueryExec.class, physicalPlan.getClass());
+        EsQueryExec eqe = (EsQueryExec) physicalPlan;
+        assertEquals(2, eqe.output().size());
+        assertThat(eqe.output().get(0).toString(), startsWith("100{r}#"));
+        assertThat(eqe.output().get(1).toString(), startsWith("100{r}#"));
+        // these two should be semantically different reference attributes
+        assertNotEquals(eqe.output().get(0).id(), eqe.output().get(1).id());
+    }
+
+    public void testInOutOfRangeValues() {
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class,
+            () -> optimizeAndPlan("SELECT int FROM test WHERE int IN (1, 2, 3, " + Long.MAX_VALUE + ", 5, 6, 7)"));
+        assertThat(ex.getMessage(), is("[" + Long.MAX_VALUE + "] out of [integer] range"));
+    }
+
+    public void testInInRangeValues() {
+        TestContext testContext = new TestContext("mapping-numeric.json");
+        PhysicalPlan p = testContext.optimizeAndPlan("SELECT long FROM test WHERE long IN (1, 2, 3, " + Long.MAX_VALUE + ", 5, 6, 7)");
+        assertEquals(EsQueryExec.class, p.getClass());
     }
 }

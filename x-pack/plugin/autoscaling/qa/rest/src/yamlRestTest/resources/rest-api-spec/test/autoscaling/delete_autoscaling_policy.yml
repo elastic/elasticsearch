@@ -4,9 +4,9 @@
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy
         body:
-          policy:
-            deciders:
-              fixed: {}
+          roles: []
+          deciders:
+            fixed: {}
 
   - match: { "acknowledged": true }
 

@@ -213,18 +213,13 @@ class IndexLifecycleRunner {
             int currentRetryAttempt = lifecycleState.getFailedStepRetryCount() == null ? 1 : 1 + lifecycleState.getFailedStepRetryCount();
             logger.info("policy [{}] for index [{}] on an error step due to a transient error, moving back to the failed " +
                 "step [{}] for execution. retry attempt [{}]", policy, index, lifecycleState.getFailedStep(), currentRetryAttempt);
+            // we can afford to drop these requests if they timeout as on the next {@link
+            // IndexLifecycleRunner#runPeriodicStep} run the policy will still be in the ERROR step, as we haven't been able
+            // to move it back into the failed step, so we'll try again
             clusterService.submitStateUpdateTask(
                 String.format(Locale.ROOT, "ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}", policy, index,
-                    failedStep.getKey()),
-                new ClusterStateUpdateTask() {
-
-                    @Override
-                    public TimeValue timeout() {
-                        // we can afford to drop these requests if they timeout as on the next {@link
-                        // IndexLifecycleRunner#runPeriodicStep} run the policy will still be in the ERROR step, as we haven't been able
-                        // to move it back into the failed step, so we'll try again
-                        return LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(clusterService.state().metadata().settings());
-                    }
+                    failedStep.getKey()), new ClusterStateUpdateTask(
+                            LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(clusterService.state().metadata().settings())) {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {

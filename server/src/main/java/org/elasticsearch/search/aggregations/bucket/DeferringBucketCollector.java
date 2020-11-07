@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -85,11 +84,6 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public SearchContext context() {
-            return in.context();
-        }
-
-        @Override
         public Aggregator subAggregator(String name) {
             return in.subAggregator(name);
         }
@@ -112,12 +106,6 @@ public abstract class DeferringBucketCollector extends BucketCollector {
 
         @Override
         public void preCollection() throws IOException {
-            throw new IllegalStateException(
-                    "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
-        }
-
-        @Override
-        public void postCollection() throws IOException {
             throw new IllegalStateException(
                     "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
         }

@@ -19,6 +19,10 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -52,6 +56,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -61,6 +66,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -112,6 +118,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         ArgumentCaptor<GetSettingsRequest> getSettingsRequestCaptor = ArgumentCaptor.forClass(GetSettingsRequest.class);
         ArgumentCaptor<GetMappingsRequest> getMappingsRequestCaptor = ArgumentCaptor.forClass(GetMappingsRequest.class);
+        ArgumentCaptor<FieldCapabilitiesRequest> fieldCapabilitiesRequestCaptor = ArgumentCaptor.forClass(FieldCapabilitiesRequest.class);
 
         ImmutableOpenMap.Builder<String, Settings> indexToSettings = ImmutableOpenMap.builder();
         indexToSettings.put("index_1", index1Settings);
@@ -143,6 +150,19 @@ public class DestinationIndexTests extends ESTestCase {
 
         doAnswer(callListenerOnResponse(getMappingsResponse))
             .when(client).execute(eq(GetMappingsAction.INSTANCE), getMappingsRequestCaptor.capture(), any());
+
+        FieldCapabilitiesResponse fieldCapabilitiesResponse =
+            new FieldCapabilitiesResponse(
+                new String[0],
+                new HashMap<>() {{
+                    put(NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                    put(OUTER_FIELD + "." + INNER_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                    put(ALIAS_TO_NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                    put(ALIAS_TO_NESTED_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                }});
+
+        doAnswer(callListenerOnResponse(fieldCapabilitiesResponse))
+            .when(client).execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
 
         DestinationIndex.createDestinationIndex(
             client,
@@ -257,9 +277,23 @@ public class DestinationIndexTests extends ESTestCase {
                 ImmutableOpenMap.of(), ImmutableOpenMap.of());
 
         ArgumentCaptor<PutMappingRequest> putMappingRequestCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
+        ArgumentCaptor<FieldCapabilitiesRequest> fieldCapabilitiesRequestCaptor = ArgumentCaptor.forClass(FieldCapabilitiesRequest.class);
 
         doAnswer(callListenerOnResponse(AcknowledgedResponse.TRUE))
             .when(client).execute(eq(PutMappingAction.INSTANCE), putMappingRequestCaptor.capture(), any());
+
+        FieldCapabilitiesResponse fieldCapabilitiesResponse =
+            new FieldCapabilitiesResponse(
+                new String[0],
+                new HashMap<>() {{
+                    put(NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                    put(OUTER_FIELD + "." + INNER_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                    put(ALIAS_TO_NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                    put(ALIAS_TO_NESTED_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                }});
+
+        doAnswer(callListenerOnResponse(fieldCapabilitiesResponse))
+            .when(client).execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
 
         DestinationIndex.updateMappingsToDestIndex(
             client,
@@ -272,6 +306,7 @@ public class DestinationIndexTests extends ESTestCase {
         );
 
         verify(client, atLeastOnce()).threadPool();
+        verify(client, atMost(1)).execute(eq(FieldCapabilitiesAction.INSTANCE), any(), any());
         verify(client).execute(eq(PutMappingAction.INSTANCE), any(), any());
         verifyNoMoreInteractions(client);
 
@@ -365,7 +400,7 @@ public class DestinationIndexTests extends ESTestCase {
 
     public void testReadMetadata_GivenMetaNotCreatedByAnalytics() {
         Map<String, Object> mappings = new HashMap<>();
-        mappings.put("_meta", Collections.singletonMap("created", "other"));
+        mappings.put("_meta", singletonMap("created", "other"));
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
 
@@ -431,5 +466,9 @@ public class DestinationIndexTests extends ESTestCase {
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, null))
             .setAnalysis(analysis)
             .build();
+    }
+
+    private static FieldCapabilities createFieldCapabilities(String field, String type) {
+        return new FieldCapabilities(field, type, true, true, null, null, null, Collections.emptyMap());
     }
 }

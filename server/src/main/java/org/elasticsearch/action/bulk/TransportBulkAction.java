@@ -38,7 +38,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -90,7 +89,6 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -104,7 +102,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
 
     private final ThreadPool threadPool;
-    private final AutoCreateIndex autoCreateIndex;
     private final ClusterService clusterService;
     private final IngestService ingestService;
     private final LongSupplier relativeTimeProvider;
@@ -119,22 +116,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex, IndexingPressure indexingPressure, SystemIndices systemIndices) {
+                               IndexingPressure indexingPressure, SystemIndices systemIndices) {
         this(threadPool, transportService, clusterService, ingestService, client, actionFilters,
-            indexNameExpressionResolver, autoCreateIndex, indexingPressure, systemIndices, System::nanoTime);
+            indexNameExpressionResolver, indexingPressure, systemIndices, System::nanoTime);
     }
 
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex, IndexingPressure indexingPressure, SystemIndices systemIndices,
+                               IndexingPressure indexingPressure, SystemIndices systemIndices,
                                LongSupplier relativeTimeProvider) {
         super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.ingestService = ingestService;
-        this.autoCreateIndex = autoCreateIndex;
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
@@ -224,76 +220,69 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return;
         }
 
-        final boolean includesSystem = includesSystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
+        // Attempt to create all the indices that we're going to need during the bulk before we start.
+        // Step 1: collect all the indices in the request
+        final Map<String, Boolean> indices = bulkRequest.requests.stream()
+            // delete requests should not attempt to create the index (if the index does not
+            // exists), unless an external versioning is used
+            .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
+                || request.versionType() == VersionType.EXTERNAL
+                || request.versionType() == VersionType.EXTERNAL_GTE)
+            .collect(Collectors.toMap(DocWriteRequest::index, DocWriteRequest::isRequireAlias, (v1, v2) -> v1 || v2));
 
-        if (includesSystem || needToCheck()) {
-            // Attempt to create all the indices that we're going to need during the bulk before we start.
-            // Step 1: collect all the indices in the request
-            final Map<String, Boolean> indices = bulkRequest.requests.stream()
-                // delete requests should not attempt to create the index (if the index does not
-                // exists), unless an external versioning is used
-                .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
-                    || request.versionType() == VersionType.EXTERNAL
-                    || request.versionType() == VersionType.EXTERNAL_GTE)
-                .collect(Collectors.toMap(DocWriteRequest::index, DocWriteRequest::isRequireAlias, (v1, v2) -> v1 || v2));
-            /* Step 2: filter that to indices that don't exist and we can create. At the same time build a map of indices we can't create
-             * that we'll use when we try to run the requests. */
-            final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
-            Set<String> autoCreateIndices = new HashSet<>();
-            ClusterState state = clusterService.state();
-            for (Map.Entry<String, Boolean> indexAndFlag : indices.entrySet()) {
-                boolean shouldAutoCreate;
-                final String index = indexAndFlag.getKey();
-                try {
-                    shouldAutoCreate = shouldAutoCreate(index, state);
-                } catch (IndexNotFoundException e) {
-                    shouldAutoCreate = false;
-                    indicesThatCannotBeCreated.put(index, e);
-                }
-                // We should only auto create if we are not requiring it to be an alias
-                if (shouldAutoCreate && (indexAndFlag.getValue() == false)) {
-                    autoCreateIndices.add(index);
-                }
+        // Step 2: filter the list of indices to find those that don't currently exist.
+        final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
+        Set<String> autoCreateIndices = new HashSet<>();
+        ClusterState state = clusterService.state();
+        for (Map.Entry<String, Boolean> indexAndFlag : indices.entrySet()) {
+            final String index = indexAndFlag.getKey();
+            boolean shouldAutoCreate = indexNameExpressionResolver.hasIndexAbstraction(index, state) == false;
+            // We should only auto create if we are not requiring it to be an alias
+            if (shouldAutoCreate && (indexAndFlag.getValue() == false)) {
+                autoCreateIndices.add(index);
             }
-            // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
-            if (autoCreateIndices.isEmpty()) {
-                executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
-            } else {
-                final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
-                for (String index : autoCreateIndices) {
-                    createIndex(index, bulkRequest.timeout(), minNodeVersion, new ActionListener<>() {
-                        @Override
-                        public void onResponse(CreateIndexResponse result) {
-                            if (counter.decrementAndGet() == 0) {
-                                threadPool.executor(executorName).execute(
-                                    () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
-                            }
-                        }
+        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
-                                // fail all requests involving this index, if create didn't work
-                                for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                                    DocWriteRequest<?> request = bulkRequest.requests.get(i);
-                                    if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
-                                        bulkRequest.requests.set(i, null);
-                                    }
+        // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
+        if (autoCreateIndices.isEmpty()) {
+            executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
+        } else {
+            final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
+            for (String index : autoCreateIndices) {
+                createIndex(index, bulkRequest.timeout(), minNodeVersion, new ActionListener<>() {
+                    @Override
+                    public void onResponse(CreateIndexResponse result) {
+                        if (counter.decrementAndGet() == 0) {
+                            threadPool.executor(executorName).execute(
+                                () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        if (cause instanceof IndexNotFoundException) {
+                            indicesThatCannotBeCreated.put(index, (IndexNotFoundException) e);
+                        }
+                        else if ((cause instanceof ResourceAlreadyExistsException) == false) {
+                            // fail all requests involving this index, if create didn't work
+                            for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                                DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                                if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                    bulkRequest.requests.set(i, null);
                                 }
                             }
-                            if (counter.decrementAndGet() == 0) {
-                                threadPool.executor(executorName).execute(() -> executeBulk(task, bulkRequest, startTime,
-                                    ActionListener.wrap(listener::onResponse, inner -> {
+                        }
+                        if (counter.decrementAndGet() == 0) {
+                            threadPool.executor(executorName).execute(() -> executeBulk(task, bulkRequest, startTime,
+                                ActionListener.wrap(listener::onResponse, inner -> {
                                     inner.addSuppressed(e);
                                     listener.onFailure(inner);
                                 }), responses, indicesThatCannotBeCreated));
-                            }
                         }
-                    });
-                }
+                    }
+                });
             }
-        } else {
-            executeBulk(task, bulkRequest, startTime, listener, responses, emptyMap());
         }
     }
 
@@ -351,10 +340,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return request.getIndices().stream().allMatch(indexName -> isSystemIndex(indicesLookup, systemIndices, indexName));
     }
 
-    boolean includesSystem(BulkRequest request, SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices) {
-        return request.getIndices().stream().anyMatch(indexName -> isSystemIndex(indicesLookup, systemIndices, indexName));
-    }
-
     private boolean isSystemIndex(SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices, String indexName) {
         final IndexAbstraction abstraction = indicesLookup.get(indexName);
         if (abstraction != null) {
@@ -362,14 +347,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         } else {
             return systemIndices.isSystemIndex(indexName);
         }
-    }
-
-    boolean needToCheck() {
-        return autoCreateIndex.needToCheck();
-    }
-
-    boolean shouldAutoCreate(String index, ClusterState state) {
-        return autoCreateIndex.shouldAutoCreate(index, state);
     }
 
     void createIndex(String index,

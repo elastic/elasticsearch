@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
@@ -66,6 +67,8 @@ import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesAction extends AbstractCatAction {
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestIndicesAction.class);
+    static final String LOCAL_DEPRECATED_MESSAGE = "The parameter [local] is deprecated and will be removed in a future release.";
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
 
@@ -96,6 +99,9 @@ public class RestIndicesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
+        if (request.hasParam("local")) {
+            DEPRECATION_LOGGER.deprecate("local", LOCAL_DEPRECATED_MESSAGE);
+        }
         final boolean local = request.paramAsBoolean("local", false);
         final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);

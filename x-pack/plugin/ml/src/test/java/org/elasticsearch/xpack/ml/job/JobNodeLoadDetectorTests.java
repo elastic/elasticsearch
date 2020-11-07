@@ -17,7 +17,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests;
+import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
@@ -67,10 +67,10 @@ public class JobNodeLoadDetectorTests extends ESTestCase {
             .build();
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
-        TransportOpenJobActionTests.addJobTask("job_id1", "_node_id1", null, tasksBuilder);
-        TransportOpenJobActionTests.addJobTask("job_id2", "_node_id1", null, tasksBuilder);
-        TransportOpenJobActionTests.addJobTask("job_id3", "_node_id2", null, tasksBuilder);
-        TransportOpenJobActionTests.addJobTask("job_id4", "_node_id4", JobState.OPENED, tasksBuilder);
+        OpenJobPersistentTasksExecutorTests.addJobTask("job_id1", "_node_id1", null, tasksBuilder);
+        OpenJobPersistentTasksExecutorTests.addJobTask("job_id2", "_node_id1", null, tasksBuilder);
+        OpenJobPersistentTasksExecutorTests.addJobTask("job_id3", "_node_id2", null, tasksBuilder);
+        OpenJobPersistentTasksExecutorTests.addJobTask("job_id4", "_node_id4", JobState.OPENED, tasksBuilder);
         PersistentTasksCustomMetadata tasks = tasksBuilder.build();
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));

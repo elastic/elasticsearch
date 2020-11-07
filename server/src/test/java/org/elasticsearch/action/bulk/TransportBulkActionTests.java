@@ -28,7 +28,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -85,13 +84,7 @@ public class TransportBulkActionTests extends ESTestCase {
         TestTransportBulkAction() {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
-                    new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver(), new SystemIndices(Map.of())),
                     new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of()));
-        }
-
-        @Override
-        protected boolean needToCheck() {
-            return true;
         }
 
         @Override
@@ -266,27 +259,6 @@ public class TransportBulkActionTests extends ESTestCase {
 
         List<String> mixed = List.of(".foo", ".test", "other");
         assertFalse(bulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
-    }
-
-    public void testIncludesSystem() {
-        SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
-        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT).build();
-        indicesLookup.put(".foo",
-            new Index(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
-        indicesLookup.put(".bar",
-            new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
-        SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(".test", ""))));
-        List<String> onlySystem = List.of(".foo", ".bar");
-        assertTrue(bulkAction.includesSystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
-
-        onlySystem = List.of(".foo", ".bar", ".test");
-        assertTrue(bulkAction.includesSystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
-
-        List<String> nonSystem = List.of("foo", "bar");
-        assertFalse(bulkAction.includesSystem(buildBulkRequest(nonSystem), indicesLookup, systemIndices));
-
-        List<String> mixed = List.of(".foo", ".test", "other");
-        assertTrue(bulkAction.includesSystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {

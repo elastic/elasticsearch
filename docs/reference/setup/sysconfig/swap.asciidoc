@@ -52,8 +52,14 @@ http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] on
 Linux/Unix systems, or
 https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx[VirtualLock]
 on Windows, to try to lock the process address space into RAM, preventing any
-Elasticsearch memory from being swapped out. This can be done, by adding this
-line to the `config/elasticsearch.yml` file:
+{es} heap memory from being swapped out.
+
+NOTE: Some platforms still swap off-heap memory when using a memory lock. To
+prevent off-heap memory swaps, <<disable-swap-files,disable all swap files>>
+instead.
+
+To enable a memory lock, set `bootstrap.memory_lock` to `true` in
+`elasticsearch.yml`:
 
 [source,yaml]
 --------------

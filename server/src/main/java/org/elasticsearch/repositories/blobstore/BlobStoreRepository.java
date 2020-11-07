@@ -77,7 +77,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -217,6 +216,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final Setting<Boolean> SUPPORT_URL_REPO = Setting.boolSetting("support_url_repo", true, Setting.Property.NodeScope);
 
+    /**
+     * Setting that defines the maximum number of snapshots to which the repository may grow. Trying to create a snapshot into the
+     * repository that would move it above this size will throw an exception.
+     */
+    public static final Setting<Integer> MAX_SNAPSHOTS_SETTING =
+            Setting.intSetting("max_number_of_snapshots", 500, 1, Setting.Property.NodeScope);
+
     protected final boolean supportURLRepo;
 
     private final boolean compress;
@@ -297,6 +303,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     protected final int bufferSize;
 
     /**
+     * Maximum number of snapshots that this repository can hold.
+     */
+    private final int maxSnapshotCount;
+
+    /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
      * @param clusterService ClusterService
@@ -322,6 +333,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         this.namedXContentRegistry = namedXContentRegistry;
         this.basePath = basePath;
+        this.maxSnapshotCount = MAX_SNAPSHOTS_SETTING.get(metadata.settings());
     }
 
     @Override
@@ -360,7 +372,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final RepositoryMetadata repositoryMetadataStart = metadata;
         getRepositoryData(ActionListener.wrap(repositoryData -> {
             final ClusterStateUpdateTask updateTask = createUpdateTask.apply(repositoryData);
-            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(updateTask.priority()) {
+            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(updateTask.priority(), updateTask.timeout()) {
 
                 private boolean executedTask = false;
 
@@ -395,11 +407,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     } else {
                         executeConsistentStateUpdate(createUpdateTask, source, onFailure);
                     }
-                }
-
-                @Override
-                public TimeValue timeout() {
-                    return updateTask.timeout();
                 }
             });
         }, onFailure));
@@ -1087,6 +1094,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final StepListener<RepositoryData> repoDataListener = new StepListener<>();
         getRepositoryData(repoDataListener);
         repoDataListener.whenComplete(existingRepositoryData -> {
+            final int existingSnapshotCount = existingRepositoryData.getSnapshotIds().size();
+            if (existingSnapshotCount >= maxSnapshotCount) {
+                listener.onFailure(new RepositoryException(metadata.name(), "Cannot add another snapshot to this repository as it " +
+                        "already contains [" + existingSnapshotCount + "] snapshots and is configured to hold up to [" + maxSnapshotCount +
+                        "] snapshots only."));
+                return;
+            }
 
             final Map<IndexId, String> indexMetas;
             final Map<String, String> indexMetaIdentifiers;
@@ -1441,8 +1455,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return new RepositoryException(metadata.name(),
             "Could not read repository data because the contents of the repository do not match its " +
                 "expected state. This is likely the result of either concurrently modifying the contents of the " +
-                "repository by a process other than this cluster or an issue with the repository's underlying" +
-                "storage. The repository has been disabled to prevent corrupting its contents. To re-enable it " +
+                "repository by a process other than this cluster or an issue with the repository's underlying storage. " +
+                "The repository has been disabled to prevent corrupting its contents. To re-enable it " +
                 "and continue using it please remove the repository from the cluster and add it again to make " +
                 "the cluster recover the known state of the repository from its physical contents.", cause);
     }

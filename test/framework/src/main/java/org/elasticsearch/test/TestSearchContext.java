@@ -28,14 +28,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -93,7 +90,6 @@ public class TestSearchContext extends SearchContext {
     private SearchContextAggregations aggregations;
     private ScrollContext scrollContext;
 
-    private final long originNanoTime = System.nanoTime();
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
     public TestSearchContext(BigArrays bigArrays, IndexService indexService) {
@@ -168,11 +164,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public int numberOfShards() {
         return 1;
-    }
-
-    @Override
-    public float queryBoost() {
-        return 0;
     }
 
     @Override
@@ -286,15 +277,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public MapperService mapperService() {
-        if (indexService != null) {
-            return indexService.mapperService();
-        }
-        return null;
-    }
-
-    @Override
-    public SimilarityService similarityService() {
-        return null;
+        return indexService == null ? null : indexService.mapperService();
     }
 
     @Override
@@ -407,11 +390,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Query aliasFilter() {
-        return null;
-    }
-
-    @Override
     public SearchContext parsedQuery(ParsedQuery query) {
         this.originalQuery = query;
         this.query = query.query();
@@ -456,16 +434,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public boolean hasStoredFields() {
-        return false;
-    }
-
-    @Override
-    public boolean hasStoredFieldsContext() {
-        return false;
-    }
-
-    @Override
-    public boolean storedFieldsRequested() {
         return false;
     }
 
@@ -522,17 +490,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public int docIdsToLoadFrom() {
-        return 0;
-    }
-
-    @Override
     public int docIdsToLoadSize() {
         return 0;
     }
 
     @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
         return null;
     }
 
@@ -554,26 +517,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public FetchPhase fetchPhase() {
         return null;
-    }
-
-    @Override
-    public MappedFieldType fieldType(String name) {
-        if (mapperService() != null) {
-            return mapperService().fieldType(name);
-        }
-        return null;
-    }
-
-    @Override
-    public ObjectMapper getObjectMapper(String name) {
-        if (mapperService() != null) {
-            return mapperService().getObjectMapper(name);
-        }
-        return null;
-    }
-
-    @Override
-    public void doClose() {
     }
 
     @Override

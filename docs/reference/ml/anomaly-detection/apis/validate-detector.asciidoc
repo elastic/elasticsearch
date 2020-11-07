@@ -101,7 +101,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=over-field-name]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=partition-field-name]
 
 `use_null`::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=use-null]
 
 [[ml-valid-detector-example]]

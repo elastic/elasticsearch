@@ -603,7 +603,7 @@ class BuildPlugin implements Plugin<Project> {
         }
         repos.maven {
             name "elastic"
-            url "https://artifacts.elastic.co/maven"
+            url "https://artifacts-no-kpi.elastic.co/maven"
         }
         repos.jcenter()
         String luceneVersion = VersionProperties.lucene

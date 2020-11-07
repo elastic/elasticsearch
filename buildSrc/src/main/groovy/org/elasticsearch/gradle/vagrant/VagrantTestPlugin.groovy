@@ -166,7 +166,7 @@ class VagrantTestPlugin implements Plugin<Project> {
           is fine with that */
         repos.ivy {
             name "elasticsearch"
-            artifactPattern "https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]"
+            artifactPattern "https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]"
         }
     }
 

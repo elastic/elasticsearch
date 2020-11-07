@@ -67,7 +67,7 @@ def main():
   elif c.version.startswith('0.') or c.version.startswith('1.') or c.version.startswith('2.'):
     url = 'https://download.elasticsearch.org/elasticsearch/elasticsearch/%s' % filename
   else:
-    url = 'https://artifacts.elastic.co/downloads/elasticsearch/%s' % filename
+    url = 'https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/%s' % filename
   print('Downloading %s' % url)
   urllib.request.urlretrieve(url, filename)
 

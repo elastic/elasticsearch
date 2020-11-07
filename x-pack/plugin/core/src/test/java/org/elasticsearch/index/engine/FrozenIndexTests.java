@@ -53,6 +53,7 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -274,21 +275,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     public void testCanMatch() throws ExecutionException, InterruptedException, IOException {
         if (randomBoolean()) {
-            readerWrapper.set(reader -> new FilterDirectoryReader(reader, new FilterDirectoryReader.SubReaderWrapper() {
-                @Override
-                public LeafReader wrap(LeafReader reader) {
-                    return reader;
-                }
-            }) {
-                @Override
-                protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-                    return in;
-                }
-
-                @Override
-                public CacheHelper getReaderCacheHelper() {
-                    return in.getReaderCacheHelper();
-                }
+            readerWrapper.set(reader -> {
+                throw new AssertionError("can_match must not wrap the reader");
             });
         }
         createIndex("index");

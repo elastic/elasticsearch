@@ -23,6 +23,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.script.ClassPermission;
 
 import javax.security.auth.AuthPermission;
 import javax.security.auth.PrivateCredentialPermission;
@@ -152,7 +153,8 @@ public class PolicyUtil {
             DelegationPermission.class, ALLOW_ALL_NAMES,
             ServicePermission.class, ALLOW_ALL_NAMES,
             PrivateCredentialPermission.class, ALLOW_ALL_NAMES,
-            SQLPermission.class, List.of("callAbort", "setNetworkTimeout")
+            SQLPermission.class, List.of("callAbort", "setNetworkTimeout"),
+            ClassPermission.class, ALLOW_ALL_NAMES
         ).entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getCanonicalName(), Map.Entry::getValue));
         PermissionCollection pluginPermissionCollection = new Permissions();
         namedPermissions.forEach(pluginPermissionCollection::add);

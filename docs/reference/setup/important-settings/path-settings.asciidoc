@@ -4,8 +4,8 @@
 
 For <<targz,macOS `.tar.gz`>>, <<targz,Linux `.tar.gz`>>, and
 <<zip-windows,Windows `.zip`>> installations, {es} writes data and logs to the
-respective `data` and `logs` subdirectories of `$ES_HOME` by default. However,
-files in `$ES_HOME` risk deletion during an upgrade.
+respective `data` and `logs` subdirectories of `$ES_HOME` or by default.
+However, files in `$ES_HOME` risk deletion during an upgrade.
 
 In production, we strongly recommend you set the `path.data` and `path.logs` in
 `elasticsearch.yml` to locations outside of `$ES_HOME`.

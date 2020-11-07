@@ -40,7 +40,7 @@ public class PluginSecurityTests extends ESTestCase {
         for (String file : files) {
             Files.createFile(plugin.resolve(file));
         }
-        return PolicyUtil.getPluginPolicyInfo(plugin);
+        return PolicyUtil.getPluginPolicyInfo(plugin, createTempDir());
     }
 
     /** Test that we can parse the set of permissions correctly for a simple policy */

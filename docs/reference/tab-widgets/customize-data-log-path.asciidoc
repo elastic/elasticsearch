@@ -11,22 +11,12 @@ path:
 
 
 // tag::win[]
-Windows installations support both traditional DOS and Microsoft UNC paths. The
-following example uses traditional DOS paths with escaped backslashes:
+Windows installations support DOS paths with escaped backslashes:
 
 [source,yaml]
 ----
 path:
   data: "C:\\Elastic\\Elasticsearch\\data"
   logs: "C:\\Elastic\\Elasticsearch\\logs"
-----
-
-For UNC paths, provide the server name or share as a prefix:
-
-[source,yaml]
-----
-path:
-  data: "\\\\MY_SERVER\\Elastic\\Elasticsearch\\data"
-  logs: "\\\\MY_SERVER\\Elastic\\Elasticsearch\\logs"
 ----
 // end::win[]

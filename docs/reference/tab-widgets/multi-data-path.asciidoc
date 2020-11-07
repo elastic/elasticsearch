@@ -13,14 +13,14 @@ path:
 
 
 // tag::win[]
-Windows installations support multiple traditional DOS and Microsoft UNC paths in `path.data`:
+Windows installations support multiple DOS paths in `path.data`:
 
 [source,yaml]
 ----
 path:
   data:
     - "C:\\Elastic\\Elasticsearch_1"
-    - "\\\\MY_SERVER\\Elastic\\Elasticsearch_2"
-    - "E:\\Elastic\\Elasticsearch_3"
+    - "E:\\Elastic\\Elasticsearch_1"
+    - "F:\\Elastic\\Elasticsearch_3"
 ----
 // end::win[]

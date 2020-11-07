@@ -49,8 +49,8 @@ relative path, `my_fs_backup_location`, resolves to
 
 
 // tag::win[]
-Windows installations support both traditional DOS and Microsoft UNC paths. The
-following example uses traditional DOS paths with escaped backslashes:
+Windows installations support both DOS and Microsoft UNC paths. The following
+example uses DOS paths with escaped backslashes:
 
 [source,yaml]
 ----
@@ -60,7 +60,7 @@ path:
     - "F:\\Mount\\Long_term_backups"
 ----
 
-For UNC paths, provide the server or share name as a prefix:
+For UNC paths, provide the server and share name as a prefix:
 
 [source,yaml]
 ----

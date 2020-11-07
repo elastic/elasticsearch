@@ -6,7 +6,8 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -75,7 +76,22 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                 indexModule.setSearcherWrapper(indexService -> new IndexSearcherWrapper() {
                     @Override
                     protected DirectoryReader wrap(DirectoryReader reader) throws IOException {
-                        return new EngineTestCase.MatchingDirectoryReader(reader, new MatchAllDocsQuery());
+                        return new FilterDirectoryReader(reader, new FilterDirectoryReader.SubReaderWrapper() {
+                            @Override
+                            public LeafReader wrap(LeafReader reader) {
+                                return reader;
+                            }
+                        }) {
+                            @Override
+                            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+                                return in;
+                            }
+
+                            @Override
+                            public CacheHelper getReaderCacheHelper() {
+                                return in.getReaderCacheHelper();
+                            }
+                        };
                     }
                 });
             }

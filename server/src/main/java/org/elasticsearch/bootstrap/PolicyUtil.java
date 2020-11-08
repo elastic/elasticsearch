@@ -165,7 +165,7 @@ public class PolicyUtil {
         // are essentially part of core, so these are permissions we need for various reasons in core functionality,
         // but that we do not think plugins in general should need.
         List<Permission> modulePermissions = List.of(
-            new FilePermission("<<ALL FILES>>", "read,write"),
+            createFilePermission("<<ALL FILES>>", "read,write"),
             new PropertyPermission("*", "write"),
             new RuntimePermission("getFileStoreAttributes"),
             new RuntimePermission("accessUserInformation"),
@@ -176,6 +176,11 @@ public class PolicyUtil {
         modulePermissions.forEach(modulePermissionCollection::add);
         modulePermissionCollection.setReadOnly();
         ALLOWED_MODULE_PERMISSIONS = new PermissionMatcher(modulePermissionCollection, classPermissions);
+    }
+
+    @SuppressForbidden(reason = "create permission for test")
+    private static FilePermission createFilePermission(String path, String actions) {
+        return new FilePermission(path, actions);
     }
 
     /**

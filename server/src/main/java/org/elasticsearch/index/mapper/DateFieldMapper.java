@@ -624,9 +624,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public Function<byte[], Number> pointReaderIfPossible() {
-            if (isSearchable()) {
-                return resolution()::parsePointAsMillis;
-            }
+            // cannot resolve with the index
             return null;
         }
 

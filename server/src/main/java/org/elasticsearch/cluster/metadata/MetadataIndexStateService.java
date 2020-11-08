@@ -902,7 +902,6 @@ public class MetadataIndexStateService {
                     logger.debug("verification of shards before blocking {} failed [{}]", index, result);
                     continue;
                 }
-                final IndexMetadata indexMetadata = metadata.getSafe(index);
                 final ClusterBlock tempBlock = blockedIndices.get(index);
                 assert tempBlock != null;
                 assert tempBlock.uuid() != null;

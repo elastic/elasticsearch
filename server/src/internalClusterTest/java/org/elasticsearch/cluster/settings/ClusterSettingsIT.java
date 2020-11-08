@@ -24,14 +24,18 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.junit.After;
 
 import java.util.Arrays;
@@ -40,6 +44,7 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -287,10 +292,67 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(clusterService().getClusterSettings().get(INITIAL_RECOVERIES), equalTo(42));
     }
 
-    public void testClusterUpdateSettingsWithBlocks() {
+    public void testRemoveArchiveSettingsWithBlocks() throws Exception {
+        // set cluster read only or read only allow delete
+        if (randomBoolean()) {
+            setClusterReadOnly(true);
+        } else {
+            setClusterReadOnlyAllowDelete(true);
+        }
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        assertTrue(state.getMetadata().transientSettings().getAsBoolean(Metadata.SETTING_READ_ONLY_SETTING.getKey(), false)
+            || state.getMetadata().transientSettings().getAsBoolean(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false));
+
+        // create archived setting randomly in transient or persistent
+        final Metadata metadata = state.getMetadata();
+        final Metadata brokenMeta = Metadata.builder(metadata).persistentSettings(Settings.builder()
+            .put(metadata.persistentSettings()).put("this.is.unknown", true).build()).build();
+        logger.info("brokenMeta[{}]", brokenMeta.persistentSettings());
+        restartNodesOnBrokenClusterState(ClusterState.builder(state).metadata(brokenMeta));
+        ensureGreen(); // wait for state recovery
+        state = client().admin().cluster().prepareState().get().getState();
+        assertTrue(state.getMetadata().persistentSettings().getAsBoolean("archived.this.is.unknown", false));
+
+        // cannot remove read only block due to archived settings
+        try {
+            setClusterReadOnly(false);
+            setClusterReadOnlyAllowDelete(false);
+            fail("should be blocked by archived settings.");
+        } catch (IllegalArgumentException ex) {
+            assertTrue(ex.getMessage().contains("unknown setting [archived.this.is.unknown]"));
+        }
+
+        // can only remove archived settings if cluster is read only
+        try {
+            assertAcked(client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable"))
+                .setTransientSettings(Settings.builder().putNull("archived.*")).get());
+            fail("should only can remove archived settings.");
+        } catch (ClusterBlockException ex) {
+            assertTrue(ex.getMessage().contains("cluster read-only"));
+        }
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("archived.*")).get());
+
+        // now we can remove read only blocks
+        setClusterReadOnly(false);
+        setClusterReadOnlyAllowDelete(false);
+
+        state = client().admin().cluster().prepareState().get().getState();
+        assertFalse(state.getMetadata().transientSettings()
+            .getAsBoolean(Metadata.SETTING_READ_ONLY_SETTING.getKey(), false));
+        assertFalse(state.getMetadata().transientSettings()
+            .getAsBoolean(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false));
+        assertFalse(state.getMetadata().persistentSettings()
+            .getAsBoolean(Metadata.SETTING_READ_ONLY_SETTING.getKey(), false));
+        assertFalse(state.getMetadata().persistentSettings()
+            .getAsBoolean(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false));
+        assertNull(state.getMetadata().persistentSettings().get("archived.this.is.unknown"));
+    }
+
+    public void testClusterUpdateSettingsWithBlocks() throws Exception {
         String key1 = "cluster.routing.allocation.enable";
         Settings transientSettings = Settings.builder().put(key1, EnableAllocationDecider.Allocation.NONE.name()).build();
-
         String key2 = "cluster.routing.allocation.node_concurrent_recoveries";
         Settings persistentSettings = Settings.builder().put(key2, "5").build();
 
@@ -320,7 +382,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         } finally {
             // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
             Settings s = Settings.builder().putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(s).setPersistentSettings(s).get());
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(s).get());
         }
 
         // It should work now

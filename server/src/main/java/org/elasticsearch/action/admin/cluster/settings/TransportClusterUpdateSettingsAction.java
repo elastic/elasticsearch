@@ -43,6 +43,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
+
 public class TransportClusterUpdateSettingsAction extends
     TransportMasterNodeAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
 
@@ -65,27 +67,29 @@ public class TransportClusterUpdateSettingsAction extends
     @Override
     protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
         // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
-        boolean transientSet = false;
-        boolean persistentSet = false;
-        if (request.transientSettings().size() == 1) {
-            // only one setting
-            if (Metadata.SETTING_READ_ONLY_SETTING.exists(request.transientSettings())
-                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.transientSettings())) {
-                // one of the settings above as the only setting in the request means - resetting the block!
-                transientSet = true;
+        // also we allow to remove archived.* settings together with blocks
+        boolean hasOtherSettings = false;
+        for (String settingsKey : request.transientSettings().keySet()) {
+            if (Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(settingsKey)
+                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey().equals(settingsKey)
+                || (settingsKey.startsWith(ARCHIVED_SETTINGS_PREFIX) && request.transientSettings().get(settingsKey) == null)) {
+                continue;
+            } else {
+                hasOtherSettings = true;
             }
         }
-        if (request.persistentSettings().size() == 1) {
-            // only one setting
-            if (Metadata.SETTING_READ_ONLY_SETTING.exists(request.persistentSettings())
-                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.persistentSettings())) {
-                // one of the settings above as the only setting in the request means - resetting the block!
-                persistentSet = true;
+
+        for (String settingsKey : request.persistentSettings().keySet()) {
+            if (Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(settingsKey)
+                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey().equals(settingsKey)
+                || (settingsKey.startsWith(ARCHIVED_SETTINGS_PREFIX) && request.persistentSettings().get(settingsKey) == null)) {
+                continue;
+            } else {
+                hasOtherSettings = true;
             }
         }
-        if (persistentSet && request.transientSettings().size() == 0
-            || transientSet && request.persistentSettings().size() == 0
-            || transientSet && persistentSet ) {
+
+        if (!hasOtherSettings) {
             return null;
         }
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);

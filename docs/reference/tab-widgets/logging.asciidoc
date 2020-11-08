@@ -16,7 +16,7 @@ For <<targz,macOS `.tar.gz`>> installations, {es} writes logs to
 `$ES_HOME/logs`.
 
 Files in `$ES_HOME` risk deletion during an upgrade. In production, we strongly
-recommend you set `path.logs` to write logs to a location outside of `$ES_HOME`.
+recommend you set `path.logs` to a location outside of `$ES_HOME`.
 See <<path-settings>>.
 // end::mac[]
 
@@ -30,7 +30,7 @@ For <<targz,Linux `.tar.gz`>> installations, {es} writes logs to
 `$ES_HOME/logs`.
 
 Files in `$ES_HOME` risk deletion during an upgrade. In production, we strongly
-recommend you set `path.logs` to write logs to a location outside of `$ES_HOME`.
+recommend you set `path.logs` to a location outside of `$ES_HOME`.
 See <<path-settings>>.
 // end::linux[]
 
@@ -39,7 +39,7 @@ For <<zip-windows,Windows `.zip`>> installations, {es} writes logs to
 `%ES_HOME%\logs`.
 
 Files in `%ES_HOME%` risk deletion during an upgrade. In production, we strongly
-recommend you set `path.logs` to write logs to a location outside of `%ES_HOME%``.
+recommend you set `path.logs` to a location outside of `%ES_HOME%``.
 See <<path-settings>>.
 // end::win-zip[]
 

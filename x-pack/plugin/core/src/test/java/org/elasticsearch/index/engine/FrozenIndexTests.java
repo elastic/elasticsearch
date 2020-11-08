@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -16,15 +17,18 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.IndicesService;
@@ -40,12 +44,14 @@ import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -60,8 +66,32 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(XPackPlugin.class);
+        return pluginList(XPackPlugin.class, SearcherWrapperPlugin.class);
     }
+
+    static final AtomicReference<CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapper = new AtomicReference<>();
+
+    @Before
+    public void resetReaderWrapper() throws Exception {
+        readerWrapper.set(null);
+    }
+
+    public static class SearcherWrapperPlugin extends Plugin {
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            super.onIndexModule(indexModule);
+            if (randomBoolean()) {
+                indexModule.setSearcherWrapper(indexService -> new IndexSearcherWrapper() {
+                    @Override
+                    protected DirectoryReader wrap(DirectoryReader reader) throws IOException {
+                        final CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = readerWrapper.get();
+                        return wrapper != null ? wrapper.apply(reader) : reader;
+                    }
+                });
+            }
+        }
+    }
+
 
     public void testCloseFreezeAndOpen() throws ExecutionException, InterruptedException {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());
@@ -241,6 +271,11 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     }
 
     public void testCanMatch() throws ExecutionException, InterruptedException, IOException {
+        if (randomBoolean()) {
+            readerWrapper.set(reader -> {
+                throw new AssertionError("can_match must not wrap the reader");
+            });
+        }
         createIndex("index");
         client().prepareIndex("index", "_doc", "1").setSource("field", "2010-01-05T02:00").setRefreshPolicy(IMMEDIATE).execute()
             .actionGet();

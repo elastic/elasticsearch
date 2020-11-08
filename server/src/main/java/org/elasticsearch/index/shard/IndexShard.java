@@ -1270,8 +1270,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             != null : "DirectoryReader must be an instance or ElasticsearchDirectoryReader";
         boolean success = false;
         try {
-            final Engine.Searcher wrappedSearcher = searcherWrapper == null ? searcher : searcherWrapper.wrap(searcher);
-            assert wrappedSearcher != null;
+            final Engine.Searcher wrappedSearcher;
+            if (searcherWrapper != null && Engine.CAN_MATCH_SEARCH_SOURCE.equals(source) == false) {
+                wrappedSearcher = searcherWrapper.wrap(searcher);
+            } else {
+                wrappedSearcher = searcher;
+            }
             success = true;
             return wrappedSearcher;
         } catch (IOException ex) {

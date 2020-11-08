@@ -34,10 +34,9 @@ public class TranslogStats implements Writeable, ToXContentFragment {
     private int numberOfOperations;
     private long uncommittedSizeInBytes;
     private int  uncommittedOperations;
-    private long earliestLastModifiedAge;
+    private long earliestLastModifiedAge = Long.MAX_VALUE;
 
     public TranslogStats() {
-        earliestLastModifiedAge = Long.MAX_VALUE;
     }
 
     public TranslogStats(StreamInput in) throws IOException {

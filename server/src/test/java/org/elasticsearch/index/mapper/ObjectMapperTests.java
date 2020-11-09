@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -117,14 +118,18 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64607")
     public void testMerge() throws IOException {
         MergeReason reason = randomFrom(MergeReason.values());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.root().dynamic());
-        merge(mapperService, reason, topMapping(b -> b.field("dynamic", "strict")));
-        assertEquals(Dynamic.STRICT, mapperService.documentMapper().root().dynamic());
+        // Call mapperService.merge directly here, because we may randomly pick PREFLIGHT_CHECK
+        // as a merge reason, in which case the mapper does not get updated in-place.
+        mapper = mapperService.merge(
+            "_doc",
+            new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict")))),
+            reason);
+        assertEquals(Dynamic.STRICT, mapper.root().dynamic());
     }
 
     public void testMergeEnabledForIndexTemplates() throws IOException {

@@ -364,36 +364,22 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     public static class Builder<E> {
-        private AttributeMap<E> map = null;
-        private AttributeMap<E> previouslyBuiltMap = null;
+        private AttributeMap<E> map = new AttributeMap<>();
 
         private Builder() {}
 
-        private AttributeMap<E> map() {
-            if (map == null) {
-                map = new AttributeMap<>();
-                if (previouslyBuiltMap != null) {
-                    map.addAll(previouslyBuiltMap);
-                }
-            }
-            return map;
-        }
-
         public Builder<E> put(Attribute attr, E value) {
-            map().add(attr, value);
+            map.add(attr, value);
             return this;
         }
 
         public Builder<E> putAll(AttributeMap<E> m) {
-            map().addAll(m);
+            map.addAll(m);
             return this;
         }
 
         public AttributeMap<E> build() {
-            AttributeMap<E> m = map();
-            previouslyBuiltMap = m;
-            map = null;
-            return m;
+            return map;
         }
     }
 }

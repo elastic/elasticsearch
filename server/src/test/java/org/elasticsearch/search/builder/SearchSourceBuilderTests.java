@@ -101,7 +101,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testSerializingWithRuntimeFieldsBeforeSupportedThrows() {
         SearchSourceBuilder original = new SearchSourceBuilder().runtimeMappings(randomRuntimeMappings());
-        Version v = Version.CURRENT.minimumCompatibilityVersion();
+        Version v = Version.V_8_0_0.minimumCompatibilityVersion();
         Exception e = expectThrows(IllegalArgumentException.class, () -> copyBuilder(original, v));
         assertThat(e.getMessage(), equalTo("Versions before 8.0.0 don't support [runtime_mappings] and search was sent to [" + v + "]"));
     }

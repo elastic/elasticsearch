@@ -59,12 +59,12 @@ final class MatchAllRoleBitSet extends BitSet {
 
     @Override
     public int prevSetBit(int index) {
-        return index - 1;
+        return index;
     }
 
     @Override
     public int nextSetBit(int index) {
-        return index + 1;
+        return index;
     }
 
     @Override

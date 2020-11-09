@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -137,6 +138,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
                 type = PluginType.valueOf(typeString);
             } catch (IllegalArgumentException e) {
                 final String message = String.format(
+                    Locale.ROOT,
                     "Failed to parse [%s]. This node's version = [%s], remote node version = [%s]",
                     typeString,
                     Version.CURRENT,

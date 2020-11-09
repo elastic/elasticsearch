@@ -394,7 +394,7 @@ public class Archives {
         assertThat(pid, is(not(emptyOrNullString())));
 
         final Shell sh = new Shell();
-        Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + "; tail --pid=" + pid + " -f /dev/null"));
+        Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + " && tail --pid=" + pid + " -f /dev/null"));
         Platforms.onWindows(() -> {
             sh.run("Get-Process -Id " + pid + " | Stop-Process -Force; Wait-Process -Id " + pid);
 
@@ -408,10 +408,6 @@ public class Archives {
         Platforms.onLinux(() -> logger.warn(sh.run("ps ax | grep " + pid).stdout));
         if (Files.exists(pidFile)) {
             Files.delete(pidFile);
-            if (Files.exists(pidFile)) {
-                Platforms.onLinux(() -> logger.warn(sh.run("tail -30 " + installation.logs.resolve("elasticsearch.log")).stdout));
-            }
-            assertThat(pidFile, fileDoesNotExist());
         }
     }
 

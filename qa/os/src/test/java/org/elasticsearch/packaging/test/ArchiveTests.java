@@ -46,6 +46,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
@@ -394,6 +395,9 @@ public class ArchiveTests extends PackagingTestCase {
 
         // (@rory) this is for debugging
         Platforms.onLinux(() -> { logger.warn(sh.run("ls -l /tmp/node.lock; ls -ld /tmp").stdout); });
+
+        Path pidFile = installation.home.resolve("elasticsearch.pid");
+        assertThat(pidFile, fileDoesNotExist());
 
         Result result = sh.run("echo y | " + installation.executables().nodeTool + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));

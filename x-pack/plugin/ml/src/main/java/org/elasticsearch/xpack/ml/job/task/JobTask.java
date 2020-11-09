@@ -1,0 +1,54 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+package org.elasticsearch.xpack.ml.job.task;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+
+import java.util.Map;
+
+public class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {
+
+    private static final Logger LOGGER = LogManager.getLogger(JobTask.class);
+
+    private final String jobId;
+    private volatile AutodetectProcessManager autodetectProcessManager;
+
+    JobTask(String jobId, long id, String type, String action, TaskId parentTask, Map<String, String> headers) {
+        super(id, type, action, "job-" + jobId, parentTask, headers);
+        this.jobId = jobId;
+    }
+
+    public String getJobId() {
+        return jobId;
+    }
+
+    @Override
+    protected void onCancelled() {
+        String reason = getReasonCancelled();
+        LOGGER.trace(() -> new ParameterizedMessage("[{}] Cancelling job task because: {}", jobId, reason));
+        killJob(reason);
+    }
+
+    void killJob(String reason) {
+        autodetectProcessManager.killProcess(this, false, reason);
+    }
+
+    public void closeJob(String reason) {
+        autodetectProcessManager.closeJob(this, false, reason);
+    }
+
+    void setAutodetectProcessManager(AutodetectProcessManager autodetectProcessManager) {
+        this.autodetectProcessManager = autodetectProcessManager;
+    }
+
+}

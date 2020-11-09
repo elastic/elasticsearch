@@ -25,6 +25,8 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 
 import java.util.Map;
 
@@ -76,6 +78,7 @@ import java.util.Map;
  * Will copy any of the the x-pack tests that start with graph, and will copy the X-pack graph specification, as well as the full core
  * Rest API specification.
  *
+ * Additionally you can specify which sourceSetName resources should be copied to. The default is the yamlRestTest source set.
  * @see CopyRestApiTask
  * @see CopyRestTestsTask
  */
@@ -97,6 +100,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.includeCore.set(extension.restTests.getIncludeCore());
                 task.includeXpack.set(extension.restTests.getIncludeXpack());
                 task.coreConfig = testConfig;
+                task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
                 if (BuildParams.isInternal()) {
                     // core
                     Dependency restTestdependency = project.getDependencies()
@@ -127,6 +131,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.includeXpack.set(extension.restApi.getIncludeXpack());
                 task.dependsOn(copyRestYamlTestTask);
                 task.coreConfig = specConfig;
+                task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
                 if (BuildParams.isInternal()) {
                     Dependency restSpecDependency = project.getDependencies()
                         .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
@@ -144,6 +149,12 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.dependsOn(task.coreConfig);
             });
 
-        project.getTasks().named("processTestResources").configure(t -> t.dependsOn(copyRestYamlSpecTask));
+        project.afterEvaluate(p -> {
+            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+            SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
+            if (testSourceSet != null) {
+                project.getTasks().named(testSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestYamlSpecTask));
+            }
+        });
     }
 }

@@ -24,11 +24,13 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -50,6 +52,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.elasticsearch.test.NodeRoles.onlyRoles;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -212,6 +218,18 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testGroupIndicesWithoutRemoteClusterClientRole() throws Exception {
+        final Settings settings = onlyRoles(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "node-1").build(),
+            Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE));
+        try (RemoteClusterService service = new RemoteClusterService(settings, null)) {
+            assertFalse(service.isEnabled());
+            assertFalse(service.isCrossClusterSearchEnabled());
+            final IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+                () -> service.groupIndices(IndicesOptions.LENIENT_EXPAND_OPEN, new String[]{"cluster_1:bar", "cluster_2:foo*"}));
+            assertThat(error.getMessage(), equalTo("node [node-1] does not have the remote cluster client role enabled"));
         }
     }
 
@@ -448,8 +466,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
     public void testRemoteNodeRoles() throws IOException, InterruptedException {
         final Settings settings = Settings.EMPTY;
         final List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        final Settings data = Settings.builder().put("node.master", false).build();
-        final Settings dedicatedMaster = Settings.builder().put("node.data", false).put("node.ingest", "false").build();
+        final Settings data = nonMasterNode();
+        final Settings dedicatedMaster = masterOnlyNode();
         try (MockTransportService c1N1 =
                      startTransport("cluster_1_node_1", knownNodes, Version.CURRENT, dedicatedMaster);
              MockTransportService c1N2 =
@@ -652,11 +670,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         failLatch.await();
                         assertNotNull(ex.get());
                         if (ex.get() instanceof IllegalStateException) {
-                            assertThat(ex.get().getMessage(), either(equalTo("no seed node left"))
-                                .or(equalTo("Unable to open any connections to remote cluster [cluster_2]")));
+                            assertThat(ex.get().getMessage(),
+                                either(equalTo("Unable to open any connections to remote cluster [cluster_1]"))
+                                    .or(equalTo("Unable to open any connections to remote cluster [cluster_2]")));
                         } else {
-                            assertThat(ex.get(),
-                                either(instanceOf(TransportException.class)).or(instanceOf(NoSuchRemoteClusterException.class)));
+                            assertThat(ex.get(), either(instanceOf(TransportException.class))
+                                .or(instanceOf(NoSuchRemoteClusterException.class))
+                                .or(instanceOf(NoSeedNodeLeftException.class)));
                         }
                     }
                 }
@@ -847,7 +867,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     }
 
     public void testRemoteClusterServiceNotEnabledGetRemoteClusterConnection() {
-        final Settings settings = Settings.builder().put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), false).build();
+        final Settings settings = removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
         try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
             service.start();
             service.acceptIncomingRequests();
@@ -858,7 +878,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     }
 
     public void testRemoteClusterServiceNotEnabledGetCollectNodes() {
-        final Settings settings = Settings.builder().put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), false).build();
+        final Settings settings = removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
         try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
             service.start();
             service.acceptIncomingRequests();

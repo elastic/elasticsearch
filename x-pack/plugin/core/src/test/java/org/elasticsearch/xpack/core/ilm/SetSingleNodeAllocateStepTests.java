@@ -523,7 +523,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             assertSettingsRequestContainsValueFrom(request,
                 IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", validNodeIds, true,
                 indexMetadata.getIndex().getName());
-            listener.onResponse(new AcknowledgedResponse(true));
+            listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 

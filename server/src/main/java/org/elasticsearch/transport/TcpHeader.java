@@ -60,10 +60,11 @@ public class TcpHeader {
         }
     }
 
+    private static final byte[] PREFIX = {(byte) 'E', (byte) 'S'};
+
     public static void writeHeader(StreamOutput output, long requestId, byte status, Version version, int contentSize,
                                    int variableHeaderSize) throws IOException {
-        output.writeByte((byte)'E');
-        output.writeByte((byte)'S');
+        output.writeBytes(PREFIX);
         // write the size, the size indicates the remaining message size, not including the size int
         if (version.onOrAfter(VERSION_WITH_HEADER_SIZE)) {
             output.writeInt(contentSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE + VARIABLE_HEADER_SIZE);

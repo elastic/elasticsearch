@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
@@ -25,7 +23,7 @@ public class DeleteCalendarAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/calendars/delete";
 
     private DeleteCalendarAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -36,9 +34,6 @@ public class DeleteCalendarAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             calendarId = in.readString();
-        }
-
-        public Request() {
         }
 
         public Request(String calendarId) {
@@ -73,13 +68,6 @@ public class DeleteCalendarAction extends ActionType<AcknowledgedResponse> {
 
             Request other = (Request) obj;
             return Objects.equals(calendarId, other.calendarId);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
-
-        public RequestBuilder(ElasticsearchClient client, DeleteCalendarAction action) {
-            super(client, action, new Request());
         }
     }
 }

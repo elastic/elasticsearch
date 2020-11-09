@@ -42,9 +42,11 @@ public class GetDataStreamResponse {
 
     public static GetDataStreamResponse fromXContent(XContentParser parser) throws IOException {
         final List<DataStream> templates = new ArrayList<>();
-        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
-            if (token == XContentParser.Token.START_OBJECT) {
-                templates.add(DataStream.fromXContent(parser));
+        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+            if (token == XContentParser.Token.START_ARRAY) {
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    templates.add(DataStream.fromXContent(parser));
+                }
             }
         }
         return new GetDataStreamResponse(templates);

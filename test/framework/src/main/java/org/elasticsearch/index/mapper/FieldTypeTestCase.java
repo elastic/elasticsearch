@@ -18,74 +18,23 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.util.ArrayList;
+import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /** Base test case for subclasses of MappedFieldType */
-public abstract class FieldTypeTestCase<T extends MappedFieldType> extends ESTestCase {
+public abstract class FieldTypeTestCase extends ESTestCase {
 
     public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(true);
     public static final QueryShardContext MOCK_QSC_DISALLOW_EXPENSIVE = createMockQueryShardContext(false);
-
-    /** Create a default constructed fieldtype */
-    protected abstract T createDefaultFieldType(String name, Map<String, String> meta);
-
-    @SuppressWarnings("unchecked")
-    private final List<EqualsHashCodeTestUtils.MutateFunction<T>> modifiers = new ArrayList<>(List.of(
-        t -> createDefaultFieldType(t.name() + "-mutated", t.meta()),
-        t -> {
-            MappedFieldType copy = t.clone();
-            copy.setBoost(t.boost() + 1);
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            NamedAnalyzer a = t.searchAnalyzer();
-            if (a == null) {
-                copy.setSearchAnalyzer(new NamedAnalyzer("mutated", AnalyzerScope.INDEX, new StandardAnalyzer()));
-                return (T) copy;
-            }
-            copy.setSearchAnalyzer(new NamedAnalyzer(a.name() + "-mutated", a.scope(), a.analyzer()));
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            NamedAnalyzer a = t.searchQuoteAnalyzer();
-            if (a == null) {
-                copy.setSearchQuoteAnalyzer(new NamedAnalyzer("mutated", AnalyzerScope.INDEX, new StandardAnalyzer()));
-                return (T) copy;
-            }
-            copy.setSearchQuoteAnalyzer(new NamedAnalyzer(a.name() + "-mutated", a.scope(), a.analyzer()));
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            copy.setEagerGlobalOrdinals(t.eagerGlobalOrdinals() == false);
-            return (T) copy;
-        },
-        t -> {
-            Map<String, String> meta = new HashMap<>(t.meta());
-            meta.put("bogus", "bogus");
-            return createDefaultFieldType(t.name(), meta);
-        }
-    ));
-
-    protected void addModifier(EqualsHashCodeTestUtils.MutateFunction<T> modifier) {
-        modifiers.add(modifier);
-    }
 
     protected QueryShardContext randomMockShardContext() {
         return randomFrom(MOCK_QSC, MOCK_QSC_DISALLOW_EXPENSIVE);
@@ -97,17 +46,18 @@ public abstract class FieldTypeTestCase<T extends MappedFieldType> extends ESTes
         return queryShardContext;
     }
 
-    public void testClone() {
-        MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(fieldType, MappedFieldType::clone);
+    public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue) throws IOException {
+        return fetchSourceValue(fieldType, sourceValue, null);
     }
 
-    @SuppressWarnings("unchecked")
-    public void testEquals() {
-        for (EqualsHashCodeTestUtils.MutateFunction<T> modifier : modifiers) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createDefaultFieldType("foo", Collections.emptyMap()),
-                t -> (T) t.clone(), modifier);
-        }
-    }
+    public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
+        String field = fieldType.name();
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.sourcePath(field)).thenReturn(Set.of(field));
 
+        ValueFetcher fetcher = fieldType.valueFetcher(queryShardContext, null, format);
+        SourceLookup lookup = new SourceLookup();
+        lookup.setSource(Collections.singletonMap(field, sourceValue));
+        return fetcher.fetchValues(lookup);
+    }
 }

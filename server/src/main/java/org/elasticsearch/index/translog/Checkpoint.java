@@ -167,6 +167,26 @@ final class Checkpoint {
     }
 
     public static void write(ChannelFactory factory, Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
+        byte[] bytes = createCheckpointBytes(checkpointFile, checkpoint);
+
+        // now go and write to the channel, in one go.
+        try (FileChannel channel = factory.open(checkpointFile, options)) {
+            Channels.writeToChannel(bytes, channel);
+            // no need to force metadata, file size stays the same and we did the full fsync
+            // when we first created the file, so the directory entry doesn't change as well
+            channel.force(false);
+        }
+    }
+
+    public static void write(FileChannel fileChannel, Path checkpointFile, Checkpoint checkpoint) throws IOException {
+        byte[] bytes = createCheckpointBytes(checkpointFile, checkpoint);
+        Channels.writeToChannel(bytes, fileChannel, 0);
+        // no need to force metadata, file size stays the same and we did the full fsync
+        // when we first created the file, so the directory entry doesn't change as well
+        fileChannel.force(false);
+    }
+
+    private static byte[] createCheckpointBytes(Path checkpointFile, Checkpoint checkpoint) throws IOException {
         final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(V3_FILE_SIZE) {
             @Override
             public synchronized byte[] toByteArray() {
@@ -185,15 +205,8 @@ final class Checkpoint {
                 "get you numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + V3_FILE_SIZE;
             assert indexOutput.getFilePointer() < 512 :
                 "checkpoint files have to be smaller than 512 bytes for atomic writes; size: " + indexOutput.getFilePointer();
-
         }
-        // now go and write to the channel, in one go.
-        try (FileChannel channel = factory.open(checkpointFile, options)) {
-            Channels.writeToChannel(byteOutputStream.toByteArray(), channel);
-            // no need to force metadata, file size stays the same and we did the full fsync
-            // when we first created the file, so the directory entry doesn't change as well
-            channel.force(false);
-        }
+        return byteOutputStream.toByteArray();
     }
 
     @Override

@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -529,17 +528,14 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
      */
     private Map<String, MappedFieldType> createFieldTypes(RollupJobConfig job) {
         Map<String, MappedFieldType> fieldTypes = new HashMap<>();
-        MappedFieldType fieldType = new DateFieldMapper.Builder(job.getGroupConfig().getDateHistogram().getField())
-                .format(randomFrom("basic_date", "date_optional_time", "epoch_second"))
-                .locale(Locale.ROOT)
-                .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
-                .fieldType();
+        DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(Locale.ROOT);
+        MappedFieldType fieldType = new DateFieldMapper.DateFieldType(job.getGroupConfig().getDateHistogram().getField(), formatter);
         fieldTypes.put(fieldType.name(), fieldType);
 
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberFieldMapper.NumberType.LONG)
-                        .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
+                MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberFieldMapper.NumberType.LONG, false, false)
+                        .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -548,7 +544,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
                 MappedFieldType ft = new KeywordFieldMapper.Builder(field)
-                        .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
+                        .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -556,8 +552,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getMetricsConfig() != null) {
             for (MetricConfig metric : job.getMetricsConfig()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(metric.getField(), NumberFieldMapper.NumberType.LONG)
-                        .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
+                MappedFieldType ft = new NumberFieldMapper.Builder(metric.getField(), NumberFieldMapper.NumberType.LONG, false, false)
+                        .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -637,7 +633,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> listener) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> listener) {
+            SearchRequest request = buildSearchRequest();
             assertNotNull(request.source());
 
             // extract query
@@ -656,7 +653,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
             CompositeAggregation result = null;
             try {
-                result = search(searcher, query, aggBuilder, fieldTypes);
+                result = searchAndReduce(searcher, query, aggBuilder, fieldTypes);
             } catch (IOException e) {
                 listener.onFailure(e);
             }

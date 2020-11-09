@@ -157,6 +157,11 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return indicesOptions;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     public boolean includeUnmapped() {
         return includeUnmapped;
     }

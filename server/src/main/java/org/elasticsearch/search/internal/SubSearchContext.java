@@ -26,11 +26,11 @@ import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
@@ -52,14 +52,14 @@ public class SubSearchContext extends FilteredSearchContext {
     private final QuerySearchResult querySearchResult;
 
     private int[] docIdsToLoad;
-    private int docsIdsToLoadFrom;
     private int docsIdsToLoadSize;
 
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
     private FetchDocValuesContext docValuesContext;
-    private SearchContextHighlight highlight;
+    private FetchFieldsContext fetchFieldsContext;
+    private SearchHighlightContext highlight;
 
     private boolean explain;
     private boolean trackScores;
@@ -73,10 +73,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    protected void doClose() {
-    }
-
-    @Override
     public void preProcess(boolean rewrite) {
     }
 
@@ -86,32 +82,22 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext scrollContext(ScrollContext scrollContext) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
         throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
-    public SearchContextHighlight highlight() {
+    public SearchHighlightContext highlight() {
         return highlight;
     }
 
     @Override
-    public void highlight(SearchContextHighlight highlight) {
+    public void highlight(SearchHighlightContext highlight) {
         this.highlight = highlight;
     }
 
     @Override
     public void suggest(SuggestionSearchContext suggest) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
-    public void addRescore(RescoreContext rescore) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -157,6 +143,17 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public SearchContext docValuesContext(FetchDocValuesContext docValuesContext) {
         this.docValuesContext = docValuesContext;
+        return this;
+    }
+
+    @Override
+    public FetchFieldsContext fetchFieldsContext() {
+        return fetchFieldsContext;
+    }
+
+    @Override
+    public SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext) {
+        this.fetchFieldsContext = fetchFieldsContext;
         return this;
     }
 
@@ -249,16 +246,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public boolean hasStoredFieldsContext() {
-        return storedFields != null;
-    }
-
-    @Override
-    public boolean storedFieldsRequested() {
-        return storedFields != null && storedFields.fetchFields();
-    }
-
-    @Override
     public StoredFieldsContext storedFieldsContext() {
         return storedFields;
     }
@@ -310,19 +297,13 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public int docIdsToLoadFrom() {
-        return docsIdsToLoadFrom;
-    }
-
-    @Override
     public int docIdsToLoadSize() {
         return docsIdsToLoadSize;
     }
 
     @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
         this.docIdsToLoad = docIdsToLoad;
-        this.docsIdsToLoadFrom = docsIdsToLoadFrom;
         this.docsIdsToLoadSize = docsIdsToLoadSize;
         return this;
     }
@@ -330,16 +311,6 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public CollapseContext collapse() {
         return null;
-    }
-
-    @Override
-    public void accessed(long accessTime) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
-    public void keepAlive(long keepAlive) {
-        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override

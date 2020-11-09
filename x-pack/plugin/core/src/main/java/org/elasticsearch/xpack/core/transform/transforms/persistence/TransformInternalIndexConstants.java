@@ -19,6 +19,7 @@ public final class TransformInternalIndexConstants {
      *
      *    - XPackRestTestConstants
      *    - yaml tests under x-pack/qa/
+     *    - upgrade tests under x-pack/qa/rolling-upgrade
      *
      * (pro-tip: grep for the constant)
      */

@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.eql.session.EmptyExecutable;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.session.Executable;
-import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -45,7 +45,7 @@ public class LocalExec extends LeafExec {
     }
 
     @Override
-    public void execute(EqlSession session, ActionListener<Results> listener) {
+    public void execute(EqlSession session, ActionListener<Payload> listener) {
         executable.execute(session, listener);
     }
 

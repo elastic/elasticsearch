@@ -22,7 +22,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,12 +83,7 @@ public class Detector implements ToXContentObject {
         PARSER.declareString(Builder::setOverFieldName, OVER_FIELD_NAME_FIELD);
         PARSER.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME_FIELD);
         PARSER.declareBoolean(Builder::setUseNull, USE_NULL_FIELD);
-        PARSER.declareField(Builder::setExcludeFrequent, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return ExcludeFrequent.forString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareString(Builder::setExcludeFrequent, ExcludeFrequent::forString, EXCLUDE_FREQUENT_FIELD);
         PARSER.declareObjectArray(Builder::setRules, (p, c) -> DetectionRule.PARSER.apply(p, c).build(), CUSTOM_RULES_FIELD);
         PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
     }

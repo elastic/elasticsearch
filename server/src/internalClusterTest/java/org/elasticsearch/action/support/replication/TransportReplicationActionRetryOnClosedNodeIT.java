@@ -118,8 +118,8 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         }
 
         @Override
-        protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard replica) {
-            return new ReplicaResult();
+        protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+            listener.onResponse(new ReplicaResult());
         }
     }
 

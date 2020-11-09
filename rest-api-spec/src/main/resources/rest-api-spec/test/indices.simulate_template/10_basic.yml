@@ -1,8 +1,8 @@
 ---
 "Simulate template without a template in the body":
   - skip:
-      version: " - 7.99.99"
-      reason: "not yet backported"
+      version: " - 7.8.99"
+      reason: "only available in 7.9+"
       features: ["default_shards"]
 
   - do:
@@ -31,8 +31,8 @@
 ---
 "Simulate index template specifying a new template":
   - skip:
-      version: " - 7.99.99"
-      reason: "not yet backported"
+      version: " - 7.8.99"
+      reason: "only available in 7.9+"
       features: ["default_shards"]
 
   - do:
@@ -85,8 +85,8 @@
 ---
 "Simulate template matches overlapping legacy and composable templates":
   - skip:
-      version: " - 7.99.99"
-      reason: "not yet backported"
+      version: " - 7.8.99"
+      reason: "only available in 7.9+"
       features: ["allowed_warnings", "default_shards"]
 
   - do:
@@ -144,3 +144,57 @@
   - match: {overlapping.0.index_patterns: ["t*", "t1*"]}
   - match: {overlapping.1.name: v2_template}
   - match: {overlapping.1.index_patterns: ["te*"]}
+
+---
+"Simulate replacing a template with a newer version":
+  - skip:
+      version: " - 7.99.99"
+      reason: "not yet backported"
+      features: ["allowed_warnings", "default_shards"]
+
+  - do:
+      indices.put_index_template:
+        name: v2_template
+        body:
+          index_patterns: te*
+          priority: 10
+          template:
+            settings:
+              number_of_shards:   10
+              number_of_replicas: 2
+            mappings:
+              properties:
+                field:
+                  type: text
+
+  - do:
+      cluster.put_component_template:
+        name: ct
+        body:
+          template:
+            settings:
+              index.number_of_replicas: 3
+            mappings:
+              properties:
+                ct_field:
+                  type: keyword
+
+  - do:
+      indices.simulate_template:
+        name: v2_template
+        body:
+          index_patterns: te*
+          priority: 10
+          template:
+            settings:
+              index.blocks.write: true
+            aliases:
+              test_alias: {}
+          composed_of: ["ct"]
+
+  - match: {template.settings.index.blocks.write: "true"}
+  - match: {template.settings.index.number_of_replicas: "3"}
+  - match: {template.mappings.properties.ct_field.type: "keyword"}
+  - length: {template.aliases: 1}
+  - is_true: template.aliases.test_alias
+  - length: {overlapping: 0}

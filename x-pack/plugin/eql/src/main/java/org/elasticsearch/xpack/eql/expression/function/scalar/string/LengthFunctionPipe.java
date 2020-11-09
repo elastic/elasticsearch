@@ -17,11 +17,11 @@ import java.util.Objects;
 
 public class LengthFunctionPipe extends Pipe {
 
-    private final Pipe source;
+    private final Pipe input;
 
-    public LengthFunctionPipe(Source source, Expression expression, Pipe src) {
-        super(source, expression, Arrays.asList(src));
-        this.source = src;
+    public LengthFunctionPipe(Source source, Expression expression, Pipe input) {
+        super(source, expression, Arrays.asList(input));
+        this.input = input;
     }
 
     @Override
@@ -34,49 +34,46 @@ public class LengthFunctionPipe extends Pipe {
 
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
-        if (newSource == source) {
-            return this;
-        }
-        return replaceChildren(newSource);
+        Pipe newInput = input.resolveAttributes(resolver);
+        return newInput == input ? this : replaceChildren(newInput);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery();
+        return input.supportedByAggsOnlyQuery();
     }
 
     @Override
     public boolean resolved() {
-        return source.resolved();
+        return input.resolved();
     }
 
-    protected Pipe replaceChildren(Pipe newSource) {
-        return new LengthFunctionPipe(source(), expression(), newSource);
+    protected LengthFunctionPipe replaceChildren(Pipe newInput) {
+        return new LengthFunctionPipe(source(), expression(), newInput);
     }
 
     @Override
     public final void collectFields(QlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+        input.collectFields(sourceBuilder);
     }
 
     @Override
     protected NodeInfo<LengthFunctionPipe> info() {
-        return NodeInfo.create(this, LengthFunctionPipe::new, expression(), source);
+        return NodeInfo.create(this, LengthFunctionPipe::new, expression(), input);
     }
 
     @Override
     public LengthFunctionProcessor asProcessor() {
-        return new LengthFunctionProcessor(source.asProcessor());
+        return new LengthFunctionProcessor(input.asProcessor());
     }
     
-    public Pipe src() {
-        return source;
+    public Pipe input() {
+        return input;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source);
+        return Objects.hash(input);
     }
 
     @Override
@@ -89,6 +86,6 @@ public class LengthFunctionPipe extends Pipe {
             return false;
         }
 
-        return Objects.equals(source, ((LengthFunctionPipe) obj).source);
+        return Objects.equals(input(), ((LengthFunctionPipe) obj).input());
     }
 }

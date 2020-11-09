@@ -36,8 +36,8 @@ public class TermsGroupSourceTests extends AbstractResponseTestCase<
     public static TermsGroupSource randomTermsGroupSource() {
         String field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
         ScriptConfig scriptConfig = randomBoolean() ? null : DateHistogramGroupSourceTests.randomScriptConfig();
-
-        return new TermsGroupSource(field, scriptConfig);
+        boolean missingBucket = randomBoolean();
+        return new TermsGroupSource(field, scriptConfig, missingBucket);
     }
 
     @Override

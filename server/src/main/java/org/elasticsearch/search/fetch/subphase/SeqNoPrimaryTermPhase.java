@@ -20,50 +20,47 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
 
 public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
+
     @Override
-    public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
+    public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         if (context.seqNoAndPrimaryTerm() == false) {
-            return;
+            return null;
         }
+        return new FetchSubPhaseProcessor() {
 
-        hits = hits.clone(); // don't modify the incoming hits
-        Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
+            NumericDocValues seqNoField = null;
+            NumericDocValues primaryTermField = null;
 
-        int lastReaderId = -1;
-        NumericDocValues seqNoField = null;
-        NumericDocValues primaryTermField = null;
-        for (SearchHit hit : hits) {
-            int readerId = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
-            LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerId);
-            if (lastReaderId != readerId) {
-                seqNoField = subReaderContext.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-                primaryTermField = subReaderContext.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-                lastReaderId = readerId;
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) throws IOException {
+                seqNoField = readerContext.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                primaryTermField = readerContext.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
             }
-            int docId = hit.docId() - subReaderContext.docBase;
-            long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-            // we have to check the primary term field as it is only assigned for non-nested documents
-            if (primaryTermField != null && primaryTermField.advanceExact(docId)) {
-                boolean found = seqNoField.advanceExact(docId);
-                assert found: "found seq no for " + docId + " but not a primary term";
-                seqNo = seqNoField.longValue();
-                primaryTerm = primaryTermField.longValue();
+
+            @Override
+            public void process(HitContext hitContext) throws IOException {
+                int docId = hitContext.docId();
+                long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+                // we have to check the primary term field as it is only assigned for non-nested documents
+                if (primaryTermField != null && primaryTermField.advanceExact(docId)) {
+                    boolean found = seqNoField.advanceExact(docId);
+                    assert found: "found seq no for " + docId + " but not a primary term";
+                    seqNo = seqNoField.longValue();
+                    primaryTerm = primaryTermField.longValue();
+                }
+                hitContext.hit().setSeqNo(seqNo);
+                hitContext.hit().setPrimaryTerm(primaryTerm);
             }
-            hit.setSeqNo(seqNo);
-            hit.setPrimaryTerm(primaryTerm);
-        }
+        };
     }
 }

@@ -11,17 +11,17 @@ The value of the `_id` field is accessible in certain queries (`term`,
 [source,console]
 --------------------------
 # Example documents
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "text": "Document with ID 1"
 }
 
-PUT my_index/_doc/2?refresh=true
+PUT my-index-000001/_doc/2?refresh=true
 {
   "text": "Document with ID 2"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "terms": {

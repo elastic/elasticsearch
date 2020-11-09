@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -122,13 +123,17 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     }
 
     static class Resolver extends IndexNameExpressionResolver {
+        Resolver() {
+            super(new ThreadContext(Settings.EMPTY));
+        }
+
         @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request, boolean includeDataStreams) {
+        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();
         }
 
         @Override
-        public Index[] concreteIndices(ClusterState state, IndicesRequest request, boolean includeDataStreams) {
+        public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
             Index[] out = new Index[request.indices().length];
             for (int x = 0; x < out.length; x++) {
                 out[x] = new Index(request.indices()[x], "_na_");

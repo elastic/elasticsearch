@@ -20,7 +20,6 @@
 package org.elasticsearch.search.profile.aggregation;
 
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory.MultiBucketAggregatorWrapper;
 import org.elasticsearch.search.profile.AbstractInternalProfileTree;
 
 public class InternalAggregationProfileTree extends AbstractInternalProfileTree<AggregationProfileBreakdown, Aggregator> {
@@ -37,9 +36,6 @@ public class InternalAggregationProfileTree extends AbstractInternalProfileTree<
         // we need to get the super class
         if (element.getClass().getSimpleName().isEmpty()) {
             return element.getClass().getSuperclass().getSimpleName();
-        }
-        if (element instanceof MultiBucketAggregatorWrapper) {
-            return ((MultiBucketAggregatorWrapper) element).getWrappedClass().getSimpleName();
         }
         Class<?> enclosing = element.getClass().getEnclosingClass();
         if (enclosing != null) {

@@ -123,6 +123,7 @@
       catch: /Unable to start empty-with-compatible-fields as no documents in the source indices \[empty-index-with-compatible-fields\] contained all the fields selected for analysis/
       ml.start_data_frame_analytics:
         id: "empty-with-compatible-fields"
+
 ---
 "Test start with inconsistent body/param ids":
 
@@ -213,3 +214,32 @@
       catch: /Field \[keyword_field\] must have at least \[2\] distinct values but there were \[1\]/
       ml.start_data_frame_analytics:
         id: "classification-cardinality-limits"
+
+---
+"Test start classification analysis when the dependent variable is missing":
+  - do:
+      indices.create:
+        index: index-with-missing-dep-var
+        body:
+          mappings:
+            properties:
+              numeric_field: { type: "long" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "classification-missing-dep-var"
+        body: >
+          {
+            "source": {
+              "index": "index-with-missing-dep-var"
+            },
+            "dest": {
+              "index": "index-with-missing-dep-var-dest"
+            },
+            "analysis": { "classification": { "dependent_variable": "missing" } }
+          }
+
+  - do:
+      catch: /no mappings could be found for field \[missing\]/
+      ml.start_data_frame_analytics:
+        id: "classification-missing-dep-var"

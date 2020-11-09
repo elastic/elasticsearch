@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -166,9 +165,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         });
 
         // a throttled search might be waiting to be executed, stop it
-        if (scheduledNextSearch != null) {
-            scheduledNextSearch.reschedule(TimeValue.ZERO);
-        }
+        runSearchImmediately();
 
         return indexerState;
     }
@@ -245,6 +242,17 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     }
 
     /**
+     * Checks if the state should be persisted, if true doSaveState is called before continuing. Inherited classes
+     * can override this, to provide a better logic, when state should be saved.
+     *
+     * @return true if state should be saved, false if not.
+     */
+    protected boolean triggerSaveState() {
+        // implementors can overwrite this with something more intelligent than every-50
+        return (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0);
+    }
+
+    /**
      * Re-schedules the search request if necessary, this method can be called to apply a change
      * in maximumRequestsPerSecond immediately
      */
@@ -257,9 +265,26 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         reQueueThrottledSearch();
     }
 
+    /**
+     * Re-schedules the current search request to run immediately, iff one is scheduled.
+     *
+     * Call this if you need the indexer to fast forward a scheduled(in case it's throttled) search once in order to
+     * complete a full cycle.
+     */
+    protected void runSearchImmediately() {
+        if (scheduledNextSearch != null) {
+            scheduledNextSearch.reschedule(TimeValue.ZERO);
+        }
+    }
+
     // protected, so it can be overwritten by tests
     protected long getTimeNanos() {
         return System.nanoTime();
+    }
+
+    // only for testing purposes
+    protected ScheduledRunnable getScheduledNextSearch() {
+        return scheduledNextSearch;
     }
 
     /**
@@ -288,17 +313,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract IterationResult<JobPosition> doProcess(SearchResponse searchResponse);
 
     /**
-     * Called to build the next search request.
-     *
-     * In case the indexer is throttled waitTimeInNanos can be used as hint for building a less resource hungry
-     * search request.
-     *
-     * @param waitTimeInNanos duration in nanoseconds the indexer has waited due to throttling.
-     * @return SearchRequest to be passed to the search phase.
-     */
-    protected abstract SearchRequest buildSearchRequest(long waitTimeInNanos);
-
-    /**
      * Called at startup after job has been triggered using {@link #maybeTriggerAsyncJob(long)} and the
      * internal state is {@link IndexerState#STARTED}.
      *
@@ -310,15 +324,18 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract void onStart(long now, ActionListener<Boolean> listener);
 
     /**
-     * Executes the {@link SearchRequest} and calls <code>nextPhase</code> with the
+     * Executes the next search and calls <code>nextPhase</code> with the
      * response or the exception if an error occurs.
      *
-     * @param request
-     *            The search request to execute
+     * In case the indexer is throttled waitTimeInNanos can be used as hint for doing a less resource hungry
+     * search.
+     *
+     * @param waitTimeInNanos
+     *            Duration in nanoseconds the indexer has waited due to throttling
      * @param nextPhase
      *            Listener for the next phase
      */
-    protected abstract void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase);
+    protected abstract void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase);
 
     /**
      * Executes the {@link BulkRequest} and calls <code>nextPhase</code> with the
@@ -499,7 +516,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     JobPosition newPosition = iterationResult.getPosition();
                     position.set(newPosition);
 
-                    nextSearch();
+                    if (triggerSaveState()) {
+                        doSaveState(IndexerState.INDEXING, newPosition, () -> { nextSearch(); });
+                    } else {
+                        nextSearch();
+                    }
                 } catch (Exception e) {
                     finishWithFailure(e);
                 }
@@ -518,11 +539,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         }
 
         try {
-            // TODO probably something more intelligent than every-50 is needed
-            if (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0) {
-                doSaveState(IndexerState.INDEXING, position, () -> {
-                    nextSearch();
-                });
+            if (triggerSaveState()) {
+                doSaveState(IndexerState.INDEXING, position, () -> { nextSearch(); });
             } else {
                 nextSearch();
             }
@@ -556,8 +574,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     () -> triggerNextSearch(executionDelay.getNanos())
                 );
 
-                // corner case: if for whatever reason stop() has been called meanwhile fast forward
-                if (getState().equals(IndexerState.STOPPING)) {
+                // corner case: if meanwhile stop() has been called or state persistence has been requested: fast forward, run search now
+                if (getState().equals(IndexerState.STOPPING) || triggerSaveState()) {
                     scheduledNextSearch.reschedule(TimeValue.ZERO);
                 }
                 return;
@@ -572,13 +590,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             return;
         }
 
+        // cleanup the scheduled runnable
+        scheduledNextSearch = null;
         stats.markStartSearch();
         lastSearchStartTimeNanos = getTimeNanos();
 
-        // ensure that partial results are not accepted and cause a search failure
-        SearchRequest searchRequest = buildSearchRequest(waitTimeInNanos).allowPartialSearchResults(false);
-
-        doNextSearch(searchRequest, searchResponseListener);
+        doNextSearch(waitTimeInNanos, searchResponseListener);
     }
 
     /**

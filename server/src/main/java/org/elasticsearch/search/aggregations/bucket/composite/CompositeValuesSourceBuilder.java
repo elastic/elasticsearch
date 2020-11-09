@@ -24,12 +24,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -44,18 +45,13 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     protected final String name;
     private String field = null;
     private Script script = null;
-    private ValueType valueType = null;
+    private ValueType userValueTypeHint = null;
     private boolean missingBucket = false;
     private SortOrder order = SortOrder.ASC;
     private String format = null;
 
     CompositeValuesSourceBuilder(String name) {
-        this(name, null);
-    }
-
-    CompositeValuesSourceBuilder(String name, ValueType valueType) {
         this.name = name;
-        this.valueType = valueType;
     }
 
     CompositeValuesSourceBuilder(StreamInput in) throws IOException {
@@ -65,7 +61,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             this.script = new Script(in);
         }
         if (in.readBoolean()) {
-            this.valueType = ValueType.readFromStream(in);
+            this.userValueTypeHint = ValueType.readFromStream(in);
         }
         this.missingBucket = in.readBoolean();
         this.order = SortOrder.readFromStream(in);
@@ -81,10 +77,10 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (hasScript) {
             script.writeTo(out);
         }
-        boolean hasValueType = valueType != null;
+        boolean hasValueType = userValueTypeHint != null;
         out.writeBoolean(hasValueType);
         if (hasValueType) {
-            valueType.writeTo(out);
+            userValueTypeHint.writeTo(out);
         }
         out.writeBoolean(missingBucket);
         order.writeTo(out);
@@ -106,8 +102,8 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             builder.field("script", script);
         }
         builder.field("missing_bucket", missingBucket);
-        if (valueType != null) {
-            builder.field("value_type", valueType.getPreferredName());
+        if (userValueTypeHint != null) {
+            builder.field("value_type", userValueTypeHint.getPreferredName());
         }
         if (format != null) {
             builder.field("format", format);
@@ -120,7 +116,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, missingBucket, script, valueType, order, format);
+        return Objects.hash(field, missingBucket, script, userValueTypeHint, order, format);
     }
 
     @Override
@@ -132,7 +128,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         AB that = (AB) o;
         return Objects.equals(field, that.field()) &&
             Objects.equals(script, that.script()) &&
-            Objects.equals(valueType, that.valueType()) &&
+            Objects.equals(userValueTypeHint, that.userValuetypeHint()) &&
             Objects.equals(missingBucket, that.missingBucket()) &&
             Objects.equals(order, that.order()) &&
             Objects.equals(format, that.format());
@@ -186,19 +182,19 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
      * Sets the {@link ValueType} for the value produced by this source
      */
     @SuppressWarnings("unchecked")
-    public AB valueType(ValueType valueType) {
+    public AB userValuetypeHint(ValueType valueType) {
         if (valueType == null) {
-            throw new IllegalArgumentException("[valueType] must not be null");
+            throw new IllegalArgumentException("[userValueTypeHint] must not be null");
         }
-        this.valueType = valueType;
+        this.userValueTypeHint = valueType;
         return (AB) this;
     }
 
     /**
      * Gets the {@link ValueType} for the value produced by this source
      */
-    public ValueType valueType() {
-        return valueType;
+    public ValueType userValuetypeHint() {
+        return userValueTypeHint;
     }
 
     /**
@@ -269,17 +265,17 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
-     * Creates a {@link CompositeValuesSourceConfig} for this source.
-     *  @param queryShardContext   The shard context for this source.
-     * @param config    The {@link ValuesSourceConfig} for this source.
+     * Actually build the values source and its associated configuration.
      */
-    protected abstract CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext,
+    protected abstract CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry,
                                                                 ValuesSourceConfig config) throws IOException;
 
-    public final CompositeValuesSourceConfig build(QueryShardContext queryShardContext) throws IOException {
-        ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(queryShardContext,
-            valueType, field, script, null, timeZone(), format, CoreValuesSourceType.BYTES);
-        return innerBuild(queryShardContext, config);
+    protected abstract ValuesSourceType getDefaultValuesSourceType();
+
+    public final CompositeValuesSourceConfig build(AggregationContext context) throws IOException {
+        ValuesSourceConfig config = ValuesSourceConfig.resolve(context,
+            userValueTypeHint, field, script, null, timeZone(), format, getDefaultValuesSourceType());
+        return innerBuild(context.getValuesSourceRegistry(), config);
     }
 
     /**

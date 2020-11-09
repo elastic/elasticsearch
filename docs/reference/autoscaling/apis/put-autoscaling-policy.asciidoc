@@ -15,15 +15,24 @@ Put autoscaling policy.
 --------------------------------------------------
 PUT /_autoscaling/policy/<name>
 {
-  "policy": {
-    "deciders": {
-      "always": {
-      }
+  "roles": [],
+  "deciders": {
+    "fixed": {
     }
   }
 }
 --------------------------------------------------
 // TEST[s/<name>/name/]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/name
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 
 [[autoscaling-put-autoscaling-policy-prereqs]]
 ==== {api-prereq-title}
@@ -41,16 +50,16 @@ This API puts an autoscaling policy with the provided name.
 ==== {api-examples-title}
 
 This example puts an autoscaling policy named `my_autoscaling_policy` using the
-always autoscaling decider.
+fixed autoscaling decider, applying to the set of nodes having (only) the
+"data_hot" role.
 
 [source,console]
 --------------------------------------------------
 PUT /_autoscaling/policy/my_autoscaling_policy
 {
-  "policy": {
-    "deciders": {
-      "always": {
-      }
+  "roles" : [ "data_hot" ],
+  "deciders": {
+    "fixed": {
     }
   }
 }
@@ -65,3 +74,13 @@ The API returns the following result:
   "acknowledged": true
 }
 --------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////

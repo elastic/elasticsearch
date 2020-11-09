@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[transform-examples]]
-=== {transform-cap} examples
+= {transform-cap} examples
 ++++
 <titleabbrev>Examples</titleabbrev>
 ++++
@@ -17,7 +17,7 @@ step-by-step example, see
 * <<example-clientips>>
 
 [[example-best-customers]]
-==== Finding your best customers
+== Finding your best customers
 
 In this example, we use the eCommerce orders sample dataset to find the 
 customers who spent the most in our hypothetical webshop. Let's transform the 
@@ -101,14 +101,14 @@ navigate data from a customer centric perspective. In some cases, it can even
 make creating visualizations much simpler.
 
 [[example-airline]]
-==== Finding air carriers with the most delays
+== Finding air carriers with the most delays
 
 In this example, we use the Flights sample dataset to find out which air carrier 
 had the most delays. First, we filter the source data such that it excludes all 
 the cancelled flights by using a query filter. Then we transform the data to 
 contain the distinct number of flights, the sum of delayed minutes, and the sum 
 of the flight minutes by air carrier. Finally, we use a 
-{ref}/search-aggregations-pipeline-bucket-script-aggregation.html[`bucket_script`] 
+<<search-aggregations-pipeline-bucket-script-aggregation,`bucket_script`>>
 to determine what percentage of the flight time was actually delay.
 
 [source,console]
@@ -188,7 +188,7 @@ or flight stats for any of the featured destination or origin airports.
 
 
 [[example-clientips]]
-==== Finding suspicious client IPs
+== Finding suspicious client IPs
 
 In this example, we use the web log sample dataset to identify suspicious client 
 IPs. We transform the data such that the new index contains the sum of bytes and 

@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,9 +35,6 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
     public static class Request extends ActionRequest implements ToXContentObject {
 
         private String datafeedId;
-
-        public Request() {
-        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -92,13 +87,6 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             }
             Request other = (Request) obj;
             return Objects.equals(datafeedId, other.datafeedId);
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
         }
     }
 

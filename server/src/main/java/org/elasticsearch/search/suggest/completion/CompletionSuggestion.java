@@ -66,9 +66,6 @@ import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
  */
 public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 
-    @Deprecated
-    public static final int TYPE = 4;
-
     private boolean skipDuplicates;
 
     /**
@@ -235,11 +232,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     }
 
     @Override
-    public int getWriteableType() {
-        return TYPE;
-    }
-
-    @Override
     protected Entry newEntry(StreamInput in) throws IOException {
         return new Entry(in);
     }
@@ -373,12 +365,12 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             private static Map<String, Set<String>> parseContexts(XContentParser parser) throws IOException {
                 Map<String, Set<String>> contexts = new HashMap<>();
                 while((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
                     String key = parser.currentName();
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
                     Set<String> values = new HashSet<>();
                     while((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser::getTokenLocation);
+                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
                         values.add(parser.text());
                     }
                     contexts.put(key, values);

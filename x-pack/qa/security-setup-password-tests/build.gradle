@@ -4,11 +4,11 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('security'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('security'))
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-integTest.runner {
+integTest {
   nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
   systemProperty 'tests.security.manager', 'false'
 }

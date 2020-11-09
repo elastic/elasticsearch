@@ -20,9 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
 
@@ -31,7 +29,7 @@ import java.util.Objects;
  */
 public class EString extends AExpression {
 
-    private String string;
+    private final String string;
 
     public EString(int identifier, Location location, String string) {
         super(identifier, location);
@@ -44,26 +42,12 @@ public class EString extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (input.write) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to string constant [" + string + "]"));
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitString(this, scope);
+    }
 
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: string constant [" + string + "] not used"));
-        }
-
-        Output output = new Output();
-        output.actual = String.class;
-
-        ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(getLocation());
-        constantNode.setExpressionType(output.actual);
-        constantNode.setConstant(string);
-
-        output.expressionNode = constantNode;
-
-        return output;
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

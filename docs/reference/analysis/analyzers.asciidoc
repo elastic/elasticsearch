@@ -45,7 +45,7 @@ Elasticsearch provides many language-specific analyzers like `english` or
 The `fingerprint` analyzer is a specialist analyzer which creates a
 fingerprint which can be used for duplicate detection.
 
-[float]
+[discrete]
 === Custom analyzers
 
 If you do not find an analyzer suitable for your needs, you can create a

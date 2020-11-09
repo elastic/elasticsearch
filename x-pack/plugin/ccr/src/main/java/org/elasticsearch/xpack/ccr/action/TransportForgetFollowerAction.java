@@ -147,9 +147,4 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
             final String[] concreteIndices) {
         return null;
     }
-
-    @Override
-    protected boolean shouldIncludeDataStreams() {
-        return false;
-    }
 }

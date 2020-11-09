@@ -21,7 +21,7 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  compile parent.project('java-version-checker')
+  compileOnly project(':distribution:tools:java-version-checker')
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"

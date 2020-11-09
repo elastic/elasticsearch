@@ -169,6 +169,5 @@ public class FileInfoTests extends ESTestCase {
             }
             assertEquals(numBytes, metadata.length());
         }
-
     }
 }

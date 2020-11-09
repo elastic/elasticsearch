@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.ml.process.NativeProcess;
 
 import java.io.IOException;
@@ -41,7 +41,8 @@ public interface AnalyticsProcess<ProcessResult> extends NativeProcess {
 
     /**
      * Restores the model state from a previously persisted one
-     * @param state the state to restore
+     * @param client the client to use for fetching the state documents
+     * @param stateDocIdPrefix the prefix of ids of the state documents
      */
-    void restoreState(BytesReference state) throws IOException;
+    void restoreState(Client client, String stateDocIdPrefix) throws IOException;
 }

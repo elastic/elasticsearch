@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -165,13 +163,6 @@ public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response
         @Override
         public int hashCode() {
             return Objects.hash(jobId, categoryId, pageParams, partitionFieldValue);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, GetCategoriesAction action) {
-            super(client, action, new Request());
         }
     }
 

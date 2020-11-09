@@ -19,18 +19,15 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 class UpdateIndexShardSnapshotStatusResponse extends ActionResponse {
 
-    UpdateIndexShardSnapshotStatusResponse() {}
+    public static final UpdateIndexShardSnapshotStatusResponse INSTANCE = new UpdateIndexShardSnapshotStatusResponse();
 
-    UpdateIndexShardSnapshotStatusResponse(StreamInput in) throws IOException {
-        super(in);
-    }
+    private UpdateIndexShardSnapshotStatusResponse() {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {}

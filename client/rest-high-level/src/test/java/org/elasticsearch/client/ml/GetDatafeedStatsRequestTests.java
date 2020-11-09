@@ -51,7 +51,7 @@ public class GetDatafeedStatsRequestTests extends AbstractXContentTestCase<GetDa
         GetDatafeedStatsRequest request = new GetDatafeedStatsRequest(datafeedIds);
 
         if (randomBoolean()) {
-            request.setAllowNoDatafeeds(randomBoolean());
+            request.setAllowNoMatch(randomBoolean());
         }
 
         return request;

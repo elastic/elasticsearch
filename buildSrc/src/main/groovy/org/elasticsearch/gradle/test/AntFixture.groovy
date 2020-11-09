@@ -96,7 +96,10 @@ class AntFixture extends AntTask implements Fixture {
 
     @Override
     protected void runAnt(AntBuilder ant) {
-        project.delete(baseDir) // reset everything
+        // reset everything
+        getFileSystemOperations().delete {
+            it.delete(baseDir)
+        }
         cwd.mkdirs()
         final String realExecutable
         final List<Object> realArgs = new ArrayList<>()
@@ -242,7 +245,9 @@ class AntFixture extends AntTask implements Fixture {
                 args('-9', pid)
             }
             doLast {
-                project.delete(fixture.pidFile)
+                getFileSystemOperations().delete {
+                    it.delete(fixture.pidFile)
+                }
             }
 
         }

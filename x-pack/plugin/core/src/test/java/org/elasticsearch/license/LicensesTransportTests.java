@@ -11,7 +11,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -27,6 +26,7 @@ import java.util.UUID;
 import static org.elasticsearch.license.TestUtils.dateMath;
 import static org.elasticsearch.license.TestUtils.generateExpiredNonBasicLicense;
 import static org.elasticsearch.license.TestUtils.generateSignedLicense;
+import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 
@@ -49,7 +49,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
 //        newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
 //        newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        newSettings.put(Node.NODE_DATA_SETTING.getKey(), true);
+        newSettings.put(dataNode());
         return newSettings.build();
     }
 

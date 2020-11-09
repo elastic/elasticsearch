@@ -1,0 +1,96 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: docs
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: docs
+              _id:    1
+          - field: foo
+          - index:
+              _index: docs
+              _id:    2
+          - field: bar
+          - index:
+              _index: docs
+              _id:    3
+          - field: baz
+
+  - do:
+      snapshot.create_repository:
+        repository: repository-fs
+        body:
+          type: fs
+          settings:
+            location: "repository-fs"
+
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+
+  - do:
+      indices.delete:
+        index: docs
+---
+teardown:
+
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.delete_repository:
+        repository: repository-fs
+
+---
+"Tests searchable snapshots usage stats":
+  - skip:
+      version: " - 7.8.99"
+      reason:  searchable snapshots usage stats introduced in 7.9.0
+
+  - do:
+      xpack.usage: {}
+
+  - match: { searchable_snapshots.available: true }
+  - match: { searchable_snapshots.enabled: true }
+  - match: { searchable_snapshots.indices_count: 0 }
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        body:
+          index: docs
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      xpack.usage: {}
+
+  - match: { searchable_snapshots.available: true }
+  - match: { searchable_snapshots.enabled: true }
+  - match: { searchable_snapshots.indices_count: 1 }

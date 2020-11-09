@@ -463,7 +463,7 @@ public class StoreTests extends ESTestCase {
     public void assertDeleteContent(Store store, Directory dir) throws IOException {
         deleteContent(store.directory());
         assertThat(Arrays.toString(store.directory().listAll()), store.directory().listAll().length, equalTo(0));
-        assertThat(store.stats().sizeInBytes(), equalTo(0L));
+        assertThat(store.stats(0L).sizeInBytes(), equalTo(0L));
         assertThat(dir.listAll().length, equalTo(0));
     }
 
@@ -748,8 +748,20 @@ public class StoreTests extends ESTestCase {
             assertTrue("expected extraFS file but got: " + extraFiles, extraFiles.startsWith("extra"));
             initialStoreSize += store.directory().fileLength(extraFiles);
         }
-        StoreStats stats = store.stats();
-        assertEquals(stats.getSize().getBytes(), initialStoreSize);
+        final long reservedBytes =  randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES :randomLongBetween(0L, Integer.MAX_VALUE);
+        StoreStats stats = store.stats(reservedBytes);
+        assertEquals(initialStoreSize, stats.getSize().getBytes());
+        assertEquals(reservedBytes, stats.getReservedSize().getBytes());
+
+        stats.add(null);
+        assertEquals(initialStoreSize, stats.getSize().getBytes());
+        assertEquals(reservedBytes, stats.getReservedSize().getBytes());
+
+        final long otherStatsBytes = randomLongBetween(0L, Integer.MAX_VALUE);
+        final long otherStatsReservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES :randomLongBetween(0L, Integer.MAX_VALUE);
+        stats.add(new StoreStats(otherStatsBytes, otherStatsReservedBytes));
+        assertEquals(initialStoreSize + otherStatsBytes, stats.getSize().getBytes());
+        assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.getReservedSize().getBytes());
 
         Directory dir = store.directory();
         final long length;
@@ -763,7 +775,7 @@ public class StoreTests extends ESTestCase {
         }
 
         assertTrue(numNonExtraFiles(store) > 0);
-        stats = store.stats();
+        stats = store.stats(0L);
         assertEquals(stats.getSizeInBytes(), length + initialStoreSize);
 
         deleteContent(store.directory());

@@ -8,10 +8,11 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
-import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContainsFunctionProcessor;
 
+import java.util.Locale;
 import java.util.concurrent.Callable;
 
+import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContainsFunctionProcessor.doProcess;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StringContainsFunctionProcessorTests extends ESTestCase {
@@ -24,26 +25,36 @@ public class StringContainsFunctionProcessorTests extends ESTestCase {
         }
     }
 
-    public void testNullOrEmptyParameters() throws Exception {
+    public void testStringContains() throws Exception {
         run(() -> {
             String substring = randomBoolean() ? null : randomAlphaOfLength(10);
-            String str = randomBoolean() ? null : randomAlphaOfLength(10);
+            String str = randomBoolean() ? null : randomValueOtherThan(substring, () -> randomAlphaOfLength(10));
+            boolean caseSensitive = randomBoolean();
             if (str != null && substring != null) {
                 str += substring;
-                str += randomAlphaOfLength(10);
+                str += randomValueOtherThan(substring, () -> randomAlphaOfLength(10));
             }
             final String string = str;
 
             // The string parameter can be null. Expect exception if any of other parameters is null.
-            if ((string != null) && (substring == null)) {
+            if (string != null && substring == null) {
                 EqlIllegalArgumentException e = expectThrows(EqlIllegalArgumentException.class,
-                        () -> StringContainsFunctionProcessor.doProcess(string, substring));
+                        () -> doProcess(string, substring, caseSensitive));
                 assertThat(e.getMessage(), equalTo("A string/char is required; received [null]"));
             } else {
-                assertThat(StringContainsFunctionProcessor.doProcess(string, substring),
-                        equalTo(string == null ? null : true));
+                assertThat(doProcess(string, substring, caseSensitive), equalTo(string == null ? null : true));
+
+                // deliberately make the test return "false" by lowercasing or uppercasing the substring in a case-sensitive scenario
+                if (caseSensitive && substring != null) {
+                    String subsChanged = randomBoolean() ? substring.toLowerCase(Locale.ROOT) : substring.toUpperCase(Locale.ROOT);
+                    if (substring.equals(subsChanged) == false) {
+                        assertThat(doProcess(string, subsChanged, caseSensitive), equalTo(string == null ? null : false));
+                    }
+                }
             }
+
             return null;
         });
     }
+
 }

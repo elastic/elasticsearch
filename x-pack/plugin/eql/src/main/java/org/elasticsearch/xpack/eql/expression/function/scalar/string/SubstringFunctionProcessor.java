@@ -17,41 +17,41 @@ public class SubstringFunctionProcessor implements Processor {
 
     public static final String NAME = "ssub";
 
-    private final Processor source, start, end;
+    private final Processor input, start, end;
 
     public SubstringFunctionProcessor(Processor source, Processor start, Processor end) {
-        this.source = source;
+        this.input = source;
         this.start = start;
         this.end = end;
     }
 
     public SubstringFunctionProcessor(StreamInput in) throws IOException {
-        source = in.readNamedWriteable(Processor.class);
+        input = in.readNamedWriteable(Processor.class);
         start = in.readNamedWriteable(Processor.class);
         end = in.readNamedWriteable(Processor.class);
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(source);
+        out.writeNamedWriteable(input);
         out.writeNamedWriteable(start);
         out.writeNamedWriteable(end);
     }
 
     @Override
-    public Object process(Object input) {
-        return doProcess(source.process(input), start.process(input), end.process(input));
+    public Object process(Object o) {
+        return doProcess(input.process(o), start.process(o), end.process(o));
     }
 
-    public static Object doProcess(Object source, Object start, Object end) {
-        if (source == null) {
+    public static Object doProcess(Object input, Object start, Object end) {
+        if (input == null) {
             return null;
         }
-        if (!(source instanceof String || source instanceof Character)) {
-            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", source);
+        if (!(input instanceof String || input instanceof Character)) {
+            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
         if (start == null) {
-            return source;
+            return input;
         }
         if ((start instanceof Number) == false) {
             throw new EqlIllegalArgumentException("A number is required; received [{}]", start);
@@ -60,15 +60,15 @@ public class SubstringFunctionProcessor implements Processor {
             throw new EqlIllegalArgumentException("A number is required; received [{}]", end);
         }
 
-        String str = source.toString();
+        String str = input.toString();
         int startIndex = ((Number) start).intValue();
         int endIndex = end == null ? str.length() : ((Number) end).intValue();
                 
         return StringUtils.substringSlice(str, startIndex, endIndex);
     }
     
-    protected Processor source() {
-        return source;
+    protected Processor input() {
+        return input;
     }
     
     protected Processor start() {
@@ -90,14 +90,14 @@ public class SubstringFunctionProcessor implements Processor {
         }
         
         SubstringFunctionProcessor other = (SubstringFunctionProcessor) obj;
-        return Objects.equals(source(), other.source())
+        return Objects.equals(input(), other.input())
                 && Objects.equals(start(), other.start())
                 && Objects.equals(end(), other.end());
     }
     
     @Override
     public int hashCode() {
-        return Objects.hash(source(), start(), end());
+        return Objects.hash(input(), start(), end());
     }
     
 

@@ -168,7 +168,7 @@ def projectPathsToExclude = [
 subprojects {
   plugins.withType(BuildPlugin).whenPluginAdded {
     if (projectPathsToExclude.contains(project.path) == false) {
-      project.apply plugin: "com.diffplug.gradle.spotless"
+      project.apply plugin: "com.diffplug.spotless"
 
       spotless {
         java {

@@ -19,10 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class DefInterfaceReferenceNode extends ReferenceNode {
 
@@ -38,19 +36,22 @@ public class DefInterfaceReferenceNode extends ReferenceNode {
         return defReferenceEncoding;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        methodWriter.writeDebugInfo(location);
-
-        // place holder for functional interface receiver
-        // which is resolved and replace at runtime
-        methodWriter.push((String)null);
-
-        for (String capture : getCaptures()) {
-            ScopeTable.Variable variable = scopeTable.getVariable(capture);
-            methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ILOAD), variable.getSlot());
-        }
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitDefInterfaceReference(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        // do nothing; terminal node
+    }
+
+    /* ---- end visitor ---- */
+
+    public DefInterfaceReferenceNode(Location location) {
+        super(location);
+    }
+
 }

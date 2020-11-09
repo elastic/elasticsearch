@@ -62,7 +62,7 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
             if (hasInternalMin) {
                 aggs.add(new InternalMin("min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
             }
-            return new InternalAggregations(aggs);
+            return InternalAggregations.from(aggs);
         };
     }
 
@@ -93,7 +93,7 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
             List<InternalAggregation> aggs = new ArrayList<>();
             aggs.add(new InternalMax("new_max", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
             aggs.add(new InternalMin("new_min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
-            aggregations = new InternalAggregations(aggs);
+            aggregations = InternalAggregations.from(aggs);
             break;
         case 3:
         default:

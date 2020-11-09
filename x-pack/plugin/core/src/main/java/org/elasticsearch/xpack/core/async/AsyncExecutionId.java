@@ -25,9 +25,13 @@ public final class AsyncExecutionId {
     private final String encoded;
 
     public AsyncExecutionId(String docId, TaskId taskId) {
+        this(docId, taskId, encode(docId, taskId));
+    }
+
+    private AsyncExecutionId(String docId, TaskId taskId, String encoded) {
         this.docId = docId;
         this.taskId = taskId;
-        this.encoded = encode(docId, taskId);
+        this.encoded = encoded;
     }
 
     /**
@@ -98,15 +102,17 @@ public final class AsyncExecutionId {
         } catch (Exception e) {
             throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
-        final AsyncExecutionId searchId;
+        String docId;
+        String taskId;
         try (StreamInput in = new ByteBufferStreamInput(byteBuffer)) {
-            searchId = new AsyncExecutionId(in.readString(), new TaskId(in.readString()));
+            docId = in.readString();
+            taskId = in.readString();
             if (in.available() > 0) {
                 throw new IllegalArgumentException("invalid id: [" + id + "]");
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
-        return searchId;
+        return new AsyncExecutionId(docId, new TaskId(taskId), id);
     }
 }

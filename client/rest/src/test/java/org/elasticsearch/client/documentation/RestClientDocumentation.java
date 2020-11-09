@@ -328,6 +328,17 @@ public class RestClientDocumentation {
             //end::rest-client-config-timeouts
         }
         {
+            //tag::rest-client-config-request-options-timeouts
+            RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectTimeout(5000)
+                .setSocketTimeout(60000)
+                .build();
+            RequestOptions options = RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(requestConfig)
+                .build();
+            //end::rest-client-config-request-options-timeouts
+        }
+        {
             //tag::rest-client-config-threads
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200))

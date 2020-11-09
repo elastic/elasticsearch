@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -45,7 +46,7 @@ public class ClusterPrivilegeResolver {
     // shared automatons
     private static final Set<String> ALL_SECURITY_PATTERN = Set.of("cluster:admin/xpack/security/*");
     private static final Set<String> MANAGE_SAML_PATTERN = Set.of("cluster:admin/xpack/security/saml/*",
-        InvalidateTokenAction.NAME, RefreshTokenAction.NAME);
+        InvalidateTokenAction.NAME, RefreshTokenAction.NAME, SamlSpMetadataAction.NAME);
     private static final Set<String> MANAGE_OIDC_PATTERN = Set.of("cluster:admin/xpack/security/oidc/*");
     private static final Set<String> MANAGE_TOKEN_PATTERN = Set.of("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Set.of("cluster:admin/xpack/security/api_key/*");
@@ -131,6 +132,9 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_OWN_API_KEY = ManageOwnApiKeyClusterPrivilege.INSTANCE;
     public static final NamedClusterPrivilege MANAGE_ENRICH = new ActionClusterPrivilege("manage_enrich", MANAGE_ENRICH_AUTOMATON);
 
+    public static final NamedClusterPrivilege MANAGE_LOGSTASH_PIPELINES = new ActionClusterPrivilege("manage_logstash_pipelines",
+        Set.of("cluster:admin/logstash/pipeline/*"));
+
     private static final Map<String, NamedClusterPrivilege> VALUES = Stream.of(
         NONE,
         ALL,
@@ -167,7 +171,8 @@ public class ClusterPrivilegeResolver {
         READ_SLM,
         DELEGATE_PKI,
         MANAGE_OWN_API_KEY,
-        MANAGE_ENRICH).collect(Collectors.toUnmodifiableMap(NamedClusterPrivilege::name, Function.identity()));
+        MANAGE_ENRICH,
+        MANAGE_LOGSTASH_PIPELINES).collect(Collectors.toUnmodifiableMap(NamedClusterPrivilege::name, Function.identity()));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.
@@ -201,8 +206,6 @@ public class ClusterPrivilegeResolver {
     public static boolean isClusterAction(String actionName) {
         return actionName.startsWith("cluster:") ||
             actionName.startsWith("indices:admin/template/") ||
-            // todo: hack until we implement security of data_streams
-            actionName.startsWith("indices:admin/data_stream/") ||
             actionName.startsWith("indices:admin/index_template/");
     }
 

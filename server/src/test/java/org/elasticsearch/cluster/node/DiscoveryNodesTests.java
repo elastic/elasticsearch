@@ -75,6 +75,15 @@ public class DiscoveryNodesTests extends ESTestCase {
         }
     }
 
+    public void testResolveNodesNull() {
+        DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
+
+        // if assertions are enabled (should be the case for tests, but not in production), resolving null throws
+        expectThrows(AssertionError.class, () -> discoveryNodes.resolveNodes(Collections.singletonList(null).toArray(new String[0])));
+        expectThrows(AssertionError.class, () -> discoveryNodes.resolveNodes(null, "someNode"));
+        expectThrows(AssertionError.class, () -> discoveryNodes.resolveNodes("someNode", null, "someOtherNode"));
+    }
+
     public void testAll() {
         final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
 
@@ -274,10 +283,12 @@ public class DiscoveryNodesTests extends ESTestCase {
             final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
             if (frequently()) {
                 roles.add(new DiscoveryNodeRole("custom_role", "cr") {
+
                     @Override
-                    protected Setting<Boolean> roleSetting() {
+                    public Setting<Boolean> legacySetting() {
                         return null;
                     }
+
                 });
             }
             final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes, roles);

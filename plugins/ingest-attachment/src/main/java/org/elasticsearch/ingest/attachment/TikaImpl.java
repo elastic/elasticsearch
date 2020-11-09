@@ -150,8 +150,8 @@ final class TikaImpl {
                 addReadPermissions(perms, set);
             }
             // jvm's java.io.tmpdir (needs read/write)
-            FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir",
-                PathUtils.get(System.getProperty("java.io.tmpdir")), "read,readlink,write,delete");
+            FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", PathUtils.get(System.getProperty("java.io.tmpdir")),
+                "read,readlink,write,delete", false);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -181,7 +181,7 @@ final class TikaImpl {
             for (URL url : resources) {
                 Path path = PathUtils.get(url.toURI());
                 if (Files.isDirectory(path)) {
-                    FilePermissionUtils.addDirectoryPath(perms, "class.path", path, "read,readlink");
+                    FilePermissionUtils.addDirectoryPath(perms, "class.path", path, "read,readlink", false);
                 } else {
                     FilePermissionUtils.addSingleFilePath(perms, path, "read,readlink");
                 }

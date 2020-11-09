@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -77,8 +76,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         Set<String> side2 = new HashSet<>(nodes);
         side2.removeAll(side1);
         assertThat(side2.size(), greaterThanOrEqualTo(1));
-        NetworkDisruption networkDisruption = new NetworkDisruption(new TwoPartitions(side1, side2),
-                new NetworkDisruption.NetworkDisconnect());
+        NetworkDisruption networkDisruption = new NetworkDisruption(new TwoPartitions(side1, side2), NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
@@ -124,8 +122,8 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
             disruptedLinks = NetworkDisruption.Bridge.random(random(), internalCluster().getNodeNames());
         }
 
-        NetworkDisruption networkDisruption = new NetworkDisruption(disruptedLinks, randomFrom(new NetworkDisruption.NetworkUnresponsive(),
-            new NetworkDisruption.NetworkDisconnect(), NetworkDisruption.NetworkDelay.random(random())));
+        NetworkDisruption networkDisruption = new NetworkDisruption(disruptedLinks, randomFrom(NetworkDisruption.UNRESPONSIVE,
+            NetworkDisruption.DISCONNECT, NetworkDisruption.NetworkDelay.random(random())));
         internalCluster().setDisruptionScheme(networkDisruption);
 
         networkDisruption.startDisrupting();
@@ -144,7 +142,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
 
         // give a bit of time to send something under disruption.
         assertFalse(latch.await(500, TimeUnit.MILLISECONDS)
-            && networkDisruption.getNetworkLinkDisruptionType() instanceof NetworkDisruption.NetworkDisconnect == false);
+            && networkDisruption.getNetworkLinkDisruptionType() != NetworkDisruption.DISCONNECT);
         networkDisruption.stopDisrupting();
 
         latch.await(30, TimeUnit.SECONDS);
@@ -177,11 +175,6 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
                 public void handleException(TransportException exp) {
                     assertTrue(responded.compareAndSet(false, true));
                     latch.countDown();
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
                 }
 
                 @Override

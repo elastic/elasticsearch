@@ -24,12 +24,12 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.eql.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
+import org.elasticsearch.xpack.eql.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
@@ -108,24 +108,23 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         ZoneId zoneId = DateUtils.of("Z");
         QueryBuilder filter = request.filter();
         TimeValue timeout = TimeValue.timeValueSeconds(30);
-        boolean includeFrozen = request.indicesOptions().ignoreThrottled() == false;
         String clientId = null;
 
         ParserParams params = new ParserParams(zoneId)
             .fieldEventCategory(request.eventCategoryField())
             .fieldTimestamp(request.timestampField())
             .fieldTiebreaker(request.tiebreakerField())
-            .implicitJoinKey(request.implicitJoinKeyField());
+            .size(request.size())
+            .fetchSize(request.fetchSize());
 
-        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
-            includeFrozen, request.isCaseSensitive(), clientId, new TaskId(nodeId, task.getId()), task);
+        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout,
+                request.indicesOptions(), request.fetchSize(), clientId, new TaskId(nodeId, task.getId()), task);
         planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())),
             listener::onFailure));
     }
 
     static EqlSearchResponse createResponse(Results results, AsyncExecutionId id) {
-        EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(results.searchHits(), results.sequences(), results.counts(), results
-            .totalHits());
+        EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(results.events(), results.sequences(), results.totalHits());
         if (id != null) {
             return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut(), id.getEncoded(), false, false);
         } else {

@@ -49,7 +49,7 @@ import java.util.Objects;
  *  2. Document id is extracted from this line.
  *  3. Document with this id is searched for in .ml-state* indices
  *  4. If the document is found, it is overwritten in place (i.e. in the same index) with the new content.
- *     Otherwise, it is written to the index pointed by the current write alias, i.e. .ml-state-writei
+ *     Otherwise, it is written to the index pointed by the current write alias, i.e. .ml-state-write
  */
 public class IndexingStateProcessor implements StateProcessor {
 
@@ -137,7 +137,9 @@ public class IndexingStateProcessor implements StateProcessor {
     }
 
     void persist(String indexOrAlias, BytesReference bytes) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkRequest bulkRequest = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .requireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
         bulkRequest.add(bytes, indexOrAlias, XContentType.JSON);
         if (bulkRequest.numberOfActions() > 0) {
             LOGGER.trace("[{}] Persisting job state document: index [{}], length [{}]", jobId, indexOrAlias, bytes.length());

@@ -30,15 +30,12 @@ import java.util.Map;
  * a mapping.
  */
 public abstract class NonCollectingAggregator extends AggregatorBase {
-
+    /**
+     * Build a {@linkplain NonCollectingAggregator} for any aggregator.
+     */
     protected NonCollectingAggregator(String name, SearchContext context, Aggregator parent, AggregatorFactories subFactories,
             Map<String, Object> metadata) throws IOException {
-        super(name, subFactories, context, parent, metadata);
-    }
-
-    protected NonCollectingAggregator(String name, SearchContext context, Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
-        this(name, context, parent, AggregatorFactories.EMPTY, metadata);
+        super(name, subFactories, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     @Override

@@ -131,7 +131,7 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
         InternalFilters dummy = createTestInstance();
         InternalFilters inner = createTestInstance();
 
-        InternalAggregations sub = new InternalAggregations(List.of(inner));
+        InternalAggregations sub = InternalAggregations.from(List.of(inner));
         InternalFilters test = createTestInstance("test", emptyMap(), sub);
         PipelineAggregator mockPipeline = new PipelineAggregator(null, null, null) {
             @Override

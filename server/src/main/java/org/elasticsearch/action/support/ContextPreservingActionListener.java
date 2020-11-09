@@ -51,6 +51,11 @@ public final class ContextPreservingActionListener<R> implements ActionListener<
         }
     }
 
+    @Override
+    public String toString() {
+        return getClass().getName() + "/" + delegate.toString();
+    }
+
     /**
      * Wraps the provided action listener in a {@link ContextPreservingActionListener} that will
      * also copy the response headers when the {@link ThreadContext.StoredContext} is closed

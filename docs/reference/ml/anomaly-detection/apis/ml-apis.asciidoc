@@ -1,0 +1,94 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-apis]]
+= {ml-cap} {anomaly-detect} APIs
+
+You can use the following APIs to perform {ml} {anomaly-detect} activities.
+
+See also <<ml-df-analytics-apis>>.
+
+[discrete]
+[[ml-api-anomaly-job-endpoint]]
+== {anomaly-jobs-cap}
+//* <<ml-valid-detector,Validate detectors>>, <<ml-valid-job,Validate job>>
+* <<ml-put-job,Create>> or <<ml-delete-job,delete {anomaly-jobs}>>
+* <<ml-put-calendar-job,Add>> or <<ml-delete-calendar-job,delete a {anomaly-job} from a calendar>>
+* <<ml-open-job,Open>> or <<ml-close-job,close {anomaly-jobs}>>
+* <<ml-get-job,Get {anomaly-jobs} info>> or <<ml-get-job-stats,statistics>>
+* <<ml-flush-job,Flush {anomaly-jobs}>>
+* <<ml-post-data,Post data to {anomaly-jobs}>>
+* <<ml-update-job,Update {anomaly-jobs}>>
+* <<ml-forecast,Create>> or <<ml-delete-forecast,delete forecasts>>
+
+
+[discrete]
+[[ml-api-calendar-endpoint]]
+== Calendars
+
+* <<ml-put-calendar,Create calendar>>, <<ml-delete-calendar,Delete calendar>>
+* <<ml-put-calendar-job,Add job to calendar>>, <<ml-delete-calendar-job,Delete job from calendar>>
+* <<ml-post-calendar-event,Add scheduled events to calendar>>, <<ml-delete-calendar-event,Delete scheduled events from calendar>>
+* <<ml-get-calendar,Get calendars>>, <<ml-get-calendar-event,Get scheduled events>>
+
+[discrete]
+[[ml-api-filter-endpoint]]
+== Filters
+
+* <<ml-put-filter,Create filter>>, <<ml-delete-filter,Delete filter>>
+* <<ml-update-filter,Update filters>>
+* <<ml-get-filter,Get filters>>
+
+[discrete]
+[[ml-api-datafeed-endpoint]]
+== {dfeeds-cap}
+
+* <<ml-put-datafeed,Create {dfeed}>>, <<ml-delete-datafeed,Delete {dfeed}>>
+* <<ml-start-datafeed,Start {dfeed}>>, <<ml-stop-datafeed,Stop {dfeed}>>
+* <<ml-get-datafeed,Get {dfeed} info>>, <<ml-get-datafeed-stats,Get {dfeed} statistics>>
+* <<ml-preview-datafeed,Preview {dfeed}>>
+* <<ml-update-datafeed,Update {dfeed}>>
+
+
+[discrete]
+[[ml-api-snapshot-endpoint]]
+== Model Snapshots
+
+* <<ml-delete-snapshot,Delete model snapshot>>
+* <<ml-get-snapshot,Get model snapshot info>>
+* <<ml-revert-snapshot,Revert model snapshot>>
+* <<ml-update-snapshot,Update model snapshot>>
+
+
+[discrete]
+[[ml-api-result-endpoint]]
+== Results
+
+* <<ml-get-bucket,Get buckets>>
+* <<ml-get-overall-buckets,Get overall buckets>>
+* <<ml-get-category,Get categories>>
+* <<ml-get-influencer,Get influencers>>
+* <<ml-get-record,Get records>>
+
+[discrete]
+[[ml-api-file-structure-endpoint]]
+== File structure
+
+* <<ml-find-file-structure,Find file structure>>
+
+[discrete]
+[[ml-api-ml-info-endpoint]]
+== Info
+
+* <<get-ml-info,Machine learning info>>
+
+[discrete]
+[[ml-api-delete-expired-data-endpoint]]
+== Delete expired data
+
+* <<ml-delete-expired-data,Delete expired data>>
+
+[discrete]
+[[ml-set-upgrade-mode-endpoint]]
+== Set upgrade mode
+
+* <<ml-set-upgrade-mode, Set upgrade mode>>

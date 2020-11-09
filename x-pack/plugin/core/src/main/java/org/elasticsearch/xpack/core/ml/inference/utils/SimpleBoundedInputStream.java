@@ -20,6 +20,19 @@ public final class SimpleBoundedInputStream extends InputStream {
     private final long maxBytes;
     private long numBytes;
 
+    public static class StreamSizeExceededException extends IOException {
+        private final long maxBytes;
+
+        public StreamSizeExceededException(String message, long maxBytes) {
+            super(message);
+            this.maxBytes = maxBytes;
+        }
+
+        public long getMaxBytes() {
+            return maxBytes;
+        }
+    }
+
     public SimpleBoundedInputStream(InputStream inputStream, long maxBytes) {
         this.in = ExceptionsHelper.requireNonNull(inputStream, "inputStream");
         if (maxBytes < 0) {
@@ -31,13 +44,14 @@ public final class SimpleBoundedInputStream extends InputStream {
     /**
      * A simple wrapper around the injected input stream that restricts the total number of bytes able to be read.
      * @return The byte read.
-     * @throws IOException on failure or when byte limit is exceeded
+     * @throws StreamSizeExceededException when byte limit is exceeded
+     * @throws IOException on failure
      */
     @Override
     public int read() throws IOException {
         // We have reached the maximum, signal stream completion.
         if (numBytes >= maxBytes) {
-            throw new IOException("input stream exceeded maximum bytes of [" + maxBytes + "]");
+            throw new StreamSizeExceededException("input stream exceeded maximum bytes of [" + maxBytes + "]", maxBytes);
         }
         numBytes++;
         return in.read();

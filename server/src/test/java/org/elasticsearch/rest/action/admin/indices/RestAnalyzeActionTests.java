@@ -19,6 +19,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
@@ -95,8 +97,10 @@ public class RestAnalyzeActionTests extends ESTestCase {
         RestAnalyzeAction action = new RestAnalyzeAction();
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray("{invalid_json}"), XContentType.JSON).build();
-        IOException e = expectThrows(IOException.class, () -> action.handleRequest(request, null, null));
-        assertThat(e.getMessage(), containsString("expecting double-quote"));
+        try (NodeClient client = new NoOpNodeClient(this.getClass().getSimpleName())) {
+            IOException e = expectThrows(IOException.class, () -> action.handleRequest(request, null, client));
+            assertThat(e.getMessage(), containsString("expecting double-quote"));
+        }
     }
 
     public void testParseXContentForAnalyzeRequestWithUnknownParamThrowsException() throws Exception {

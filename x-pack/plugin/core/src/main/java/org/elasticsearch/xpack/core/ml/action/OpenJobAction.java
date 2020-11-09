@@ -6,12 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -69,9 +66,6 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             jobParams = new JobParams(in);
-        }
-
-        public Request() {
         }
 
         public JobParams getJobParams() {
@@ -246,7 +240,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
 
         static boolean match(Task task, String expectedJobId) {
             if (task instanceof JobTaskMatcher) {
-                if (Metadata.ALL.equals(expectedJobId)) {
+                if (Strings.isAllOrWildcard(expectedJobId)) {
                     return true;
                 }
                 String expectedDescription = "job-" + expectedJobId;
@@ -255,12 +249,4 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
             return false;
         }
     }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, NodeAcknowledgedResponse> {
-
-        RequestBuilder(ElasticsearchClient client, OpenJobAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

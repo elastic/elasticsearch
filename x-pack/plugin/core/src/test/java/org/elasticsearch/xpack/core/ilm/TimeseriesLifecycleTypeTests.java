@@ -20,6 +20,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_COLD_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_DELETE_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_HOT_ACTIONS;
@@ -29,8 +31,11 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_DEL
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_HOT_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_PHASES;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_WARM_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
@@ -46,6 +51,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
     private static final UnfollowAction TEST_UNFOLLOW_ACTION  = new UnfollowAction();
     private static final SearchableSnapshotAction TEST_SEARCHABLE_SNAPSHOT_ACTION = new SearchableSnapshotAction("repo");
+    // keeping the migrate action disabled as otherwise it could conflict with the allocate action if both are randomly selected for the
+    // same phase
+    private static final MigrateAction TEST_MIGRATE_ACTION = new MigrateAction(false);
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -68,7 +76,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Map<String, LifecycleAction> actions = VALID_HOT_ACTIONS
             .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         if (randomBoolean()) {
-            invalidAction = getTestAction(randomFrom("allocate", "delete", "shrink", "freeze"));
+            invalidAction = getTestAction(randomFrom("allocate", "delete", "freeze"));
             actions.put(invalidAction.getWriteableName(), invalidAction);
         }
         Map<String, Phase> hotPhase = Collections.singletonMap("hot",
@@ -96,7 +104,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> validateHotActions.accept(Arrays.asList(ForceMergeAction.NAME)));
             assertThat(e.getMessage(),
-                containsString("the [forcemerge] action may not be used in the [hot] phase without an accompanying [rollover] action"));
+                containsString("the [forcemerge] action(s) may not be used in the [hot] phase without an accompanying [rollover] action"));
         }
     }
 
@@ -163,6 +171,26 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
     }
 
+    public void testValidateConflictingDataMigrationConfigurations() {
+        Map<String, LifecycleAction> actions = new HashMap<>();
+        actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(true));
+        actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), TEST_ALLOCATE_ACTION);
+        List<Phase> phases = List.of(new Phase(WARM_PHASE, TimeValue.ZERO, actions), new Phase(COLD_PHASE, TimeValue.ZERO, actions));
+
+        Exception validationException = expectThrows(IllegalArgumentException.class,
+            () -> TimeseriesLifecycleType.INSTANCE.validate(phases));
+        assertThat(validationException.getMessage(), equalTo("phases [warm,cold] specify an enabled migrate action and an allocate " +
+            "action with allocation rules. specify only a single data migration in each phase"));
+
+        // disabling the migrate action makes the phases definition valid as only the allocate action will perform data migration
+        actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(false));
+        try {
+            TimeseriesLifecycleType.INSTANCE.validate(phases);
+        } catch (Exception e) {
+            fail("not expecting a failure for phases that specify one action that migrates data" + e);
+        }
+    }
+
     public void testGetOrderedPhases() {
         Map<String, Phase> phaseMap = new HashMap<>();
         for (String phaseName : randomSubsetOf(randomIntBetween(0, VALID_PHASES.size()), VALID_PHASES)) {
@@ -171,6 +199,18 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
 
         assertTrue(isSorted(TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap), Phase::getName, VALID_PHASES));
+    }
+
+    public void testGetOrderedPhasesInsertsMigrateAction() {
+        Map<String, Phase> phaseMap = new HashMap<>();
+        phaseMap.put(HOT_PHASE, new Phase(HOT_PHASE, TimeValue.ZERO, Map.of()));
+        phaseMap.put(WARM_PHASE, new Phase(WARM_PHASE, TimeValue.ZERO, Map.of()));
+
+        List<Phase> orderedPhases = TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap);
+        assertTrue(isSorted(orderedPhases, Phase::getName, VALID_PHASES));
+        Phase warmPhase = orderedPhases.get(1);
+        assertThat(warmPhase, is(notNullValue()));
+        assertThat(warmPhase.getActions().get(MigrateAction.NAME), is(notNullValue()));
     }
 
     public void testUnfollowInjections() {
@@ -244,7 +284,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     public void testGetNextPhaseName() {
         assertNextPhaseName("hot", "warm", new String[] { "hot", "warm" });
         assertNextPhaseName("hot", "warm", new String[] { "hot", "warm", "cold" });
-        assertNextPhaseName("hot", "warm", new String[] { "hot", "warm", "cold", "delete" });
+        assertNextPhaseName("hot", "warm", new String[] { "hot", "warm", "cold", "delete"});
         assertNextPhaseName("hot", "warm", new String[] { "warm", "cold", "delete" });
         assertNextPhaseName("hot", "warm", new String[] { "warm", "cold", "delete" });
         assertNextPhaseName("hot", "warm", new String[] { "warm", "delete" });
@@ -366,8 +406,6 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertInvalidAction("hot", "foo", new String[] { RolloverAction.NAME });
         assertInvalidAction("hot", AllocateAction.NAME, new String[] { RolloverAction.NAME });
         assertInvalidAction("hot", DeleteAction.NAME, new String[] { RolloverAction.NAME });
-        assertInvalidAction("hot", ReadOnlyAction.NAME, new String[] { RolloverAction.NAME });
-        assertInvalidAction("hot", ShrinkAction.NAME, new String[] { RolloverAction.NAME });
 
         // Warm Phase
         assertNextActionName("warm", SetPriorityAction.NAME, UnfollowAction.NAME,
@@ -490,6 +528,41 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 exception.getMessage());
     }
 
+    public void testShouldMigrateDataToTiers() {
+        {
+            // the allocate action contain allocation rules
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(false));
+            actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), TEST_ALLOCATE_ACTION);
+            Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+        {
+            // the allocate action only specifies the number of replicas
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), new AllocateAction(2, null, null, null));
+            Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(true));
+        }
+
+        {
+            // there's an enabled migrate action specified
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(true));
+            Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+        {
+            // there's a disabled migrate action specified
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(false));
+            Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+    }
+
     private void assertNextActionName(String phaseName, String currentAction, String expectedNextAction, String... availableActionNames) {
         Map<String, LifecycleAction> availableActions = convertActionNamesToActions(availableActionNames);
         Phase phase = new Phase(phaseName, TimeValue.ZERO, availableActions);
@@ -526,7 +599,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             case SetPriorityAction.NAME:
                 return new SetPriorityAction(0);
             case UnfollowAction.NAME:
-                return  new UnfollowAction();
+                return new UnfollowAction();
+            case MigrateAction.NAME:
+                return new MigrateAction(true);
             }
             return new DeleteAction();
         }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));
@@ -598,6 +673,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return TEST_UNFOLLOW_ACTION;
             case SearchableSnapshotAction.NAME:
                 return TEST_SEARCHABLE_SNAPSHOT_ACTION;
+            case MigrateAction.NAME:
+                return TEST_MIGRATE_ACTION;
             default:
                 throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
         }

@@ -11,10 +11,12 @@ import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverFiel
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Encapsulates the field and document permissions per concrete index based on the current request.
@@ -49,6 +51,13 @@ public class IndicesAccessControl {
      */
     public boolean isGranted() {
         return granted;
+    }
+
+    public Collection<?> getDeniedIndices() {
+        return this.indexPermissions.entrySet().stream()
+            .filter(e -> e.getValue().granted == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**

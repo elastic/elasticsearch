@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
-import java.io.StringReader;
 import java.util.Set;
 
 /**
@@ -82,7 +81,7 @@ public class JsonXContent implements XContent {
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, String content) throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(new StringReader(content)));
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(content));
     }
 
     @Override

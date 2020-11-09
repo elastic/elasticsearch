@@ -19,6 +19,8 @@
 
 package org.elasticsearch.plugins;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Booleans;
@@ -46,6 +48,8 @@ import java.util.stream.Collectors;
  * An in-memory representation of the plugin descriptor.
  */
 public class PluginInfo implements Writeable, ToXContentObject {
+
+    private static final Logger logger = LogManager.getLogger(PluginInfo.class);
 
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
@@ -128,7 +132,19 @@ public class PluginInfo implements Writeable, ToXContentObject {
             in.readBoolean();
         }
         if (supportBootstrapPlugins(in.getVersion())) {
-            type = PluginType.valueOf(in.readString());
+            String typeString = in .readString();
+            try {
+                type = PluginType.valueOf(typeString);
+            } catch (IllegalArgumentException e) {
+                final String message = String.format(
+                    "Failed to parse [%s]. This node's version = [%s], remote node version = [%s]",
+                    typeString,
+                    Version.CURRENT,
+                    in.getVersion()
+                );
+                logger.error(message, e);
+                throw e;
+            }
             javaOpts = in.readOptionalString();
         } else {
             type = PluginType.ISOLATED;

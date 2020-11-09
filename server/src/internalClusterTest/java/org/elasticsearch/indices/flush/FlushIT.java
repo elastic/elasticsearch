@@ -298,9 +298,12 @@ public class FlushIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(between(2, 3));
         final int numberOfReplicas = internalCluster().numDataNodes() - 1;
         assertAcked(
-            prepareCreate("test").setSettings(Settings.builder()
+            prepareCreate("test")
+                .setSettings(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)).get()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas))
+                .addMapping("doc", "value", "type=text")
+                .get()
         );
         ensureGreen();
         final Index index = clusterService().state().metadata().index("test").getIndex();

@@ -157,6 +157,10 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         delegate = new LinkedHashMap<>();
     }
 
+    /**
+     * Please use the {@link AttributeMap#builder()} instead.
+     */
+    @Deprecated
     public AttributeMap(Map<Attribute, E> attr) {
         if (attr.isEmpty()) {
             delegate = emptyMap();
@@ -367,5 +371,29 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     @Override
     public String toString() {
         return delegate.toString();
+    }
+
+    public static <E> Builder<E> builder() {
+        return new Builder<>();
+    }
+
+    public static class Builder<E> {
+        private final AttributeMap<E> map = new AttributeMap<>();
+
+        private Builder() {}
+
+        public Builder<E> put(Attribute attr, E value) {
+            map.add(attr, value);
+            return this;
+        }
+
+        public Builder<E> putAll(AttributeMap<E> m) {
+            map.addAll(m);
+            return this;
+        }
+
+        public AttributeMap<E> build() {
+            return new AttributeMap<>(map);
+        }
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.ArrayDeque;
@@ -32,24 +33,25 @@ import java.util.Set;
  * An implementation of {@link ValueFetcher} that knows how to extract values
  * from the document source. Most standard field mappers will use this class
  * to implement value fetching.
- *
+ * <p>
  * Field types that handle arrays directly should instead use {@link ArraySourceValueFetcher}.
  */
 public abstract class SourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
-    private final @Nullable Object nullValue;
+    private final @Nullable
+    Object nullValue;
 
-    public SourceValueFetcher(String fieldName, MapperService mapperService) {
-        this(fieldName, mapperService, null);
+    public SourceValueFetcher(String fieldName, QueryShardContext context) {
+        this(fieldName, context, null);
     }
 
     /**
      * @param fieldName The name of the field.
-     * @param mapperService A mapper service.
+     * @param context   The query shard context
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
-    public SourceValueFetcher(String fieldName, MapperService mapperService, Object nullValue) {
-        this.sourcePaths = mapperService.sourcePath(fieldName);
+    public SourceValueFetcher(String fieldName, QueryShardContext context, Object nullValue) {
+        this.sourcePaths = context.sourcePath(fieldName);
         this.nullValue = nullValue;
     }
 
@@ -91,11 +93,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     /**
      * Creates a {@link SourceValueFetcher} that passes through source values unmodified.
      */
-    public static SourceValueFetcher identity(String fieldName, MapperService mapperService, String format) {
+    public static SourceValueFetcher identity(String fieldName, QueryShardContext context, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
-        return new SourceValueFetcher(fieldName, mapperService) {
+        return new SourceValueFetcher(fieldName, context) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value;
@@ -106,11 +108,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     /**
      * Creates a {@link SourceValueFetcher} that converts source values to strings.
      */
-    public static SourceValueFetcher toString(String fieldName, MapperService mapperService, String format) {
+    public static SourceValueFetcher toString(String fieldName, QueryShardContext context, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
-        return new SourceValueFetcher(fieldName, mapperService) {
+        return new SourceValueFetcher(fieldName, context) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value.toString();

@@ -31,7 +31,6 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -39,9 +38,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -49,7 +46,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -87,7 +83,6 @@ import java.util.function.LongSupplier;
 final class DefaultSearchContext extends SearchContext {
 
     private final ReaderContext readerContext;
-    private final Engine.Searcher engineSearcher;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
@@ -141,7 +136,6 @@ final class DefaultSearchContext extends SearchContext {
     private ParsedQuery postFilter;
     private Query aliasFilter;
     private int[] docIdsToLoad;
-    private int docsIdsToLoadFrom;
     private int docsIdsToLoadSize;
     private SearchContextAggregations aggregations;
     private SearchHighlightContext highlight;
@@ -177,9 +171,12 @@ final class DefaultSearchContext extends SearchContext {
         this.indexService = readerContext.indexService();
         this.indexShard = readerContext.indexShard();
         this.clusterService = clusterService;
-        this.engineSearcher = readerContext.acquireSearcher("search");
+
+        Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
         this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(), lowLevelCancellation);
+        releasables.addAll(org.elasticsearch.common.collect.List.of(engineSearcher, searcher));
+
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
         this.minNodeVersion = minNodeVersion;
@@ -188,11 +185,6 @@ final class DefaultSearchContext extends SearchContext {
         queryShardContext.setTypes(request.types());
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
-    }
-
-    @Override
-    public void doClose() {
-        Releasables.close(engineSearcher, searcher);
     }
 
     /**
@@ -257,7 +249,7 @@ final class DefaultSearchContext extends SearchContext {
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }
-        if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+        if (queryBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
             parsedQuery(new ParsedQuery(new BoostQuery(query(), queryBoost), parsedQuery()));
         }
         this.query = buildFilteredQuery(query);
@@ -312,10 +304,11 @@ final class DefaultSearchContext extends SearchContext {
 
     private Query createTypeFilter(String[] types) {
         if (types != null && types.length >= 1) {
-            if (mapperService().documentMapper() == null) {
+            QueryShardContext queryShardContext = getQueryShardContext();
+            if (queryShardContext.getType() == null) {
                 return null;
             }
-            TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType(mapperService().documentMapper().type());
+            TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType(queryShardContext.getType());
             return ft.typeFilter(types);
         }
         return null;
@@ -349,11 +342,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public int numberOfShards() {
         return request.numberOfShards();
-    }
-
-    @Override
-    public float queryBoost() {
-        return queryBoost;
     }
 
     @Override
@@ -495,11 +483,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SimilarityService similarityService() {
-        return indexService.similarityService();
-    }
-
-    @Override
     public BigArrays bigArrays() {
         return bigArrays;
     }
@@ -617,11 +600,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public Query aliasFilter() {
-        return aliasFilter;
-    }
-
-    @Override
     public SearchContext parsedQuery(ParsedQuery query) {
         this.originalQuery = query;
         this.query = query.query();
@@ -669,11 +647,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasStoredFieldsContext() {
-        return storedFields != null;
-    }
-
-    @Override
     public StoredFieldsContext storedFieldsContext() {
         return storedFields;
     }
@@ -682,11 +655,6 @@ final class DefaultSearchContext extends SearchContext {
     public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
         this.storedFields = storedFieldsContext;
         return this;
-    }
-
-    @Override
-    public boolean storedFieldsRequested() {
-        return storedFields == null || storedFields.fetchFields();
     }
 
     @Override
@@ -736,19 +704,13 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public int docIdsToLoadFrom() {
-        return docsIdsToLoadFrom;
-    }
-
-    @Override
     public int docIdsToLoadSize() {
         return docsIdsToLoadSize;
     }
 
     @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
         this.docIdsToLoad = docIdsToLoad;
-        this.docsIdsToLoadFrom = docsIdsToLoadFrom;
         this.docsIdsToLoadSize = docsIdsToLoadSize;
         return this;
     }
@@ -771,16 +733,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         return fetchResult;
-    }
-
-    @Override
-    public MappedFieldType fieldType(String name) {
-        return queryShardContext.getFieldType(name);
-    }
-
-    @Override
-    public ObjectMapper getObjectMapper(String name) {
-        return queryShardContext.getObjectMapper(name);
     }
 
     @Override

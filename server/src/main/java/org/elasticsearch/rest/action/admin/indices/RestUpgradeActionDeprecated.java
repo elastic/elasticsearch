@@ -28,19 +28,26 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestUpgradeAction extends BaseRestHandler {
+public class RestUpgradeActionDeprecated extends BaseRestHandler {
+
+    public static final String UPGRADE_API_DEPRECATION_MESSAGE =
+        "The _upgrade API is no longer useful and will be removed. Instead, see _reindex API.";
+
+    @Override
+    public List<DeprecatedRoute> deprecatedRoutes() {
+        return org.elasticsearch.common.collect.List.of(
+            new DeprecatedRoute(POST, "/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE),
+            new DeprecatedRoute(POST, "/{index}/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE));
+    }
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(POST, "/_upgrade"),
-            new Route(POST, "/{index}/_upgrade")));
+        return Collections.emptyList();
     }
 
     @Override

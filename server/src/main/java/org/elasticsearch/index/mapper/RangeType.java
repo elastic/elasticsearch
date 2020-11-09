@@ -707,7 +707,8 @@ public enum RangeType {
                                        boolean includeFrom, boolean includeTo);
 
     public final Mapper.TypeParser parser() {
-        return new FieldMapper.TypeParser((n, c) -> new RangeFieldMapper.Builder(n, this, c.getSettings()));
+        return new FieldMapper.TypeParser((n, c) ->
+            new RangeFieldMapper.Builder(n, this, RangeFieldMapper.COERCE_SETTING.get(c.getSettings()), c.indexVersionCreated()));
     }
 
     public final String name;

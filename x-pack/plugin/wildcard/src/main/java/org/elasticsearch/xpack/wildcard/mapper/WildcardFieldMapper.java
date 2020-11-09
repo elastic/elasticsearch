@@ -53,10 +53,10 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -224,12 +224,12 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public WildcardFieldMapper build(BuilderContext context) {
+        public WildcardFieldMapper build(ContentPath contentPath) {
             return new WildcardFieldMapper(
                 name,
-                new WildcardFieldType(buildFullName(context), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
+                new WildcardFieldType(buildFullName(contentPath), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
                 ignoreAbove.get(),
-                multiFieldsBuilder.build(this, context),
+                multiFieldsBuilder.build(this, contentPath),
                 copyTo.build(),
                 nullValue.get(),
                 indexVersionCreated
@@ -249,14 +249,15 @@ public class WildcardFieldMapper extends FieldMapper {
 
         private final String nullValue;
         private final int ignoreAbove;
+        private final NamedAnalyzer analyzer;
 
         private WildcardFieldType(String name, String nullValue, int ignoreAbove,
                                   Version version, Map<String, String> meta) {
             super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
             if (version.onOrAfter(Version.V_7_10_0)) {
-                setIndexAnalyzer(WILDCARD_ANALYZER_7_10);
+                this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {
-                setIndexAnalyzer(WILDCARD_ANALYZER_7_9);
+                this.analyzer = WILDCARD_ANALYZER_7_9;
             }
             this.nullValue = nullValue;
             this.ignoreAbove = ignoreAbove;
@@ -640,7 +641,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 return;
             }
             // Break fragment into multiple Ngrams
-            TokenStream tokenizer = indexAnalyzer().tokenStream(name(), fragment);
+            TokenStream tokenizer = analyzer.tokenStream(name(), fragment);
             CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
             int foundTokens = 0;
             try {
@@ -659,7 +660,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (foundTokens == 0 && fragment.length() > 0) {
                 // fragment must have been less than NGRAM_SIZE - add a placeholder which may be used in a prefix query e.g. ab*
                 fragment = toLowerCase(fragment);
-                if (indexAnalyzer() == WILDCARD_ANALYZER_7_10) {
+                if (analyzer == WILDCARD_ANALYZER_7_10) {
                     fragment = PunctuationFoldingFilter.normalize(fragment);
                 }
                 tokens.add(fragment);
@@ -785,7 +786,7 @@ public class WildcardFieldMapper extends FieldMapper {
                     }
                 }
                 // Tokenize all content after the prefix
-                TokenStream tokenizer = indexAnalyzer().tokenStream(name(), postPrefixString);
+                TokenStream tokenizer = analyzer.tokenStream(name(), postPrefixString);
                 CharTermAttribute termAtt = tokenizer.addAttribute(CharTermAttribute.class);
                 ArrayList<String> postPrefixTokens = new ArrayList<>();
                 String firstToken = null;
@@ -905,12 +906,12 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
          @Override
-         public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+         public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
              if (format != null) {
                  throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
              }
 
-             return new SourceValueFetcher(name(), mapperService, nullValue) {
+             return new SourceValueFetcher(name(), context, nullValue) {
                  @Override
                  protected String parseSourceValue(Object value) {
                      String keywordValue = value.toString();
@@ -929,10 +930,10 @@ public class WildcardFieldMapper extends FieldMapper {
     private final FieldType ngramFieldType;
     private final Version indexVersionCreated;
 
-    private WildcardFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+    private WildcardFieldMapper(String simpleName, WildcardFieldType mappedFieldType,
                                 int ignoreAbove, MultiFields multiFields, CopyTo copyTo,
                                 String nullValue, Version indexVersionCreated) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, mappedFieldType.analyzer, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.indexVersionCreated = indexVersionCreated;

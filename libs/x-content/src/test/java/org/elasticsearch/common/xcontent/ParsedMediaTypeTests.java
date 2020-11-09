@@ -111,14 +111,21 @@ public class ParsedMediaTypeTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(mediaType + ";k="));
     }
 
-    public void testDefaultAcceptHeader() {
+    public void testIgnoredMediaTypes() {
+        // When using curl */* is used a default Accept header when not specified by a user
+        assertThat(ParsedMediaType.parseMediaType("*/*"), is(nullValue()));
+
+
         // This media type is defined in sun.net.www.protocol.http.HttpURLConnection as a default Accept header
         // and used when a header was not set on a request
         // It should be treated as if a user did not specify a header value
         String mediaType = "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2";
         assertThat(ParsedMediaType.parseMediaType(mediaType), is(nullValue()));
 
-        // When using curl */* is used a default Accept header when not specified by a user
-        assertThat(ParsedMediaType.parseMediaType("*/*"), is(nullValue()));
+        //example accept header used by a browser
+        mediaType = "text/html,application/xhtml+xml,application/xml;q=0.9," +
+            "image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9";
+        ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaType);
+        assertThat(parsedMediaType, equalTo(null));
     }
 }

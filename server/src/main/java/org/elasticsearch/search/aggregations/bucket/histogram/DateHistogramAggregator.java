@@ -148,7 +148,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        if (hardBounds != null) {
+        if (hardBounds != null || extendedBounds != null) {
             return null;
         }
         long[] fixedRoundingPoints = preparedRounding.fixedRoundingPoints();

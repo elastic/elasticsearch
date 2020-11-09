@@ -35,6 +35,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static java.util.Arrays.compareUnsigned;
 
@@ -186,12 +187,13 @@ public class MergedPointRangeQuery extends Query {
             return false;
         }
         MergedPointRangeQuery other = (MergedPointRangeQuery) obj;
-        return delegateForMultiValuedSegments.equals(other.delegateForMultiValuedSegments);
+        return delegateForMultiValuedSegments.equals(other.delegateForMultiValuedSegments)
+            && delegateForSingleValuedSegments.equals(other.delegateForSingleValuedSegments);
     }
 
     @Override
     public int hashCode() {
-        return classHash() * 31 + delegateForMultiValuedSegments.hashCode();
+        return Objects.hash(classHash(), delegateForMultiValuedSegments, delegateForSingleValuedSegments);
     }
 
     private static byte[] mergeBound(byte[] lhs, byte[] rhs, int numDims, int bytesPerDim, boolean lower) {

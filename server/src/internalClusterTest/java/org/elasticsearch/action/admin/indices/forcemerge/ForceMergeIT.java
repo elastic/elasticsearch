@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -33,6 +34,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -79,6 +83,20 @@ public class ForceMergeIT extends ESIntegTestCase {
         final String replicaForceMergeUUID = getForceMergeUUID(replica);
         assertThat(replicaForceMergeUUID, notNullValue());
         assertThat(primaryForceMergeUUID, is(replicaForceMergeUUID));
+    }
+
+    public void testForceMergeBlockedByIndexReadOnly() {
+        internalCluster().startNodes(1);
+        final String index = "test-index";
+        createIndex(index,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
+        ensureGreen(index);
+        assertAcked(client().admin().indices().prepareUpdateSettings("test-index")
+            .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, true)).get());
+        ClusterBlockException exception =
+            expectThrows(ClusterBlockException.class, () -> client().admin().indices().prepareForceMerge("test-index").get());
+        assertThat(exception.getMessage(), containsString("index [test-index] blocked by: [FORBIDDEN/8/index write (api)]"));
     }
 
     private static String getForceMergeUUID(IndexShard indexShard) throws IOException {

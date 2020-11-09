@@ -19,21 +19,8 @@
 
 package org.elasticsearch.plugins;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -45,15 +32,25 @@ import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
 /**
  * An in-memory representation of the plugin descriptor.
  */
 public class PluginInfo implements Writeable, ToXContentObject {
 
-    private static final Logger logger = LogManager.getLogger(PluginInfo.class);
-
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
+
+    private static final Version BOOSTRAP_PLUGINS_SUPPORT = Version.V_7_11_0;
 
     private final String name;
     private final String description;
@@ -95,10 +92,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.javaOpts = javaOpts;
     }
 
-    public static boolean supportBootstrapPlugins(Version version) {
-        return (version.onOrAfter(Version.V_6_8_14) && version.before(Version.V_7_0_0)) || version.onOrAfter(Version.V_7_11_0);
-    }
-
     /**
      * Construct plugin info from a stream.
      *
@@ -132,21 +125,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
              */
             in.readBoolean();
         }
-        if (supportBootstrapPlugins(in.getVersion())) {
-            String typeString = in .readString();
-            try {
-                type = PluginType.valueOf(typeString);
-            } catch (IllegalArgumentException e) {
-                final String message = String.format(
-                    Locale.ROOT,
-                    "Failed to parse [%s]. This node's version = [%s], remote node version = [%s]",
-                    typeString,
-                    Version.CURRENT,
-                    in.getVersion()
-                );
-                logger.error(message, e);
-                throw e;
-            }
+        if (in.getVersion().onOrAfter(BOOSTRAP_PLUGINS_SUPPORT)) {
+            type = PluginType.valueOf(in.readString());
             javaOpts = in.readOptionalString();
         } else {
             type = PluginType.ISOLATED;
@@ -175,7 +155,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
              */
             out.writeBoolean(false);
         }
-        if (supportBootstrapPlugins(out.getVersion())) {
+        if (out.getVersion().onOrAfter(BOOSTRAP_PLUGINS_SUPPORT)) {
             out.writeString(type.name());
             out.writeOptionalString(javaOpts);
         }

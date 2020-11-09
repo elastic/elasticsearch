@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 
@@ -30,7 +29,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -124,9 +122,8 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
-        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
-        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        final RootObjectMapper rootObjectMapper = (RootObjectMapper) new RootObjectMapper.Builder(name).enabled(enabled).build(context);
+        final RootObjectMapper rootObjectMapper
+            = (RootObjectMapper) new RootObjectMapper.Builder(name, Version.CURRENT).enabled(enabled).build(new ContentPath());
 
         mappers.values().forEach(rootObjectMapper::putMapper);
 
@@ -134,9 +131,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static ObjectMapper createObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
-        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
-        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        final ObjectMapper mapper = new ObjectMapper.Builder(name).enabled(enabled).build(context);
+        final ObjectMapper mapper = new ObjectMapper.Builder(name, Version.CURRENT).enabled(enabled).build(new ContentPath());
 
         mappers.values().forEach(mapper::putMapper);
 
@@ -144,16 +139,12 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static ObjectMapper createNestedMapper(String name, ObjectMapper.Nested nested) {
-        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
-        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        return new ObjectMapper.Builder(name)
+        return new ObjectMapper.Builder(name, Version.CURRENT)
             .nested(nested)
-            .build(context);
+            .build(new ContentPath());
     }
 
     private static TextFieldMapper createTextFieldMapper(String name) {
-        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
-        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        return new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER).build(context);
+        return new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER).build(new ContentPath());
     }
 }

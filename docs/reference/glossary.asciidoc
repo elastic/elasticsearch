@@ -213,6 +213,13 @@ The first possible phase in the <<glossary-index-lifecycle,index lifecycle>>.
 In the hot phase, an index is actively updated and queried.
 // end::hot-phase-def[]
 
+[[glossary-hot-tier]] hot tier::
+// tag::hot-tier-def[]
+A <<glossary-data-tier, data tier>> that contains nodes that handle the indexing load 
+for time series data such as logs or metrics and hold your most recent, 
+most-frequently-accessed data.
+// end::hot-tier-def[]
+
 [[glossary-id]] id ::
 // tag::id-def[]
 The ID of a <<glossary-document,document>> identifies a document. The

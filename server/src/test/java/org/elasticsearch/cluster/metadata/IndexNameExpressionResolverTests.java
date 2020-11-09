@@ -88,6 +88,26 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         indexNameExpressionResolver = createIndexNameExpressionResolver(threadContext);
     }
 
+    public void testExcludePattern() {
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(indexBuilder("foo"));
+
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
+            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN, false);
+        String[] names = indexNameExpressionResolver.concreteIndexNames(context, "foo", "-f*");
+        assertEquals(0, names.length);
+
+        names = indexNameExpressionResolver.concreteIndexNames(context, "foo", "-a*","-f*");
+        assertEquals(0, names.length);
+
+        names = indexNameExpressionResolver.concreteIndexNames(context, "foo", "-a*");
+        assertArrayEquals(new String[]{"foo"}, names);
+
+        names = indexNameExpressionResolver.concreteIndexNames(context, "-a*");
+        assertEquals(0, names.length);
+    }
+
     public void testIndexOptionsStrict() {
         Metadata.Builder mdBuilder = Metadata.builder()
                 .put(indexBuilder("foo").putAlias(AliasMetadata.builder("foofoobar")))

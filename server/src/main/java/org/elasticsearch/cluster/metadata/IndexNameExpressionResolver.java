@@ -849,7 +849,6 @@ public class IndexNameExpressionResolver {
 
         private Set<String> innerResolve(Context context, List<String> expressions, IndicesOptions options, Metadata metadata) {
             Set<String> result = null;
-            boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
                 if (Strings.isEmpty(expression)) {
@@ -863,7 +862,7 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
                 final boolean add;
-                if (expression.charAt(0) == '-' && wildcardSeen) {
+                if (expression.charAt(0) == '-' && i > 0) {
                     add = false;
                     expression = expression.substring(1);
                 } else {
@@ -904,9 +903,6 @@ public class IndexNameExpressionResolver {
                 }
                 if (options.allowNoIndices() == false && matches.isEmpty()) {
                     throw indexNotFoundException(expression);
-                }
-                if (Regex.isSimpleMatchPattern(expression)) {
-                    wildcardSeen = true;
                 }
             }
             return result;

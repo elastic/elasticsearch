@@ -25,12 +25,15 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.WriteableZoneId;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,6 +42,11 @@ import java.util.Objects;
  * Object representing information about rollup-v2 indices and their respective original-indexes. These objects
  * also include information about their capabilities, like which date-intervals and date-timezones they are configured
  * with. Used by {@link RollupMetadata}.
+ *
+ * The information in this class will be used to decide which index within the <code>group</code> will be chosen
+ * for a specific aggregation. For example, if there are two indices with different intervals (`1h`, `1d`) and
+ * a date-histogram aggregation request is sent for daily intervals, then the index with the associated `1d` interval
+ * will be chosen.
  */
 public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXContentObject {
     private static final ParseField GROUP_FIELD = new ParseField("group");
@@ -48,22 +56,41 @@ public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXCon
     // the list of indices part of this rollup group
     private List<String> group;
     // a map from index-name to the date interval used in the associated index
-    private Map<String, String> dateInterval;
+    private Map<String, DateHistogramInterval> dateInterval;
     // a map from index-name to timezone used in the associated index
-    private Map<String, String> dateTimezone;
+    private Map<String, WriteableZoneId> dateTimezone;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RollupGroup, Void> PARSER =
         new ConstructingObjectParser<>("rollup_group", false,
-            a -> new RollupGroup((List<String>) a[0], (Map<String, String>) a[1], (Map<String, String>) a[2]));
+            a -> new RollupGroup((List<String>) a[0], (Map<String, DateHistogramInterval>) a[1], (Map<String, WriteableZoneId>) a[2]));
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), GROUP_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), DATE_INTERVAL_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), DATE_TIMEZONE_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            Map<String, DateHistogramInterval> intervalMap = new HashMap<>();
+
+            while (p.nextToken() != XContentParser.Token.END_OBJECT) {
+                String name = p.currentName();
+                p.nextToken();
+                String expression = p.text();
+                intervalMap.put(name, new DateHistogramInterval(expression));
+            }
+            return intervalMap;
+        }, DATE_INTERVAL_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            Map<String, WriteableZoneId> zoneMap = new HashMap<>();
+            while (p.nextToken() != XContentParser.Token.END_OBJECT) {
+                String name = p.currentName();
+                p.nextToken();
+                String timezone = p.text();
+                zoneMap.put(name, WriteableZoneId.of(timezone));
+            }
+            return zoneMap;
+        }, DATE_TIMEZONE_FIELD);
     }
 
-    public RollupGroup(List<String> group, Map<String, String> dateInterval, Map<String, String> dateTimezone) {
+    public RollupGroup(List<String> group, Map<String, DateHistogramInterval> dateInterval, Map<String, WriteableZoneId> dateTimezone) {
         this.group = group;
         this.dateInterval = dateInterval;
         this.dateTimezone = dateTimezone;
@@ -71,8 +98,8 @@ public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXCon
 
     public RollupGroup(StreamInput in) throws IOException {
         this.group = in.readStringList();
-        this.dateInterval = in.readMap(StreamInput::readString, StreamInput::readString);
-        this.dateTimezone = in.readMap(StreamInput::readString, StreamInput::readString);
+        this.dateInterval = in.readMap(StreamInput::readString, DateHistogramInterval::new);
+        this.dateTimezone = in.readMap(StreamInput::readString, WriteableZoneId::new);
     }
 
 
@@ -80,7 +107,7 @@ public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXCon
         return PARSER.parse(parser, null);
     }
 
-    public void add(String name, String interval, String timezone) {
+    public void add(String name, DateHistogramInterval interval, WriteableZoneId timezone) {
         group.add(name);
         dateInterval.put(name, interval);
         dateTimezone.put(name, timezone);
@@ -96,11 +123,11 @@ public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXCon
         return group.contains(name);
     }
 
-    public String getDateInterval(String name) {
+    public DateHistogramInterval getDateInterval(String name) {
         return dateInterval.get(name);
     }
 
-    public String getDateTimezone(String name) {
+    public WriteableZoneId getDateTimezone(String name) {
         return dateTimezone.get(name);
     }
 
@@ -124,8 +151,8 @@ public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXCon
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(group);
-        out.writeMap(dateInterval, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeMap(dateTimezone, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(dateInterval, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMap(dateTimezone, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
     }
 
     @Override

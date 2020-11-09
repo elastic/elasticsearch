@@ -309,10 +309,10 @@ subprojects {
 
   repositories {
     maven {
-      url "https://artifacts.elastic.co/maven"
+      url "https://artifacts-no-kpi.elastic.co/maven"
     }
     maven {
-      url "https://snapshots.elastic.co/maven"
+      url "https://snapshots-no-kpi.elastic.co/maven"
     }
   }
 }

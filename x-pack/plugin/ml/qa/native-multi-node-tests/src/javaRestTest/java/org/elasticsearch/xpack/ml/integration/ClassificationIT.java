@@ -46,8 +46,12 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Preci
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.Entropy;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.NGram;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
 import org.junit.After;
 import org.junit.Before;
 
@@ -309,15 +313,21 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                     new OneHotEncoding(ALIAS_TO_KEYWORD_FIELD, MapBuilder.<String, String>newMapBuilder()
                         .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom")
                         .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom").map(), true),
-                    new OneHotEncoding(ALIAS_TO_NESTED_FIELD, MapBuilder.<String, String>newMapBuilder()
-                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_1")
-                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_1").map(), true),
-                    new OneHotEncoding(NESTED_FIELD, MapBuilder.<String, String>newMapBuilder()
-                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2")
-                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2").map(), true),
-                    new OneHotEncoding(TEXT_FIELD, MapBuilder.<String, String>newMapBuilder()
-                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3")
-                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3").map(), true)
+                    new FrequencyEncoding(ALIAS_TO_NESTED_FIELD,
+                        "freq_enc",
+                        MapBuilder.<String, Double>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), 0.5)
+                        .put(KEYWORD_FIELD_VALUES.get(1), 0.5).map(),
+                        true),
+                    new TargetMeanEncoding(NESTED_FIELD,
+                        "targetMean",
+                        MapBuilder.<String, Double>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), 0.3)
+                        .put(KEYWORD_FIELD_VALUES.get(1), 0.1).map(),
+                        0.0,
+                        true),
+                    new NGram(TEXT_FIELD, "f", new int[]{1}, 0, 2, true),
+                    new Entropy(TEXT_FIELD, "entropy", true)
                 )));
         putAnalytics(config);
 

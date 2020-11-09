@@ -14,6 +14,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.EntropyTests;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.NGramTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
@@ -35,7 +37,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-//TODO these tests are temporary until the named objects are actually used by an encompassing class (i.e. ModelInferer)
 public class NamedXContentObjectsTests extends AbstractXContentTestCase<NamedXContentObjectsTests.NamedObjectContainer> {
 
     static class NamedObjectContainer implements ToXContentObject {
@@ -151,9 +152,13 @@ public class NamedXContentObjectsTests extends AbstractXContentTestCase<NamedXCo
         int max = randomIntBetween(1, 10);
         List<PreProcessor> preProcessors = new ArrayList<>(max);
         for (int i = 0; i < max; i++) {
-            preProcessors.add(randomFrom(FrequencyEncodingTests.createRandom(),
+            preProcessors.add(randomFrom(
+                FrequencyEncodingTests.createRandom(),
                 OneHotEncodingTests.createRandom(),
-                TargetMeanEncodingTests.createRandom()));
+                TargetMeanEncodingTests.createRandom(),
+                NGramTests.createRandom(),
+                EntropyTests.createRandom()
+                ));
         }
         NamedObjectContainer container = new NamedObjectContainer();
         container.setPreProcessors(preProcessors);

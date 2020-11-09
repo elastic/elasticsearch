@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.CustomWordEmbedding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.Entropy;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.NGram;
@@ -67,6 +68,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             (p, c) -> CustomWordEmbedding.fromXContentLenient(p)));
         namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedPreProcessor.class, NGram.NAME,
             (p, c) -> NGram.fromXContentLenient(p, (PreProcessor.PreProcessorParseContext) c)));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedPreProcessor.class, Entropy.NAME,
+            (p, c) -> Entropy.fromXContentLenient(p, (PreProcessor.PreProcessorParseContext) c)));
 
         // PreProcessing Strict
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, OneHotEncoding.NAME,
@@ -79,6 +82,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             (p, c) -> CustomWordEmbedding.fromXContentStrict(p)));
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, NGram.NAME,
             (p, c) -> NGram.fromXContentStrict(p, (PreProcessor.PreProcessorParseContext) c)));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, Entropy.NAME,
+            (p, c) -> Entropy.fromXContentStrict(p, (PreProcessor.PreProcessorParseContext) c)));
 
         // Model Lenient
         namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedTrainedModel.class, Tree.NAME, Tree::fromXContentLenient));
@@ -161,6 +166,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             CustomWordEmbedding::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(PreProcessor.class, NGram.NAME.getPreferredName(),
             NGram::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(PreProcessor.class, Entropy.NAME.getPreferredName(),
+            Entropy::new));
 
         // Model
         namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModel.class, Tree.NAME.getPreferredName(), Tree::new));

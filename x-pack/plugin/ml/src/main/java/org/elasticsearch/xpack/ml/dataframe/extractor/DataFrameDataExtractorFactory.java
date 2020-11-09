@@ -13,16 +13,13 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.ml.dataframe.traintestsplit.TrainTestSplitterFactory;
-import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
-import org.elasticsearch.xpack.ml.extractor.ProcessedField;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -100,27 +97,10 @@ public class DataFrameDataExtractorFactory {
         return new TrainTestSplitterFactory(
             client,
             config,
-            Stream.concat(Arrays.stream(
-                extractOrganicFeatureNames(extractedFields)),
-                Arrays.stream(extractProcessedFeatureNames(extractedFields))
+            Stream.concat(
+                Arrays.stream(extractedFields.extractOrganicFeatureNames()),
+                Arrays.stream(extractedFields.extractProcessedFeatureNames())
             ).collect(Collectors.toList()));
-    }
-
-    static String[] extractOrganicFeatureNames(ExtractedFields extractedFields) {
-        Set<String> processedFieldInputs = extractedFields.getProcessedFieldInputs();
-        return extractedFields.getAllFields()
-            .stream()
-            .map(ExtractedField::getName)
-            .filter(f -> processedFieldInputs.contains(f) == false)
-            .toArray(String[]::new);
-    }
-
-    static String[] extractProcessedFeatureNames(ExtractedFields extractedFields) {
-        return extractedFields.getProcessedFields()
-            .stream()
-            .map(ProcessedField::getOutputFieldNames)
-            .flatMap(List::stream)
-            .toArray(String[]::new);
     }
 
     /**

@@ -77,8 +77,8 @@ public class DataFrameDataExtractor {
     DataFrameDataExtractor(Client client, DataFrameDataExtractorContext context) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(context);
-        this.organicFeatures = DataFrameDataExtractorFactory.extractOrganicFeatureNames(context.extractedFields);
-        this.processedFeatures = DataFrameDataExtractorFactory.extractProcessedFeatureNames(context.extractedFields);
+        this.organicFeatures = context.extractedFields.extractOrganicFeatureNames();
+        this.processedFeatures = context.extractedFields.extractProcessedFeatureNames();
         this.extractedFieldsByName = new LinkedHashMap<>();
         context.extractedFields.getAllFields().forEach(f -> this.extractedFieldsByName.put(f.getName(), f));
         hasNext = true;

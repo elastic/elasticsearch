@@ -212,7 +212,7 @@ belongs.
       `class_name` in the list of their top classes.
 
     `include_curve`::::
-      (Optional, boolean) Whether or not the curve should be returned in
+      (Optional, Boolean) Whether or not the curve should be returned in
       addition to the score. Default value is false.
 
   `multiclass_confusion_matrix`:::

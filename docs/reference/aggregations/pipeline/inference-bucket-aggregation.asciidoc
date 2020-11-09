@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[search-aggregations-pipeline-inference-bucket-aggregation]]
-=== {infer-cap} Bucket Aggregation
+=== {infer-cap} bucket aggregation
+++++
+<titleabbrev>{infer-cap} bucket</titleabbrev>
+++++
 
 beta::[]
 

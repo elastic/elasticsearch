@@ -61,7 +61,7 @@ printable symbols in the {wikipedia}/Basic_Latin_(Unicode_block)[Basic Latin (AS
 The following parameters can be specified in the body of a POST or PUT request:
 
 `enabled`::
-(boolean) Specifies whether the user is enabled. The default value is `true`.
+(Boolean) Specifies whether the user is enabled. The default value is `true`.
 
 `email`::
 (string) The email of the user.

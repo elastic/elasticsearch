@@ -44,21 +44,16 @@ final class LatLonShapeDVAtomicShapeFieldData extends AbstractAtomicGeoShapeShap
     }
 
     @Override
-    public MultiGeoShapeValues getGeoShapeValues() {
+    public GeoShapeValues getGeoShapeValues() {
         try {
             final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);
             final GeometryDocValueReader reader = new GeometryDocValueReader();
-            final MultiGeoShapeValues.GeoShapeValue geoShapeValue = new MultiGeoShapeValues.GeoShapeValue(reader);
-            return new MultiGeoShapeValues() {
+            final GeoShapeValues.GeoShapeValue geoShapeValue = new GeoShapeValues.GeoShapeValue(reader);
+            return new GeoShapeValues() {
 
                 @Override
                 public boolean advanceExact(int doc) throws IOException {
                     return binaryValues.advanceExact(doc);
-                }
-
-                @Override
-                public int docValueCount() {
-                    return 1;
                 }
 
                 @Override
@@ -67,7 +62,7 @@ final class LatLonShapeDVAtomicShapeFieldData extends AbstractAtomicGeoShapeShap
                 }
 
                 @Override
-                public GeoShapeValue nextValue() throws IOException {
+                public GeoShapeValue value() throws IOException {
                     final BytesRef encoded = binaryValues.binaryValue();
                     reader.reset(encoded);
                     return geoShapeValue;

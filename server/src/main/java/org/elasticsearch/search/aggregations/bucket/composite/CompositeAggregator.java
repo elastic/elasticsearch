@@ -135,14 +135,10 @@ final class CompositeAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected void doPostCollection() throws IOException {
-        finishLeaf();
-    }
-
-    @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         // Composite aggregator must be at the top of the aggregation tree
         assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0L;
+        finishLeaf();
         if (deferredCollectors != NO_OP_COLLECTOR) {
             // Replay all documents that contain at least one top bucket (collected during the first pass).
             runDeferredCollections();
@@ -159,7 +155,7 @@ final class CompositeAggregator extends BucketsAggregator {
             int slot = queue.pop();
             CompositeKey key = queue.toCompositeKey(slot);
             InternalAggregations aggs = subAggsForBuckets[slot];
-            int docCount = queue.getDocCount(slot);
+            long docCount = queue.getDocCount(slot);
             buckets[queue.size()] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
         }
         CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
@@ -434,7 +430,8 @@ final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 try {
-                    if (queue.addIfCompetitive(indexSortPrefix)) {
+                    long docCount = docCountProvider.getDocCount(doc);
+                    if (queue.addIfCompetitive(indexSortPrefix, docCount)) {
                         if (builder != null && lastDoc != doc) {
                             builder.add(doc);
                             lastDoc = doc;
@@ -485,7 +482,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 collector.collect(docID);
             }
         }
-        deferredCollectors.postCollection();
     }
 
     /**

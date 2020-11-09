@@ -136,12 +136,12 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
      * Build the results of this aggregation.
-     * @param owningBucketOrds the ordinals of the buckets that we want to
+     * @param ordsToCollect the ordinals of the buckets that we want to
      *        collect from this aggregation
      * @return the results for each ordinal, in the same order as the array
      *         of ordinals
      */
-    public abstract InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException;
+    public abstract InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException;
 
     /**
      * Build the result of this aggregation if it is at the "top level"

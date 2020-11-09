@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-geohashgrid-aggregation]]
-=== GeoHash grid Aggregation
+=== Geohash grid aggregation
+++++
+<titleabbrev>Geohash grid</titleabbrev>
+++++
 
 A multi-bucket aggregation that works on `geo_point` fields and groups points into buckets that represent cells in a grid.
 The resulting grid can be sparse and only contains cells that have matching data. Each cell is labeled using a {wikipedia}/Geohash[geohash] which is of user-definable precision.

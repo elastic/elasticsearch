@@ -488,6 +488,33 @@ public final class IngestDocument {
         setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
     }
 
+    /**
+     * Sets the provided value to the provided path in the document.
+     * Any non existing path element will be created. If the last element is a list,
+     * the value will replace the existing list.
+     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param value The value to put in for the path key
+     * @param ignoreEmptyValue The flag to determine whether to exit quietly when the value produced by TemplatedValue is null or empty
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
+     * item identified by the provided path.
+     */
+    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, Object value, boolean ignoreEmptyValue) {
+        Map<String, Object> model = createTemplateModel();
+        if (ignoreEmptyValue) {
+            if (value == null) {
+                return;
+            }
+            if (value instanceof String){
+                String valueStr = (String) value;
+                if (valueStr.isEmpty()) {
+                    return;
+                }
+            }
+        }
+
+        setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
+    }
+
     private void setFieldValue(String path, Object value, boolean append) {
         setFieldValue(path, value, append, true);
     }

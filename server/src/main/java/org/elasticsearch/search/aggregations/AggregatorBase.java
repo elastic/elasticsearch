@@ -99,10 +99,6 @@ public abstract class AggregatorBase extends Aggregator {
             }
 
             @Override
-            public void postCollection() throws IOException {
-                badState();
-            }
-            @Override
             public ScoreMode scoreMode() {
                 badState();
                 return ScoreMode.COMPLETE; // unreachable
@@ -183,7 +179,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        preGetSubLeafCollectors();
+        preGetSubLeafCollectors(ctx);
         final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
         return getLeafCollector(ctx, sub);
     }
@@ -192,7 +188,7 @@ public abstract class AggregatorBase extends Aggregator {
      * Can be overridden by aggregator implementations that like the perform an operation before the leaf collectors
      * of children aggregators are instantiated for the next segment.
      */
-    protected void preGetSubLeafCollectors() throws IOException {
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
     }
 
     /**
@@ -243,19 +239,6 @@ public abstract class AggregatorBase extends Aggregator {
         return subAggregatorbyName.get(aggName);
     }
 
-    /**
-     * Called after collection of all document is done.
-     * <p>
-     * Warning: this is not final only to allow the parent join aggregator
-     * to delay this until building buckets.
-     */
-    @Override
-    public void postCollection() throws IOException {
-        // post-collect this agg before subs to make it possible to buffer and then replay in postCollection()
-        doPostCollection();
-        collectableSubAggregators.postCollection();
-    }
-
     /** Called upon release of the aggregator. */
     @Override
     public void close() {
@@ -268,12 +251,6 @@ public abstract class AggregatorBase extends Aggregator {
 
     /** Release instance-specific data. */
     protected void doClose() {}
-
-    /**
-     * Can be overridden by aggregator implementation to be called back when the collection phase ends.
-     */
-    protected void doPostCollection() throws IOException {
-    }
 
     protected final InternalAggregations buildEmptySubAggregations() {
         List<InternalAggregation> aggs = new ArrayList<>();

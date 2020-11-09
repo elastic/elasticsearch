@@ -96,7 +96,7 @@ Reason for any snapshot failures.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
 `ignore_unavailable`::
-(Optional, boolean) If `true`, the response does not include information from
+(Optional, Boolean) If `true`, the response does not include information from
 unavailable snapshots. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]

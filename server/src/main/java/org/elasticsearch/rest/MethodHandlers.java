@@ -68,9 +68,7 @@ final class MethodHandlers {
         if (versionToHandlers == null) {
             return null; //method not found
         }
-        final RestHandler handler = versionToHandlers.get(version);
-        return handler == null ? versionToHandlers.get(Version.CURRENT) : handler;
-
+        return versionToHandlers.get(version);
     }
 
     /**

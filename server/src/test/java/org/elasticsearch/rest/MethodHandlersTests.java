@@ -68,19 +68,19 @@ public class MethodHandlersTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> methodHandlers.addMethods(currentVersionHandler, RestRequest.Method.PUT));
     }
 
-    public void testMissingCurrentHandler(){
-        RestHandler previousVersionHandler = new PreviousVersionHandler();
-        MethodHandlers methodHandlers = new MethodHandlers("path", previousVersionHandler, RestRequest.Method.PUT, RestRequest.Method.POST);
-        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT);
-        assertNull(handler);
-    }
-
-    public void testMissingPriorHandlerReturnsCurrentHandler(){
-        RestHandler currentVersionHandler = new CurrentVersionHandler();
-        MethodHandlers methodHandlers = new MethodHandlers("path", currentVersionHandler, RestRequest.Method.PUT, RestRequest.Method.POST);
-        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT.previousMajor());
-        assertThat(handler, sameInstance(currentVersionHandler));
-    }
+//    public void testMissingCurrentHandler(){
+//        RestHandler previousVersionHandler = new PreviousVersionHandler();
+//        MethodHandlers methodHandlers = new MethodHandlers("path", previousVersionHandler, RestRequest.Method.PUT, RestRequest.Method.POST);
+//        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT);
+//        assertNull(handler);
+//    }
+//
+//    public void testMissingPriorHandlerReturnsCurrentHandler(){
+//        RestHandler currentVersionHandler = new CurrentVersionHandler();
+//        MethodHandlers methodHandlers = new MethodHandlers("path", currentVersionHandler, RestRequest.Method.PUT, RestRequest.Method.POST);
+//        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT.previousMajor());
+//        assertThat(handler, sameInstance(currentVersionHandler));
+//    }
 
     static class CurrentVersionHandler implements RestHandler {
 

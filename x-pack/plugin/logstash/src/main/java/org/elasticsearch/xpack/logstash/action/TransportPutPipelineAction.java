@@ -24,11 +24,7 @@ public class TransportPutPipelineAction extends HandledTransportAction<PutPipeli
     private final Client client;
 
     @Inject
-    public TransportPutPipelineAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Client client
-    ) {
+    public TransportPutPipelineAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(PutPipelineAction.NAME, transportService, actionFilters, PutPipelineRequest::new);
         this.client = new OriginSettingClient(client, LOGSTASH_MANAGEMENT_ORIGIN);
     }

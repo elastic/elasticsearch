@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -168,11 +167,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public float queryBoost() {
-        return 0;
-    }
-
-    @Override
     public ScrollContext scrollContext() {
         return scrollContext;
     }
@@ -287,11 +281,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SimilarityService similarityService() {
-        return null;
-    }
-
-    @Override
     public BigArrays bigArrays() {
         return bigArrays;
     }
@@ -401,11 +390,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Query aliasFilter() {
-        return null;
-    }
-
-    @Override
     public SearchContext parsedQuery(ParsedQuery query) {
         this.originalQuery = query;
         this.query = query.query();
@@ -450,16 +434,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public boolean hasStoredFields() {
-        return false;
-    }
-
-    @Override
-    public boolean hasStoredFieldsContext() {
-        return false;
-    }
-
-    @Override
-    public boolean storedFieldsRequested() {
         return false;
     }
 
@@ -516,17 +490,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public int docIdsToLoadFrom() {
-        return 0;
-    }
-
-    @Override
     public int docIdsToLoadSize() {
         return 0;
     }
 
     @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
         return null;
     }
 
@@ -548,10 +517,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public FetchPhase fetchPhase() {
         return null;
-    }
-
-    @Override
-    public void doClose() {
     }
 
     @Override

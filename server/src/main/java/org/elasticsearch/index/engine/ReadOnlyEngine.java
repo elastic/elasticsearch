@@ -346,6 +346,7 @@ public class ReadOnlyEngine extends Engine {
     public void refresh(String source) {
         // we could allow refreshes if we want down the road the reader manager will then reflect changes to a rw-engine
         // opened side-by-side
+        logger.trace("Index[{}] is read only, do not support refresh.", shardId.getIndexName());
     }
 
     @Override
@@ -365,11 +366,13 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
         // noop
+        logger.trace("Index[{}] is read only, do not support flush.", shardId.getIndexName());
     }
 
     @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
                            boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) {
+        logger.trace("Index[{}] is read only, do not support force merge.", shardId.getIndexName());
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -97,9 +98,23 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
     }
 
     protected final DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {
-        return new DateFieldMapper.DateFieldType(AGGREGABLE_DATE, isSearchable, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+        return aggregableDateFieldType(useNanosecondResolution, isSearchable, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+    }
+
+    protected final DateFieldMapper.DateFieldType aggregableDateFieldType(
+        boolean useNanosecondResolution,
+        boolean isSearchable,
+        DateFormatter formatter
+    ) {
+        return new DateFieldMapper.DateFieldType(
+            AGGREGABLE_DATE,
+            isSearchable,
+            randomBoolean(),
+            true,
+            formatter,
             useNanosecondResolution ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
-            null, Collections.emptyMap());
+            null,
+            Collections.emptyMap()
+        );
     }
 }

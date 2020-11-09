@@ -23,9 +23,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
@@ -134,7 +132,7 @@ public class Pivot extends UnaryPlan {
     
     public AttributeMap<Literal> valuesToLiterals() {
         AttributeSet outValues = valuesOutput();
-        Map<Attribute, Literal> valuesMap = new LinkedHashMap<>();
+        AttributeMap.Builder<Literal> valuesMap = AttributeMap.builder();
 
         int index = 0;
         // for each attribute, associate its value
@@ -152,7 +150,7 @@ public class Pivot extends UnaryPlan {
             }
         }
 
-        return new AttributeMap<>(valuesMap);
+        return valuesMap.build();
     }
 
     @Override

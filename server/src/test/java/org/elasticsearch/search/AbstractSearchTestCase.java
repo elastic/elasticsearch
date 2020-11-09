@@ -92,10 +92,10 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
                 QueryRescorerBuilderTests::randomRescoreBuilder,
                 randomExtBuilders,
                 CollapseBuilderTests::randomCollapseBuilder,
-                AbstractSearchTestCase::randomRandomMappings);
+                AbstractSearchTestCase::randomRuntimeMappings);
     }
 
-    public static Map<String, Object> randomRandomMappings() {
+    public static Map<String, Object> randomRuntimeMappings() {
         int count = between(1, 100);
         Map<String, Object> runtimeFields = new HashMap<>(count);
         while (runtimeFields.size() < count) {

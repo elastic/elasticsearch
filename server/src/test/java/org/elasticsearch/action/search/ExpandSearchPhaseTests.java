@@ -62,7 +62,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
             AtomicBoolean executedMultiSearch = new AtomicBoolean(false);
             QueryBuilder originalQuery = randomBoolean() ? null : QueryBuilders.termQuery("foo", "bar");
-            Map<String, Object> runtimeMappings = randomBoolean() ? null : AbstractSearchTestCase.randomRandomMappings();
+            Map<String, Object> runtimeMappings = randomBoolean() ? null : AbstractSearchTestCase.randomRuntimeMappings();
 
             final MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
             String collapseValue = randomBoolean() ? null : "boom";

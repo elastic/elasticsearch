@@ -1,37 +1,6 @@
 [[path-settings]]
 === `path.data` and `path.logs`
 
-<<<<<<< HEAD
-If you are using the `.zip` or `.tar.gz` archives, the `data` and `logs`
-directories are sub-folders of `$ES_HOME`.  If these important folders are left
-in their default locations, there is a high risk of them being deleted while
-upgrading Elasticsearch to a new version.
-
-In production use, you will almost certainly want to change the locations of the
-data and log folder:
-
-[source,yaml]
---------------------------------------------------
-path:
-  logs: /var/log/elasticsearch
-  data: /var/data/elasticsearch
---------------------------------------------------
-
-The RPM and Debian distributions already use custom paths for `data` and `logs`.
-
-The `path.data` settings can be set to multiple paths, in which case all paths
-will be used to store data (although the files belonging to a single shard will
-all be stored on the same data path):
-
-[source,yaml]
---------------------------------------------------
-path:
-  data:
-    - /mnt/elasticsearch_1
-    - /mnt/elasticsearch_2
-    - /mnt/elasticsearch_3
---------------------------------------------------
-=======
 For <<targz,macOS `.tar.gz`>>, <<targz,Linux `.tar.gz`>>, and
 <<zip-windows,Windows `.zip`>> installations, {es} writes data and logs to the
 respective `data` and `logs` subdirectories of `$ES_HOME` by default.
@@ -61,4 +30,3 @@ additional disk space, we recommend you add a new node rather than additional
 data paths. 
 
 include::{es-repo-dir}/tab-widgets/multi-data-path-widget.asciidoc[]
->>>>>>> 357ab0073e6... [DOCS] Improve docs for Windows DOS/UNC paths in `path.*` settings (#64668)

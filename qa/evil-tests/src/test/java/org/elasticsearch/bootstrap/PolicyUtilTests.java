@@ -25,23 +25,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.lang.reflect.ReflectPermission;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLPermission;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AllPermission;
 import java.security.Permission;
 import java.security.Policy;
 import java.security.URIParameter;
-import java.sql.SQLPermission;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -161,7 +155,7 @@ public class PolicyUtilTests extends ESTestCase {
         }
         policyString.append(";\n};");
 
-        System.out.println(policyString.toString());
+        logger.info(policyString.toString());
         Files.writeString(plugin.resolve(PluginInfo.ES_PLUGIN_POLICY), policyString.toString());
 
         return plugin;
@@ -279,9 +273,7 @@ public class PolicyUtilTests extends ESTestCase {
         "java.util.PropertyPermission foo.bar write",
         "java.lang.RuntimePermission getFileStoreAttributes",
         "java.lang.RuntimePermission accessUserInformation",
-        "javax.security.auth.AuthPermission modifyPrivateCredentials",
-        "java.security.SecurityPermission createPolicy.*",
-        "java.security.SecurityPermission createPolicy.foobar"
+        "javax.security.auth.AuthPermission modifyPrivateCredentials"
     );
 
     public void testModulePolicyAllowedPermissions() throws Exception {

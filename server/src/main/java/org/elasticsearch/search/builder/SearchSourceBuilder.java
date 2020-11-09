@@ -1411,7 +1411,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (pointInTimeBuilder != null) {
             pointInTimeBuilder.toXContent(builder, params);
         }
-        if (runtimeMappings != null) {
+        if (false == runtimeMappings.isEmpty()) {
             builder.field(RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
         }
 

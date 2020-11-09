@@ -522,12 +522,4 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             return combined;
         }
     }
-
-    /**
-     * Mappings defined at runtime.
-     * @return The contents of {@code runtime_mappings} on the search request if there were any. Otherwise an empty map.
-     */
-    public Map<String, Object> getRuntimeMappings() {
-        return source != null && source.runtimeMappings() != null ? source.runtimeMappings() : emptyMap();
-    }
 }

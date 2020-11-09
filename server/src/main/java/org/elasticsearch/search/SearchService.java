@@ -1178,7 +1178,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             try (canMatchSearcher) {
                 QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
-                    request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
+                    request::nowInMillis, request.getClusterAlias(), request.source().runtimeMappings());
                 Rewriteable.rewrite(request.getRewriteable(), context, false);
                 final boolean aliasFilterCanMatch = request.getAliasFilter()
                     .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;

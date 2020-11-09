@@ -66,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
@@ -193,7 +194,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private PointInTimeBuilder pointInTimeBuilder = null;
 
-    private Map<String, Object> runtimeMappings = null;
+    private Map<String, Object> runtimeMappings = emptyMap();
 
     /**
      * Constructs a new search source builder.
@@ -256,9 +257,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            if (in.readBoolean()) {
-                runtimeMappings = in.readMap();
-            }
+            runtimeMappings = in.readMap();
         }
     }
 
@@ -322,14 +321,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeOptionalWriteable(pointInTimeBuilder);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            if (runtimeMappings == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeMap(runtimeMappings);
-            }
+            out.writeMap(runtimeMappings);
         } else {
-            if (runtimeMappings != null) {
+            if (false == runtimeMappings.isEmpty()) {
                 throw new IllegalArgumentException(
                     "Versions before 8.0.0 don't support [runtime_mappings] and search was sent to [" + out.getVersion() + "]"
                 );
@@ -1007,7 +1001,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Specify the mappings specified on this search request that override built in mappings.
      */
     public SearchSourceBuilder runtimeMappings(Map<String, Object> runtimeMappings) {
-        this.runtimeMappings = runtimeMappings;
+        this.runtimeMappings = runtimeMappings == null ? emptyMap() : runtimeMappings;
         return this;
     }
 

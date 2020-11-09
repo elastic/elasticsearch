@@ -134,6 +134,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -1571,6 +1572,50 @@ public class JobResultsProvider {
         } else {
             modelSizeStats(jobId, modelSizeStats -> handler.accept(modelSizeStats.getModelBytes()), errorHandler);
         }
+    }
+
+    /**
+     * Returns information needed to decide how to restart a job from a datafeed
+     * @param jobId the job id
+     * @param listener the listener
+     */
+    public void getRestartTimeInfo(String jobId, ActionListener<RestartTimeInfo> listener) {
+        AtomicReference<Bucket> latestFinalBucketHolder = new AtomicReference<>();
+
+        Consumer<DataCounts> dataCountsHandler = dataCounts -> listener.onResponse(
+            new RestartTimeInfo(
+                latestFinalBucketHolder.get() == null ? null : latestFinalBucketHolder.get().getTimestamp().getTime(),
+                dataCounts.getLatestRecordTimeStamp() == null ? null : dataCounts.getLatestRecordTimeStamp().getTime(),
+                dataCounts.getInputRecordCount() > 0)
+            );
+
+        ActionListener<Bucket> latestFinalBucketListener = ActionListener.wrap(
+            latestFinalBucket -> {
+                latestFinalBucketHolder.set(latestFinalBucket);
+                dataCounts(jobId, dataCountsHandler, listener::onFailure);
+            },
+            listener::onFailure
+        );
+
+        getLatestFinalBucket(jobId, latestFinalBucketListener);
+    }
+
+    private void getLatestFinalBucket(String jobId, ActionListener<Bucket> listener) {
+        BucketsQueryBuilder latestBucketQuery = new BucketsQueryBuilder()
+            .sortField(Result.TIMESTAMP.getPreferredName())
+            .sortDescending(true)
+            .size(1)
+            .includeInterim(false);
+        bucketsViaInternalClient(jobId, latestBucketQuery,
+            queryPage -> {
+                if (queryPage.results().isEmpty()) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onResponse(queryPage.results().get(0));
+                }
+            },
+            listener::onFailure
+        );
     }
 
     /**

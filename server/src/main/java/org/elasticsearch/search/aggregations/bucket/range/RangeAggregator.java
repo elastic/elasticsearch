@@ -19,8 +19,11 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,7 +34,10 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AdaptingAggregator;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -41,7 +47,12 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
+import org.elasticsearch.search.aggregations.bucket.range.InternalRange.Factory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -52,7 +63,21 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class RangeAggregator extends BucketsAggregator {
+/**
+ * Aggregator for {@code range}. There are two known subclasses,
+ * {@link NoOverlap} which is fast but only compatible with ranges that
+ * don't have overlaps and {@link Overlap} which handles overlapping
+ * ranges. There is also {@link FromFilters} which isn't a subclass
+ * but is also a functional aggregator for {@code range}.
+ * {@link RangeAggregator#build} will build the fastest of the three
+ * that is compatible with the requested configuration.
+ */
+public abstract class RangeAggregator extends BucketsAggregator {
+    /**
+     * The maximum {@code long} that can accurately fit into the
+     * {@code double} precision floating point bounds.
+     */
+    public static final long MAX_ACCURATE_BOUND = 1L << 53;
 
     public static final ParseField RANGES_FIELD = new ParseField("ranges");
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
@@ -215,15 +240,198 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    final ValuesSource.Numeric valuesSource;
-    final DocValueFormat format;
-    final Range[] ranges;
-    final boolean keyed;
-    final InternalRange.Factory rangeFactory;
+    /**
+     * Build an {@link Aggregator} for a {@code range} aggregation. If the
+     * {@code ranges} can be converted into filters then it builds a
+     * {@link FiltersAggregator} and uses that to collect the results
+     * <strong>if</strong> that aggregator can run in "filter by filter"
+     * collection mode. If it can't then we'll collect the ranges using
+     * a native {@link RangeAggregator} which is significantly faster
+     * than the "compatible" collection mechanism for the filters agg.
+     */
+    public static Aggregator build(
+        String name,
+        AggregatorFactories factories,
+        ValuesSourceConfig valuesSourceConfig,
+        InternalRange.Factory<?, ?> rangeFactory,
+        Range[] ranges,
+        boolean keyed,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        Aggregator adapted = adaptIntoFiltersOrNull(
+            name,
+            factories,
+            valuesSourceConfig,
+            rangeFactory,
+            ranges,
+            keyed,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+        if (adapted != null) {
+            return adapted;
+        }
+        return buildWithoutAttemptedToAdaptToFilters(
+            name,
+            factories,
+            (ValuesSource.Numeric) valuesSourceConfig.getValuesSource(),
+            valuesSourceConfig.format(),
+            rangeFactory,
+            ranges,
+            keyed,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+    }
 
-    final double[] maxTo;
+    public static Aggregator adaptIntoFiltersOrNull(
+        String name,
+        AggregatorFactories factories,
+        ValuesSourceConfig valuesSourceConfig,
+        InternalRange.Factory<?, ?> rangeFactory,
+        Range[] ranges,
+        boolean keyed,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        if (false == valuesSourceConfig.alignesWithSearchIndex()) {
+            return null;
+        }
+        // TODO bail here for runtime fields. They'll be slower this way. Maybe we can somehow look at the Query?
+        if (valuesSourceConfig.fieldType() instanceof DateFieldType
+            && ((DateFieldType) valuesSourceConfig.fieldType()).resolution() == Resolution.NANOSECONDS) {
+            // We don't generate sensible Queries for nanoseconds.
+            return null;
+        }
+        boolean wholeNumbersOnly = false == ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint();
+        String[] keys = new String[ranges.length];
+        Query[] filters = new Query[ranges.length];
+        for (int i = 0; i < ranges.length; i++) {
+            /*
+             * If the bounds on the ranges are too high then the `double`s
+             * that we work with will round differently in the native range
+             * aggregator than in the filters aggregator. So we can't use
+             * the filters. That is, if the input data type is a `long` in
+             * the first place. If it isn't then 
+             */
+            if (wholeNumbersOnly && ranges[i].from != Double.NEGATIVE_INFINITY && Math.abs(ranges[i].from) > MAX_ACCURATE_BOUND) {
+                return null;
+            }
+            if (wholeNumbersOnly && ranges[i].to != Double.POSITIVE_INFINITY && Math.abs(ranges[i].to) > MAX_ACCURATE_BOUND) {
+                return null;
+            }
+            keys[i] = Integer.toString(i);
+            /*
+             * Use the native format on the field rather than the one provided
+             * on the valuesSourceConfig because the format on the field is what
+             * we parse. With https://github.com/elastic/elasticsearch/pull/63692
+             * we can just cast to a long here and it'll be taken as millis.
+             */
+            DocValueFormat format = valuesSourceConfig.fieldType().docValueFormat(null, null);
+            // TODO correct the loss of precision from the range somehow.....?
+            filters[i] = valuesSourceConfig.fieldType()
+                .rangeQuery(
+                    ranges[i].from == Double.NEGATIVE_INFINITY ? null : format.format(ranges[i].from),
+                    ranges[i].to == Double.POSITIVE_INFINITY ? null : format.format(ranges[i].to),
+                    true,
+                    false,
+                    ShapeRelation.CONTAINS,
+                    null,
+                    null,
+                    context.getQueryShardContext()
+                );
+        }
+        FiltersAggregator delegate = FiltersAggregator.buildFilterOrderOrNull(
+            name,
+            factories,
+            keys,
+            filters,
+            false,
+            null,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+        if (delegate == null) {
+            return null;
+        }
+        RangeAggregator.FromFilters<?> fromFilters = new RangeAggregator.FromFilters<>(
+            parent,
+            factories,
+            subAggregators -> {
+                if (subAggregators.countAggregators() > 0) {
+                    throw new IllegalStateException("didn't expect to have a delegate if there are child aggs");
+                }
+                return delegate;
+            },
+            valuesSourceConfig.format(),
+            ranges,
+            keyed,
+            rangeFactory
+        );
+        return fromFilters;
+    }
 
-    public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
+    public static Aggregator buildWithoutAttemptedToAdaptToFilters(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Numeric valuesSource,
+        DocValueFormat format,
+        InternalRange.Factory<?, ?> rangeFactory,
+        Range[] ranges,
+        boolean keyed,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        if (hasOverlap(ranges)) {
+            return new RangeAggregator.Overlap(
+                name,
+                factories,
+                valuesSource,
+                format,
+                rangeFactory,
+                ranges,
+                keyed,
+                context,
+                parent,
+                cardinality,
+                metadata
+            );
+        }
+        return new RangeAggregator.NoOverlap(
+            name,
+            factories,
+            valuesSource,
+            format,
+            rangeFactory,
+            ranges,
+            keyed,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
+    }
+
+    private final ValuesSource.Numeric valuesSource;
+    private final DocValueFormat format;
+    protected final Range[] ranges;
+    private final boolean keyed;
+    private final InternalRange.Factory rangeFactory;
+
+    private RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
             Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
 
@@ -233,15 +441,7 @@ public class RangeAggregator extends BucketsAggregator {
         this.format = format;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
-
         this.ranges = ranges;
-
-        maxTo = new double[this.ranges.length];
-        maxTo[0] = this.ranges[0].to;
-        for (int i = 1; i < this.ranges.length; ++i) {
-            maxTo[i] = Math.max(this.ranges[i].to,maxTo[i-1]);
-        }
-
     }
 
     @Override
@@ -253,8 +453,7 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -263,63 +462,14 @@ public class RangeAggregator extends BucketsAggregator {
                     final int valuesCount = values.docValueCount();
                     for (int i = 0, lo = 0; i < valuesCount; ++i) {
                         final double value = values.nextValue();
-                        lo = collect(doc, value, bucket, lo);
+                        lo = RangeAggregator.this.collect(sub, doc, value, bucket, lo);
                     }
                 }
             }
-
-    private int collect(int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
-        int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
-        int mid = (lo + hi) >>> 1;
-        while (lo <= hi) {
-            if (value < ranges[mid].from) {
-                hi = mid - 1;
-            } else if (value >= maxTo[mid]) {
-                lo = mid + 1;
-            } else {
-                break;
-            }
-            mid = (lo + hi) >>> 1;
-        }
-        if (lo > hi) return lo; // no potential candidate
-
-        // binary search the lower bound
-        int startLo = lo, startHi = mid;
-        while (startLo <= startHi) {
-            final int startMid = (startLo + startHi) >>> 1;
-            if (value >= maxTo[startMid]) {
-                startLo = startMid + 1;
-            } else {
-                startHi = startMid - 1;
-            }
-        }
-
-        // binary search the upper bound
-        int endLo = mid, endHi = hi;
-        while (endLo <= endHi) {
-            final int endMid = (endLo + endHi) >>> 1;
-            if (value < ranges[endMid].from) {
-                endHi = endMid - 1;
-            } else {
-                endLo = endMid + 1;
-            }
-        }
-
-        assert startLo == lowBound || value >= maxTo[startLo - 1];
-        assert endHi == ranges.length - 1 || value < ranges[endHi + 1].from;
-
-        for (int i = startLo; i <= endHi; ++i) {
-            if (ranges[i].matches(value)) {
-                        collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
-            }
-        }
-
-        return endHi + 1;
-    }
         };
     }
 
-    private long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {
+    protected long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {
         return owningBucketOrdinal * ranges.length + rangeOrd;
     }
 
@@ -383,4 +533,179 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
+    protected abstract int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound)
+        throws IOException;
+
+    private static class NoOverlap extends RangeAggregator {
+        NoOverlap(
+            String name,
+            AggregatorFactories factories,
+            Numeric valuesSource,
+            DocValueFormat format,
+            Factory rangeFactory,
+            Range[] ranges,
+            boolean keyed,
+            SearchContext context,
+            Aggregator parent,
+            CardinalityUpperBound cardinality,
+            Map<String, Object> metadata
+        ) throws IOException {
+            super(name, factories, valuesSource, format, rangeFactory, ranges, keyed, context, parent, cardinality, metadata);
+        }
+
+        @Override
+        protected int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
+            int lo = lowBound, hi = ranges.length - 1;
+            while (lo <= hi) {
+                final int mid = (lo + hi) >>> 1;
+                if (value < ranges[mid].from) {
+                    hi = mid - 1;
+                } else if (value >= ranges[mid].to) {
+                    lo = mid + 1;
+                } else {
+                    collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, mid));
+                    // The next value must fall in the next bucket to be collected.
+                    return mid + 1;
+                }
+            }
+            return lo;
+        }
+    }
+
+    private static class Overlap extends RangeAggregator {
+        Overlap(
+            String name,
+            AggregatorFactories factories,
+            Numeric valuesSource,
+            DocValueFormat format,
+            Factory rangeFactory,
+            Range[] ranges,
+            boolean keyed,
+            SearchContext context,
+            Aggregator parent,
+            CardinalityUpperBound cardinality,
+            Map<String, Object> metadata
+        ) throws IOException {
+            super(name, factories, valuesSource, format, rangeFactory, ranges, keyed, context, parent, cardinality, metadata);
+            maxTo = new double[ranges.length];
+            maxTo[0] = ranges[0].to;
+            for (int i = 1; i < ranges.length; ++i) {
+                maxTo[i] = Math.max(ranges[i].to, maxTo[i - 1]);
+            }
+        }
+
+        private final double[] maxTo;
+
+        @Override
+        protected int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
+            int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
+            int mid = (lo + hi) >>> 1;
+            while (lo <= hi) {
+                if (value < ranges[mid].from) {
+                    hi = mid - 1;
+                } else if (value >= maxTo[mid]) {
+                    lo = mid + 1;
+                } else {
+                    break;
+                }
+                mid = (lo + hi) >>> 1;
+            }
+            if (lo > hi) return lo; // no potential candidate
+
+            // binary search the lower bound
+            int startLo = lo, startHi = mid;
+            while (startLo <= startHi) {
+                final int startMid = (startLo + startHi) >>> 1;
+                if (value >= maxTo[startMid]) {
+                    startLo = startMid + 1;
+                } else {
+                    startHi = startMid - 1;
+                }
+            }
+
+            // binary search the upper bound
+            int endLo = mid, endHi = hi;
+            while (endLo <= endHi) {
+                final int endMid = (endLo + endHi) >>> 1;
+                if (value < ranges[endMid].from) {
+                    endHi = endMid - 1;
+                } else {
+                    endLo = endMid + 1;
+                }
+            }
+
+            assert startLo == lowBound || value >= maxTo[startLo - 1];
+            assert endHi == ranges.length - 1 || value < ranges[endHi + 1].from;
+
+            for (int i = startLo; i <= endHi; ++i) {
+                if (ranges[i].matches(value)) {
+                            collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
+                }
+            }
+
+            // The next value must fall in the next bucket to be collected.
+            return endHi + 1;
+        }
+    }
+
+    private static class FromFilters<B extends InternalRange.Bucket> extends AdaptingAggregator {
+        private final DocValueFormat format;
+        private final Range[] ranges;
+        private final boolean keyed;
+        private final InternalRange.Factory<B, ?> rangeFactory;
+
+        FromFilters(
+            Aggregator parent,
+            AggregatorFactories subAggregators,
+            CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate,
+            DocValueFormat format,
+            Range[] ranges,
+            boolean keyed,
+            InternalRange.Factory<B, ?> rangeFactory
+        ) throws IOException {
+            super(parent, subAggregators, delegate);
+            this.format = format;
+            this.ranges = ranges;
+            this.keyed = keyed;
+            this.rangeFactory = rangeFactory;
+        }
+
+        @Override
+        protected InternalAggregation adapt(InternalAggregation delegateResult) {
+            InternalFilters filters = (InternalFilters) delegateResult;
+            if (filters.getBuckets().size() != ranges.length) {
+                throw new IllegalStateException(
+                    "bad number of filters [" + filters.getBuckets().size() + "] expecting [" + ranges.length + "]"
+                );
+            }
+            List<B> buckets = new ArrayList<>(filters.getBuckets().size());
+            for (int i = 0; i < ranges.length; i++) {
+                Range r = ranges[i];
+                InternalFilters.InternalBucket b = filters.getBuckets().get(i);
+                buckets.add(
+                    rangeFactory.createBucket(
+                        r.getKey(),
+                        r.getFrom(),
+                        r.getTo(),
+                        b.getDocCount(),
+                        (InternalAggregations) b.getAggregations(),
+                        keyed,
+                        format
+                    )
+                );
+            }
+            return rangeFactory.create(name(), buckets, format, keyed, filters.getMetadata());
+        }
+    }
+
+    private static boolean hasOverlap(Range[] ranges) {
+        double lastEnd = ranges[0].to;
+        for (int i = 1; i < ranges.length; ++i) {
+            if (ranges[i].from < lastEnd) {
+                return true;
+            }
+            lastEnd = ranges[i].to;
+        }
+        return false;
+    }
 }

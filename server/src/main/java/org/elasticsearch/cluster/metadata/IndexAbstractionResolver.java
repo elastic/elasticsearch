@@ -55,11 +55,10 @@ public class IndexAbstractionResolver {
                                                  Collection<String> availableIndexAbstractions, boolean replaceWildcards,
                                                  boolean includeDataStreams) {
         List<String> finalIndices = new ArrayList<>();
-        boolean wildcardSeen = false;
         for (String index : indices) {
             String indexAbstraction;
             boolean minus = false;
-            if (index.charAt(0) == '-' && wildcardSeen) {
+            if (index.charAt(0) == '-') {
                 indexAbstraction = index.substring(1);
                 minus = true;
             } else {
@@ -88,7 +87,6 @@ public class IndexAbstractionResolver {
             }
 
             if (replaceWildcards && Regex.isSimpleMatchPattern(indexAbstraction)) {
-                wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
                 for (String authorizedIndex : availableIndexAbstractions) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex) &&

@@ -171,15 +171,15 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     public void testResolveWithExcludedIndices() {
-        String[] names = new String[]{"logs-pgsql-prod-20200102", "logs-pgsql-test-20200101", "-logs-pgsql-test*", "one-off-alias"};
+        String[] names = new String[]{"logs-pgsql-prod-20200102", "logs-pgsql-test-20200101", "-logs-pgsql-test*"};
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
         validateIndices(indices, "logs-pgsql-prod-20200102");
-        validateAliases(aliases, "one-off-alias");
+        validateAliases(aliases, Strings.EMPTY_ARRAY);
         validateDataStreams(dataStreams, Strings.EMPTY_ARRAY);
     }
 

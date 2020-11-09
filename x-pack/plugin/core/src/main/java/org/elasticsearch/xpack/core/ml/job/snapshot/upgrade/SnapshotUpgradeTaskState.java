@@ -18,6 +18,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Objects;
 
 public class SnapshotUpgradeTaskState implements PersistentTaskState {
@@ -46,7 +47,7 @@ public class SnapshotUpgradeTaskState implements PersistentTaskState {
         try {
             return PARSER.parse(parser, null);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 

@@ -104,7 +104,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
 
         // This means that we have loaded the snapshot and possibly snapshot was partially updated
         // This is no good, we should remove the snapshot
-        if (SnapshotUpgradeState.READING_NEW_STATE.equals(jobState)) {
+        if (SnapshotUpgradeState.SAVING_NEW_STATE.equals(jobState)) {
             deleteSnapshotAndFailTask(task, params.getJobId(), params.getSnapshotId());
             return;
         }

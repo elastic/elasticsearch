@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Response;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -173,11 +174,13 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
 
         ActionListener<Job> getJobHandler = ActionListener.wrap(
             job -> {
-                if (request.getSnapshotId().equals(job.getModelSnapshotId())) {
+                if (request.getSnapshotId().equals(job.getModelSnapshotId())
+                    && (JobState.CLOSED.equals(MlTasks.getJobState(request.getJobId(), customMetadata)) == false)) {
                     listener.onFailure(ExceptionsHelper.conflictStatusException(
-                        "Cannot upgrade snapshot [{}] for job [{}] as it is the current primary job snapshot",
+                        "Cannot upgrade snapshot [{}] for job [{}] as it is the current primary job snapshot and the job's state is [{}]",
                         request.getSnapshotId(),
-                        request.getJobId()
+                        request.getJobId(),
+                        MlTasks.getJobState(request.getJobId(), customMetadata)
                     ));
                     return;
                 }

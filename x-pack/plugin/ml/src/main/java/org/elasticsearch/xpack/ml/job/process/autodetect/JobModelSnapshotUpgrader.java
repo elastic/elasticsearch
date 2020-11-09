@@ -210,7 +210,7 @@ public final class JobModelSnapshotUpgrader {
                 return;
             }
             task.updatePersistentTaskState(
-                new SnapshotUpgradeTaskState(SnapshotUpgradeState.READING_NEW_STATE, task.getAllocationId(), ""),
+                new SnapshotUpgradeTaskState(SnapshotUpgradeState.SAVING_NEW_STATE, task.getAllocationId(), ""),
                 ActionListener.wrap(
                     readingNewState -> {
                         if (continueRunning.get() == false) {

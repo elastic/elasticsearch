@@ -1,5 +1,9 @@
 [[remove-processor]]
-=== Remove Processor
+=== Remove processor
+++++
+<titleabbrev>Remove</titleabbrev>
+++++
+
 Removes existing fields. If one field doesn't exist, an exception will be thrown.
 
 [[remove-options]]

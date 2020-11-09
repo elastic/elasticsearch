@@ -27,6 +27,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -58,10 +59,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.node.Node.NODE_MASTER_SETTING;
 import static org.elasticsearch.xpack.core.ilm.AbstractStepTestCase.randomStepKey;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
+import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -87,9 +87,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         nodeId = randomAlphaOfLength(10);
         ExecutorService executorService = mock(ExecutorService.class);
         clusterService = mock(ClusterService.class);
-        masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
-                .put(NODE_MASTER_SETTING.getKey(), true).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300), nodeId);
+        masterNode = DiscoveryNode.createLocal(
+            NodeRoles.masterNode(settings(Version.CURRENT).build()),
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            nodeId);
         now = randomNonNegativeLong();
         Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
 
@@ -436,7 +437,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         if (useOnMaster) {
             when(clusterService.state()).thenReturn(currentState);
-            indexLifecycleService.onMaster();
+            indexLifecycleService.onMaster(currentState);
         } else {
             indexLifecycleService.triggerPolicies(currentState, randomBoolean());
         }

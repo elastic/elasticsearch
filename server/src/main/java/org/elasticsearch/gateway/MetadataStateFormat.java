@@ -425,7 +425,7 @@ public abstract class MetadataStateFormat<T> {
      *
      * @param logger        a logger instance.
      * @param dataLocations the data-locations to try.
-     * @return tuple of the latest state and generation. (-1, null) if no state is found.
+     * @return tuple of the latest state and generation. (null, -1) if no state is found.
      */
     public Tuple<T, Long> loadLatestStateWithGeneration(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations)
             throws IOException {

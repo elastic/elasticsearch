@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 
 import java.util.List;
 import java.util.Map;
@@ -45,11 +47,11 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     /**
      * Returns fields for which the mappings should be either predefined or copied from source index to destination index.
      *
-     * @param mappingsProperties mappings.properties portion of the index mappings
      * @param resultsFieldName name of the results field under which all the results are stored
+     * @param fieldCapabilitiesResponse field capabilities fetched for this analysis' required fields
      * @return {@link Map} containing fields for which the mappings should be handled explicitly
      */
-    Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName);
+    Map<String, Object> getExplicitlyMappedFields(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse);
 
     /**
      * @return {@code true} if this analysis supports data frame rows with missing values
@@ -62,15 +64,32 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     boolean persistsState();
 
     /**
-     * Returns the document id for the analysis state
+     * Returns the document id prefix for the analysis state
      */
-    String getStateDocId(String jobId);
+    String getStateDocIdPrefix(String jobId);
 
     /**
      * Returns the progress phases the analysis goes through in order
      */
     List<String> getProgressPhases();
 
+    /**
+     * @return the analysis inference config or {@code null} if inference is not supported
+     */
+    @Nullable
+    InferenceConfig inferenceConfig(FieldInfo fieldInfo);
+
+    /**
+     * @return {@code true} if this analysis trains a model that can be used for inference
+     */
+    boolean supportsInference();
+
+    /**
+     * @return the percentage of data to use for training
+     */
+    default double getTrainingPercent() {
+        return 100.0;
+    }
     /**
      * Summarizes information about the fields that is necessary for analysis to generate
      * the parameters needed for the process configuration.

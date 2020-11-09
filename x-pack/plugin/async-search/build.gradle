@@ -1,5 +1,3 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
@@ -31,5 +29,4 @@ dependencies {
   testImplementation project(path: xpackModule('async'))
 }
 
-integTest.enabled = false
 

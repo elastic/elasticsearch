@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
+import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -32,7 +33,11 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
 
     public void testUpdatePolicy() {
         final AutoscalingPolicy policy = putRandomAutoscalingPolicy();
-        final AutoscalingPolicy updatedPolicy = new AutoscalingPolicy(policy.name(), mutateAutoscalingDeciders(policy.deciders()));
+        final AutoscalingPolicy updatedPolicy = new AutoscalingPolicy(
+            policy.name(),
+            AutoscalingTestCase.randomRoles(),
+            mutateAutoscalingDeciders(policy.deciders())
+        );
         putAutoscalingPolicy(updatedPolicy);
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
@@ -59,7 +64,11 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
     }
 
     private void putAutoscalingPolicy(final AutoscalingPolicy policy) {
-        final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(policy);
+        final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            policy.name(),
+            policy.roles(),
+            policy.deciders()
+        );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
     }
 

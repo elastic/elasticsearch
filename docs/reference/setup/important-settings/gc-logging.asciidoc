@@ -1,7 +1,8 @@
 [[gc-logging]]
-=== GC logging
+[discrete]
+=== GC logging settings
 
-By default, {es} enables GC logs. These are configured in
+By default, {es} enables garbage collection (GC) logs. These are configured in
 <<jvm-options,`jvm.options`>> and output to the same default location as
 the {es} logs. The default configuration rotates the logs every 64 MB and
 can consume up to 2 GB of disk space.
@@ -19,14 +20,16 @@ To see further options not contained in the original JEP, see
 https://docs.oracle.com/en/java/javase/13/docs/specs/man/java.html#enable-logging-with-the-jvm-unified-logging-framework[Enable
 Logging with the JVM Unified Logging Framework].
 
+[[gc-logging-examples]]
+[discrete]
 ==== Examples
 
-* Change the default GC log output location to `/opt/my-app/gc.log` by
+Change the default GC log output location to `/opt/my-app/gc.log` by
   creating `$ES_HOME/config/jvm.options.d/gc.options` with some sample
   options:
-+
+
 [source,shell]
---------------------------------------------
+----
 # Turn off all previous logging configuratons
 -Xlog:disable
 
@@ -35,15 +38,15 @@ Logging with the JVM Unified Logging Framework].
 
 # Enable GC logging to a custom location with a variety of options
 -Xlog:gc*,gc+age=trace,safepoint:file=/opt/my-app/gc.log:utctime,pid,tags:filecount=32,filesize=64m
---------------------------------------------
+----
 
-* Configure an {es} <<docker,Docker container>> to send GC debug logs to
+Configure an {es} <<docker,Docker container>> to send GC debug logs to
   standard error (`stderr`). This lets the container orchestrator
   handle the output. If using the `ES_JAVA_OPTS` environment variable,
   specify:
-+
+
 [source,sh]
---------------------------------------------
+----
 MY_OPTS="-Xlog:disable -Xlog:all=warning:stderr:utctime,level,tags -Xlog:gc=debug:stderr:utctime"
 docker run -e ES_JAVA_OPTS="$MY_OPTS" # etc
---------------------------------------------
+----

@@ -26,9 +26,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -87,7 +87,7 @@ public class MetadataUpdateSettingsService {
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request,
-                               final ActionListener<ClusterStateUpdateResponse> listener) {
+                               final ActionListener<AcknowledgedResponse> listener) {
         final Settings normalizedSettings =
             Settings.builder().put(request.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
         Settings.Builder settingsForClosedIndices = Settings.builder();
@@ -116,13 +116,8 @@ public class MetadataUpdateSettingsService {
         final boolean preserveExisting = request.isPreserveExisting();
 
         clusterService.submitStateUpdateTask("update-settings " + Arrays.toString(request.indices()),
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
+                new AckedClusterStateUpdateTask(Priority.URGENT, request,
                     wrapPreservingContext(listener, threadPool.getThreadContext())) {
-
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -176,18 +171,6 @@ public class MetadataUpdateSettingsService {
                         logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
                     }
                 }
-
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_READ_ONLY_BLOCK,
-                    IndexMetadata.INDEX_READ_ONLY_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK,
-                    IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_METADATA_BLOCK,
-                    IndexMetadata.INDEX_BLOCKS_METADATA_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_WRITE_BLOCK,
-                    IndexMetadata.INDEX_BLOCKS_WRITE_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_READ_BLOCK,
-                    IndexMetadata.INDEX_BLOCKS_READ_SETTING, openSettings);
 
                 if (!openIndices.isEmpty()) {
                     for (Index index : openIndices) {
@@ -253,13 +236,24 @@ public class MetadataUpdateSettingsService {
                         MetadataCreateIndexService.validateTranslogRetentionSettings(metadataBuilder.get(index).getSettings());
                     }
                 }
+                boolean changed = false;
                 // increment settings versions
                 for (final String index : actualIndices) {
                     if (same(currentState.metadata().index(index).getSettings(), metadataBuilder.get(index).getSettings()) == false) {
+                        changed = true;
                         final IndexMetadata.Builder builder = IndexMetadata.builder(metadataBuilder.get(index));
                         builder.settingsVersion(1 + builder.settingsVersion());
                         metadataBuilder.put(builder);
                     }
+                }
+
+                final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+                for (IndexMetadata.APIBlock block : IndexMetadata.APIBlock.values()) {
+                    changed |= maybeUpdateClusterBlock(actualIndices, blocks, block.block, block.setting, openSettings);
+                }
+
+                if (changed == false) {
+                    return currentState;
                 }
 
                 ClusterState updatedState = ClusterState.builder(currentState).metadata(metadataBuilder)
@@ -301,31 +295,33 @@ public class MetadataUpdateSettingsService {
     /**
      * Updates the cluster block only iff the setting exists in the given settings
      */
-    private static void maybeUpdateClusterBlock(String[] actualIndices, ClusterBlocks.Builder blocks, ClusterBlock block,
+    private static boolean maybeUpdateClusterBlock(String[] actualIndices, ClusterBlocks.Builder blocks, ClusterBlock block,
                                                 Setting<Boolean> setting, Settings openSettings) {
+        boolean changed = false;
         if (setting.exists(openSettings)) {
             final boolean updateBlock = setting.get(openSettings);
             for (String index : actualIndices) {
                 if (updateBlock) {
-                    blocks.addIndexBlock(index, block);
+                    if (blocks.hasIndexBlock(index, block) == false) {
+                        blocks.addIndexBlock(index, block);
+                        changed = true;
+                    }
                 } else {
-                    blocks.removeIndexBlock(index, block);
+                    if (blocks.hasIndexBlock(index, block)) {
+                        blocks.removeIndexBlock(index, block);
+                        changed = true;
+                    }
                 }
             }
         }
+        return changed;
     }
 
 
     public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request,
-                                     final ActionListener<ClusterStateUpdateResponse> listener) {
+                                     final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("update-index-compatibility-versions",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
-                wrapPreservingContext(listener, threadPool.getThreadContext())) {
-
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, wrapPreservingContext(listener, threadPool.getThreadContext())) {
 
             @Override
             public ClusterState execute(ClusterState currentState) {

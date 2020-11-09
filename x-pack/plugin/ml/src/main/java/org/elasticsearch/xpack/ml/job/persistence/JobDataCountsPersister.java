@@ -65,6 +65,7 @@ public class JobDataCountsPersister {
                 ToXContent.EMPTY_PARAMS,
                 WriteRequest.RefreshPolicy.NONE,
                 DataCounts.documentId(jobId),
+                true,
                 () -> true,
                 (msg) -> auditor.warning(jobId, "Job data_counts " + msg));
         } catch (IOException ioe) {
@@ -88,6 +89,7 @@ public class JobDataCountsPersister {
         try (XContentBuilder content = serialiseCounts(counts)) {
             final IndexRequest request = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
                 .id(DataCounts.documentId(jobId))
+                .setRequireAlias(true)
                 .source(content);
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, request, new ActionListener<>() {
                 @Override

@@ -10,7 +10,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -142,7 +141,7 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
 
         if (maxModelMemoryIsSet && modelMemoryLimit > maxModelMemoryLimit.getMb()) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX,
-                    new ByteSizeValue(modelMemoryLimit, ByteSizeUnit.MB),
+                    ByteSizeValue.ofMb(modelMemoryLimit),
                     maxModelMemoryLimit));
         }
 

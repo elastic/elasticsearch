@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Integration test for retry behavior. Useful because retrying relies on the way that the
+ * Integration test for bulk retry behavior. Useful because retrying relies on the way that the
  * rest of Elasticsearch throws exceptions and unit tests won't verify that.
  */
 public class RetryTests extends ESIntegTestCase {
@@ -77,7 +77,7 @@ public class RetryTests extends ESIntegTestCase {
     }
 
     /**
-     * Lower the queue sizes to be small enough that both bulk and searches will time out and have to be retried.
+     * Lower the queue sizes to be small enough that bulk will time out and have to be retried.
      */
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -145,22 +145,15 @@ public class RetryTests extends ESIntegTestCase {
             BulkIndexByScrollResponseMatcher matcher)
             throws Exception {
         /*
-         * These test cases work by stuffing the search and bulk queues of a single node and
-         * making sure that we read and write from that node. Because of some "fun" with the
-         * way that searches work, we need at least one more node to act as the coordinating
-         * node for the search request. If we didn't do this then the searches would get stuck
-         * in the queue anyway because we force queue portions of the coordinating node's
-         * actions. This is not a big deal in normal operations but a real pain when you are
-         * intentionally stuffing queues hoping for a failure.
+         * These test cases work by stuffing the bulk queue of a single node and
+         * making sure that we read and write from that node.
          */
 
         final Settings nodeSettings = Settings.builder()
                 // use pools of size 1 so we can block them
                 .put("thread_pool.write.size", 1)
-                .put("thread_pool.search.size", 1)
-                // use queues of size 1 because size 0 is broken and because search requests need the queue to function
+                // use queues of size 1 because size 0 is broken and because bulk requests need the queue to function
                 .put("thread_pool.write.queue_size", 1)
-                .put("thread_pool.search.queue_size", 1)
                 .put("node.attr.color", "blue")
                 .build();
         final String node = internalCluster().startDataOnlyNode(nodeSettings);
@@ -186,45 +179,25 @@ public class RetryTests extends ESIntegTestCase {
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         client().admin().indices().prepareRefresh("source").get();
 
-        logger.info("Blocking search");
-        CyclicBarrier initialSearchBlock = blockExecutor(ThreadPool.Names.SEARCH, node);
-
         AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
         // Make sure we use more than one batch so we have to scroll
         builder.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
+
+        logger.info("Blocking bulk so we start to get bulk rejections");
+        CyclicBarrier bulkBlock = blockExecutor(ThreadPool.Names.WRITE, node);
 
         logger.info("Starting request");
         ActionFuture<BulkByScrollResponse> responseListener = builder.execute();
 
         try {
-            logger.info("Waiting for search rejections on the initial search");
-            assertBusy(() -> assertThat(taskStatus(action).getSearchRetries(), greaterThan(0L)));
-
-            logger.info("Blocking bulk and unblocking search so we start to get bulk rejections");
-            CyclicBarrier bulkBlock = blockExecutor(ThreadPool.Names.WRITE, node);
-            initialSearchBlock.await();
-
             logger.info("Waiting for bulk rejections");
             assertBusy(() -> assertThat(taskStatus(action).getBulkRetries(), greaterThan(0L)));
-
-            // Keep a copy of the current number of search rejections so we can assert that we get more when we block the scroll
-            long initialSearchRejections = taskStatus(action).getSearchRetries();
-
-            logger.info("Blocking search and unblocking bulk so we should get search rejections for the scroll");
-            CyclicBarrier scrollBlock = blockExecutor(ThreadPool.Names.SEARCH, node);
             bulkBlock.await();
-
-            logger.info("Waiting for search rejections for the scroll");
-            assertBusy(() -> assertThat(taskStatus(action).getSearchRetries(), greaterThan(initialSearchRejections)));
-
-            logger.info("Unblocking the scroll");
-            scrollBlock.await();
 
             logger.info("Waiting for the request to finish");
             BulkByScrollResponse response = responseListener.get();
             assertThat(response, matcher);
             assertThat(response.getBulkRetries(), greaterThan(0L));
-            assertThat(response.getSearchRetries(), greaterThan(initialSearchRejections));
         } finally {
             // Fetch the response just in case we blew up half way through. This will make sure the failure is thrown up to the top level.
             BulkByScrollResponse response = responseListener.get();

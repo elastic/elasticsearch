@@ -31,7 +31,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
+public class ShardsAcknowledgedResponse extends AcknowledgedResponse {
 
     protected static final ParseField SHARDS_ACKNOWLEDGED = new ParseField("shards_acknowledged");
 
@@ -42,6 +42,10 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
                 ObjectParser.ValueType.BOOLEAN);
     }
 
+    public static final ShardsAcknowledgedResponse NOT_ACKNOWLEDGED = new ShardsAcknowledgedResponse(false, false);
+    private static final ShardsAcknowledgedResponse SHARDS_NOT_ACKNOWLEDGED = new ShardsAcknowledgedResponse(true, false);
+    private static final ShardsAcknowledgedResponse ACKNOWLEDGED = new ShardsAcknowledgedResponse(true, true);
+
     private final boolean shardsAcknowledged;
 
     protected ShardsAcknowledgedResponse(StreamInput in, boolean readShardsAcknowledged) throws IOException {
@@ -50,6 +54,15 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
             this.shardsAcknowledged = in.readBoolean();
         } else {
             this.shardsAcknowledged = false;
+        }
+    }
+
+    public static ShardsAcknowledgedResponse of(boolean acknowledged, boolean shardsAcknowledged) {
+        if (acknowledged) {
+            return shardsAcknowledged ? ACKNOWLEDGED : SHARDS_NOT_ACKNOWLEDGED;
+        } else {
+            assert shardsAcknowledged == false;
+            return NOT_ACKNOWLEDGED;
         }
     }
 
@@ -90,5 +103,4 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
     public int hashCode() {
         return Objects.hash(super.hashCode(), isShardsAcknowledged());
     }
-
 }

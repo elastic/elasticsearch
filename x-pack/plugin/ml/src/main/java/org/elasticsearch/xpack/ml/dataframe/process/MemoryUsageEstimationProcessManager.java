@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -75,7 +74,7 @@ public class MemoryUsageEstimationProcessManager {
                 dataSummary.cols,
                 // For memory estimation the model memory limit here should be set high enough not to trigger an error when C++ code
                 // compares the limit to the result of estimation.
-                new ByteSizeValue(1, ByteSizeUnit.PB),
+                ByteSizeValue.ofPb(1),
                 1,
                 "",
                 categoricalFields,
@@ -85,7 +84,7 @@ public class MemoryUsageEstimationProcessManager {
             processFactory.createAnalyticsProcess(
                 config,
                 processConfig,
-                null,
+                false,
                 executorServiceForProcess,
                 // The handler passed here will never be called as AbstractNativeProcess.detectCrash method returns early when
                 // (processInStream == null) which is the case for MemoryUsageEstimationProcess.

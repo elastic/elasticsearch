@@ -77,7 +77,7 @@ final class Ec2ClientSettings {
 
     private static final Logger logger = LogManager.getLogger(Ec2ClientSettings.class);
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Ec2ClientSettings.class);
 
     /** Credentials to authenticate with ec2. */
     final AWSCredentials credentials;

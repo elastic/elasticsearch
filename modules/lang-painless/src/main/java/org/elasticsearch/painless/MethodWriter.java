@@ -143,12 +143,12 @@ public final class MethodWriter extends GeneratorAdapter {
         visitLineNumber(location.getOffset() + 1, label);
     }
 
-    public void writeLoopCounter(int slot, int count, Location location) {
+    public void writeLoopCounter(int slot, Location location) {
         assert slot != -1;
         writeDebugInfo(location);
         final Label end = new Label();
 
-        iinc(slot, -count);
+        iinc(slot, -1);
         visitVarInsn(Opcodes.ILOAD, slot);
         push(0);
         ifICmp(GeneratorAdapter.GT, end);
@@ -157,81 +157,82 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     public void writeCast(PainlessCast cast) {
-        if (cast != null) {
-            if (cast.originalType == char.class && cast.targetType == String.class) {
-                invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
-            } else if (cast.originalType == String.class && cast.targetType == char.class) {
-                invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);
-            // TODO: remove this when the transition from Joda to Java datetimes is completed
-            } else if (cast.originalType == JodaCompatibleZonedDateTime.class && cast.targetType == ZonedDateTime.class) {
-                invokeStatic(UTILITY_TYPE, JCZDT_TO_ZONEDDATETIME);
-            } else if (cast.unboxOriginalType != null && cast.boxTargetType != null) {
-                unbox(getType(cast.unboxOriginalType));
-                writeCast(cast.unboxOriginalType, cast.boxTargetType);
-                box(getType(cast.boxTargetType));
-            } else if (cast.unboxOriginalType != null) {
-                unbox(getType(cast.unboxOriginalType));
-                writeCast(cast.originalType, cast.targetType);
-            } else if (cast.unboxTargetType != null) {
-                writeCast(cast.originalType, cast.targetType);
-                unbox(getType(cast.unboxTargetType));
-            } else if (cast.boxOriginalType != null) {
-                box(getType(cast.boxOriginalType));
-                writeCast(cast.originalType, cast.targetType);
-            } else if (cast.boxTargetType != null) {
-                writeCast(cast.originalType, cast.targetType);
-                box(getType(cast.boxTargetType));
-            } else if (cast.originalType == def.class) {
-                if (cast.explicitCast) {
-                    if      (cast.targetType == boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BOOLEAN);
-                    else if (cast.targetType == byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BYTE_EXPLICIT);
-                    else if (cast.targetType == short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_SHORT_EXPLICIT);
-                    else if (cast.targetType == char.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_CHAR_EXPLICIT);
-                    else if (cast.targetType == int.class)       invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_INT_EXPLICIT);
-                    else if (cast.targetType == long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_LONG_EXPLICIT);
-                    else if (cast.targetType == float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_FLOAT_EXPLICIT);
-                    else if (cast.targetType == double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_DOUBLE_EXPLICIT);
-                    else if (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BOOLEAN);
-                    else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BYTE_EXPLICIT);
-                    else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_SHORT_EXPLICIT);
-                    else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_CHARACTER_EXPLICIT);
-                    else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_INTEGER_EXPLICIT);
-                    else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_EXPLICIT);
-                    else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_EXPLICIT);
-                    else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_EXPLICIT);
-                    else if (cast.targetType == String.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_EXPLICIT);
-                    // TODO: remove this when the transition from Joda to Java datetimes is completed
-                    else if (cast.targetType == ZonedDateTime.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_ZONEDDATETIME);
-                    else {
-                        writeCast(cast.originalType, cast.targetType);
-                    }
-                } else {
-                    if      (cast.targetType == boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BOOLEAN);
-                    else if (cast.targetType == byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BYTE_IMPLICIT);
-                    else if (cast.targetType == short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_SHORT_IMPLICIT);
-                    else if (cast.targetType == char.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_CHAR_IMPLICIT);
-                    else if (cast.targetType == int.class)       invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_INT_IMPLICIT);
-                    else if (cast.targetType == long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_LONG_IMPLICIT);
-                    else if (cast.targetType == float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_FLOAT_IMPLICIT);
-                    else if (cast.targetType == double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_DOUBLE_IMPLICIT);
-                    else if (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BOOLEAN);
-                    else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BYTE_IMPLICIT);
-                    else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_SHORT_IMPLICIT);
-                    else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_CHARACTER_IMPLICIT);
-                    else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_INTEGER_IMPLICIT);
-                    else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_IMPLICIT);
-                    else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_IMPLICIT);
-                    else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_IMPLICIT);
-                    else if (cast.targetType == String.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_IMPLICIT);
-                    // TODO: remove this when the transition from Joda to Java datetimes is completed
-                    else if (cast.targetType == ZonedDateTime.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_ZONEDDATETIME);
-                    else {
-                        writeCast(cast.originalType, cast.targetType);
-                    }
+        if (cast == null) {
+            return;
+        }
+        if (cast.originalType == char.class && cast.targetType == String.class) {
+            invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
+        } else if (cast.originalType == String.class && cast.targetType == char.class) {
+            invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);
+        // TODO: remove this when the transition from Joda to Java datetimes is completed
+        } else if (cast.originalType == JodaCompatibleZonedDateTime.class && cast.targetType == ZonedDateTime.class) {
+            invokeStatic(UTILITY_TYPE, JCZDT_TO_ZONEDDATETIME);
+        } else if (cast.unboxOriginalType != null && cast.boxTargetType != null) {
+            unbox(getType(cast.unboxOriginalType));
+            writeCast(cast.unboxOriginalType, cast.boxTargetType);
+            box(getType(cast.boxTargetType));
+        } else if (cast.unboxOriginalType != null) {
+            unbox(getType(cast.unboxOriginalType));
+            writeCast(cast.originalType, cast.targetType);
+        } else if (cast.unboxTargetType != null) {
+            writeCast(cast.originalType, cast.targetType);
+            unbox(getType(cast.unboxTargetType));
+        } else if (cast.boxOriginalType != null) {
+            box(getType(cast.boxOriginalType));
+            writeCast(cast.originalType, cast.targetType);
+        } else if (cast.boxTargetType != null) {
+            writeCast(cast.originalType, cast.targetType);
+            box(getType(cast.boxTargetType));
+        } else if (cast.originalType == def.class) {
+            if (cast.explicitCast) {
+                if      (cast.targetType == boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BOOLEAN);
+                else if (cast.targetType == byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BYTE_EXPLICIT);
+                else if (cast.targetType == short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_SHORT_EXPLICIT);
+                else if (cast.targetType == char.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_CHAR_EXPLICIT);
+                else if (cast.targetType == int.class)       invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_INT_EXPLICIT);
+                else if (cast.targetType == long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_LONG_EXPLICIT);
+                else if (cast.targetType == float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_FLOAT_EXPLICIT);
+                else if (cast.targetType == double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_DOUBLE_EXPLICIT);
+                else if (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BOOLEAN);
+                else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BYTE_EXPLICIT);
+                else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_SHORT_EXPLICIT);
+                else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_CHARACTER_EXPLICIT);
+                else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_INTEGER_EXPLICIT);
+                else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_EXPLICIT);
+                else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_EXPLICIT);
+                else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_EXPLICIT);
+                else if (cast.targetType == String.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_EXPLICIT);
+                // TODO: remove this when the transition from Joda to Java datetimes is completed
+                else if (cast.targetType == ZonedDateTime.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_ZONEDDATETIME);
+                else {
+                    writeCast(cast.originalType, cast.targetType);
                 }
             } else {
-                writeCast(cast.originalType, cast.targetType);
+                if      (cast.targetType == boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BOOLEAN);
+                else if (cast.targetType == byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BYTE_IMPLICIT);
+                else if (cast.targetType == short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_SHORT_IMPLICIT);
+                else if (cast.targetType == char.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_CHAR_IMPLICIT);
+                else if (cast.targetType == int.class)       invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_INT_IMPLICIT);
+                else if (cast.targetType == long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_LONG_IMPLICIT);
+                else if (cast.targetType == float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_FLOAT_IMPLICIT);
+                else if (cast.targetType == double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_DOUBLE_IMPLICIT);
+                else if (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BOOLEAN);
+                else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BYTE_IMPLICIT);
+                else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_SHORT_IMPLICIT);
+                else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_CHARACTER_IMPLICIT);
+                else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_INTEGER_IMPLICIT);
+                else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_IMPLICIT);
+                else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_IMPLICIT);
+                else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_IMPLICIT);
+                else if (cast.targetType == String.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_IMPLICIT);
+                // TODO: remove this when the transition from Joda to Java datetimes is completed
+                else if (cast.targetType == ZonedDateTime.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_ZONEDDATETIME);
+                else {
+                    writeCast(cast.originalType, cast.targetType);
+                }
             }
+        } else {
+            writeCast(cast.originalType, cast.targetType);
         }
     }
 
@@ -514,16 +515,21 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     public void invokeLambdaCall(FunctionRef functionRef) {
+        Object[] args = new Object[7 + functionRef.delegateInjections.length];
+        args[0] = Type.getMethodType(functionRef.interfaceMethodType.toMethodDescriptorString());
+        args[1] = functionRef.delegateClassName;
+        args[2] = functionRef.delegateInvokeType;
+        args[3] = functionRef.delegateMethodName;
+        args[4] = Type.getMethodType(functionRef.delegateMethodType.toMethodDescriptorString());
+        args[5] = functionRef.isDelegateInterface ? 1 : 0;
+        args[6] = functionRef.isDelegateAugmented ? 1 : 0;
+        System.arraycopy(functionRef.delegateInjections, 0, args, 7, functionRef.delegateInjections.length);
+
         invokeDynamic(
                 functionRef.interfaceMethodName,
                 functionRef.factoryMethodType.toMethodDescriptorString(),
                 LAMBDA_BOOTSTRAP_HANDLE,
-                Type.getMethodType(functionRef.interfaceMethodType.toMethodDescriptorString()),
-                functionRef.delegateClassName,
-                functionRef.delegateInvokeType,
-                functionRef.delegateMethodName,
-                Type.getMethodType(functionRef.delegateMethodType.toMethodDescriptorString()),
-                functionRef.isDelegateInterface ? 1 : 0
+                args
         );
     }
 }

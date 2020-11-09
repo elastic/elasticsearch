@@ -1,5 +1,3 @@
-evaluationDependsOn(xpackModule('core'))
-
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -10,8 +8,6 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-searchbusinessrules'
-
-integTest.enabled = false
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')

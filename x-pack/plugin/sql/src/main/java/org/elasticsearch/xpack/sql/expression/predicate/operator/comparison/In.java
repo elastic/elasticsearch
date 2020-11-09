@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
-import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,9 +23,13 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
         super(source, value, list);
     }
 
+    public In(Source source, Expression value, List<Expression> list, ZoneId zoneId) {
+        super(source, value, list, zoneId);
+    }
+
     @Override
     protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In> info() {
-        return NodeInfo.create(this, In::new, value(), list());
+        return NodeInfo.create(this, In::new, value(), list(), zoneId());
     }
 
     @Override
@@ -33,7 +37,7 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
         if (newChildren.size() < 2) {
             throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
         }
-        return new In(source(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1));
+        return new In(source(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1), zoneId());
     }
 
     @Override
@@ -47,6 +51,7 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
 
     @Override
     protected boolean areCompatible(DataType left, DataType right) {
-        return SqlDataTypes.areCompatible(left, right);
+        // "left" is the reference type that all other values in the "right" IN-set need to convert to
+        return SqlDataTypeConverter.canConvert(right, left);
     }
 }

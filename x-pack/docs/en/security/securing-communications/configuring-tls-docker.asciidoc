@@ -13,7 +13,7 @@ For further details, see
 <<encrypting-communications>> and
 https://www.elastic.co/subscriptions[available subscriptions].
 
-[float]
+[discrete]
 ==== Prepare the environment
 
 <<docker,Install {es} with Docker>>.
@@ -169,7 +169,7 @@ volumes: {"data01", "data02", "certs"}
 creating self-signed certificates without having to pin specific internal IP addresses.
 endif::[]
 
-[float]
+[discrete]
 ==== Run the example
 . Generate the certificates (only needed once):
 +
@@ -209,7 +209,7 @@ auto --batch \
 ----
 --
 
-[float]
+[discrete]
 ==== Tear everything down
 To remove all the Docker resources created by the example, issue:
 --

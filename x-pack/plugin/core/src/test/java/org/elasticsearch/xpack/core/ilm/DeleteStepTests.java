@@ -20,6 +20,7 @@ import org.mockito.Mockito;
 
 import java.util.List;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -150,7 +151,8 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        DataStream dataStream = new DataStream(dataStreamName, "timestamp", List.of(sourceIndexMetadata.getIndex()));
+        DataStream dataStream =
+            new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(sourceIndexMetadata.getIndex()));
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(sourceIndexMetadata, true).put(dataStream).build()
         ).build();

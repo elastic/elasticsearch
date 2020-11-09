@@ -43,7 +43,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.Collections;
 
 import static org.elasticsearch.search.searchafter.SearchAfterBuilder.extractSortType;
@@ -59,7 +58,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         SearchAfterBuilder searchAfterBuilder = new SearchAfterBuilder();
         Object[] values = new Object[numSearchFrom];
         for (int i = 0; i < numSearchFrom; i++) {
-            int branch = randomInt(9);
+            int branch = randomInt(10);
             switch (branch) {
                 case 0:
                     values[i] = randomInt();
@@ -90,6 +89,9 @@ public class SearchAfterBuilderTests extends ESTestCase {
                     break;
                 case 9:
                     values[i] = null;
+                    break;
+                case 10:
+                    values[i] = randomBigInteger();
                     break;
             }
         }
@@ -196,27 +198,12 @@ public class SearchAfterBuilderTests extends ESTestCase {
 
     public void testFromXContentIllegalType() throws Exception {
         for (XContentType type : XContentType.values()) {
-            // BIG_INTEGER
-            XContentBuilder xContent = XContentFactory.contentBuilder(type);
-            xContent.startObject()
-                .startArray("search_after")
-                .value(new BigInteger("9223372036854776000"))
-                .endArray()
-                .endObject();
-            try (XContentParser parser = createParser(xContent)) {
-                parser.nextToken();
-                parser.nextToken();
-                parser.nextToken();
-                IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> SearchAfterBuilder.fromXContent(parser));
-                assertThat(exc.getMessage(), containsString("BIG_INTEGER"));
-            }
-
             // BIG_DECIMAL
             // ignore json and yaml, they parse floating point numbers as floats/doubles
             if (type == XContentType.JSON || type == XContentType.YAML) {
                 continue;
             }
-            xContent = XContentFactory.contentBuilder(type);
+            XContentBuilder xContent = XContentFactory.contentBuilder(type);
             xContent.startObject()
                 .startArray("search_after")
                     .value(new BigDecimal("9223372036854776003.3"))

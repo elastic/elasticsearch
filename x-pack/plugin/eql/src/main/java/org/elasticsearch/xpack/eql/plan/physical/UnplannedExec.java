@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.eql.plan.physical;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.eql.planner.PlanningException;
 import org.elasticsearch.xpack.eql.session.EqlSession;
-import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -41,7 +41,7 @@ public class UnplannedExec extends LeafExec implements Unexecutable {
     }
 
     @Override
-    public void execute(EqlSession session, ActionListener<Results> listener) {
+    public void execute(EqlSession session, ActionListener<Payload> listener) {
         throw new PlanningException("Current plan {} is not executable", this);
     }
 

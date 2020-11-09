@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.eql.plan.logical;
 
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -54,6 +56,18 @@ public class KeyedFilter extends UnaryPlan {
     
     public Attribute tiebreaker() {
         return tiebreaker;
+    }
+
+    public List<? extends NamedExpression> extractionAttributes() {
+        List<NamedExpression> out = new ArrayList<>();
+
+        out.add(timestamp);
+        if (Expressions.isPresent(tiebreaker)) {
+            out.add(tiebreaker);
+        }
+
+        out.addAll(keys);
+        return out;
     }
 
     @Override

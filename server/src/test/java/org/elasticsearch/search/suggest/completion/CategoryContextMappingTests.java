@@ -74,8 +74,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(jsonBuilder()
@@ -113,8 +112,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(jsonBuilder()
@@ -147,8 +145,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(jsonBuilder()
@@ -181,8 +178,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(jsonBuilder()
@@ -215,8 +211,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                 .startArray("completion")
@@ -249,8 +244,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(jsonBuilder()
@@ -281,8 +275,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(jsonBuilder()
@@ -313,8 +306,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                 .startObject("completion")
@@ -348,8 +340,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         XContentBuilder builder = jsonBuilder()
                 .startObject()

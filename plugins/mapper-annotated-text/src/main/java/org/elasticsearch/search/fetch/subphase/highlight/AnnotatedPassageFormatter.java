@@ -44,8 +44,11 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
     private final Encoder encoder;
     AnnotatedText[] annotations;
 
-    public AnnotatedPassageFormatter(AnnotatedText[] annotations, Encoder encoder) {
+    public AnnotatedPassageFormatter(Encoder encoder) {
         this.encoder = encoder;
+    }
+
+    void setAnnotations(AnnotatedText[] annotations) {
         this.annotations = annotations;
     }
 

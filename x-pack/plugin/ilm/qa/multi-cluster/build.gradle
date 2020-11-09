@@ -13,11 +13,9 @@ File repoDir = file("$buildDir/testclusters/repo")
 
 task 'leader-cluster'(type: RestIntegTestTask) {
   mustRunAfter(precommit)
-  runner {
     systemProperty 'tests.target_cluster', 'leader'
     /* To support taking index snapshots, we have to set path.repo setting */
     systemProperty 'tests.path.repo', repoDir.absolutePath
-  }
 }
 
 testClusters.'leader-cluster' {
@@ -33,7 +31,6 @@ testClusters.'leader-cluster' {
 
 task 'follow-cluster'(type: RestIntegTestTask) {
   dependsOn 'leader-cluster'
-  runner {
     useCluster testClusters.'leader-cluster'
     systemProperty 'tests.target_cluster', 'follow'
     nonInputProperties.systemProperty 'tests.leader_host',
@@ -42,7 +39,6 @@ task 'follow-cluster'(type: RestIntegTestTask) {
       "${-> testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}"
     /* To support taking index snapshots, we have to set path.repo setting */
     systemProperty 'tests.path.repo', repoDir.absolutePath
-  }
 }
 
 testClusters.'follow-cluster' {

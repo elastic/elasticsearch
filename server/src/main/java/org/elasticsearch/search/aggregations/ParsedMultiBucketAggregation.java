@@ -154,8 +154,8 @@ public abstract class ParsedMultiBucketAggregation<B extends ParsedMultiBucketAg
             XContentParser.Token token = parser.currentToken();
             String currentFieldName = parser.currentName();
             if (keyed) {
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             }
 
             List<Aggregation> aggregations = new ArrayList<>();

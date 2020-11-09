@@ -19,12 +19,9 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class BooleanNode extends BinaryNode {
 
@@ -40,45 +37,23 @@ public class BooleanNode extends BinaryNode {
         return operation;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        methodWriter.writeDebugInfo(location);
-
-        if (operation == Operation.AND) {
-            Label fals = new Label();
-            Label end = new Label();
-
-            getLeftNode().write(classWriter, methodWriter, scopeTable);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-            getRightNode().write(classWriter, methodWriter, scopeTable);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-            methodWriter.push(true);
-            methodWriter.goTo(end);
-            methodWriter.mark(fals);
-            methodWriter.push(false);
-            methodWriter.mark(end);
-        } else if (operation == Operation.OR) {
-            Label tru = new Label();
-            Label fals = new Label();
-            Label end = new Label();
-
-            getLeftNode().write(classWriter, methodWriter, scopeTable);
-            methodWriter.ifZCmp(Opcodes.IFNE, tru);
-            getRightNode().write(classWriter, methodWriter, scopeTable);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-            methodWriter.mark(tru);
-            methodWriter.push(true);
-            methodWriter.goTo(end);
-            methodWriter.mark(fals);
-            methodWriter.push(false);
-            methodWriter.mark(end);
-        } else {
-            throw new IllegalStateException("unexpected boolean operation [" + operation + "] " +
-                    "for type [" + getExpressionCanonicalTypeName() + "]");
-        }
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitBoolean(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getLeftNode().visit(irTreeVisitor, scope);
+        getRightNode().visit(irTreeVisitor, scope);
+    }
+
+    /* ---- end visitor ---- */
+
+    public BooleanNode(Location location) {
+        super(location);
+    }
+
 }

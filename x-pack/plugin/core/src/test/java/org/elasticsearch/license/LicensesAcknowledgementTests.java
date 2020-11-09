@@ -22,7 +22,7 @@ import static org.mockito.Mockito.verify;
 public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase {
 
     public void testAcknowledgment() throws Exception {
-        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
+        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(TestUtils.generateSignedLicense("gold", timeValueHours(2)), licenseState, Settings.EMPTY);
         licenseService.start();
         // try installing a signed license
@@ -42,7 +42,7 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
     }
 
     public void testRejectUpgradeToProductionWithoutTLS() throws Exception {
-        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
+        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(TestUtils.generateSignedLicense("trial", timeValueHours(2)), licenseState, Settings.EMPTY);
         licenseService.start();
         // try installing a signed license
@@ -55,7 +55,7 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
     }
 
     public void testUpgradeToProductionWithoutTLSAndSecurityDisabled() throws Exception {
-        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
+        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(TestUtils.generateSignedLicense("trial", timeValueHours(2)), licenseState, Settings.builder()
                 .put("xpack.security.enabled", false).build());
         licenseService.start();
@@ -74,7 +74,7 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
     }
 
     public void testUpgradeToProductionWithTLSAndSecurity() throws Exception {
-        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
+        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(TestUtils.generateSignedLicense("trial", timeValueHours(2)), licenseState, Settings.builder()
                 .put("xpack.security.enabled", true)
                 .put("xpack.security.transport.ssl.enabled", true).build());

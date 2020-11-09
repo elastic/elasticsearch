@@ -393,17 +393,6 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                           CheckedConsumer<RandomIndexWriter, IOException> writeIndex,
                           Consumer<InternalMissing> verify,
                           Collection<MappedFieldType> fieldTypes) throws IOException {
-        testCaseWithReduce(query, builder, writeIndex, verify, fieldTypes, false);
-        testCaseWithReduce(query, builder, writeIndex, verify, fieldTypes, true);
-    }
-
-    private void testCaseWithReduce(Query query,
-                                    MissingAggregationBuilder builder,
-                                    CheckedConsumer<RandomIndexWriter, IOException> writeIndex,
-                                    Consumer<InternalMissing> verify,
-                                    Collection<MappedFieldType> fieldTypes,
-                                    boolean reduced) throws IOException {
-
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 writeIndex.accept(indexWriter);
@@ -412,12 +401,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
                 final MappedFieldType[] fieldTypesArray = fieldTypes.toArray(new MappedFieldType[0]);
-                final InternalMissing missing;
-                if (reduced) {
-                    missing = searchAndReduce(indexSearcher, query, builder, fieldTypesArray);
-                } else {
-                    missing = search(indexSearcher, query, builder, fieldTypesArray);
-                }
+                final InternalMissing missing = searchAndReduce(indexSearcher, query, builder, fieldTypesArray);
                 verify.accept(missing);
             }
         }

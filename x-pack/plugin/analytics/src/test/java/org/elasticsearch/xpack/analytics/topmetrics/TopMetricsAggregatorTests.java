@@ -51,11 +51,13 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -363,8 +365,10 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), new MatchAllDocsQuery(),
                         new MultiBucketConsumer(Integer.MAX_VALUE, breaker.getBreaker(CircuitBreaker.REQUEST)), breaker, doubleFields());
                 TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
-                Aggregator aggregator = builder.build(searchContext.getQueryShardContext(), null)
-                    .create(searchContext, null, true);
+                Aggregator aggregator = builder.build(
+                    new ProductionAggregationContext(searchContext.getQueryShardContext(), searchContext.query()),
+                    null
+                ).create(searchContext, null, CardinalityUpperBound.ONE);
                 aggregator.preCollection();
                 assertThat(indexReader.leaves(), hasSize(1));
                 LeafBucketCollector leaf = aggregator.getLeafCollector(indexReader.leaves().get(0));
@@ -530,7 +534,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-                return search(indexSearcher, query, builder, fields);
+                return searchAndReduce(indexSearcher, query, builder, fields);
             }
         }
     }

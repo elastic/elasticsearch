@@ -66,6 +66,10 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         this.subAggregationsSupplier = subAggregationsSupplier;
     }
 
+    public final InternalAggregations createSubAggregations() {
+        return subAggregationsSupplier.get();
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -78,7 +82,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                 for (int i = 0; i < numAggregations; i++) {
                     aggs.add(createTestInstance(randomAlphaOfLength(5), emptyMap(), InternalAggregations.EMPTY));
                 }
-                return new InternalAggregations(aggs);
+                return InternalAggregations.from(aggs);
             };
         }
     }

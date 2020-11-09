@@ -56,6 +56,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private File jsonSchema;
+    private File report;
     private FileCollection inputFiles;
 
     @Incremental
@@ -77,9 +78,13 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         this.jsonSchema = jsonSchema;
     }
 
+    public void setReport(File report) {
+        this.report = report;
+    }
+
     @OutputFile
     public File getReport() {
-        return new File(getProject().getBuildDir(), "reports/validateJson.txt");
+        return this.report;
     }
 
     @TaskAction

@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
+import com.microsoft.azure.storage.Constants;
 import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryPolicy;
 import com.microsoft.azure.storage.RetryPolicyFactory;
@@ -43,10 +44,11 @@ import static java.util.Collections.emptyMap;
 public class AzureStorageService {
 
     public static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+
     /**
-     * {@link com.microsoft.azure.storage.blob.BlobConstants#MAX_SINGLE_UPLOAD_BLOB_SIZE_IN_BYTES}
+     * Maximum allowed blob size in Azure blob store.
      */
-    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB);
+    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(Constants.MAX_BLOB_SIZE, ByteSizeUnit.BYTES);
 
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();

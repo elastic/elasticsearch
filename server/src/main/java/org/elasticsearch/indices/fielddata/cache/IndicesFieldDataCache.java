@@ -167,7 +167,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
                 ElasticsearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
-                final Accountable ifd = (Accountable) indexFieldData.localGlobalDirect(indexReader);
+                final Accountable ifd = (Accountable) indexFieldData.loadGlobalDirect(indexReader);
                 for (Listener listener : k.listeners) {
                     try {
                         listener.onCache(shardId, fieldName, ifd);

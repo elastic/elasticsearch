@@ -336,6 +336,16 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public boolean hasArray() {
+            return in.hasArray();
+        }
+
+        @Override
+        public byte[] array() {
+            return in.array();
+        }
+
+        @Override
         public Collection<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }

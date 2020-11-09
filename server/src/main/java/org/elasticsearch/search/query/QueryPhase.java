@@ -55,8 +55,9 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -92,7 +93,7 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.shortcutTot
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
  */
-public class QueryPhase implements SearchPhase {
+public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
     // TODO: remove this property in 8.0
     public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("es.search.rewrite_sort", "true"));
@@ -107,7 +108,6 @@ public class QueryPhase implements SearchPhase {
         this.rescorePhase = new RescorePhase();
     }
 
-    @Override
     public void preProcess(SearchContext context) {
         final Runnable cancellation;
         if (context.lowLevelCancellation()) {
@@ -129,7 +129,6 @@ public class QueryPhase implements SearchPhase {
         }
     }
 
-    @Override
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
@@ -354,8 +353,6 @@ public class QueryPhase implements SearchPhase {
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             queryResult.searchTimedOut(true);
-        } finally {
-            searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }
         if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER && queryResult.terminatedEarly() == null) {
             queryResult.terminatedEarly(false);
@@ -410,8 +407,6 @@ public class QueryPhase implements SearchPhase {
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             searchContext.queryResult().searchTimedOut(true);
-        } finally {
-            searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }
         return false; // no rescoring when sorting by field
     }
@@ -434,9 +429,9 @@ public class QueryPhase implements SearchPhase {
 
         // check if this is a field of type Long or Date, that is indexed and has doc values
         String fieldName = sortField.getField();
+        QueryShardContext queryShardContext = searchContext.getQueryShardContext();
         if (fieldName == null) return null; // happens when _score or _doc is the 1st sort field
-        if (searchContext.mapperService() == null) return null; // mapperService can be null in tests
-        final MappedFieldType fieldType = searchContext.mapperService().fieldType(fieldName);
+        final MappedFieldType fieldType = queryShardContext.getFieldType(fieldName);
         if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
         if (fieldType.isSearchable() == false) return null;
@@ -451,7 +446,7 @@ public class QueryPhase implements SearchPhase {
                 if (SortField.FIELD_DOC.equals(sField) == false) return null;
             } else {
                 //TODO: find out how to cover _script sort that don't use _score
-                if (searchContext.mapperService().fieldType(sFieldName) == null) return null; // could be _script sort that uses _score
+                if (queryShardContext.getFieldType(sFieldName) == null) return null; // could be _script sort that uses _score
             }
         }
 

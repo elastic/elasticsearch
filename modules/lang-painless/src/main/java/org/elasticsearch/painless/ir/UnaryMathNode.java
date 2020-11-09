@@ -19,16 +19,10 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class UnaryMathNode extends UnaryNode {
 
@@ -67,7 +61,7 @@ public class UnaryMathNode extends UnaryNode {
         return cat;
     }
 
-    public void setOriginallExplicit(boolean originallyExplicit) {
+    public void setOriginallyExplicit(boolean originallyExplicit) {
         this.originallyExplicit = originallyExplicit;
     }
 
@@ -75,71 +69,22 @@ public class UnaryMathNode extends UnaryNode {
         return originallyExplicit;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        methodWriter.writeDebugInfo(location);
-
-        if (operation == Operation.NOT) {
-            Label fals = new Label();
-            Label end = new Label();
-
-            getChildNode().write(classWriter, methodWriter, scopeTable);
-
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-            methodWriter.push(false);
-            methodWriter.goTo(end);
-            methodWriter.mark(fals);
-            methodWriter.push(true);
-            methodWriter.mark(end);
-        } else {
-            getChildNode().write(classWriter, methodWriter, scopeTable);
-
-            // Def calls adopt the wanted return value. If there was a narrowing cast,
-            // we need to flag that so that it's done at runtime.
-            int defFlags = 0;
-
-            if (originallyExplicit) {
-                defFlags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
-            }
-
-            Type actualType = MethodWriter.getType(getExpressionType());
-            Type childType = MethodWriter.getType(getChildNode().getExpressionType());
-
-            if (operation == Operation.BWNOT) {
-                if (getUnaryType() == def.class) {
-                    org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
-                    methodWriter.invokeDefCall("not", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
-                } else {
-                    if (getUnaryType() == int.class) {
-                        methodWriter.push(-1);
-                    } else if (getUnaryType() == long.class) {
-                        methodWriter.push(-1L);
-                    } else {
-                        throw new IllegalStateException("unexpected unary math operation [" + operation + "] " +
-                                "for type [" + getExpressionCanonicalTypeName() + "]");
-                    }
-
-                    methodWriter.math(MethodWriter.XOR, actualType);
-                }
-            } else if (operation == Operation.SUB) {
-                if (getUnaryType() == def.class) {
-                    org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
-                    methodWriter.invokeDefCall("neg", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
-                } else {
-                    methodWriter.math(MethodWriter.NEG, actualType);
-                }
-            } else if (operation == Operation.ADD) {
-                if (getUnaryType() == def.class) {
-                    org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
-                    methodWriter.invokeDefCall("plus", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
-                }
-            } else {
-                throw new IllegalStateException("unexpected unary math operation [" + operation + "] " +
-                        "for type [" + getExpressionCanonicalTypeName() + "]");
-            }
-        }
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitUnaryMath(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getChildNode().visit(irTreeVisitor, scope);
+    }
+
+    /* ---- end visitor ---- */
+
+    public UnaryMathNode(Location location) {
+        super(location);
+    }
+
 }

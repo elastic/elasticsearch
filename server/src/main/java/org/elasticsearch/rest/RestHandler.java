@@ -20,7 +20,10 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.MediaTypeRegistry;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest.Method;
 
 import java.util.Collections;
@@ -29,6 +32,7 @@ import java.util.List;
 /**
  * Handler for REST requests
  */
+@FunctionalInterface
 public interface RestHandler {
 
     /**
@@ -87,6 +91,19 @@ public interface RestHandler {
      */
     default List<ReplacedRoute> replacedRoutes() {
         return Collections.emptyList();
+    }
+
+
+    /**
+     * Controls whether requests handled by this class are allowed to to access system indices by default.
+     * @return {@code true} if requests handled by this class should be allowed to access system indices.
+     */
+    default boolean allowSystemIndexAccessByDefault() {
+        return false;
+    }
+
+    default MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
+        return XContentType.MEDIA_TYPE_REGISTRY;
     }
 
     class Route {

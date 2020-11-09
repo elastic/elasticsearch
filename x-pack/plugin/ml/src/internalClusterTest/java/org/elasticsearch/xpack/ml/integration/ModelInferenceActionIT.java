@@ -74,7 +74,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2)
             .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
-                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding)))
+                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false)))
                 .setTrainedModel(buildClassification(true)))
             .setVersion(Version.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
@@ -85,7 +85,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1)
             .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
-                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding)))
+                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false)))
                 .setTrainedModel(buildRegression()))
             .setVersion(Version.CURRENT)
             .setEstimatedOperations(0)
@@ -165,7 +165,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
                 .stream()
                 .map(i -> ((SingleValueInferenceResults)i).valueAsString())
                 .collect(Collectors.toList()),
-            contains("not_to_be", "to_be"));
+            contains("no", "yes"));
 
         // Get top classes
         request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfigUpdate(2, null, null, null, null), true);
@@ -174,14 +174,14 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         ClassificationInferenceResults classificationInferenceResults =
             (ClassificationInferenceResults)response.getInferenceResults().get(0);
 
-        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("not_to_be"));
-        assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("no"));
+        assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("yes"));
         assertThat(classificationInferenceResults.getTopClasses().get(0).getProbability(),
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
 
         classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(1);
-        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("to_be"));
-        assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("not_to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("yes"));
+        assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("no"));
         // they should always be in order of Most probable to least
         assertThat(classificationInferenceResults.getTopClasses().get(0).getProbability(),
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
@@ -192,7 +192,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
         classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(0);
         assertThat(classificationInferenceResults.getTopClasses(), hasSize(1));
-        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("yes"));
     }
 
     public void testInferModelMultiClassModel() throws Exception {
@@ -203,7 +203,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId)
             .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
-                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding)))
+                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false)))
                 .setTrainedModel(buildMultiClassClassification()))
             .setVersion(Version.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
@@ -320,7 +320,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId)
             .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
-                .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
+                .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding, false)))
                 .setTrainedModel(buildRegression()))
             .setVersion(Version.CURRENT)
             .setEstimatedOperations(0)

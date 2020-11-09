@@ -102,10 +102,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
 
     public MultiTermVectorsResponse(StreamInput in) throws IOException {
         super(in);
-        responses = new MultiTermVectorsItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = new MultiTermVectorsItemResponse(in);
-        }
+        responses = in.readArray(MultiTermVectorsItemResponse::new, MultiTermVectorsItemResponse[]::new);
     }
 
     public MultiTermVectorsItemResponse[] getResponses() {
@@ -148,9 +145,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(responses.length);
-        for (MultiTermVectorsItemResponse response : responses) {
-            response.writeTo(out);
-        }
+        out.writeArray(responses);
     }
 }

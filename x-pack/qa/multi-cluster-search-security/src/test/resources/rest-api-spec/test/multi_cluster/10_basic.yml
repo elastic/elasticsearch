@@ -22,10 +22,25 @@ setup:
               "cluster": [],
               "indices": [
                 {
-                  "names": ["local_index", "my_remote_cluster:test_i*", "my_remote_cluster:aliased_test_index", "test_remote_cluster:test_i*", "my_remote_cluster:secure_alias"],
+                  "names": ["local_index"],
                   "privileges": ["read"]
                 }
               ]
+            }
+
+  - do:
+      security.put_user:
+        username: "remote"
+        body:  >
+            {
+              "password": "s3krit",
+              "roles" : [ "remote_ccs" ]
+            }
+  - do:
+      security.put_role:
+        name: "remote_ccs"
+        body:  >
+            {
             }
 ---
 teardown:
@@ -109,6 +124,58 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      async_search.submit:
+        index: local_index,my_remote_cluster:test_index
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
+        body:
+          query:
+            term:
+              f1: remote_cluster
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - set:  { id: id }
+  - match: { is_partial: false }
+  - match: { response._clusters.total: 2}
+  - match: { response._clusters.successful: 2}
+  - match: { response._clusters.skipped: 0}
+  - match: { response._shards.total: 5 }
+  - match: { response.hits.total.value: 6}
+  - match: { response.hits.total.relation: eq}
+  - match: { response.hits.hits.0._index: "my_remote_cluster:test_index"}
+  - length: { response.aggregations.cluster.buckets: 1 }
+  - match: { response.aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { response.aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      async_search.get:
+        id: "$id"
+
+  - match: { is_partial: false }
+  - match: { response._clusters.total: 2}
+  - match: { response._clusters.successful: 2}
+  - match: { response._clusters.skipped: 0}
+  - match: { response._shards.total: 5 }
+  - match: { response.hits.total.value: 6}
+  - match: { response.hits.total.relation: eq}
+  - match: { response.hits.hits.0._index: "my_remote_cluster:test_index"}
+  - length: { response.aggregations.cluster.buckets: 1 }
+  - match: { response.aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { response.aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      async_search.delete:
+        id: "$id"
+
+  - match: { acknowledged:   true }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
         rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
@@ -130,7 +197,7 @@ teardown:
 
   # Test wildcard in cluster name
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
       search:
         rest_total_hits_as_int: true
         index: "my_*:test_index"
@@ -201,7 +268,7 @@ teardown:
 
   # Test wildcard that matches multiple (two) cluster names
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
       search:
         rest_total_hits_as_int: true
         index: "*_remote_cluster:test_ind*"
@@ -216,7 +283,7 @@ teardown:
 "Search an filtered alias on the remote cluster":
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
       search:
         rest_total_hits_as_int: true
         index: my_remote_cluster:aliased_test_index
@@ -233,7 +300,7 @@ teardown:
 "Search across clusters via a secured alias":
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
       search:
         rest_total_hits_as_int: true
         index: my_remote_cluster:secure_alias # TODO make this a wildcard once
@@ -246,3 +313,40 @@ teardown:
   - is_true: hits.hits.0._source.secure
   - match: { hits.hits.0._index: "my_remote_cluster:secured_via_alias" }
 
+---
+"Async search against filtered alias on the remote cluster":
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      async_search.submit:
+        index: my_remote_cluster:aliased_test_index
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
+
+  - set:  { id: id }
+  - match: { is_partial: false }
+  - match: { response._clusters.total: 1}
+  - match: { response._clusters.successful: 1}
+  - match: { response._shards.total: 3 }
+  - length: { response.hits.hits: 2 }
+  - match: { response.hits.hits.0._source.filter_field: 1 }
+  - match: { response.hits.hits.0._index: "my_remote_cluster:test_index" }
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      async_search.get:
+        id: "$id"
+
+  - match: { is_partial: false }
+  - is_true: response._clusters
+  - match: { response._shards.total: 3 }
+  - length: { response.hits.hits: 2 }
+  - match: { response.hits.hits.0._source.filter_field: 1 }
+  - match: { response.hits.hits.0._index: "my_remote_cluster:test_index" }
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      async_search.delete:
+        id: "$id"
+
+  - match: { acknowledged:   true }

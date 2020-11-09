@@ -30,6 +30,13 @@ teardown:
   - match: { license.max_resource_units: 50 }
   - match: { license.max_nodes: null }
 
+  ## Check the xpack info API as well
+  - do:
+      xpack.info: {}
+  - match: { license.type: "enterprise" }
+  - match: { license.mode: "enterprise" }
+
+  ## Check the opt-in v5 license type
   - do:
       warnings:
         - "Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
@@ -42,11 +49,27 @@ teardown:
   ## Always returns real type
   - match: { license.type: "enterprise" }
 
+  ## Check the xpack info API as well
+  - do:
+      warnings:
+        - "Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
+      xpack.info:
+        accept_enterprise: true
+  - match: { license.type: "enterprise" }
+  - match: { license.mode: "enterprise" }
+
   ## "false" is rejected
   - do:
       catch: bad_request
       warnings:
         - "Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
       license.get:
+        accept_enterprise: false
+
+  - do:
+      catch: bad_request
+      warnings:
+        - "Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
+      xpack.info:
         accept_enterprise: false
 

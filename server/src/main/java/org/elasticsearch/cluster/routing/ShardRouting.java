@@ -570,7 +570,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Cache hash code in same same way as {@link String#hashCode()}) using racy single-check idiom
+     * Cache hash code in the same way as {@link String#hashCode()}) using racy single-check idiom
      * as it is mainly used in single-threaded code ({@link BalancedShardsAllocator}).
      */
     private int hashCode; // default to 0

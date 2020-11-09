@@ -255,6 +255,11 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     }
 
     @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), stats, results);
     }

@@ -124,7 +124,7 @@ public class TransportFieldCapabilitiesIndexAction
             if (ft != null) {
                 if (indicesService.isMetadataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
                     || fieldPredicate.test(ft.name())) {
-                    IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.typeName(),
+                    IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.familyTypeName(),
                         ft.isSearchable(), ft.isAggregatable(), ft.meta());
                     responseMap.put(field, fieldCap);
                 } else {
@@ -269,11 +269,6 @@ public class TransportFieldCapabilitiesIndexAction
                         @Override
                         public FieldCapabilitiesIndexResponse read(StreamInput in) throws IOException {
                             return new FieldCapabilitiesIndexResponse(in);
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
                         }
 
                         @Override

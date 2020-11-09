@@ -38,6 +38,6 @@ public class ResponseHandlerFailureTransportException extends TransportException
 
     @Override
     public Throwable fillInStackTrace() {
-        return null;
+        return this;
     } // why is this?
 }

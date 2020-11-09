@@ -1,0 +1,8 @@
+{
+    "properties" : {
+        "full_name" : {
+            "type" : "wildcard",
+            "ignore_above" : 256
+        }
+    }
+}

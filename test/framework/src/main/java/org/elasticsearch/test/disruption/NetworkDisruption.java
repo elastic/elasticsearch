@@ -420,7 +420,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     /**
      * Simulates a network disconnect. Sending a request from source to target node throws a {@link ConnectTransportException}.
      */
-    public static class NetworkDisconnect extends NetworkLinkDisruptionType {
+    public static final NetworkLinkDisruptionType DISCONNECT = new NetworkLinkDisruptionType() {
 
         @Override
         public void applyDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
@@ -431,13 +431,12 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         public String toString() {
             return "network disconnects";
         }
-    }
+    };
 
     /**
      * Simulates an unresponsive target node by dropping requests sent from source to target node.
      */
-    public static class NetworkUnresponsive extends NetworkLinkDisruptionType {
-
+    public static final NetworkLinkDisruptionType UNRESPONSIVE = new NetworkLinkDisruptionType() {
         @Override
         public void applyDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
             sourceTransportService.addUnresponsiveRule(targetTransportService);
@@ -447,7 +446,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         public String toString() {
             return "network unresponsive";
         }
-    }
+    };
 
     /**
      * Simulates slow or congested network. Delivery of requests that are sent from source to target node are delayed by a configurable

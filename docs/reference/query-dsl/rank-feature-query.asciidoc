@@ -82,7 +82,7 @@ Index several documents to the `test` index.
 ----
 PUT /test/_doc/1?refresh
 {
-  "url": "http://en.wikipedia.org/wiki/2016_Summer_Olympics",
+  "url": "https://en.wikipedia.org/wiki/2016_Summer_Olympics",
   "content": "Rio 2016",
   "pagerank": 50.3,
   "url_length": 42,
@@ -94,7 +94,7 @@ PUT /test/_doc/1?refresh
 
 PUT /test/_doc/2?refresh
 {
-  "url": "http://en.wikipedia.org/wiki/2016_Brazilian_Grand_Prix",
+  "url": "https://en.wikipedia.org/wiki/2016_Brazilian_Grand_Prix",
   "content": "Formula One motor race held on 13 November 2016",
   "pagerank": 50.3,
   "url_length": 47,
@@ -107,7 +107,7 @@ PUT /test/_doc/2?refresh
 
 PUT /test/_doc/3?refresh
 {
-  "url": "http://en.wikipedia.org/wiki/Deadpool_(film)",
+  "url": "https://en.wikipedia.org/wiki/Deadpool_(film)",
   "content": "Deadpool is a 2016 American superhero film",
   "pagerank": 50.3,
   "url_length": 37,

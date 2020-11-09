@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 
 public final class AnomalyDetectorsIndexFields {
 
-    public static final String CONFIG_INDEX = ".ml-config";
-
     public static final String STATE_INDEX_PREFIX = ".ml-state";
 
     public static final String RESULTS_INDEX_PREFIX = ".ml-anomalies-";

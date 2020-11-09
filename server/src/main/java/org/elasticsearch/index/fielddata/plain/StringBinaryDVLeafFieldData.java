@@ -22,7 +22,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.BinaryDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
-final class StringBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData{
+final class StringBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
     StringBinaryDVLeafFieldData(BinaryDocValues values) {
         super(values);
     }

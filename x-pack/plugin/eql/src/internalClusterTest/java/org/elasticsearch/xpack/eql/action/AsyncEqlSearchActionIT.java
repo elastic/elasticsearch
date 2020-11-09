@@ -102,7 +102,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         prepareIndex();
 
         boolean success = randomBoolean();
-        String query = success ? "my_event where i=1" : "my_event where 10/i=1";
+        String query = success ? "my_event where i==1" : "my_event where 10/i==1";
         EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
             .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
@@ -151,7 +151,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         prepareIndex();
 
         boolean success = randomBoolean();
-        String query = success ? "my_event where i=1" : "my_event where 10/i=1";
+        String query = success ? "my_event where i==1" : "my_event where 10/i==1";
         EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
             .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
@@ -204,7 +204,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         prepareIndex();
 
         boolean success = randomBoolean();
-        String query = success ? "my_event where i=1" : "my_event where 10/i=1";
+        String query = success ? "my_event where i==1" : "my_event where 10/i==1";
         EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
             .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
@@ -243,7 +243,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         boolean keepOnCompletion = randomBoolean();
-        String query = success ? "my_event where i=1" : "my_event where 10/i=1";
+        String query = success ? "my_event where i==1" : "my_event where 10/i==1";
         EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
             .waitForCompletionTimeout(TimeValue.timeValueSeconds(10));
         if (keepOnCompletion || randomBoolean()) {

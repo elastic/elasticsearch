@@ -24,11 +24,12 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,6 +44,7 @@ import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchSortValuesAndFormatsTests;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -51,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ShardSearchRequestTests extends AbstractSearchTestCase {
-    private IndexMetadata baseMetadata = IndexMetadata.builder("test").settings(Settings.builder()
+    private static final IndexMetadata BASE_METADATA = IndexMetadata.builder("test").settings(Settings.builder()
         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
         .numberOfShards(1).numberOfReplicas(1).build();
 
@@ -81,9 +83,17 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
         }
         final String[] routings = generateRandomStringArray(5, 10, false, true);
+        ShardSearchContextId shardSearchContextId = null;
+        TimeValue keepAlive = null;
+        if (randomBoolean()) {
+            shardSearchContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
+            if (randomBoolean()) {
+                keepAlive = TimeValue.timeValueSeconds(randomIntBetween(0, 120));
+            }
+        }
         ShardSearchRequest req = new ShardSearchRequest(new OriginalIndices(searchRequest), searchRequest, shardId,
             randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(),
-            Math.abs(randomLong()), randomAlphaOfLengthBetween(3, 10), routings);
+            Math.abs(randomLong()), randomAlphaOfLengthBetween(3, 10), routings, shardSearchContextId, keepAlive);
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {
             req.setBottomSortValues(SearchSortValuesAndFormatsTests.randomInstance());
@@ -92,7 +102,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testFilteringAliases() throws Exception {
-        IndexMetadata indexMetadata = baseMetadata;
+        IndexMetadata indexMetadata = BASE_METADATA;
         indexMetadata = add(indexMetadata, "cats", filter(termQuery("animal", "cat")));
         indexMetadata = add(indexMetadata, "dogs", filter(termQuery("animal", "dog")));
         indexMetadata = add(indexMetadata, "all", null);
@@ -118,7 +128,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testRemovedAliasFilter() throws Exception {
-        IndexMetadata indexMetadata = baseMetadata;
+        IndexMetadata indexMetadata = BASE_METADATA;
         indexMetadata = add(indexMetadata, "cats", filter(termQuery("animal", "cat")));
         indexMetadata = remove(indexMetadata, "cats");
         try {
@@ -130,7 +140,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testUnknownAliasFilter() throws Exception {
-        IndexMetadata indexMetadata = baseMetadata;
+        IndexMetadata indexMetadata = BASE_METADATA;
         indexMetadata = add(indexMetadata, "cats", filter(termQuery("animal", "cat")));
         indexMetadata = add(indexMetadata, "dogs", filter(termQuery("animal", "dog")));
         IndexMetadata finalIndexMetadata = indexMetadata;
@@ -175,12 +185,12 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     public QueryBuilder aliasFilter(IndexMetadata indexMetadata, String... aliasNames) {
-        CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
-            try (XContentParser parser = XContentFactory.xContent(bytes)
-                    .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes)) {
+        return ShardSearchRequest.parseAliasFilter(bytes -> {
+            try (InputStream inputStream = bytes.streamInput();
+                 XContentParser parser = XContentFactory.xContentType(inputStream).xContent()
+                         .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream)) {
                 return parseInnerQueryBuilder(parser);
             }
-        };
-        return ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliasNames);
+        }, indexMetadata, aliasNames);
     }
 }

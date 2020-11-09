@@ -34,6 +34,7 @@ public interface Histogram extends MultiBucketsAggregation {
     ParseField KEYED_FIELD = new ParseField("keyed");
     ParseField MIN_DOC_COUNT_FIELD = new ParseField("min_doc_count");
     ParseField EXTENDED_BOUNDS_FIELD = new ParseField("extended_bounds");
+    ParseField HARD_BOUNDS_FIELD = new ParseField("hard_bounds");
 
     /**
      * A bucket in the histogram where documents fall in

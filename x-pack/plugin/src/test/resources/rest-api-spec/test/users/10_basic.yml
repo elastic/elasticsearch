@@ -107,6 +107,8 @@ teardown:
             }
 ---
 "Test put user with password hash":
+  - skip:
+      features: warnings
 
   # Mostly this chain of put_user , search index, set value is to work around the fact that the
   # rest tests treat anything with a leading "$" as a stashed value, and bcrypt passwords start with "$"
@@ -122,6 +124,8 @@ teardown:
           }
 
   - do:
+      warnings:
+        - "this request accesses system indices: [.security-7], but in a future major version, direct access to system indices will be prevented by default"
       get:
         index: .security
         id: user-bob

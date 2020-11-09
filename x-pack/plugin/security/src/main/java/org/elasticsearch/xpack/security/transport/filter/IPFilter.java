@@ -199,7 +199,7 @@ public class IPFilter {
 
     public boolean accept(String profile, InetSocketAddress peerAddress) {
         if (licenseState.isSecurityEnabled() == false ||
-            licenseState.isAllowed(Feature.SECURITY_IP_FILTERING) == false) {
+            licenseState.checkFeature(Feature.SECURITY_IP_FILTERING) == false) {
             return true;
         }
 

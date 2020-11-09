@@ -30,30 +30,61 @@ import java.io.OutputStream;
  */
 public class Streams {
 
+    private static final ThreadLocal<byte[]> buffer = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
+
     private Streams() {
 
     }
 
     /**
-     * Copy the contents of the given InputStream to the given OutputStream. Closes both streams when done.
+     * Copy the contents of the given InputStream to the given OutputStream. Optionally, closes both streams when done.
      *
-     * @param in  the stream to copy from
-     * @param out the stream to copy to
+     * @param in     the stream to copy from
+     * @param out    the stream to copy to
+     * @param close  whether to close both streams after copying
+     * @param buffer buffer to use for copying
      * @return the number of bytes copied
      * @throws IOException in case of I/O errors
      */
-    public static long copy(final InputStream in, final OutputStream out) throws IOException {
+    public static long copy(final InputStream in, final OutputStream out, byte[] buffer, boolean close) throws IOException {
         Exception err = null;
         try {
-            final long byteCount = in.transferTo(out);
+            long byteCount = 0;
+            int bytesRead;
+            while ((bytesRead = in.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+                byteCount += bytesRead;
+            }
             out.flush();
             return byteCount;
         } catch (IOException | RuntimeException e) {
             err = e;
             throw e;
         } finally {
-            IOUtils.close(err, in, out);
+            if (close) {
+                IOUtils.close(err, in, out);
+            }
         }
     }
 
+    /**
+     * @see #copy(InputStream, OutputStream, byte[], boolean)
+     */
+    public static long copy(final InputStream in, final OutputStream out, boolean close) throws IOException {
+        return copy(in, out, buffer.get(), close);
+    }
+
+    /**
+     * @see #copy(InputStream, OutputStream, byte[], boolean)
+     */
+    public static long copy(final InputStream in, final OutputStream out, byte[] buffer) throws IOException {
+        return copy(in, out, buffer, true);
+    }
+
+    /**
+     * @see #copy(InputStream, OutputStream, byte[], boolean)
+     */
+    public static long copy(final InputStream in, final OutputStream out) throws IOException {
+        return copy(in, out, buffer.get(), true);
+    }
 }

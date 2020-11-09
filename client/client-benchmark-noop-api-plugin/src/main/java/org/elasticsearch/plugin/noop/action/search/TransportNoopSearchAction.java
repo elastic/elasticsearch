@@ -49,7 +49,7 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
         listener.onResponse(new SearchResponse(new InternalSearchResponse(
             new SearchHits(
                 new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
-            new InternalAggregations(Collections.emptyList()),
+            InternalAggregations.EMPTY,
             new Suggest(Collections.emptyList()),
             new SearchProfileShardResults(Collections.emptyMap()), false, false, 1),
             "", 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY));

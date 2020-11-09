@@ -19,67 +19,44 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class InstanceofNode extends UnaryNode {
-    
+
     /* ---- begin node data ---- */
 
     private Class<?> instanceType;
-    private Class<?> resolvedType;
-    private boolean isPrimitiveResult;
 
     public void setInstanceType(Class<?> instanceType) {
         this.instanceType = instanceType;
     }
-    
+
     public Class<?> getInstanceType() {
         return instanceType;
     }
-    
+
     public String getInstanceCanonicalTypeName() {
         return PainlessLookupUtility.typeToCanonicalTypeName(instanceType);
     }
 
-    public void setResolvedType(Class<?> resolvedType) {
-        this.resolvedType = resolvedType;
-    }
-
-    public Class<?> getResolvedType() {
-        return resolvedType;
-    }
-
-    public String getResolvedCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(resolvedType);
-    }
-    
-    public void setPrimitiveResult(boolean isPrimitiveResult) {
-        this.isPrimitiveResult = isPrimitiveResult;
-    }
-
-    public boolean isPrimitiveResult() {
-        return isPrimitiveResult;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        getChildNode().write(classWriter, methodWriter, scopeTable);
-
-        // primitive types
-        if (isPrimitiveResult) {
-            // discard child's result result
-            methodWriter.writePop(MethodWriter.getType(getExpressionType()).getSize());
-            // push our result: its' a primitive so it cannot be null
-            methodWriter.push(resolvedType.isAssignableFrom(instanceType));
-        } else {
-            // ordinary instanceof
-            methodWriter.instanceOf(Type.getType(resolvedType));
-        }
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitInstanceof(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getChildNode().visit(irTreeVisitor, scope);
+    }
+
+    /* ---- end visitor ---- */
+
+    public InstanceofNode(Location location) {
+        super(location);
+    }
+
 }

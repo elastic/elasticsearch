@@ -26,7 +26,7 @@ query
     ;
 
 sequenceParams
-    : WITH (MAXSPAN EQ timeUnit)
+    : WITH (MAXSPAN ASGN timeUnit)
     ;
 
 sequence
@@ -55,7 +55,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (FORK (EQ booleanValue)?)? (by=joinKeys)?
+   : subquery (by=joinKeys)?
    ;
 
 subquery
@@ -65,9 +65,9 @@ subquery
 eventQuery
     : eventFilter
     ;
-    
+
 eventFilter
-    : (ANY | event=identifier) WHERE expression
+    : (ANY | event=eventValue) WHERE expression
     ;
 
 expression
@@ -84,11 +84,15 @@ booleanExpression
 
 
 valueExpression
-    : primaryExpression predicate?                                                      #valueExpressionDefault
-    | operator=(MINUS | PLUS) valueExpression                                           #arithmeticUnary
-    | left=valueExpression operator=(ASTERISK | SLASH | PERCENT) right=valueExpression  #arithmeticBinary
-    | left=valueExpression operator=(PLUS | MINUS) right=valueExpression                #arithmeticBinary
-    | left=valueExpression comparisonOperator right=valueExpression                     #comparison
+    : operatorExpression                                                                      #valueExpressionDefault
+    | left=operatorExpression comparisonOperator right=operatorExpression                     #comparison
+    ;
+
+operatorExpression
+    : primaryExpression predicate?                                                            #operatorExpressionDefault
+    | operator=(MINUS | PLUS) operatorExpression                                              #arithmeticUnary
+    | left=operatorExpression operator=(ASTERISK | SLASH | PERCENT) right=operatorExpression  #arithmeticBinary
+    | left=operatorExpression operator=(PLUS | MINUS) right=operatorExpression                #arithmeticBinary
     ;
 
 // workaround for
@@ -106,7 +110,11 @@ primaryExpression
     ;
 
 functionExpression
-    : name=IDENTIFIER LP (expression (COMMA expression)*)? RP
+    : name=functionName LP (expression (COMMA expression)*)? RP
+    ;
+
+functionName
+    : IDENTIFIER
     ;
 
 constant
@@ -117,7 +125,7 @@ constant
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : SEQ | EQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
@@ -130,7 +138,7 @@ qualifiedName
 
 identifier
     : IDENTIFIER
-    | ESCAPED_IDENTIFIER
+    | QUOTED_IDENTIFIER
     ;
 
 timeUnit
@@ -150,7 +158,6 @@ AND: 'and';
 ANY: 'any';
 BY: 'by';
 FALSE: 'false';
-FORK: 'fork';
 IN: 'in';
 JOIN: 'join';
 MAXSPAN: 'maxspan';
@@ -165,7 +172,11 @@ WHERE: 'where';
 WITH: 'with';
 
 // Operators
-EQ  : '=' | '==';
+// dedicated string equality - case-insensitive and supporting * operator
+SEQ : ':';
+// regular operators
+ASGN : '=';
+EQ  : '==';
 NEQ : '!=';
 LT  : '<';
 LTE : '<=';
@@ -185,16 +196,12 @@ LP: '(';
 RP: ')';
 PIPE: '|';
 
-
-ESCAPED_IDENTIFIER
-    : '`' (~'`')* '`'
-    ;
-
 STRING
     : '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
     | '"'   ('\\' [btnfr"'\\] | ~[\r\n"\\])* '"'
     | '?"'  ('\\"' |~["\r\n])* '"'
     | '?\'' ('\\\'' |~['\r\n])* '\''
+    | '"""' (~[\r\n])*? '"""' '"'? '"'?
     ;
 
 INTEGER_VALUE
@@ -211,6 +218,15 @@ DECIMAL_VALUE
 // make @timestamp not require escaping, since @ has no other meaning
 IDENTIFIER
     : (LETTER | '_' | '@') (LETTER | DIGIT | '_')*
+    ;
+
+QUOTED_IDENTIFIER
+    : '`' ( ~'`' | '``' )* '`'
+    ;
+
+eventValue
+    : STRING
+    | IDENTIFIER
     ;
 
 fragment EXPONENT

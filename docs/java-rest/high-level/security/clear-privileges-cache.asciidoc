@@ -1,0 +1,33 @@
+
+--
+:api: clear-privileges-cache
+:request: ClearPrivilegesCacheRequest
+:response: ClearPrivilegesCacheResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Clear Privileges Cache API
+
+[id="{upid}-{api}-request"]
+==== Clear Privileges Cache Request
+
+A +{request}+ supports defining the name of applications that the cache should be cleared for.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> the name of the application(s) for which the cache should be cleared
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Clear Privileges Cache Response
+
+The returned +{response}+ allows to retrieve information about where the cache was cleared.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> the list of nodes that the cache was cleared on

@@ -516,6 +516,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
         setRandomIndicesOptions(updateByQueryRequest::setIndicesOptions, updateByQueryRequest::indicesOptions, expectedParams);
         setRandomTimeout(updateByQueryRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
+        expectedParams.put("wait_for_completion", Boolean.TRUE.toString());
         Request request = RequestConverters.updateByQuery(updateByQueryRequest);
         StringJoiner joiner = new StringJoiner("/", "/", "");
         joiner.add(String.join(",", updateByQueryRequest.indices()));
@@ -766,7 +767,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         UpdateRequest parsedUpdateRequest = new UpdateRequest();
 
-        XContentType entityContentType = XContentType.fromMediaTypeOrFormat(entity.getContentType().getValue());
+        XContentType entityContentType = XContentType.fromMediaType(entity.getContentType().getValue());
         try (XContentParser parser = createParser(entityContentType.xContent(), entity.getContent())) {
             parsedUpdateRequest.fromXContent(parser);
         }

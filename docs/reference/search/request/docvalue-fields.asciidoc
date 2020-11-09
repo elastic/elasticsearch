@@ -1,4 +1,0 @@
-[[request-body-search-docvalue-fields]]
-==== Doc value fields
-
-See <<docvalue-fields, doc value fields>>.

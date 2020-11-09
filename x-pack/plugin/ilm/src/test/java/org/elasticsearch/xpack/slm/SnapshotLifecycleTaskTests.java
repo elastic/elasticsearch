@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem;
 import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 
@@ -242,6 +243,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                          new SnapshotInfo(
                              new SnapshotId(req.snapshot(), "uuid"),
                              Arrays.asList(req.indices()),
+                             Collections.emptyList(),
                              startTime,
                              "snapshot started",
                              endTime,

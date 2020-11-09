@@ -54,7 +54,14 @@ public abstract class ShardLock implements Closeable {
         }
     }
 
-    protected  abstract void closeInternal();
+    protected abstract void closeInternal();
+
+    /**
+     * Update the details of the holder of this lock. These details are displayed alongside a {@link ShardLockObtainFailedException}. Must
+     * only be called by the holder of this lock.
+     */
+    public void setDetails(String details) {
+    }
 
     @Override
     public String toString() {

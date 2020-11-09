@@ -370,7 +370,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             InternalDateRange.Bucket bucket = factory.createBucket("bucket", 0, 10000, count, InternalAggregations.EMPTY,
                 false, DocValueFormat.RAW);
             InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
-            InternalAggregations aggs = new InternalAggregations(Arrays.asList(range, max));
+            InternalAggregations aggs = InternalAggregations.from(Arrays.asList(range, max));
             SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, aggs, null, null, false, null, 1);
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, randomLong(),

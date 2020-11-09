@@ -8,9 +8,9 @@ Closes an index.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_close
+POST /my-index-000001/_close
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[close-index-api-request]]
@@ -64,21 +64,21 @@ The following example shows how to close an index:
 
 [source,console]
 --------------------------------------------------
-POST /my_index/_close
+POST /my-index-000001/_close
 --------------------------------------------------
-// TEST[s/^/PUT my_index\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 The API returns following response:
 
 [source,console-result]
 --------------------------------------------------
 {
-    "acknowledged" : true,
-    "shards_acknowledged" : true,
-    "indices" : {
-        "my_index" : {
-            "closed" : true
-        }
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "indices": {
+    "my-index-000001": {
+      "closed": true
     }
+  }
 }
 --------------------------------------------------

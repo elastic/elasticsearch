@@ -26,7 +26,10 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.object.HasToString.hasToString;
 
 public class IterablesTests extends ESTestCase {
@@ -84,6 +87,19 @@ public class IterablesTests extends ESTestCase {
             count++;
         }
         assertEquals(1, count);
+    }
+
+    public void testIndexOf() {
+        final List<String> list = Stream.generate(() -> randomAlphaOfLengthBetween(3, 9))
+            .limit(randomIntBetween(10, 30))
+            .distinct()
+            .collect(Collectors.toUnmodifiableList());
+        for (int i = 0; i < list.size(); i++) {
+            final String val = list.get(i);
+            assertThat(Iterables.indexOf(list, val::equals), is(i));
+        }
+        assertThat(Iterables.indexOf(list, s -> false), is(-1));
+        assertThat(Iterables.indexOf(list, s -> true), is(0));
     }
 
     private void test(Iterable<String> iterable) {

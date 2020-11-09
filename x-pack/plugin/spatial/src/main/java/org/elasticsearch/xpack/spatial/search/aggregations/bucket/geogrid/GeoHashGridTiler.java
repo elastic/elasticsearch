@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 public class GeoHashGridTiler implements GeoGridTiler {
 
@@ -19,13 +19,13 @@ public class GeoHashGridTiler implements GeoGridTiler {
     }
 
     @Override
-    public int setValues(GeoShapeCellValues values, MultiGeoShapeValues.GeoShapeValue geoValue, int precision) {
+    public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue, int precision) {
         if (precision == 1) {
             values.resizeCell(1);
             values.add(0, Geohash.longEncode(0, 0, 0));
         }
 
-        MultiGeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
+        GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         assert bounds.minX() <= bounds.maxX();
 
         // TODO: optimize for when a whole shape (not just point) fits in a single tile an
@@ -40,10 +40,10 @@ public class GeoHashGridTiler implements GeoGridTiler {
     }
 
     /**
-     * Sets a singular doc-value for the {@link MultiGeoShapeValues.GeoShapeValue}. To be overriden by {@link BoundedGeoHashGridTiler}
+     * Sets a singular doc-value for the {@link GeoShapeValues.GeoShapeValue}. To be overriden by {@link BoundedGeoHashGridTiler}
      * to account for {@link org.elasticsearch.common.geo.GeoBoundingBox} conditions
      */
-    protected int setValue(GeoShapeCellValues docValues, MultiGeoShapeValues.GeoShapeValue geoValue, MultiGeoShapeValues.BoundingBox bounds,
+    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds,
                            int precision) {
         String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
         docValues.resizeCell(1);
@@ -51,13 +51,13 @@ public class GeoHashGridTiler implements GeoGridTiler {
         return 1;
     }
 
-    protected GeoRelation relateTile(MultiGeoShapeValues.GeoShapeValue geoValue, String hash) {
+    protected GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String hash) {
         Rectangle rectangle = Geohash.toBoundingBox(hash);
         return geoValue.relate(rectangle);
     }
 
-    protected int setValuesByBruteForceScan(GeoShapeCellValues values, MultiGeoShapeValues.GeoShapeValue geoValue, int precision,
-                                            MultiGeoShapeValues.BoundingBox bounds) {
+    protected int setValuesByBruteForceScan(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue, int precision,
+                                            GeoShapeValues.BoundingBox bounds) {
         // TODO: This way to discover cells inside of a bounding box seems not to work as expected. I  can
         // see that eventually we will be visiting twice the same cell which should not happen.
         int idx = 0;
@@ -82,7 +82,7 @@ public class GeoHashGridTiler implements GeoGridTiler {
     }
 
     protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex, int targetPrecision,
-                                           MultiGeoShapeValues.GeoShapeValue geoValue) {
+                                           GeoShapeValues.GeoShapeValue geoValue) {
         String[] hashes = Geohash.getSubGeohashes(hash);
         for (int i = 0; i < hashes.length; i++) {
             GeoRelation relation = relateTile(geoValue, hashes[i]);

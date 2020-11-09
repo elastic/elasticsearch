@@ -111,10 +111,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     
     MultiSearchTemplateResponse(StreamInput in) throws IOException {
         super(in);
-        items = new Item[in.readVInt()];
-        for (int i = 0; i < items.length; i++) {
-            items[i] = new Item(in);
-        }
+        items = in.readArray(Item::new, Item[]::new);
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             tookInMillis = in.readVLong();
         } else {
@@ -148,10 +145,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(items.length);
-        for (Item item : items) {
-            item.writeTo(out);
-        }
+        out.writeArray(items);
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeVLong(tookInMillis);
         }

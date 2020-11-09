@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -59,7 +58,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     /**
      * Standard deprecation logger for used to deprecate allowance of empty templates.
      */
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(StoredScriptSource.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(StoredScriptSource.class);
 
     /**
      * Standard {@link ParseField} for outer level of stored script source.

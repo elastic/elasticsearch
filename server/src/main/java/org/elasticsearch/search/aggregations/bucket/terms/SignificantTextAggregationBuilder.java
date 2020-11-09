@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -35,6 +34,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -324,12 +324,12 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+    protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
                                         Builder subFactoriesBuilder) throws IOException {
-        SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(queryShardContext);
+        SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(context);
 
         return new SignificantTextAggregatorFactory(name, includeExclude, filterBuilder,
-                bucketCountThresholds, executionHeuristic, queryShardContext, parent, subFactoriesBuilder,
+                bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder,
                 fieldName, sourceFieldNames, filterDuplicateText, metadata);
     }
 

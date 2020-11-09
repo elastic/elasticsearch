@@ -31,6 +31,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
@@ -40,6 +42,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -54,6 +57,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
  * The FollowersChecker is responsible for allowing a leader to check that its followers are still connected and healthy. On deciding that a
@@ -94,16 +98,17 @@ public class FollowersChecker {
     private final Set<DiscoveryNode> faultyNodes = new HashSet<>();
 
     private final TransportService transportService;
-
+    private final NodeHealthService nodeHealthService;
     private volatile FastResponseState fastResponseState;
 
     public FollowersChecker(Settings settings, TransportService transportService,
                             Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
-                            BiConsumer<DiscoveryNode, String> onNodeFailure) {
+                            BiConsumer<DiscoveryNode, String> onNodeFailure, NodeHealthService nodeHealthService) {
         this.settings = settings;
         this.transportService = transportService;
         this.handleRequestAndUpdateState = handleRequestAndUpdateState;
         this.onNodeFailure = onNodeFailure;
+        this.nodeHealthService = nodeHealthService;
 
         followerCheckInterval = FOLLOWER_CHECK_INTERVAL_SETTING.get(settings);
         followerCheckTimeout = FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings);
@@ -160,8 +165,15 @@ public class FollowersChecker {
     }
 
     private void handleFollowerCheck(FollowerCheckRequest request, TransportChannel transportChannel) throws IOException {
-        FastResponseState responder = this.fastResponseState;
+        final StatusInfo statusInfo = nodeHealthService.getHealth();
+        if (statusInfo.getStatus() == UNHEALTHY) {
+            final String message
+                = "handleFollowerCheck: node is unhealthy [" + statusInfo.getInfo() + "], rejecting " + statusInfo.getInfo();
+            logger.debug(message);
+            throw new NodeHealthCheckFailureException(message);
+        }
 
+        final FastResponseState responder = this.fastResponseState;
         if (responder.mode == Mode.FOLLOWER && responder.term == request.term) {
             logger.trace("responding to {} on fast path", request);
             transportChannel.sendResponse(Empty.INSTANCE);
@@ -288,14 +300,10 @@ public class FollowersChecker {
 
             transportService.sendRequest(discoveryNode, FOLLOWER_CHECK_ACTION_NAME, request,
                 TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
-                new TransportResponseHandler<Empty>() {
-                    @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
+                new TransportResponseHandler.Empty() {
 
                     @Override
-                    public void handleResponse(Empty response) {
+                    public void handleResponse(TransportResponse.Empty response) {
                         if (running() == false) {
                             logger.trace("{} no longer running", FollowerChecker.this);
                             return;
@@ -316,13 +324,16 @@ public class FollowersChecker {
                         failureCountSinceLastSuccess++;
 
                         final String reason;
-                        if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
-                            logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
-                            reason = "followers check retry count exceeded";
-                        } else if (exp instanceof ConnectTransportException
+                        if (exp instanceof ConnectTransportException
                             || exp.getCause() instanceof ConnectTransportException) {
                             logger.debug(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
                             reason = "disconnected";
+                        } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
+                            logger.debug(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
+                            reason = "health check failed";
+                        } else if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
+                            logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
+                            reason = "followers check retry count exceeded";
                         } else {
                             logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();
@@ -330,12 +341,6 @@ public class FollowersChecker {
                         }
 
                         failNode(reason);
-                    }
-
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
                     }
                 });
         }

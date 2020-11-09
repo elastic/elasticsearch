@@ -11,7 +11,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mock.orig.Mockito;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 
@@ -35,6 +35,7 @@ import java.util.Date;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -186,7 +187,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         assertBusy(() -> wasHandlerCalled.get());
     }
 
-    public void testBuild_GivenBucketsRequestFails() {
+    public void testBuild_GivenRestartInfoRequestFails() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
@@ -197,10 +198,10 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         Exception error = new RuntimeException("error");
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            Consumer<Exception> consumer = (Consumer<Exception>) invocationOnMock.getArguments()[3];
-            consumer.accept(error);
+            ActionListener<RestartTimeInfo> restartTimeInfoListener = (ActionListener<RestartTimeInfo>) invocationOnMock.getArguments()[1];
+            restartTimeInfoListener.onFailure(error);
             return null;
-        }).when(jobResultsProvider).bucketsViaInternalClient(any(), any(), any(), any());
+        }).when(jobResultsProvider).getRestartTimeInfo(any(), any());
 
 
         givenJob(jobBuilder);
@@ -212,7 +213,6 @@ public class DatafeedJobBuilderTests extends ESTestCase {
     }
 
     public void testBuildGivenRemoteIndicesButNoRemoteSearching() throws Exception {
-        Settings settings = Settings.builder().put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), false).build();
         datafeedJobBuilder =
             new DatafeedJobBuilder(
                 client,
@@ -224,7 +224,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 jobResultsProvider,
                 datafeedConfigProvider,
                 jobResultsPersister,
-                settings,
+                nonRemoteClusterClientNode(),
                 "test_node");
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");

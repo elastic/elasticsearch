@@ -66,7 +66,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
                 .map((p) -> (InternalAggregation) p)
                 .collect(Collectors.toList());
             aggs.add(new InternalSimpleValue(name(), sum, formatter, metadata()));
-            Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
+            Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
             newBuckets.add(newBucket);
         }
         return factory.createAggregation(newBuckets);

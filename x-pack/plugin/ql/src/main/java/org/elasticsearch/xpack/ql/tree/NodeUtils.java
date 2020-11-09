@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.ql.tree;
 
+import java.util.Collection;
+import java.util.Iterator;
+
 public abstract class NodeUtils {
     public static <A extends Node<A>, B extends Node<B>> String diffString(A left, B right) {
         return diffString(left.toString(), right.toString());
@@ -52,5 +55,34 @@ public abstract class NodeUtils {
             }
         }
         return sb.toString();
+    }
+
+
+    private static final int TO_STRING_LIMIT = 52;
+
+    public static <E> String limitedToString(Collection<E> c) {
+        Iterator<E> it = c.iterator();
+        if (!it.hasNext()) {
+            return "[]";
+        }
+
+        // ..]
+        StringBuilder sb = new StringBuilder(TO_STRING_LIMIT + 4);
+        sb.append('[');
+        for (;;) {
+            E e = it.next();
+            String next = e == c ? "(this Collection)" : String.valueOf(e);
+            if (next.length() + sb.length() > TO_STRING_LIMIT) {
+                sb.append(next.substring(0, Math.max(0, TO_STRING_LIMIT - sb.length())));
+                sb.append('.').append('.').append(']');
+                return sb.toString();
+            } else {
+                sb.append(next);
+            }
+            if (!it.hasNext()) {
+                return sb.append(']').toString();
+            }
+            sb.append(',').append(' ');
+        }
     }
 }

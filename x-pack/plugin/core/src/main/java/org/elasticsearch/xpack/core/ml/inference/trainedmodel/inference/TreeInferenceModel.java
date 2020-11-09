@@ -6,6 +6,9 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -17,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInference
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RawInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
@@ -27,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.inference.utils.Statistics;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +60,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNo
 
 public class TreeInferenceModel implements InferenceModel {
 
+    private static final Logger LOGGER = LogManager.getLogger(TreeInferenceModel.class);
     public static final long SHALLOW_SIZE = shallowSizeOfInstance(TreeInferenceModel.class);
 
     @SuppressWarnings("unchecked")
@@ -122,22 +128,12 @@ public class TreeInferenceModel implements InferenceModel {
 
     @Override
     public InferenceResults infer(Map<String, Object> fields, InferenceConfig config, Map<String, String> featureDecoderMap) {
-        return innerInfer(getFeatures(fields), config, featureDecoderMap);
+        return innerInfer(InferenceModel.extractFeatures(featureNames, fields), config, featureDecoderMap);
     }
 
     @Override
     public InferenceResults infer(double[] features, InferenceConfig config) {
         return innerInfer(features, config, Collections.emptyMap());
-    }
-
-    private double[] getFeatures(Map<String, Object> fields) {
-        double[] features = new double[featureNames.length];
-        int i = 0;
-        for (String featureName : featureNames) {
-            Double val = InferenceHelpers.toDouble(fields.get(featureName));
-            features[i++] = val == null ? Double.NaN : val;
-        }
-        return features;
     }
 
     private InferenceResults innerInfer(double[] features, InferenceConfig config, Map<String, String> featureDecoderMap) {
@@ -173,21 +169,26 @@ public class TreeInferenceModel implements InferenceModel {
         switch (targetType) {
             case CLASSIFICATION:
                 ClassificationConfig classificationConfig = (ClassificationConfig) config;
-                Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
+                Tuple<InferenceHelpers.TopClassificationValue, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
                     classificationProbability(value),
                     classificationLabels,
                     null,
                     classificationConfig.getNumTopClasses(),
                     classificationConfig.getPredictionFieldType());
-                return new ClassificationInferenceResults(topClasses.v1(),
-                    classificationLabel(topClasses.v1(), classificationLabels),
+                final InferenceHelpers.TopClassificationValue classificationValue = topClasses.v1();
+                return new ClassificationInferenceResults(classificationValue.getValue(),
+                    classificationLabel(classificationValue.getValue(), classificationLabels),
                     topClasses.v2(),
-                    InferenceHelpers.transformFeatureImportance(decodedFeatureImportance, classificationLabels),
-                    config);
+                    InferenceHelpers.transformFeatureImportanceClassification(decodedFeatureImportance,
+                        classificationLabels,
+                        classificationConfig.getPredictionFieldType()),
+                    config,
+                    classificationValue.getProbability(),
+                    classificationValue.getScore());
             case REGRESSION:
                 return new RegressionInferenceResults(value[0],
                     config,
-                    InferenceHelpers.transformFeatureImportance(decodedFeatureImportance, null));
+                    InferenceHelpers.transformFeatureImportanceRegression(decodedFeatureImportance));
             default:
                 throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on tree model");
         }
@@ -300,6 +301,7 @@ public class TreeInferenceModel implements InferenceModel {
 
     @Override
     public void rewriteFeatureIndices(Map<String, Integer> newFeatureIndexMapping) {
+        LOGGER.debug(() -> new ParameterizedMessage("rewriting features {}", newFeatureIndexMapping));
         if (preparedForInference) {
             return;
         }
@@ -341,7 +343,7 @@ public class TreeInferenceModel implements InferenceModel {
             if (node instanceof LeafNode) {
                 LeafNode leafNode = (LeafNode) node;
                 if (leafNode.leafValue.length > 1) {
-                    return (double)leafNode.leafValue.length;
+                    return leafNode.leafValue.length;
                 } else {
                     max = Math.max(leafNode.leafValue[0], max);
                 }
@@ -352,6 +354,20 @@ public class TreeInferenceModel implements InferenceModel {
 
     public Node[] getNodes() {
         return nodes;
+    }
+
+    @Override
+    public String toString() {
+        return "TreeInferenceModel{" +
+            "nodes=" + Arrays.toString(nodes) +
+            ", featureNames=" + Arrays.toString(featureNames) +
+            ", targetType=" + targetType +
+            ", classificationLabels=" + classificationLabels +
+            ", highOrderCategory=" + highOrderCategory +
+            ", maxDepth=" + maxDepth +
+            ", leafSize=" + leafSize +
+            ", preparedForInference=" + preparedForInference +
+            '}';
     }
 
     private static int getDepth(Node[] nodes, int nodeIndex, int depth) {
@@ -515,6 +531,19 @@ public class TreeInferenceModel implements InferenceModel {
         public long ramBytesUsed() {
             return SHALLOW_SIZE;
         }
+
+        @Override
+        public String toString() {
+            return "InnerNode{" +
+                "operator=" + operator +
+                ", threshold=" + threshold +
+                ", splitFeature=" + splitFeature +
+                ", defaultLeft=" + defaultLeft +
+                ", leftChild=" + leftChild +
+                ", rightChild=" + rightChild +
+                ", numberSamples=" + numberSamples +
+                '}';
+        }
     }
 
     public static class LeafNode extends Node {
@@ -539,6 +568,14 @@ public class TreeInferenceModel implements InferenceModel {
 
         public double[] getLeafValue() {
             return leafValue;
+        }
+
+        @Override
+        public String toString() {
+            return "LeafNode{" +
+                "leafValue=" + Arrays.toString(leafValue) +
+                ", numberSamples=" + numberSamples +
+                '}';
         }
     }
 }

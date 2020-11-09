@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -27,7 +28,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ConnectionProfileTests extends ESTestCase {
@@ -209,7 +214,7 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(TransportSettings.TRANSPORT_COMPRESS.get(Settings.EMPTY), profile.getCompressionEnabled());
         assertEquals(TransportSettings.PING_SCHEDULE.get(Settings.EMPTY), profile.getPingInterval());
 
-        profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.builder().put("node.master", false).build());
+        profile = ConnectionProfile.buildDefaultConnectionProfile(nonMasterNode());
         assertEquals(12, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
         assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
@@ -217,7 +222,7 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
 
-        profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).build());
+        profile = ConnectionProfile.buildDefaultConnectionProfile(nonDataNode());
         assertEquals(11, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
         assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
@@ -225,8 +230,9 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
 
-        profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.builder().put("node.data", false)
-            .put("node.master", false).build());
+        profile = ConnectionProfile.buildDefaultConnectionProfile(
+            removeRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+        );
         assertEquals(10, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
         assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));

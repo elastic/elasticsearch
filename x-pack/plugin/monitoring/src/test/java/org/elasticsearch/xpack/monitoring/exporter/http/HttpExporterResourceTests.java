@@ -102,7 +102,11 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void awaitCheckAndPublish(final Boolean expected) {
-        resources.checkAndPublish(client, listener);
+        awaitCheckAndPublish(resources, expected);
+    }
+
+    public void awaitCheckAndPublish(HttpResource resource, final Boolean expected) {
+        resource.checkAndPublish(client, listener);
 
         verifyListener(expected);
     }
@@ -484,6 +488,56 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyNoMoreInteractions(client);
     }
 
+    public void testDeployClusterAlerts() {
+        final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
+        final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
+        final int successfulGetPipelines = randomIntBetween(0, EXPECTED_PIPELINES);
+        final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
+        final Exception exception = failurePutException();
+
+        whenValidVersionResponse();
+        whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
+        whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
+        whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
+        whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
+        // license needs to be valid, otherwise we'll do DELETEs, which are tested earlier
+        whenWatcherCanBeUsed(true);
+
+        // a number of watches are mocked as present
+        final int existingWatches = randomIntBetween(0, EXPECTED_WATCHES);
+
+        // For completeness's sake. GET/PUT watches wont be called by the resources.
+        // Instead it tries to DELETE the watches ignoring them not existing.
+        whenGetWatches(existingWatches, EXPECTED_WATCHES - existingWatches);
+        whenPerformRequestAsyncWith(client, new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/")), exception);
+        whenPerformRequestAsyncWith(client, new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/")),
+            successfulDeleteResponses(EXPECTED_WATCHES));
+
+        // Create resources that are configured to remove all watches
+        Settings removalExporterSettings = Settings.builder()
+            .put(exporterSettings)
+            .put("xpack.monitoring.migration.decommission_alerts", true)
+            .build();
+        MultiHttpResource overrideResource = HttpExporter.createResources(
+            new Exporter.Config("_http", "http", removalExporterSettings, clusterService, licenseState));
+
+        assertTrue(overrideResource.isDirty());
+        awaitCheckAndPublish(overrideResource, true);
+        // Should proceed
+        assertFalse(overrideResource.isDirty());
+
+        verifyVersionCheck();
+        verifyGetTemplates(EXPECTED_TEMPLATES);
+        verifyPutTemplates(unsuccessfulGetTemplates);
+        verifyGetPipelines(EXPECTED_PIPELINES);
+        verifyPutPipelines(unsuccessfulGetPipelines);
+        verifyWatcherCheck();
+        verifyGetWatches(0);
+        verifyPutWatches(0);
+        verifyDeleteWatches(EXPECTED_WATCHES);
+        verifyNoMoreInteractions(client);
+    }
+
     public void testSuccessfulChecksOnElectedMasterNode() {
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
@@ -735,7 +789,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         when(state.metadata()).thenReturn(metadata);
         when(metadata.clusterUUID()).thenReturn("the_clusters_uuid");
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(validLicense);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(validLicense);
 
         final HttpEntity entity =
                 new StringEntity("{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}", ContentType.APPLICATION_JSON);

@@ -37,7 +37,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -118,7 +117,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
-        this.enabled = Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
+        this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
         this.transportService = transportService;
     }
 
@@ -134,22 +133,18 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
-        Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-        if (isCrossClusterSearchEnabled()) {
-            final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices);
-            if (groupedIndices.isEmpty()) {
-                //search on _all in the local cluster if neither local indices nor remote indices were specified
-                originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
-            } else {
-                for (Map.Entry<String, List<String>> entry : groupedIndices.entrySet()) {
-                    String clusterAlias = entry.getKey();
-                    List<String> originalIndices = entry.getValue();
-                    originalIndicesMap.put(clusterAlias,
-                        new OriginalIndices(originalIndices.toArray(new String[0]), indicesOptions));
-                }
-            }
+        final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
+        final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices);
+        if (groupedIndices.isEmpty()) {
+            //search on _all in the local cluster if neither local indices nor remote indices were specified
+            originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
         } else {
-            originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(indices, indicesOptions));
+            for (Map.Entry<String, List<String>> entry : groupedIndices.entrySet()) {
+                String clusterAlias = entry.getKey();
+                List<String> originalIndices = entry.getValue();
+                originalIndicesMap.put(clusterAlias,
+                    new OriginalIndices(originalIndices.toArray(new String[0]), indicesOptions));
+            }
         }
         return originalIndicesMap;
     }

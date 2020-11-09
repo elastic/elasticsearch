@@ -60,7 +60,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         }
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filters);
         builder.otherBucketKey("other");
-        InternalFilters response = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+        InternalFilters response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
         assertEquals(response.getBuckets().size(), numFilters);
         for (InternalFilters.InternalBucket filter : response.getBuckets()) {
             assertEquals(filter.getDocCount(), 0);
@@ -113,22 +113,15 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", keys);
         builder.otherBucket(true);
         builder.otherBucketKey("other");
-        for (boolean doReduce : new boolean[] {true, false}) {
-            final InternalFilters filters;
-            if (doReduce) {
-                filters = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
-            } else {
-                filters = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
-            }
-            assertEquals(filters.getBuckets().size(), 7);
-            assertEquals(filters.getBucketByKey("foobar").getDocCount(), 2);
-            assertEquals(filters.getBucketByKey("foo").getDocCount(), 2);
-            assertEquals(filters.getBucketByKey("foo2").getDocCount(), 2);
-            assertEquals(filters.getBucketByKey("bar").getDocCount(), 1);
-            assertEquals(filters.getBucketByKey("same").getDocCount(), 1);
-            assertEquals(filters.getBucketByKey("other").getDocCount(), 2);
-            assertTrue(AggregationInspectionHelper.hasValue(filters));
-        }
+        final InternalFilters filters = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+        assertEquals(filters.getBuckets().size(), 7);
+        assertEquals(filters.getBucketByKey("foobar").getDocCount(), 2);
+        assertEquals(filters.getBucketByKey("foo").getDocCount(), 2);
+        assertEquals(filters.getBucketByKey("foo2").getDocCount(), 2);
+        assertEquals(filters.getBucketByKey("bar").getDocCount(), 1);
+        assertEquals(filters.getBucketByKey("same").getDocCount(), 1);
+        assertEquals(filters.getBucketByKey("other").getDocCount(), 2);
+        assertTrue(AggregationInspectionHelper.hasValue(filters));
 
         indexReader.close();
         directory.close();
@@ -175,28 +168,21 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             builder.otherBucket(true);
             builder.otherBucketKey("other");
 
-            for (boolean doReduce : new boolean[]{true, false}) {
-                final InternalFilters response;
-                if (doReduce) {
-                    response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+            final InternalFilters response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+            List<InternalFilters.InternalBucket> buckets = response.getBuckets();
+            assertEquals(buckets.size(), filters.length + 1);
+
+            for (InternalFilters.InternalBucket bucket : buckets) {
+                if ("other".equals(bucket.getKey())) {
+                    assertEquals(bucket.getDocCount(), expectedOtherCount);
                 } else {
-                    response = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+                    int index = Integer.parseInt(bucket.getKey());
+                    assertEquals(bucket.getDocCount(), (long) expectedBucketCount[filterTerms[index]]);
                 }
-                List<InternalFilters.InternalBucket> buckets = response.getBuckets();
-                assertEquals(buckets.size(), filters.length + 1);
-
-                for (InternalFilters.InternalBucket bucket : buckets) {
-                    if ("other".equals(bucket.getKey())) {
-                        assertEquals(bucket.getDocCount(), expectedOtherCount);
-                    } else {
-                        int index = Integer.parseInt(bucket.getKey());
-                        assertEquals(bucket.getDocCount(), (long) expectedBucketCount[filterTerms[index]]);
-                    }
-                }
-
-                // Always true because we include 'other' in the agg
-                assertTrue(AggregationInspectionHelper.hasValue(response));
             }
+
+            // Always true because we include 'other' in the agg
+            assertTrue(AggregationInspectionHelper.hasValue(response));
         } finally {
             indexReader.close();
             directory.close();

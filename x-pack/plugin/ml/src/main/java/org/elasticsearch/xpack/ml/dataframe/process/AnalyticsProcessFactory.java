@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 
 import java.util.concurrent.ExecutorService;
@@ -19,12 +17,12 @@ public interface AnalyticsProcessFactory<ProcessResult> {
      *
      * @param config                 The data frame analytics config
      * @param analyticsProcessConfig The process configuration
-     * @param state                  The state document to restore from if there is one available
+     * @param hasState               Whether there is state to restore from
      * @param executorService        Executor service used to start the async tasks a job needs to operate the analytical process
      * @param onProcessCrash         Callback to execute if the process stops unexpectedly
      * @return The process
      */
     AnalyticsProcess<ProcessResult> createAnalyticsProcess(DataFrameAnalyticsConfig config, AnalyticsProcessConfig analyticsProcessConfig,
-                                                           @Nullable BytesReference state, ExecutorService executorService,
+                                                           boolean hasState, ExecutorService executorService,
                                                            Consumer<String> onProcessCrash);
 }

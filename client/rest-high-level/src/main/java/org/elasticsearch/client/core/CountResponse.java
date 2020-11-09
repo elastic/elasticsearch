@@ -101,9 +101,9 @@ public final class CountResponse {
     }
 
     public static CountResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         String currentName = parser.currentName();
         Boolean terminatedEarly = null;
         long count = 0;

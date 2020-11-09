@@ -1,3 +1,4 @@
+[role="xpack"]
 [[indices-create-data-stream]]
 === Create data stream API
 ++++
@@ -6,7 +7,7 @@
 
 Creates a new <<data-streams,data stream>>.
 
-Data streams require an associated <<indices-templates,composable template>>.
+Data streams require a matching <<indices-templates,index template>>.
 See <<set-up-a-data-stream>>.
 
 ////
@@ -15,18 +16,7 @@ See <<set-up-a-data-stream>>.
 PUT /_index_template/template
 {
   "index_patterns": ["my-data-stream*"],
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  },
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  }
+  "data_stream": { }
 }
 ----
 ////

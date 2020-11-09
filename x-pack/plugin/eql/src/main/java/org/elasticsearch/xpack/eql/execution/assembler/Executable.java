@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.eql.execution.assembler;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.session.Payload;
 
 public interface Executable {
 
-    void execute(ActionListener<Results> resultsListener);
+    void execute(ActionListener<Payload> resultsListener);
 }

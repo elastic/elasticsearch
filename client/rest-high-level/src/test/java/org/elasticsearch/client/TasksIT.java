@@ -121,7 +121,7 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         assertEquals("reindex from [source1] to [dest]", info.getDescription());
         assertEquals("indices:data/write/reindex", info.getAction());
         if (taskResponse.isCompleted() == false) {
-            assertBusy(ReindexIT.checkCompletionStatus(client(), taskId.toString()));
+            assertBusy(checkTaskCompletionStatus(client(), taskId.toString()));
         }
     }
 

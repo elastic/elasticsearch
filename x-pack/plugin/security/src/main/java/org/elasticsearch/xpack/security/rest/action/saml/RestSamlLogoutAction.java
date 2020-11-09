@@ -74,6 +74,7 @@ public class RestSamlLogoutAction extends SamlBaseRestHandler {
                         @Override
                         public RestResponse buildResponse(SamlLogoutResponse response, XContentBuilder builder) throws Exception {
                             builder.startObject();
+                            builder.field("id", response.getRequestId());
                             builder.field("redirect", response.getRedirectUrl());
                             builder.endObject();
                             return new BytesRestResponse(RestStatus.OK, builder);

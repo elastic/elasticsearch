@@ -53,7 +53,7 @@ a number of clients that have been contributed by the community for various lang
 * https://github.com/mpenet/spandex[Spandex]:
   Clojure client, based on the new official low level rest-client.
 
-* http://github.com/clojurewerkz/elastisch[Elastisch]:
+* https://github.com/clojurewerkz/elastisch[Elastisch]:
   Clojure client.
 
 [[coldfusion]]
@@ -65,12 +65,12 @@ a number of clients that have been contributed by the community for various lang
 [[erlang]]
 == Erlang
 
-* http://github.com/tsloughter/erlastic_search[erlastic_search]:
+* https://github.com/tsloughter/erlastic_search[erlastic_search]:
   Erlang client using HTTP.
 
 * https://github.com/datahogs/tirexs[Tirexs]:
   An https://github.com/elixir-lang/elixir[Elixir] based API/DSL, inspired by
-  http://github.com/karmi/tire[Tire]. Ready to use in pure Erlang
+  https://github.com/karmi/tire[Tire]. Ready to use in pure Erlang
   environment.
 
 * https://github.com/sashman/elasticsearch_elixir_bulk_processor[Elixir Bulk Processor]:
@@ -145,10 +145,10 @@ Also see the {client}/perl-api/current/index.html[official Elasticsearch Perl cl
 
 Also see the {client}/php-api/current/index.html[official Elasticsearch PHP client].
 
-* http://github.com/ruflin/Elastica[Elastica]:
+* https://github.com/ruflin/Elastica[Elastica]:
   PHP client.
 
-* http://github.com/nervetattoo/elasticsearch[elasticsearch] PHP client.
+* https://github.com/nervetattoo/elasticsearch[elasticsearch] PHP client.
 
 * https://github.com/madewithlove/elasticsearcher[elasticsearcher] Agnostic lightweight package on top of the Elasticsearch PHP client. Its main goal is to allow for easier structuring of queries and indices in your application.  It does not want to hide or replace functionality of the Elasticsearch PHP client.
 
@@ -217,9 +217,6 @@ Also see the {client}/rust-api/current/index.html[official Elasticsearch Rust cl
 
 * https://github.com/newapplesho/elasticsearch-smalltalk[elasticsearch-smalltalk] -
   Pharo Smalltalk client for Elasticsearch
-
-* http://ss3.gemstone.com/ss/Elasticsearch.html[Elasticsearch] -
-  Smalltalk client for Elasticsearch
 
 [[vertx]]
 == Vert.x

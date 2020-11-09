@@ -67,6 +67,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregati
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.ParsedVariableWidthHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.VariableWidthHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.missing.ParsedMissing;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
@@ -242,6 +244,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(HistogramAggregationBuilder.NAME, (p, c) -> ParsedHistogram.fromXContent(p, (String) c));
         map.put(DateHistogramAggregationBuilder.NAME, (p, c) -> ParsedDateHistogram.fromXContent(p, (String) c));
         map.put(AutoDateHistogramAggregationBuilder.NAME, (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c));
+        map.put(VariableWidthHistogramAggregationBuilder.NAME, (p, c) -> ParsedVariableWidthHistogram.fromXContent(p, (String) c));
         map.put(StringTerms.NAME, (p, c) -> ParsedStringTerms.fromXContent(p, (String) c));
         map.put(LongTerms.NAME, (p, c) -> ParsedLongTerms.fromXContent(p, (String) c));
         map.put(DoubleTerms.NAME, (p, c) -> ParsedDoubleTerms.fromXContent(p, (String) c));
@@ -411,7 +414,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createTestInstance(randomAlphaOfLength(5));
     }
 
-    private T createTestInstance(String name) {
+    public final Map<String, Object> createTestMetadata() {
         Map<String, Object> metadata = null;
         if (randomBoolean()) {
             metadata = new HashMap<>();
@@ -420,7 +423,11 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
         }
-        return createTestInstance(name, metadata);
+        return metadata;
+    }
+
+    private T createTestInstance(String name) {
+        return createTestInstance(name, createTestMetadata());
     }
 
     /** Return an instance on an unmapped field. */
@@ -433,14 +440,18 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createUnmappedInstance(name, metadata);
     }
 
+    public T createTestInstanceForXContent() {
+        return createTestInstance();
+    }
+
     public final void testFromXContent() throws IOException {
-        final T aggregation = createTestInstance();
+        final T aggregation = createTestInstanceForXContent();
         final ParsedAggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), false);
         assertFromXContent(aggregation, parsedAggregation);
     }
 
     public final void testFromXContentWithRandomFields() throws IOException {
-        final T aggregation = createTestInstance();
+        final T aggregation = createTestInstanceForXContent();
         final ParsedAggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), true);
         assertFromXContent(aggregation, parsedAggregation);
     }

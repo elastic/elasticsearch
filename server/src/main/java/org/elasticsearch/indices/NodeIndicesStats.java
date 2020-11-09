@@ -253,6 +253,14 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         return statsMap;
     }
 
+    public List<IndexShardStats> getShardStats(Index index) {
+        if (statsByShard == null) {
+            return null;
+        } else {
+            return statsByShard.get(index);
+        }
+    }
+
     static final class Fields {
         static final String INDICES = "indices";
     }

@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryData;
 
@@ -29,7 +30,7 @@ import java.util.Objects;
 /**
  * Metadata about registered repository
  */
-public class RepositoryMetadata {
+public class RepositoryMetadata implements Writeable {
 
     private final String name;
     private final String type;
@@ -134,6 +135,7 @@ public class RepositoryMetadata {
      *
      * @param out stream output
      */
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(type);

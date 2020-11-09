@@ -46,7 +46,7 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
      * @param roles list of {@link Role}s
      * @param expiration to specify expiration for the API key
      */
-    public CreateApiKeyRequest(@Nullable String name, List<Role> roles, @Nullable TimeValue expiration,
+    public CreateApiKeyRequest(String name, List<Role> roles, @Nullable TimeValue expiration,
                                @Nullable final RefreshPolicy refreshPolicy) {
         this.name = name;
         this.roles = Objects.requireNonNull(roles, "roles may not be null");

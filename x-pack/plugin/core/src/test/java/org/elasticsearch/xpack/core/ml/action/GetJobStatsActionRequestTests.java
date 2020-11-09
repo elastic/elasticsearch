@@ -19,7 +19,7 @@ public class GetJobStatsActionRequestTests extends AbstractWireSerializingTestCa
     @Override
     protected Request createTestInstance() {
         Request request = new Request(randomBoolean() ? Metadata.ALL : randomAlphaOfLengthBetween(1, 20));
-        request.setAllowNoJobs(randomBoolean());
+        request.setAllowNoMatch(randomBoolean());
         return request;
     }
 

@@ -328,6 +328,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 out.writeBoolean(true);
                 out.writeMap(runtimeMappings);
             }
+        } else {
+            if (runtimeMappings != null) {
+                throw new IllegalArgumentException(
+                    "Versions before 8.0.0 don't support [runtime_mappings] and search was sent to [" + out.getVersion() + "]"
+                );
+            }
         }
     }
 

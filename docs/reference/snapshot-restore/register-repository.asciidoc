@@ -100,71 +100,20 @@ are left untouched and in place.
 [[snapshots-filesystem-repository]]
 === Shared file system repository
 
-The shared file system repository (`"type": "fs"`) uses the shared file system to store snapshots. In order to register
-the shared file system repository it is necessary to mount the same shared filesystem to the same location on all
-master and data nodes. This location (or one of its parent directories) must be registered in the `path.repo`
-setting on all master and data nodes.
+Use a shared file system repository (`"type": "fs"`) to store snapshots on a
+shared file system.
 
-Assuming that the shared filesystem is mounted to `/mount/backups/my_fs_backup_location`, the following setting should
-be added to `elasticsearch.yml` file:
+To register a shared file system repository, first mount the file system to the
+same location on all master and data nodes. Then add the file system's
+path or parent directory to the `path.repo` setting in `elasticsearch.yml` for
+each master and data node. For running clusters, this requires a
+<<restart-cluster-rolling,rolling restart>> of each node.
 
-[source,yaml]
---------------
-path.repo: ["/mount/backups", "/mount/longterm_backups"]
---------------
+Supported `path.repo` values vary by platform:
 
-The `path.repo` setting supports Microsoft Windows UNC paths as long as at least server name and share are specified as
-a prefix and back slashes are properly escaped:
+include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 
-[source,yaml]
---------------
-path.repo: ["\\\\MY_SERVER\\Snapshots"]
---------------
-
-After all nodes are restarted, the following command can be used to register the shared file system repository with
-the name `my_fs_backup`:
-
-[source,console]
------------------------------------
-PUT /_snapshot/my_fs_backup
-{
-  "type": "fs",
-  "settings": {
-    "location": "/mount/backups/my_fs_backup_location",
-    "compress": true
-  }
-}
------------------------------------
-// TEST[skip:no access to absolute path]
-
-If the repository location is specified as a relative path this path will be resolved against the first path specified
-in `path.repo`:
-
-[source,console]
------------------------------------
-PUT /_snapshot/my_fs_backup
-{
-  "type": "fs",
-  "settings": {
-    "location": "my_fs_backup_location",
-    "compress": true
-  }
-}
------------------------------------
-// TEST[continued]
-
-The following settings are supported:
-
-`location`:: Location of the snapshots. Mandatory.
-`compress`:: Turns on compression of the snapshot files. Compression is applied only to metadata files (index mapping and settings). Data files are not compressed. Defaults to `true`.
-`chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. Specify the chunk size as a value and
-unit, for example: `1GB`, `10MB`, `5KB`, `500B`. Defaults to `null` (unlimited chunk size).
-`max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to unlimited. Note that restores are also throttled through <<recovery,recovery settings>>.
-`max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `40mb` per second.
-`readonly`:: Makes repository read-only.  Defaults to `false`.
-`max_number_of_snapshots`:: Limits the maximum number of snapshots that the repository may contain. Defaults to `500`. Note that snapshot repositories do not
-scale indefinitely in size and might lead to master node performance and stability issues if they grow past a certain size. We do not recommend increasing this setting.
-Instead you should delete older snapshots or use multiple repositories.
+include::{es-repo-dir}/tab-widgets/register-fs-repo-widget.asciidoc[]
 
 [discrete]
 [[snapshots-read-only-repository]]

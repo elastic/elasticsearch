@@ -25,7 +25,7 @@
             aria-controls="mac-tab-logs"
             id="mac-logs"
             tabindex="-1">
-      MacOS
+      macOS
     </button>
     <button role="tab"
             aria-selected="false"

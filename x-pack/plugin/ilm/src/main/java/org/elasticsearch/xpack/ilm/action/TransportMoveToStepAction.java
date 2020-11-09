@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,10 +25,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction.Request;
-import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction.Response;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
-public class TransportMoveToStepAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportMoveToStepAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(TransportMoveToStepAction.class);
 
     IndexLifecycleService indexLifecycleService;
@@ -36,12 +36,12 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                      IndexLifecycleService indexLifecycleService) {
         super(MoveToStepAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
-            indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
+            indexNameExpressionResolver, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME);
         this.indexLifecycleService = indexLifecycleService;
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         IndexMetadata indexMetadata = state.metadata().index(request.getIndex());
         if (indexMetadata == null) {
             listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] does not exist"));
@@ -65,11 +65,6 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
                         return;
                     }
                     indexLifecycleService.maybeRunAsyncAction(newState, newIndexMetadata, request.getNextStepKey());
-                }
-
-                @Override
-                protected Response newResponse(boolean acknowledged) {
-                    return new Response(acknowledged);
                 }
             });
     }

@@ -685,7 +685,7 @@ another field. This applies even if the fields are changed using a
 ==== Array field values are not supported
 
 EQL does not support <<array,array>> field values, also known as
-_multi-value fields_. EQL searches on array field values may return inconsistent
+multi-value fields. EQL searches on array field values may return inconsistent
 results.
 
 [discrete]

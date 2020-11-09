@@ -110,6 +110,35 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         }
     }
 
+    public void testFollowThatOverridesNonExistentSetting() throws IOException {
+        if ("leader".equals(targetCluster)) {
+            createIndex("override_leader_index_non_existent_setting", Settings.EMPTY);
+        } else {
+            final Settings settings = Settings.builder().put("index.non_existent_setting", randomAlphaOfLength(3)).build();
+            final ResponseException responseException = expectThrows(
+                ResponseException.class,
+                () -> followIndex(
+                    client(),
+                    "leader_cluster",
+                    "override_leader_index_non_existent_setting",
+                    "override_follow_index_non_existent_setting",
+                    settings
+                )
+            );
+            final Response response = responseException.getResponse();
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+            final Map<String, Object> responseAsMap = entityAsMap(response);
+            assertThat(responseAsMap, hasKey("error"));
+            assertThat(responseAsMap.get("error"), instanceOf(Map.class));
+            @SuppressWarnings("unchecked") final Map<Object, Object> error = (Map<Object, Object>) responseAsMap.get("error");
+            assertThat(error, hasEntry("type", "illegal_argument_exception"));
+            assertThat(
+                error,
+                hasEntry("reason", "unknown setting [index.non_existent_setting]")
+            );
+        }
+    }
+
     public void testFollowNonExistingLeaderIndex() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             logger.info("skipping test, waiting for target cluster [follow]" );

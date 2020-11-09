@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
@@ -49,12 +50,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 public final class TransportPutFollowAction
     extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutFollowAction.class);
 
+    private final IndexScopedSettings indexScopedSettings;
     private final Client client;
     private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -65,6 +68,7 @@ public final class TransportPutFollowAction
             final ThreadPool threadPool,
             final TransportService transportService,
             final ClusterService clusterService,
+            final IndexScopedSettings indexScopedSettings,
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final Client client,
@@ -80,6 +84,7 @@ public final class TransportPutFollowAction
                 indexNameExpressionResolver,
                 PutFollowAction.Response::new,
                 ThreadPool.Names.SAME);
+        this.indexScopedSettings = indexScopedSettings;
         this.client = client;
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
@@ -125,11 +130,23 @@ public final class TransportPutFollowAction
 
         final Settings replicatedRequestSettings = TransportResumeFollowAction.filter(request.getSettings());
         if (replicatedRequestSettings.isEmpty() == false) {
-            final String message = String.format(
-                Locale.ROOT,
-                "can not put follower index that could override leader settings %s",
-                replicatedRequestSettings
-            );
+            final List<String> unknownKeys =
+                replicatedRequestSettings.keySet().stream().filter(s -> indexScopedSettings.get(s) == null).collect(Collectors.toList());
+            final String message;
+            if (unknownKeys.isEmpty()) {
+                message = String.format(
+                    Locale.ROOT,
+                    "can not put follower index that could override leader settings %s",
+                    replicatedRequestSettings
+                );
+            } else {
+                message = String.format(
+                    Locale.ROOT,
+                    "unknown setting%s [%s]",
+                    unknownKeys.size() == 1 ? "" : "s",
+                    String.join(",", unknownKeys)
+                );
+            }
             listener.onFailure(new IllegalArgumentException(message));
             return;
         }

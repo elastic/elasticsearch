@@ -43,6 +43,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
         super(capacity, maxLoadFactor, bigArrays);
         boolean success = false;
         try {
+            // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
             keys = bigArrays.newLongArray(capacity(), false);
             values = bigArrays.newObjectArray(capacity());
             success = true;

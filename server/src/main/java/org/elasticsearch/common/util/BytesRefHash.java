@@ -49,6 +49,7 @@ public final class BytesRefHash extends AbstractHash {
         super(capacity, maxLoadFactor, bigArrays);
         boolean success = false;
         try {
+            // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
             startOffsets = bigArrays.newLongArray(capacity + 1, false);
             startOffsets.set(0, 0);
             bytes = bigArrays.newByteArray(capacity * 3, false);

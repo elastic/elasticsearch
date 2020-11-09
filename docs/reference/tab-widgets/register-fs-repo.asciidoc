@@ -49,26 +49,20 @@ relative path, `my_fs_backup_location`, resolves to
 
 
 // tag::win[]
-Windows installations support both DOS and Microsoft UNC paths. The following
-example uses DOS paths with escaped backslashes:
+Windows installations support both DOS and Microsoft UNC paths. Escaped any
+backslashes in the path. For UNC paths, provide the server and share name as a
+prefix.
 
 [source,yaml]
 ----
 path:
   repo:
-    - "E:\\Mount\\Backups"
-    - "F:\\Mount\\Long_term_backups"
+    - "E:\\Mount\\Backups"                      <1>
+    - "\\\\MY_SERVER\\Mount\\Long_term_backups" <2>
 ----
 
-For UNC paths, provide the server and share name as a prefix:
-
-[source,yaml]
-----
-path:
-  repo:
-    - "\\\\MY_SERVER\\Mount\\Backups"
-    - "\\\\MY_SERVER\\Mount\\Long_term_backups"
-----
+<1> DOS path
+<2> UNC path
 
 After restarting each node, use the <<put-snapshot-repo-api,put snapshot
 repository>> API to register the file system repository. Specify the file

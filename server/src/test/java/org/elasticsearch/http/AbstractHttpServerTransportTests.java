@@ -180,32 +180,28 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     public void testIncorrectHeaderHandling() {
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        {
-            try (AbstractHttpServerTransport transport =
-                     failureAssertingtHttpServerTransport(clusterSettings, "Accept")) {
+        try (AbstractHttpServerTransport transport =
+                 failureAssertingtHttpServerTransport(clusterSettings, "Accept")) {
 
 
-                Map<String, List<String>> headers = new HashMap<>();
-                headers.put("Accept", Collections.singletonList("incorrectheader"));
+            Map<String, List<String>> headers = new HashMap<>();
+            headers.put("Accept", Collections.singletonList("incorrectheader"));
 
-                FakeRestRequest.FakeHttpRequest fakeHttpRequest =
-                    new FakeRestRequest.FakeHttpRequest(RestRequest.Method.GET, "/", null, headers);
+            FakeRestRequest.FakeHttpRequest fakeHttpRequest =
+                new FakeRestRequest.FakeHttpRequest(RestRequest.Method.GET, "/", null, headers);
 
-                transport.incomingRequest(fakeHttpRequest, null);
-            }
+            transport.incomingRequest(fakeHttpRequest, null);
         }
-        {
-            try (AbstractHttpServerTransport transport =
-                     failureAssertingtHttpServerTransport(clusterSettings, "Content-Type")) {
-                Map<String, List<String>> headers = new HashMap<>();
-                headers.put("Accept", Collections.singletonList("application/json"));
-                headers.put("Content-Type", Collections.singletonList("incorrectheader"));
+        try (AbstractHttpServerTransport transport =
+                 failureAssertingtHttpServerTransport(clusterSettings, "Content-Type")) {
+            Map<String, List<String>> headers = new HashMap<>();
+            headers.put("Accept", Collections.singletonList("application/json"));
+            headers.put("Content-Type", Collections.singletonList("incorrectheader"));
 
-                FakeRestRequest.FakeHttpRequest fakeHttpRequest =
-                    new FakeRestRequest.FakeHttpRequest(RestRequest.Method.GET, "/", null, headers);
+            FakeRestRequest.FakeHttpRequest fakeHttpRequest =
+                new FakeRestRequest.FakeHttpRequest(RestRequest.Method.GET, "/", null, headers);
 
-                transport.incomingRequest(fakeHttpRequest, null);
-            }
+            transport.incomingRequest(fakeHttpRequest, null);
         }
     }
 

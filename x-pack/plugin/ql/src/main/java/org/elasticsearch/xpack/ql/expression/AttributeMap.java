@@ -15,7 +15,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableCollection;
 import static java.util.Collections.unmodifiableSet;
@@ -141,8 +140,8 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     @SuppressWarnings("rawtypes")
-    public static final AttributeMap EMPTY = new AttributeMap<>();
-    
+    private static final AttributeMap EMPTY = new AttributeMap<>();
+
     @SuppressWarnings("unchecked")
     public static final <E> AttributeMap<E> emptyAttributeMap() {
         return EMPTY;
@@ -155,23 +154,6 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     public AttributeMap() {
         delegate = new LinkedHashMap<>();
-    }
-
-    /**
-     * Please use the {@link AttributeMap#builder()} instead.
-     */
-    @Deprecated
-    public AttributeMap(Map<Attribute, E> attr) {
-        if (attr.isEmpty()) {
-            delegate = emptyMap();
-        }
-        else {
-            delegate = new LinkedHashMap<>(attr.size());
-
-            for (Entry<Attribute, E> entry : attr.entrySet()) {
-                delegate.put(new AttributeWrapper(entry.getKey()), entry.getValue());
-            }
-        }
     }
 
     public AttributeMap(Attribute key, E value) {
@@ -377,23 +359,41 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         return new Builder<>();
     }
 
+    public static <E> Builder<E> builder(AttributeMap<E> map) {
+        return new Builder<E>().putAll(map);
+    }
+
     public static class Builder<E> {
-        private final AttributeMap<E> map = new AttributeMap<>();
+        private AttributeMap<E> map = null;
+        private AttributeMap<E> previouslyBuiltMap = null;
 
         private Builder() {}
 
+        private AttributeMap<E> map() {
+            if (map == null) {
+                map = new AttributeMap<>();
+                if (previouslyBuiltMap != null) {
+                    map.addAll(previouslyBuiltMap);
+                }
+            }
+            return map;
+        }
+
         public Builder<E> put(Attribute attr, E value) {
-            map.add(attr, value);
+            map().add(attr, value);
             return this;
         }
 
         public Builder<E> putAll(AttributeMap<E> m) {
-            map.addAll(m);
+            map().addAll(m);
             return this;
         }
 
         public AttributeMap<E> build() {
-            return new AttributeMap<>(map);
+            AttributeMap<E> m = map();
+            previouslyBuiltMap = m;
+            map = null;
+            return m;
         }
     }
 }

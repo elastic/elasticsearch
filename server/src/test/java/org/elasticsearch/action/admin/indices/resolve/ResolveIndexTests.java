@@ -170,6 +170,19 @@ public class ResolveIndexTests extends ESTestCase {
         validateDataStreams(dataStreams, "logs-mysql-test");
     }
 
+    public void testResolveWithExcludedIndices() {
+        String[] names = new String[]{"logs-pgsql-prod-20200102", "logs-pgsql-test-20200101", "-logs-pgsql-test*", "one-off-alias"};
+        IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
+        List<ResolvedIndex> indices = new ArrayList<>();
+        List<ResolvedAlias> aliases = new ArrayList<>();
+        List<ResolvedDataStream> dataStreams = new ArrayList<>();
+
+        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams);
+        validateIndices(indices, "logs-pgsql-prod-20200102");
+        validateAliases(aliases, "one-off-alias");
+        validateDataStreams(dataStreams, Strings.EMPTY_ARRAY);
+    }
+
     public void testResolvePreservesBackingIndexOrdering() {
         Metadata.Builder builder = Metadata.builder();
         String dataStreamName = "my-data-stream";

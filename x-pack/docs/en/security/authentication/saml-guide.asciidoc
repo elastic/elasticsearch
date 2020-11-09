@@ -889,8 +889,8 @@ in {es}. See <<saml-guide-authentication>>
 
 The realm is designed with the assumption that there needs to be a privileged entity
 acting as an authentication proxy. In this case, the custom web application is the
-authentication proxy handling the authentication of end users ( more correctly,
-"delegating" the authentication to the SAML Identity Provider ). The SAML related
+authentication proxy handling the authentication of end users (more correctly,
+"delegating" the authentication to the SAML Identity Provider). The SAML related
 APIs require authentication and the necessary authorization level for the authenticated
 user. For this reason, you must create a Service Account user and assign it a role
 that gives it the `manage_saml` cluster privilege. The use of the `manage_token`

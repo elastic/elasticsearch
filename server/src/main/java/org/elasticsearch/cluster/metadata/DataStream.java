@@ -236,7 +236,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), REPLICATED_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REPLICATED_FIELD);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {

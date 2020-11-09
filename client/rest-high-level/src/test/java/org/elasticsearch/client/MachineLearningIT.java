@@ -317,7 +317,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             Optional<GetTaskResponse> taskResponse = highLevelClient().tasks().get(taskRequest, RequestOptions.DEFAULT);
             assertTrue(taskResponse.isPresent());
             assertTrue(taskResponse.get().isCompleted());
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     public void testOpenJob() throws Exception {

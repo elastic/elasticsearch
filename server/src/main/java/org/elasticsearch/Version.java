@@ -272,14 +272,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.previousMajorId = major > 0 ? (major - 1) * 1000000 + 99 : major;
     }
 
-    public Version previousMajor() {
-        return Version.fromId(previousMajorId);
-    }
-
-    public static Version minimumRestCompatibilityVersion() {
-        return Version.CURRENT.previousMajor();
-    }
-
     public boolean after(Version version) {
         return version.id < id;
     }
@@ -400,6 +392,22 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         assert compatible == false || Math.max(major, version.major) - Math.min(major, version.major) <= 1;
         return compatible;
     }
+
+    /**
+     * Returns the minimum version that can be used for compatible REST API
+     */
+    public Version minimumRestCompatibilityVersion() {
+        return Version.CURRENT.previousMajor();
+    }
+
+    /**
+     * Returns a first major version previous to the version stored in this object.
+     * I.e 8.1.0 will return 7.0.0
+     */
+    public Version previousMajor() {
+        return Version.fromId(previousMajorId);
+    }
+
 
     @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {

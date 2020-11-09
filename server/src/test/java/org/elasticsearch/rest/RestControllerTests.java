@@ -639,9 +639,9 @@ public class RestControllerTests extends ESTestCase {
     public void testDispatchCompatibleHandler() {
 
         RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService,
-            (a,c,h)->Version.minimumRestCompatibilityVersion());//always return compatible version
+            (a,c,h)->Version.CURRENT.minimumRestCompatibilityVersion());//always return compatible version
 
-        final byte version = Version.minimumRestCompatibilityVersion().major;
+        final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
 
         final String mimeType = randomCompatibleMimeType(version);
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));

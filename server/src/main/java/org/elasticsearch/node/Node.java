@@ -540,7 +540,6 @@ public class Node implements Closeable {
                                                  repositoriesServiceReference::get).stream())
                 .collect(Collectors.toList());
 
-
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
                 threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, systemIndices,

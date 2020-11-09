@@ -59,6 +59,7 @@ final class MethodHandlers {
 
     /**
      * Returns the handler for the given method and version.
+     *
      * If a handler for given version do not exist, a handler for Version.CURRENT will be returned.
      * or {@code null} if none exists.
      */
@@ -68,7 +69,8 @@ final class MethodHandlers {
             return null; //method not found
         }
         final RestHandler handler = versionToHandlers.get(version);
-        return handler != null || version.equals(Version.CURRENT) ? handler : versionToHandlers.get(Version.CURRENT);
+        return handler == null ? versionToHandlers.get(Version.CURRENT) : handler;
+
     }
 
     /**

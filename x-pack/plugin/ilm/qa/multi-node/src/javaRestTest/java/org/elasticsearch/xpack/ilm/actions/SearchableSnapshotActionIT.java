@@ -12,6 +12,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -19,12 +20,17 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
+import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
+import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.Step;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -37,9 +43,11 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.hamcrest.Matchers.greaterThan;
@@ -188,4 +196,73 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS));
     }
 
+    public void testCreateInvalidPolicy() throws Exception {
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> createPolicy(client(), policy,
+            new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
+            new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null))),
+            new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction())),
+            null
+            )
+        );
+
+        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [shrink,forcemerge,freeze] actions which are not " +
+            "allowed after the managed index was mounted as searchable snapshot"));
+    }
+
+    public void testRestoredIndexToInvalidPolicySkipsInvalidActions() throws Exception {
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createPolicy(client(), policy,
+            new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
+            new Phase("warm", TimeValue.timeValueDays(30), Map.of(SetPriorityAction.NAME, new SetPriorityAction(999))),
+            null, null
+        );
+
+        createComposableTemplate(client(), "template-name", dataStream,
+            new Template(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .build(), null, null)
+        );
+
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            indexDocument(client(), dataStream, true);
+        }
+        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        assertTrue(waitUntil(() -> {
+            try {
+                return indexExists(restoredIndexName);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+
+        assertBusy(() -> {
+            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredIndexName);
+            assertThat(stepKeyForIndex.getPhase(), is("hot"));
+            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
+
+        createPolicy(client(), policy,
+            new Phase("hot", TimeValue.ZERO, Map.of(SetPriorityAction.NAME, new SetPriorityAction(10))),
+            new Phase("warm", TimeValue.ZERO,
+                Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME, new ForceMergeAction(1, null))
+            ),
+            new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction())),
+            null
+        );
+
+        // even though the index is now mounted as a searchable snapshot, the actions that can't operate on it should
+        // skip and ILM should not be blocked (not should the managed index move into the ERROR step)
+        assertBusy(() -> {
+            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredIndexName);
+            assertThat(stepKeyForIndex.getPhase(), is("cold"));
+            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
+    }
 }

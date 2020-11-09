@@ -23,6 +23,7 @@ import java.util.List;
  */
 public class FreezeAction implements LifecycleAction {
     public static final String NAME = "freeze";
+    public static final String CONDITIONAL_SKIP_FREEZE_STEP = BranchingStep.NAME + "-freeze-check-prerequisites";
 
     private static final ObjectParser<FreezeAction, Void> PARSER = new ObjectParser<>(NAME, FreezeAction::new);
 
@@ -59,13 +60,16 @@ public class FreezeAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        StepKey preFreezeMergeBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_FREEZE_STEP);
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey freezeStepKey = new StepKey(phase, NAME, FreezeStep.NAME);
 
+        BranchingStep conditionalSkipFreezeStep = new BranchingStep(preFreezeMergeBranchingKey, checkNotWriteIndex, nextStepKey,
+            (index, clusterState) -> clusterState.getMetadata().index(index).getSettings().get("index.store.snapshot.index_name") != null);
         CheckNotDataStreamWriteIndexStep checkNoWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             freezeStepKey);
         FreezeStep freezeStep = new FreezeStep(freezeStepKey, nextStepKey, client);
-        return Arrays.asList(checkNoWriteIndexStep, freezeStep);
+        return Arrays.asList(conditionalSkipFreezeStep, checkNoWriteIndexStep, freezeStep);
     }
 
     @Override

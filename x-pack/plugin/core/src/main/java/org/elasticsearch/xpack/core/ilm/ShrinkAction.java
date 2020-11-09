@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -34,8 +32,6 @@ public class ShrinkAction implements LifecycleAction {
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
-
-    private static final Logger logger = LogManager.getLogger(ShrinkAction.class);
 
     private static final ConstructingObjectParser<ShrinkAction, Void> PARSER =
         new ConstructingObjectParser<>(NAME, a -> new ShrinkAction((Integer) a[0]));
@@ -108,7 +104,11 @@ public class ShrinkAction implements LifecycleAction {
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
 
         BranchingStep conditionalSkipShrinkStep = new BranchingStep(preShrinkBranchingKey, checkNotWriteIndex, nextStepKey,
-            (index, clusterState) -> clusterState.getMetadata().index(index).getNumberOfShards() == numberOfShards);
+            (index, clusterState) -> {
+                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+                return indexMetadata.getNumberOfShards() == numberOfShards ||
+                    indexMetadata.getSettings().get("index.store.snapshot.index_name") != null;
+            });
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             waitForNoFollowerStepKey);
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);

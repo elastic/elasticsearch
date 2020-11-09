@@ -115,7 +115,7 @@ public class PolicyUtil {
             new NetPermission("getResponseCache"),
             new SocketPermission("*", "accept,connect,listen,resolve"),
             new SecurityPermission("createAccessControlContext"),
-            new SecurityPermission("insertProvider"),
+            new SecurityPermission("insertProvider.*"),
             new SecurityPermission("putProviderProperty.*"),
             // apache abuses the SecurityPermission class for it's own purposes
             new SecurityPermission("org.apache.*"),

@@ -33,11 +33,6 @@ import java.util.regex.Pattern;
  * @see MediaTypeRegistry
  */
 public class ParsedMediaType {
-    // TODO this should be removed once strict parsing is implemented https://github.com/elastic/elasticsearch/issues/63080
-    // sun.net.www.protocol.http.HttpURLConnection sets a default Accept header if it was not provided on a request.
-    // For this value Parsing returns null.
-    public static final String DEFAULT_ACCEPT_STRING = "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2";
-
     private final String type;
     private final String subType;
     private final Map<String, String> parameters;
@@ -63,18 +58,19 @@ public class ParsedMediaType {
 
     /**
      * Parses a header value into it's parts.
-     * follows https://tools.ietf.org/html/rfc7231#section-3.1.1.1 but allows only single media type and do not support quality factors
+     * follows https://tools.ietf.org/html/rfc7231#section-3.1.1.1
+     * but allows only single media type. Media ranges will be ignored (treated as not provided)
      * Note: parsing can return null, but it will throw exceptions once https://github.com/elastic/elasticsearch/issues/63080 is done
-     * Do not rely on nulls
+     * TODO Do not rely on nulls
      *
      * @return a {@link ParsedMediaType} if the header could be parsed.
      * @throws IllegalArgumentException if the header is malformed
      */
     public static ParsedMediaType parseMediaType(String headerValue) {
-        if (DEFAULT_ACCEPT_STRING.equals(headerValue) || "*/*".equals(headerValue)) {
-            return null;
-        }
         if (headerValue != null) {
+            if (isMediaRange(headerValue) || "*/*".equals(headerValue)) {
+                return null;
+            }
             final String[] elements = headerValue.toLowerCase(Locale.ROOT).split("[\\s\\t]*;");
 
             final String[] splitMediaType = elements[0].split("/");
@@ -105,6 +101,11 @@ public class ParsedMediaType {
             }
         }
         return null;
+    }
+
+    // simplistic check for media ranges. do not validate if this is a correct header
+    private static boolean isMediaRange(String headerValue) {
+        return headerValue.contains(",");
     }
 
     private static boolean hasTrailingSpace(String s) {

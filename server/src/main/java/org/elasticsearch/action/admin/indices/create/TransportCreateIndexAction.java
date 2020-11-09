@@ -29,6 +29,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,14 +42,17 @@ import org.elasticsearch.transport.TransportService;
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
     private final MetadataCreateIndexService createIndexService;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportCreateIndexAction(TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetadataCreateIndexService createIndexService,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                      SystemIndices systemIndices) {
         super(CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new,
             indexNameExpressionResolver, CreateIndexResponse::new, ThreadPool.Names.SAME);
         this.createIndexService = createIndexService;
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -63,12 +69,31 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         }
 
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+
+        String mappings = request.mappings();
+        Settings settings = request.settings();
+
+        if (systemIndices.isSystemIndex(indexName)) {
+            // System indices define their own settings and mappings, which cannot be overridden.
+            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+            assert descriptor != null;
+            mappings = descriptor.getMappings();
+            settings = descriptor.getSettings();
+        }
+
         final CreateIndexClusterStateUpdateRequest updateRequest =
             new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index())
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .settings(request.settings()).mappings(request.mappings())
                 .aliases(request.aliases())
                 .waitForActiveShards(request.waitForActiveShards());
+
+        if (mappings != null) {
+            updateRequest.mappings(mappings);
+        }
+
+        if (settings != null) {
+            updateRequest.settings(settings);
+        }
 
         createIndexService.createIndex(updateRequest, ActionListener.map(listener, response ->
             new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)));

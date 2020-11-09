@@ -1504,24 +1504,4 @@ public class InstallPluginCommandTests extends ESTestCase {
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake-with-deps", pluginDir, env.v2());
     }
-
-    public void testLicenseCheck() throws Exception {
-        MockTerminal terminal = new MockTerminal();
-        terminal.addTextInput("");
-        terminal.addTextInput("y");
-        installPlugin(terminal, false, "licensed", "true");
-        assertThat(terminal.getOutput(), containsString("WARNING: You must accept the license to continue"));
-        assertThat(terminal.getOutput(), containsString("Press <Enter> to view"));
-        assertThat(terminal.getPagedFiles(), hasSize(1));
-        assertThat(terminal.getPagedFiles().get(0).getFileName().toString(), equalTo("LICENSE.txt"));
-    }
-
-    public void testBatchFlagSkipsLicenseCheck() throws Exception {
-        MockTerminal terminal = new MockTerminal();
-        installPlugin(terminal, true, "licensed", "true");
-        assertThat(terminal.getOutput(), containsString("WARNING: You must accept the license to continue"));
-        assertThat(terminal.getOutput(), containsString("installation will assume you accept the license and continue"));
-        assertThat(terminal.getPagedFiles(), empty());
-    }
-
 }

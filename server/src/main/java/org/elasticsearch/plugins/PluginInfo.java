@@ -50,7 +50,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
-    private static final Version QUOTA_FS_PLUGIN_SUPPORT = Version.V_7_11_0;;
+    /** This will be removed once LICENSED_PLUGINS_SUPPORT is backported */
+    @Deprecated(forRemoval = true)
+    private static final Version QUOTA_FS_PLUGIN_SUPPORT = Version.V_7_11_0;
+    private static final Version LICENSED_PLUGINS_SUPPORT = Version.CURRENT;
 
     private final String name;
     private final String description;
@@ -119,7 +122,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             javaOpts = null;
         }
 
-        this.isLicensed = in.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT) ? in.readBoolean() : false;
+        this.isLicensed = in.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT) ? in.readBoolean() : false;
     }
 
     @Override
@@ -137,7 +140,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             out.writeString(type.name());
             out.writeOptionalString(javaOpts);
         }
-        if (out.getVersion().onOrAfter(QUOTA_FS_PLUGIN_SUPPORT)) {
+        if (out.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
             out.writeBoolean(this.isLicensed);
         }
     }

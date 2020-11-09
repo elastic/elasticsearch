@@ -24,7 +24,6 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,15 +49,9 @@ public class MockTerminal extends Terminal {
     private int textIndex = 0;
     private final List<String> secretInput = new ArrayList<>();
     private int secretIndex = 0;
-    private final List<Path> pagedFiles = new ArrayList<>();
 
     public MockTerminal() {
         super("\n"); // always *nix newlines for tests
-    }
-
-    @Override
-    public void pageFile(Path path) {
-        pagedFiles.add(path);
     }
 
     @Override
@@ -115,9 +108,5 @@ public class MockTerminal extends Terminal {
         textInput.clear();
         secretIndex = 0;
         secretInput.clear();
-    }
-
-    public List<Path> getPagedFiles() {
-        return this.pagedFiles;
     }
 }

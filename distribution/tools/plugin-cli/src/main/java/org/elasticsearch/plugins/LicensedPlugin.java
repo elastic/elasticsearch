@@ -19,47 +19,33 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 
-import java.io.IOException;
-import java.nio.file.Path;
+import java.util.List;
 
 public class LicensedPlugin {
 
-    static void confirmInstallation(Terminal terminal, Path pluginRoot, boolean isBatch) throws Exception {
-        terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-        terminal.println(Verbosity.NORMAL, "@     WARNING: You must accept the license to continue    @");
-        terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-        terminal.println(Verbosity.NORMAL, "");
-
-        if (isBatch) {
-            terminal.println(Verbosity.NORMAL, "This plugin requires that you accept the terms of its license");
-            terminal.println(Verbosity.NORMAL, "before continuing with the installation. Since --batch was specified,");
-            terminal.println(Verbosity.NORMAL, "installation will assume you accept the license and continue.");
-        } else {
-            terminal.println(Verbosity.NORMAL, "This plugin requires that you accept the terms of its license");
-            terminal.println(Verbosity.NORMAL, "before continuing with the installation. Press <Enter> to view");
-            terminal.println(Verbosity.NORMAL, "the license.");
-
-            // Wait for the user to hit enter
-            terminal.readText("");
-            printLicense(terminal, pluginRoot);
-
-            terminal.println(Verbosity.NORMAL, "");
-            final String text = terminal.readText("Continue with installation? [y/N]");
-            if (!text.equalsIgnoreCase("y")) {
-                throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
-            }
+    static void checkCanInstallationProceed(Terminal terminal, Build.Flavor flavor, PluginInfo info) throws Exception {
+        if (info.isLicensed() == false) {
+            return;
         }
-    }
 
-    private static void printLicense(Terminal terminal, Path pluginRoot) throws IOException, InterruptedException {
-        // Assumption - the license file exists and always has this name.
-        final Path licenseFile = pluginRoot.resolve("LICENSE.txt");
+        if (flavor == Build.Flavor.DEFAULT) {
+            return;
+        }
 
-        terminal.pageFile(licenseFile);
+        List.of(
+            "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+            "@            ERROR: This is a licensed plugin             @",
+            "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+            "",
+            "This plugin is covered by the Elastic license, but this",
+            "installation of Elasticsearch is: [" + flavor + "]."
+        ).forEach(terminal::errorPrintln);
+
+        throw new UserException(ExitCodes.NOPERM, "Plugin license is incompatible with [" + flavor + "] installation");
     }
 }

@@ -150,10 +150,7 @@ public class BlobStoreCacheService {
                 }
             });
         } catch (Exception e) {
-            logger.warn(
-                new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)),
-                e
-            );
+            logger.warn(new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)), e);
             listener.onFailure(e);
         }
     }

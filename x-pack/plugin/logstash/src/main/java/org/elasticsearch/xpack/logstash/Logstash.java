@@ -82,8 +82,12 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.singletonList(
-            new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME, "Contains data for Logstash Central Management",
-                buildMappings(), buildSettings())
+            new SystemIndexDescriptor(
+                LOGSTASH_CONCRETE_INDEX_NAME,
+                "Contains data for Logstash Central Management",
+                buildMappings(),
+                buildSettings()
+            )
         );
     }
 

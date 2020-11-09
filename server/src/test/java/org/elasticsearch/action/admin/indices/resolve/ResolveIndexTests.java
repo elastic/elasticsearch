@@ -70,7 +70,7 @@ public class ResolveIndexTests extends ESTestCase {
     private IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
 
     public void testResolveStarWithDefaultOptions() {
-        String[] names = new String[] {"*"};
+        String[] names = new String[]{"*"};
         IndicesOptions indicesOptions = Request.DEFAULT_INDICES_OPTIONS;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
@@ -89,7 +89,7 @@ public class ResolveIndexTests extends ESTestCase {
             "logs-pgsql-prod",
             "logs-pgsql-test",
             "one-off-alias"
-            );
+        );
 
         validateDataStreams(dataStreams,
             "logs-mysql-prod",
@@ -129,7 +129,7 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     public void testResolveWithPattern() {
-        String[] names = new String[] {"logs-pgsql*"};
+        String[] names = new String[]{"logs-pgsql*"};
         IndicesOptions indicesOptions = Request.DEFAULT_INDICES_OPTIONS;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
@@ -163,6 +163,19 @@ public class ResolveIndexTests extends ESTestCase {
         validateIndices(indices, ".ds-logs-mysql-prod-000003", "logs-pgsql-test-20200102");
         validateAliases(aliases, "one-off-alias");
         validateDataStreams(dataStreams, "logs-mysql-test");
+    }
+
+    public void testResolveWithExcludedIndices() {
+        String[] names = new String[]{"logs-pgsql-prod-20200102", "logs-pgsql-test-20200101", "-logs-pgsql-test*", "one-off-alias"};
+        IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
+        List<ResolvedIndex> indices = new ArrayList<>();
+        List<ResolvedAlias> aliases = new ArrayList<>();
+        List<ResolvedDataStream> dataStreams = new ArrayList<>();
+
+        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams);
+        validateIndices(indices, "logs-pgsql-prod-20200102");
+        validateAliases(aliases, "one-off-alias");
+        validateDataStreams(dataStreams, Strings.EMPTY_ARRAY);
     }
 
     private void validateIndices(List<ResolvedIndex> resolvedIndices, String... expectedIndices) {
@@ -297,7 +310,7 @@ public class ResolveIndexTests extends ESTestCase {
             int generations = (int) info[2];
             for (int k = 1; k <= generations; k++) {
                 if (DataStream.getDefaultBackingIndexName(dataStreamName, k).equals(indexName)) {
-                    return new Object[] {
+                    return new Object[]{
                         DataStream.getDefaultBackingIndexName(dataStreamName, k),
                         false, true, false, dataStreamName, Strings.EMPTY_ARRAY
                     };

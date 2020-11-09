@@ -401,4 +401,11 @@ public class IRDecorations {
             super(value);
         }
     }
+
+    public static class IRDRegexLimit extends IRDecoration<Integer> {
+
+        public IRDRegexLimit(Integer value) {
+            super(value);
+        }
+    }
 }

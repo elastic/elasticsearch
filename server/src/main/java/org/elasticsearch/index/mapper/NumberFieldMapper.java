@@ -37,7 +37,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -64,7 +63,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
-public class NumberFieldMapper extends ParametrizedFieldMapper {
+public class NumberFieldMapper extends FieldMapper {
 
     public static final Setting<Boolean> COERCE_SETTING =
             Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
@@ -73,7 +72,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         return (NumberFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -125,10 +124,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public NumberFieldMapper build(BuilderContext context) {
-            return new NumberFieldMapper(name,
-                new NumberFieldType(buildFullName(context), type, indexed.getValue(), stored.getValue(), hasDocValues.getValue(),
-                    meta.getValue()), multiFieldsBuilder.build(this, context), copyTo.build(), this);
+        public NumberFieldMapper build(ContentPath contentPath) {
+            MappedFieldType ft = new NumberFieldType(buildFullName(contentPath), this);
+            return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -887,19 +885,27 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final class NumberFieldType extends SimpleMappedFieldType {
+    public static class NumberFieldType extends SimpleMappedFieldType {
 
         private final NumberType type;
+        private final boolean coerce;
+        private final Number nullValue;
 
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean isStored,
-                               boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+                               boolean hasDocValues, boolean coerce, Number nullValue, Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
-            this.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);     // allows number fields in significant text aggs - do we need this?
+            this.coerce = coerce;
+            this.nullValue = nullValue;
+        }
+
+        NumberFieldType(String name, Builder builder) {
+            this(name, builder.type, builder.indexed.getValue(), builder.stored.getValue(), builder.hasDocValues.getValue(),
+                builder.coerce.getValue().value(), builder.nullValue.getValue(), builder.meta.getValue());
         }
 
         public NumberFieldType(String name, NumberType type) {
-            this(name, type, true, false, true, Collections.emptyMap());
+            this(name, type, true, false, true, true, null, Collections.emptyMap());
         }
 
         @Override
@@ -952,6 +958,23 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return new SourceValueFetcher(name(), context, nullValue) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    if (value.equals("")) {
+                        return nullValue;
+                    }
+                    return type.parse(value, coerce);
+                }
+            };
+        }
+
+        @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             if (timeZone != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
@@ -966,6 +989,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public Number parsePoint(byte[] value) {
             return type.parsePoint(value);
+        }
+
+        @Override
+        public CollapseType collapseType() {
+            return CollapseType.NUMERIC;
         }
     }
 
@@ -999,6 +1027,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
     }
 
+    boolean coerce() {
+        return coerce.value();
+    }
+
+    boolean ignoreMalformed() {
+        return ignoreMalformed.value();
+    }
+
     @Override
     public NumberFieldType fieldType() {
         return (NumberFieldType) super.fieldType();
@@ -1007,11 +1043,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return fieldType().type.typeName();
-    }
-
-    @Override
-    protected NumberFieldMapper clone() {
-        return (NumberFieldMapper) super.clone();
     }
 
     @Override
@@ -1062,24 +1093,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue(), nullValue) {
-            @Override
-            protected Object parseSourceValue(Object value) {
-                if (value.equals("")) {
-                    return nullValue;
-                }
-                return fieldType().type.parse(value, coerce.value());
-            }
-        };
-    }
-
-    @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, ignoreMalformedByDefault, coerceByDefault).init(this);
     }
 }

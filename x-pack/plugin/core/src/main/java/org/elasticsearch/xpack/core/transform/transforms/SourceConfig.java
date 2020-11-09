@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -113,7 +114,11 @@ public class SourceConfig implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.array(INDEX.getPreferredName(), index);
-        builder.field(QUERY.getPreferredName(), queryConfig);
+        if (params.paramAsBoolean(TransformField.EXCLUDE_GENERATED, false) == false) {
+            builder.field(QUERY.getPreferredName(), queryConfig);
+        } else if(queryConfig.equals(QueryConfig.matchAll()) == false) {
+            builder.field(QUERY.getPreferredName(), queryConfig);
+        }
         builder.endObject();
         return builder;
     }

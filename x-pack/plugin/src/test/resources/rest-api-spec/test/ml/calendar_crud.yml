@@ -389,6 +389,8 @@
 
 ---
 "Test delete calendar deletes events":
+  - skip:
+      features: warnings
 
   - do:
       ml.put_calendar:
@@ -425,6 +427,8 @@
 
 # Check the event from calendar 1 is deleted
   - do:
+      warnings:
+        - "this request accesses system indices: [.ml-meta], but in a future major version, direct access to system indices will be prevented by default"
       count:
         index: .ml-meta
         body:
@@ -436,6 +440,8 @@
   - match: { count: 2 }
 
   - do:
+      warnings:
+        - "this request accesses system indices: [.ml-meta], but in a future major version, direct access to system indices will be prevented by default"
       count:
         index: .ml-meta
         body:

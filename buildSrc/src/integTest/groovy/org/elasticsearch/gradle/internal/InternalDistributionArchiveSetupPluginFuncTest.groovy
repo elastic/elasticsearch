@@ -99,11 +99,14 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
         import org.gradle.api.internal.artifacts.ArtifactAttributes;
 
+        def snapshotFile = file("snapshot-\${version}.txt")
+        snapshotFile << 'some snapshot content'
         distribution_archives {
             producerTar {
                 content {
                     project.copySpec {
                         from 'someFile.txt'
+                        from snapshotFile
                     }
                 }
             }
@@ -134,19 +137,27 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         when:
         def result = gradleRunner("copyArchive").build()
 
-        then:"tar task executed and target folder contains plain tar"
+        then: "tar task executed and target folder contains plain tar"
         result.task(':buildProducerTar').outcome == TaskOutcome.SUCCESS
         result.task(':consumer:copyArchive').outcome == TaskOutcome.SUCCESS
         file("producer-tar/build/distributions/elasticsearch.tar.gz").exists()
         file("consumer/build/archives/elasticsearch.tar.gz").exists()
 
         when:
-        result = gradleRunner("copyDir").build()
-        then:"plain copy task executed and target folder contains plain content"
+        result = gradleRunner("copyDir", "-Pversion=1.0").build()
+        then: "plain copy task executed and target folder contains plain content"
         result.task(':buildProducer').outcome == TaskOutcome.SUCCESS
         result.task(':consumer:copyDir').outcome == TaskOutcome.SUCCESS
         file("producer-tar/build/install/someFile.txt").exists()
+        file("producer-tar/build/install/snapshot-1.0.txt").exists()
         file("consumer/build/dir/someFile.txt").exists()
+
+        when:
+        gradleRunner("copyDir", "-Pversion=2.0").build()
+        then: "old content is cleared out"
+        file("producer-tar/build/install/someFile.txt").exists()
+        !file("producer-tar/build/install/snapshot-1.0.txt").exists()
+        file("producer-tar/build/install/snapshot-2.0.txt").exists()
     }
 
     private static boolean assertTarPermissionDefaults(File tarArchive) {

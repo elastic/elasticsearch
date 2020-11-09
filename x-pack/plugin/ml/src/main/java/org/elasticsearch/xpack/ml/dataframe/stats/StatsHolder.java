@@ -40,6 +40,11 @@ public class StatsHolder {
         progressTracker.updateReindexingProgress(reindexingProgressPercent < 100 ? 1 : reindexingProgressPercent);
     }
 
+    public void resetProgressTracker(List<String> analysisPhases, boolean hasInferencePhase) {
+        progressTracker = ProgressTracker.fromZeroes(analysisPhases, hasInferencePhase);
+        progressTracker.updateReindexingProgress(1);
+    }
+
     public ProgressTracker getProgressTracker() {
         return progressTracker;
     }

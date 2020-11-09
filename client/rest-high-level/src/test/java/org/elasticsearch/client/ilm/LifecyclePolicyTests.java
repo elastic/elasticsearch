@@ -45,7 +45,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
         ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME);
     private static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME,
         FreezeAction.NAME, SearchableSnapshotAction.NAME);
-    private static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(DeleteAction.NAME);
+    private static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(DeleteAction.NAME, WaitForSnapshotAction.NAME);
 
     private String lifecycleName;
 
@@ -75,6 +75,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(WaitForSnapshotAction.NAME),
+                WaitForSnapshotAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SearchableSnapshotAction.NAME),
@@ -222,6 +224,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                     return ShrinkActionTests.randomInstance();
                 case FreezeAction.NAME:
                     return new FreezeAction();
+                case WaitForSnapshotAction.NAME:
+                    return WaitForSnapshotActionTests.randomInstance();
                 case SetPriorityAction.NAME:
                     return SetPriorityActionTests.randomInstance();
                 case UnfollowAction.NAME:
@@ -259,6 +263,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                 return ShrinkActionTests.randomInstance();
             case FreezeAction.NAME:
                 return new FreezeAction();
+            case WaitForSnapshotAction.NAME:
+                return WaitForSnapshotActionTests.randomInstance();
             case SetPriorityAction.NAME:
                 return SetPriorityActionTests.randomInstance();
             case SearchableSnapshotAction.NAME:

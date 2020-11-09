@@ -71,9 +71,9 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     @Override
     protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, Matchers.anyOf(instanceOf(PrefixQuery.class), instanceOf(MatchNoDocsQuery.class), 
+        assertThat(query, Matchers.anyOf(instanceOf(PrefixQuery.class), instanceOf(MatchNoDocsQuery.class),
             instanceOf(AutomatonQuery.class)));
-        if (context.fieldMapper(queryBuilder.fieldName()) != null 
+        if (context.getFieldType(queryBuilder.fieldName()) != null
             && queryBuilder.caseInsensitive() == false) { // The field is mapped and case sensitive
             PrefixQuery prefixQuery = (PrefixQuery) query;
 
@@ -105,7 +105,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     public void testFromJson() throws IOException {
         String json =
                 "{    \"prefix\" : { \"user\" :  { \"value\" : \"ki\",\n"
-                + "     \"case_insensitive\" : true,\n" 
+                + "     \"case_insensitive\" : true,\n"
                 + " \"boost\" : 2.0"
                 + "} }}";
 
@@ -151,7 +151,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
-    
+
     public void testRewriteIndexQueryToMatchNone() throws Exception {
         PrefixQueryBuilder query = prefixQuery("_index", "does_not_exist");
         QueryShardContext queryShardContext = createShardContext();

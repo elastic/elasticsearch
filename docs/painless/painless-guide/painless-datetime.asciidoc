@@ -710,7 +710,7 @@ long elapsedTime = now - millisDateTime;
 [source,Painless]
 ----
 String nowString = params['now'];
-ZonedDateTime nowZdt = ZonedDateTime.parse(datetime); <1>
+ZonedDateTime nowZdt = ZonedDateTime.parse(nowString); <1>
 long now = ZonedDateTime.toInstant().toEpochMilli();
 ZonedDateTime inputDateTime = doc['input_datetime'];
 long millisDateTime = zdt.toInstant().toEpochMilli();

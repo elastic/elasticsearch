@@ -82,16 +82,21 @@ public class IndexMappingTemplateAsserter {
         statsIndexException.add("properties.hyperparameters.properties.regularization_soft_tree_depth_tolerance.type");
         statsIndexException.add("properties.hyperparameters.properties.regularization_tree_size_penalty_multiplier.type");
 
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-config", ".ml-config", false, configIndexExceptions);
+        // Excluding this from notifications index as `ignore_above` has been added to the `message.raw` field.
+        // The exception is necessary for Full Cluster Restart tests.
+        Set<String> notificationsIndexExceptions = new HashSet<>();
+        notificationsIndexExceptions.add("properties.message.fields.raw.ignore_above");
+
+        assertLegacyTemplateMatchesIndexMappings(client, ".ml-config", ".ml-config", false, configIndexExceptions, true);
         // the true parameter means the index may not have been created
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-meta", ".ml-meta", true, Collections.emptySet());
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException);
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet());
+        assertLegacyTemplateMatchesIndexMappings(client, ".ml-meta", ".ml-meta", true, Collections.emptySet(), true);
+        assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException, false);
+        assertLegacyTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet(), false);
         // Depending on the order Full Cluster restart tests are run there may not be an notifications index yet
         assertLegacyTemplateMatchesIndexMappings(client,
-            ".ml-notifications-000001", ".ml-notifications-000001", true, Collections.emptySet());
+            ".ml-notifications-000001", ".ml-notifications-000001", true, notificationsIndexExceptions, false);
         assertLegacyTemplateMatchesIndexMappings(client,
-            ".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet());
+            ".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet(), true);
         // .ml-annotations-6 does not use a template
         // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
     }
@@ -122,14 +127,16 @@ public class IndexMappingTemplateAsserter {
      *                                      index does not cause an error
      * @param exceptions                    List of keys to ignore in the index mappings.
      *                                      Each key is a '.' separated path.
+     * @param allowSystemIndexWarnings      Whether deprecation warnings for system index access should be allowed/expected.
      * @throws IOException                  Yes
      */
     @SuppressWarnings("unchecked")
     public static void assertLegacyTemplateMatchesIndexMappings(RestClient client,
-                                                            String templateName,
-                                                            String indexName,
-                                                            boolean notAnErrorIfIndexDoesNotExist,
-                                                            Set<String> exceptions) throws IOException {
+                                                                String templateName,
+                                                                String indexName,
+                                                                boolean notAnErrorIfIndexDoesNotExist,
+                                                                Set<String> exceptions,
+                                                                boolean allowSystemIndexWarnings) throws IOException {
 
         Request getTemplate = new Request("GET", "_template/" + templateName);
         Response templateResponse = client.performRequest(getTemplate);
@@ -141,6 +148,14 @@ public class IndexMappingTemplateAsserter {
         assertNotNull(templateMappings);
 
         Request getIndexMapping = new Request("GET", indexName + "/_mapping");
+        if (allowSystemIndexWarnings) {
+            final String systemIndexWarning = "this request accesses system indices: [" + indexName + "], but in a future major version, " +
+                "direct access to system indices will be prevented by default";
+            getIndexMapping.setOptions(ESRestTestCase.expectVersionSpecificWarnings(v -> {
+                v.current(systemIndexWarning);
+                v.compatible(systemIndexWarning);
+            }));
+        }
         Response indexMappingResponse;
         try {
             indexMappingResponse = client.performRequest(getIndexMapping);
@@ -176,6 +191,7 @@ public class IndexMappingTemplateAsserter {
 
         SortedSet<String> keysInTemplateMissingFromIndex = new TreeSet<>(flatTemplateMap.keySet());
         keysInTemplateMissingFromIndex.removeAll(flatIndexMap.keySet());
+        keysInTemplateMissingFromIndex.removeAll(exceptions);
 
         SortedSet<String> keysInIndexMissingFromTemplate = new TreeSet<>(flatIndexMap.keySet());
         keysInIndexMissingFromTemplate.removeAll(flatTemplateMap.keySet());
@@ -239,7 +255,7 @@ public class IndexMappingTemplateAsserter {
     public static void assertLegacyTemplateMatchesIndexMappings(RestClient client,
                                                                 String templateName,
                                                                 String indexName) throws IOException {
-        assertLegacyTemplateMatchesIndexMappings(client, templateName, indexName, false, Collections.emptySet());
+        assertLegacyTemplateMatchesIndexMappings(client, templateName, indexName, false, Collections.emptySet(), false);
     }
 
     private static boolean areBooleanObjectsAndEqual(Object a, Object b) {

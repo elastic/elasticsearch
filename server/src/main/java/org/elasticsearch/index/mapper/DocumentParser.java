@@ -28,10 +28,10 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 
 import java.io.IOException;
@@ -40,31 +40,33 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
 
-    private final IndexSettings indexSettings;
-    private final DocumentMapperParser docMapperParser;
-    private final DocumentMapper docMapper;
+    private final NamedXContentRegistry xContentRegistry;
+    private final Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext;
 
-    DocumentParser(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
-        this.indexSettings = indexSettings;
-        this.docMapperParser = docMapperParser;
-        this.docMapper = docMapper;
+    DocumentParser(NamedXContentRegistry xContentRegistry,
+                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext) {
+        this.xContentRegistry = xContentRegistry;
+        this.dateParserContext = dateParserContext;
     }
 
-    ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
+    ParsedDocument parseDocument(SourceToParse source,
+                                 MetadataFieldMapper[] metadataFieldsMappers,
+                                 DocumentMapper docMapper) throws MapperParsingException {
 
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
 
-        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(),
+        try (XContentParser parser = XContentHelper.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
-            context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser);
+            context = new ParseContext.InternalParseContext(docMapper, dateParserContext, source, parser);
             validateStart(parser);
             internalParseDocument(mapping, metadataFieldsMappers, context, parser);
             validateEnd(parser);
@@ -320,7 +322,7 @@ final class DocumentParser {
             // only prefix with parent mapper if the parent mapper isn't the root (which has a fake name)
             updateParentName = lastParent.name() + '.' + nameParts[i];
         }
-        ObjectMapper updateParent = docMapper.objectMappers().get(updateParentName);
+        ObjectMapper updateParent = docMapper.mappers().objectMappers().get(updateParentName);
         assert updateParent != null : updateParentName + " doesn't exist";
         return createUpdate(updateParent, nameParts, i + 1, newMapper);
     }
@@ -417,19 +419,19 @@ final class DocumentParser {
         ParseContext.Document parentDoc = nestedDoc.getParent();
         Settings settings = context.indexSettings().getSettings();
         if (nested.isIncludeInParent()) {
-            addFields(settings, nestedDoc, parentDoc);
+            addFields(Version.indexCreated(settings), nestedDoc, parentDoc);
         }
         if (nested.isIncludeInRoot()) {
             ParseContext.Document rootDoc = context.rootDoc();
             // don't add it twice, if its included in parent, and we are handling the master doc...
             if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
-                addFields(settings, nestedDoc, rootDoc);
+                addFields(Version.indexCreated(settings), nestedDoc, rootDoc);
             }
         }
     }
 
-    private static void addFields(Settings settings, ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
-        String nestedPathFieldName = NestedPathFieldMapper.name(settings);
+    private static void addFields(Version indexCreatedVersion, ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
+        String nestedPathFieldName = NestedPathFieldMapper.name(indexCreatedVersion);
         for (IndexableField field : nestedDoc.getFields()) {
             if (field.name().equals(nestedPathFieldName) == false) {
                 rootDoc.add(field);
@@ -457,7 +459,8 @@ final class DocumentParser {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
 
-        nestedDoc.add(NestedPathFieldMapper.field(context.indexSettings().getSettings(), mapper.nestedTypePath()));
+        Version version = Version.indexCreated(context.indexSettings().getSettings());
+        nestedDoc.add(NestedPathFieldMapper.field(version, mapper.nestedTypePath()));
         return context;
     }
 
@@ -495,10 +498,10 @@ final class DocumentParser {
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.OBJECT);
                 if (builder == null) {
-                    builder = new ObjectMapper.Builder(currentFieldName).enabled(true);
+                    Version version = Version.indexCreated(context.indexSettings().getSettings());
+                    builder = new ObjectMapper.Builder(currentFieldName, version).enabled(true);
                 }
-                Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
-                objectMapper = builder.build(builderContext);
+                objectMapper = builder.build(context.path());
                 context.addDynamicMapper(objectMapper);
                 context.path().add(currentFieldName);
                 parseObjectOrField(context, objectMapper);
@@ -540,8 +543,7 @@ final class DocumentParser {
                 if (builder == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                 } else {
-                    Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
-                    mapper = builder.build(builderContext);
+                    mapper = builder.build(context.path());
                     assert mapper != null;
                     if (parsesArrayValue(mapper)) {
                         context.addDynamicMapper(mapper);
@@ -620,15 +622,15 @@ final class DocumentParser {
         }
     }
 
-    private static Mapper.Builder<?> newLongBuilder(String name, Settings settings) {
+    private static Mapper.Builder newLongBuilder(String name, Settings settings) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, settings);
     }
 
-    private static Mapper.Builder<?> newFloatBuilder(String name, Settings settings) {
+    private static Mapper.Builder newFloatBuilder(String name, Settings settings) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT, settings);
     }
 
-    private static Mapper.Builder<?> createBuilderFromDynamicValue(final ParseContext context,
+    private static Mapper.Builder createBuilderFromDynamicValue(final ParseContext context,
                                                                      XContentParser.Token token,
                                                                      String currentFieldName) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {
@@ -687,7 +689,8 @@ final class DocumentParser {
 
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING);
             if (builder == null) {
-                builder = new TextFieldMapper.Builder(currentFieldName)
+                builder = new TextFieldMapper.Builder(currentFieldName,
+                    () -> context.indexAnalyzers().getDefaultIndexAnalyzer())
                         .addMultiField(new KeywordFieldMapper.Builder("keyword").ignoreAbove(256));
             }
             return builder;
@@ -745,9 +748,8 @@ final class DocumentParser {
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             return;
         }
-        final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
-        final Mapper.Builder<?> builder = createBuilderFromDynamicValue(context, token, currentFieldName);
-        Mapper mapper = builder.build(builderContext);
+        final Mapper.Builder builder = createBuilderFromDynamicValue(context, token, currentFieldName);
+        Mapper mapper = builder.build(context.path());
         context.addDynamicMapper(mapper);
 
         parseObjectOrField(context, mapper);
@@ -819,7 +821,7 @@ final class DocumentParser {
                     "Could not dynamically add mapping for field [{}]. Existing mapping for [{}] must be of type object but found [{}].",
                     null, String.join(".", paths), currentPath, existingFieldMapper.typeName());
         }
-        mapper = context.docMapper().objectMappers().get(currentPath);
+        mapper = context.docMapper().mappers().objectMappers().get(currentPath);
             if (mapper == null) {
                 // One mapping is missing, check if we are allowed to create a dynamic one.
                 ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
@@ -830,11 +832,10 @@ final class DocumentParser {
                     case TRUE:
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], XContentFieldType.OBJECT);
                         if (builder == null) {
-                            builder = new ObjectMapper.Builder(paths[i]).enabled(true);
+                            Version version = Version.indexCreated(context.indexSettings().getSettings());
+                            builder = new ObjectMapper.Builder(paths[i], version).enabled(true);
                         }
-                        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(),
-                            context.path());
-                        mapper = (ObjectMapper) builder.build(builderContext);
+                        mapper = (ObjectMapper) builder.build(context.path());
                         if (mapper.nested() != ObjectMapper.Nested.NO) {
                             throw new MapperParsingException("It is forbidden to create dynamic nested objects (["
                                 + context.path().pathAsText(paths[i]) + "]) through `copy_to` or dots in field names");
@@ -864,7 +865,7 @@ final class DocumentParser {
                 break;
             }
             String parentName = parentMapper.name().substring(0, lastDotNdx);
-            parentMapper = context.docMapper().objectMappers().get(parentName);
+            parentMapper = context.docMapper().mappers().objectMappers().get(parentName);
             if (parentMapper == null) {
                 // If parentMapper is ever null, it means the parent of the current mapper was dynamically created.
                 // But in order to be created dynamically, the dynamic setting of that parent was necessarily true

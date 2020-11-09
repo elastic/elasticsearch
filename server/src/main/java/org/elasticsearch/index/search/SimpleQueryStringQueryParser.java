@@ -106,7 +106,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
     @Override
     protected Query newTermQuery(Term term, float boost) {
-        MappedFieldType ft = context.fieldMapper(term.field());
+        MappedFieldType ft = context.getFieldType(term.field());
         if (ft == null) {
             return newUnmappedFieldQuery(term.field());
         }
@@ -127,7 +127,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
-            final MappedFieldType ft = context.fieldMapper(fieldName);
+            final MappedFieldType ft = context.getFieldType(fieldName);
             if (ft == null) {
                 disjuncts.add(newUnmappedFieldQuery(fieldName));
                 continue;
@@ -170,7 +170,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         List<Query> disjuncts = new ArrayList<>();
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
-            final MappedFieldType ft = context.fieldMapper(fieldName);
+            final MappedFieldType ft = context.getFieldType(fieldName);
             if (ft == null) {
                 disjuncts.add(newUnmappedFieldQuery(fieldName));
                 continue;

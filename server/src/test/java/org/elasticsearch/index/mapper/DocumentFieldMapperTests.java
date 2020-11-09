@@ -23,17 +23,16 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 public class DocumentFieldMapperTests extends LuceneTestCase {
 
@@ -49,10 +48,10 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         protected TokenStreamComponents createComponents(String fieldName) {
             Tokenizer tokenizer = new Tokenizer() {
                 boolean incremented = false;
-                CharTermAttribute term = addAttribute(CharTermAttribute.class);
+                final CharTermAttribute term = addAttribute(CharTermAttribute.class);
 
                 @Override
-                public boolean incrementToken() throws IOException {
+                public boolean incrementToken() {
                     if (incremented) {
                         return false;
                     }
@@ -73,6 +72,11 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public String typeName() {
             return "fake";
         }
@@ -80,22 +84,17 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
     static class FakeFieldMapper extends FieldMapper {
 
-        FakeFieldMapper(FakeFieldType fieldType) {
-            super(fieldType.name(), new FieldType(), fieldType, MultiFields.empty(), CopyTo.empty());
+        final String indexedValue;
+
+        FakeFieldMapper(FakeFieldType fieldType, String indexedValue) {
+            super(fieldType.name(), fieldType,
+                new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)),
+                MultiFields.empty(), CopyTo.empty());
+            this.indexedValue = indexedValue;
         }
 
         @Override
-        protected void parseCreateField(ParseContext context) throws IOException {
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+        protected void parseCreateField(ParseContext context) {
         }
 
         @Override
@@ -103,27 +102,28 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             return null;
         }
 
+        @Override
+        public Builder getMergeBuilder() {
+            return null;
+        }
     }
 
     public void testAnalyzers() throws IOException {
         FakeFieldType fieldType1 = new FakeFieldType("field1");
-        fieldType1.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new FakeAnalyzer("index")));
-        FieldMapper fieldMapper1 = new FakeFieldMapper(fieldType1);
+        FieldMapper fieldMapper1 = new FakeFieldMapper(fieldType1, "index1");
 
         FakeFieldType fieldType2 = new FakeFieldType("field2");
-        FieldMapper fieldMapper2 = new FakeFieldMapper(fieldType2);
-
-        Analyzer defaultIndex = new FakeAnalyzer("default_index");
+        FieldMapper fieldMapper2 = new FakeFieldMapper(fieldType2, "index2");
 
         MappingLookup mappingLookup = new MappingLookup(
             Arrays.asList(fieldMapper1, fieldMapper2),
             Collections.emptyList(),
             Collections.emptyList(),
-            0, defaultIndex);
+            0);
 
-        assertAnalyzes(mappingLookup.indexAnalyzer(), "field1", "index");
-
-        assertAnalyzes(mappingLookup.indexAnalyzer(), "field2", "default_index");
+        assertAnalyzes(mappingLookup.indexAnalyzer(), "field1", "index1");
+        assertAnalyzes(mappingLookup.indexAnalyzer(), "field2", "index2");
+        expectThrows(IllegalArgumentException.class, () -> mappingLookup.indexAnalyzer().tokenStream("field3", "blah"));
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {

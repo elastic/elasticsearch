@@ -3,6 +3,9 @@ Contributing to elasticsearch
 
 Elasticsearch is an open source project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
 
+If you want to be rewarded for your contributions, sign up for the [Elastic Contributor Program](https://www.elastic.co/community/contributor). Each time you
+make a valid contribution, you’ll earn points that increase your chances of winning prizes and being recognized as a top contributor.
+
 Bug reports
 -----------
 
@@ -137,7 +140,7 @@ specifically these lines tell you that Elasticsearch is ready:
     [2020-05-29T14:50:35,167][INFO ][o.e.h.AbstractHttpServerTransport] [runTask-0] publish_address {127.0.0.1:9200}, bound_addresses {[::1]:9200}, {127.0.0.1:9200}
     [2020-05-29T14:50:35,169][INFO ][o.e.n.Node               ] [runTask-0] started
 
-But to be honest its typically easier to wait until the console stopps scrolling
+But to be honest its typically easier to wait until the console stops scrolling
 and then run `curl` in another window like this:
 
     curl -u elastic:password localhost:9200
@@ -166,7 +169,7 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
 Elasticsearch builds using Gradle and Java 14. When importing into Eclipse you
 will either need to use an appropriate JDK to run Eclipse itself (e.g. by
 specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
-defining the JDK Gradle uses by setting **Prefercences** > **Gradle** >
+defining the JDK Gradle uses by setting **Preferences** > **Gradle** >
 **Advanced Options** > **Java home** to an appropriate version.
 
 IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`
@@ -587,13 +590,13 @@ allows you to use these configurations arbitrarily. Here are some of the most
 common configurations in our build and how we use them:
 
 <dl>
-<dt>`implementation`</dt><dd>Dependencies that are used by the project 
+<dt>`implementation`</dt><dd>Dependencies that are used by the project
 at compile and runtime but are not exposed as a compile dependency to other dependent projects.
-Dependencies added to the `implementation` configuration are considered an implementation detail 
+Dependencies added to the `implementation` configuration are considered an implementation detail
 that can be changed at a later date without affecting any dependent projects.</dd>
-<dt>`api`</dt><dd>Dependencies that are used as compile and runtime depdendencies of a project
+<dt>`api`</dt><dd>Dependencies that are used as compile and runtime dependencies of a project
  and are considered part of the external api of the project.
-<dt>`runtimeOnly`</dt><dd>Dependencies that not on the classpath at compile time but 
+<dt>`runtimeOnly`</dt><dd>Dependencies that not on the classpath at compile time but
 are on the classpath at runtime. We mostly use this configuration to make sure that
 we do not accidentally compile against dependencies of our dependencies also
 known as "transitive" dependencies".</dd>

@@ -148,7 +148,7 @@ public class Joda {
             formatter = ISODateTimeFormat.weekDateTime();
         } else if ("weekDateTimeNoMillis".equals(input) || "week_date_time_no_millis".equals(input)) {
             formatter = ISODateTimeFormat.weekDateTimeNoMillis();
-        } else if ("weekyear".equals(input) || "week_year".equals(input)) {
+        } else if ("weekyear".equals(input) ) {
             formatter = ISODateTimeFormat.weekyear();
         } else if ("weekyearWeek".equals(input) || "weekyear_week".equals(input)) {
             formatter = ISODateTimeFormat.weekyearWeek();

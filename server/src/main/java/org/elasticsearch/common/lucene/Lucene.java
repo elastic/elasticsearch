@@ -398,6 +398,8 @@ public class Lucene {
             return in.readBoolean();
         } else if (type == 9) {
             return in.readBytesRef();
+        } else if (type == 10) {
+            return new BigInteger(in.readString());
         } else {
             throw new IOException("Can't match type [" + type + "]");
         }

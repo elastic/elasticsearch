@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
@@ -132,7 +131,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     private int precision = GeoTileGridAggregationBuilder.DEFAULT_PRECISION;
     private GeoBoundingBox geoBoundingBox = new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN));
 
-    GeoTileGridValuesSourceBuilder(String name) {
+    public GeoTileGridValuesSourceBuilder(String name) {
         super(name);
     }
 
@@ -201,9 +200,8 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     }
 
     @Override
-    protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        return queryShardContext.getValuesSourceRegistry()
-            .getAggregator(REGISTRY_KEY, config)
+    protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
+        return registry.getAggregator(REGISTRY_KEY, config)
             .apply(config, precision, geoBoundingBox(), name, script() != null, format(), missingBucket(), order());
     }
 

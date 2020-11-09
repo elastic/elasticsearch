@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 
 import java.io.IOException;
@@ -55,7 +56,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTempl
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.CREATE_OPERATION;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.DELETE_OPERATION;
-import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.SLM_HISTORY_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -80,7 +81,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     public void testMissingRepo() throws Exception {
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("missing-repo-policy", "snap",
-            "*/1 * * * * ?", "missing-repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
+            "0 0/15 * * * ?", "missing-repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
 
         Request putLifecycle = new Request("PUT", "/_slm/policy/missing-repo-policy");
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
@@ -95,7 +96,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50358")
     public void testFullPolicySnapshot() throws Exception {
         final String indexName = "test";
         final String policyName = "full-policy";
@@ -108,6 +108,9 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
         // Create a snapshot repo
         initializeRepo(repoId);
+
+        // allow arbitrarily frequent slm snapshots
+        disableSLMMinimumIntervalValidation();
 
         createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName, true);
 
@@ -183,7 +186,10 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         final String indexPattern = "index-doesnt-exist";
         initializeRepo(repoName);
 
-        // Create a policy with ignore_unvailable: false and an index that doesn't exist
+        // allow arbitrarily frequent slm snapshots
+        disableSLMMinimumIntervalValidation();
+
+        // Create a policy with ignore_unavailable: false and an index that doesn't exist
         createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoName, indexPattern, false);
 
         assertBusy(() -> {
@@ -301,7 +307,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         });
 
         try {
-            createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName, true,
+            createSnapshotPolicy(policyName, "snap", "0 0/15 * * * ?", repoId, indexName, true,
                 new SnapshotRetentionConfiguration(TimeValue.ZERO, null, null));
             long start = System.currentTimeMillis();
             final String snapshotName = executePolicy(policyName);
@@ -674,7 +680,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     private void assertHistoryIndexWaitingForRollover() throws IOException {
-        Step.StepKey stepKey = getStepKeyForIndex(client(), SLM_HISTORY_INDEX_PREFIX + "000001");
+        Step.StepKey stepKey = getStepKeyForIndex(client(), DataStream.getDefaultBackingIndexName(SLM_HISTORY_DATA_STREAM, 1));
         assertEquals("hot", stepKey.getPhase());
         assertEquals(RolloverAction.NAME, stepKey.getAction());
         assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());
@@ -709,6 +715,18 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
         final Response response = client().performRequest(putLifecycle);
         assertAcked(response);
+    }
+
+    private void disableSLMMinimumIntervalValidation() throws IOException {
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
+        req.transientSettings(Settings.builder().put(LifecycleSettings.SLM_MINIMUM_INTERVAL, "0s"));
+        try (XContentBuilder builder = jsonBuilder()) {
+            req.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            Request r = new Request("PUT", "/_cluster/settings");
+            r.setJsonEntity(Strings.toString(builder));
+            Response updateSettingsResp = client().performRequest(r);
+            assertAcked(updateSettingsResp);
+        }
     }
 
     private void initializeRepo(String repoName) throws IOException {

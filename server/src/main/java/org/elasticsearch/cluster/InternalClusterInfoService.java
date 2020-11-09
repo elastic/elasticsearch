@@ -206,7 +206,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.clear();
         indicesStatsRequest.store(true);
-        indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED);
+        indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN);
 
         client.admin().indices().stats(indicesStatsRequest, new LatchedActionListener<>(listener, latch));
         return latch;
@@ -222,7 +222,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
      */
     public final ClusterInfo refresh() {
         logger.trace("refreshing cluster info");
-        final CountDownLatch nodeLatch = updateNodeStats(new ActionListener<NodesStatsResponse>() {
+        final CountDownLatch nodeLatch = updateNodeStats(new ActionListener<>() {
             @Override
             public void onResponse(NodesStatsResponse nodesStatsResponse) {
                 ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
@@ -252,7 +252,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         });
 
-        final CountDownLatch indicesLatch = updateIndicesStats(new ActionListener<IndicesStatsResponse>() {
+        final CountDownLatch indicesLatch = updateIndicesStats(new ActionListener<>() {
             @Override
             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                 final ShardStats[] stats = indicesStatsResponse.getShards();
@@ -348,8 +348,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     }
 
     static void fillDiskUsagePerNode(Logger logger, List<NodeStats> nodeStatsArray,
-            ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvaiableUsages,
-            ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages) {
+            ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvailableUsages,
+            ImmutableOpenMap.Builder<String, DiskUsage> newMostAvailableUsages) {
         for (NodeStats nodeStats : nodeStatsArray) {
             if (nodeStats.getFs() == null) {
                 logger.warn("Unable to retrieve node FS stats for {}", nodeStats.getNode().getName());
@@ -380,7 +380,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 nodeId, leastAvailablePath.getTotal().getBytes());
                     }
                 } else {
-                    newLeastAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, leastAvailablePath.getPath(),
+                    newLeastAvailableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, leastAvailablePath.getPath(),
                         leastAvailablePath.getTotal().getBytes(), leastAvailablePath.getAvailable().getBytes()));
                 }
                 if (mostAvailablePath.getTotal().getBytes() < 0) {
@@ -389,7 +389,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 nodeId, mostAvailablePath.getTotal().getBytes());
                     }
                 } else {
-                    newMostAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, mostAvailablePath.getPath(),
+                    newMostAvailableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, mostAvailablePath.getPath(),
                         mostAvailablePath.getTotal().getBytes(), mostAvailablePath.getAvailable().getBytes()));
                 }
 

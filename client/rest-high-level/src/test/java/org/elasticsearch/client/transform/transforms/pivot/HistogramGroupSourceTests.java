@@ -29,7 +29,7 @@ import java.util.function.Predicate;
 public class HistogramGroupSourceTests extends AbstractXContentTestCase<HistogramGroupSource> {
 
     public static HistogramGroupSource randomHistogramGroupSource() {
-        String field = randomAlphaOfLengthBetween(1, 20);
+        String field = randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : null;
         Script script = randomBoolean() ? new Script(randomAlphaOfLengthBetween(1, 10)) : null;
         boolean missingBucket = randomBoolean();
         double interval = randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false);

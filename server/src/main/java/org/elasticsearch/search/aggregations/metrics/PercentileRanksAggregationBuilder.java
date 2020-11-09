@@ -22,10 +22,10 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -88,11 +88,11 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                                      ValuesSourceConfig config,
                                                                      AggregatorFactory parent,
                                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new PercentileRanksAggregatorFactory(name, config, values, configOrDefault(), keyed, queryShardContext,
+        return new PercentileRanksAggregatorFactory(name, config, values, configOrDefault(), keyed, context,
                     parent, subFactoriesBuilder, metadata);
     }
 

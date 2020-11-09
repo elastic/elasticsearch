@@ -136,40 +136,51 @@ public class WriteScope {
         this.nextSlot = parent.nextSlot;
     }
 
-    protected WriteScope(WriteScope parent) {
+    protected WriteScope(WriteScope parent, boolean isTryBlock) {
         this.parent = parent;
         this.classWriter = parent.classWriter;
         this.methodWriter = parent.methodWriter;
         this.continueLabel = parent.continueLabel;
         this.breakLabel = parent.breakLabel;
-        this.tryBeginLabel = parent.tryBeginLabel;
-        this.tryEndLabel = parent.tryEndLabel;
-        this.catchesEndLabel = parent.catchesEndLabel;
+        this.tryBeginLabel = isTryBlock ? null : parent.tryBeginLabel;
+        this.tryEndLabel = isTryBlock ? null : parent.tryEndLabel;
+        this.catchesEndLabel = isTryBlock ? null : parent.catchesEndLabel;
         this.nextSlot = parent.nextSlot;
     }
 
+     /** Creates a script scope as the top-level scope with no labels and parameters. */
     public static WriteScope newScriptScope() {
         return new WriteScope();
     }
 
+    /** Creates a class scope with the script scope as a parent. */
     public WriteScope newClassScope(ClassWriter classWriter) {
         return new WriteScope(this, classWriter);
     }
 
+    /** Creates a method scope with the class scope as a parent and parameters from the method signature. */
     public WriteScope newMethodScope(MethodWriter methodWriter) {
         return new WriteScope(this, methodWriter);
     }
 
+    /** Creates a loop scope with labels for where continue and break instructions should jump to. */
     public WriteScope newLoopScope(Label continueLabel, Label breakLabel) {
         return new WriteScope(this, continueLabel, breakLabel);
     }
 
+    /** Creates a try scope with labels for where and exception should jump to. */
     public WriteScope newTryScope(Label tryBeginLabel, Label tryEndLabel, Label catchesEndLabel) {
         return new WriteScope(this, tryBeginLabel, tryEndLabel, catchesEndLabel);
     }
 
+    /** Creates a block scope where if the block is for a try block the catch labels are removed. */
+    public WriteScope newBlockScope(boolean isTryBlock) {
+        return new WriteScope(this, isTryBlock);
+    }
+
+    /** Creates a block scope to encapsulate variable declarations appropriately. */
     public WriteScope newBlockScope() {
-        return new WriteScope(this);
+        return newBlockScope(false);
     }
 
     public ClassWriter getClassWriter() {

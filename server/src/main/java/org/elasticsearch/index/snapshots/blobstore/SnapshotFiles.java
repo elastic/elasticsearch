@@ -24,6 +24,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Contains a list of files participating in a snapshot
@@ -57,6 +58,32 @@ public class SnapshotFiles {
         this.snapshot = snapshot;
         this.indexFiles = indexFiles;
         this.shardStateIdentifier = shardStateIdentifier;
+    }
+
+    /**
+     * Creates a new instance with the given snapshot name but otherwise identical to the current instance.
+     */
+    public SnapshotFiles withSnapshotName(String snapshotName) {
+        return new SnapshotFiles(snapshotName, indexFiles, shardStateIdentifier);
+    }
+
+    /**
+     * Checks if the given other instance contains the same files as well as the same {@link #shardStateIdentifier}.
+     */
+    public boolean isSame(SnapshotFiles other) {
+        if (Objects.equals(shardStateIdentifier, other.shardStateIdentifier) == false) {
+            return false;
+        }
+        final int fileCount = indexFiles.size();
+        if (other.indexFiles.size() != fileCount) {
+            return false;
+        }
+        for (int i = 0; i < fileCount; i++) {
+            if (indexFiles.get(i).isSame(other.indexFiles.get(i)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

@@ -19,6 +19,10 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -48,8 +52,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -59,6 +66,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -110,6 +118,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         ArgumentCaptor<GetSettingsRequest> getSettingsRequestCaptor = ArgumentCaptor.forClass(GetSettingsRequest.class);
         ArgumentCaptor<GetMappingsRequest> getMappingsRequestCaptor = ArgumentCaptor.forClass(GetMappingsRequest.class);
+        ArgumentCaptor<FieldCapabilitiesRequest> fieldCapabilitiesRequestCaptor = ArgumentCaptor.forClass(FieldCapabilitiesRequest.class);
 
         ImmutableOpenMap.Builder<String, Settings> indexToSettings = ImmutableOpenMap.builder();
         indexToSettings.put("index_1", index1Settings);
@@ -141,6 +150,19 @@ public class DestinationIndexTests extends ESTestCase {
 
         doAnswer(callListenerOnResponse(getMappingsResponse))
             .when(client).execute(eq(GetMappingsAction.INSTANCE), getMappingsRequestCaptor.capture(), any());
+
+        FieldCapabilitiesResponse fieldCapabilitiesResponse =
+            new FieldCapabilitiesResponse(
+                new String[0],
+                new HashMap<>() {{
+                    put(NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                    put(OUTER_FIELD + "." + INNER_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                    put(ALIAS_TO_NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                    put(ALIAS_TO_NESTED_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                }});
+
+        doAnswer(callListenerOnResponse(fieldCapabilitiesResponse))
+            .when(client).execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
 
         DestinationIndex.createDestinationIndex(
             client,
@@ -193,25 +215,25 @@ public class DestinationIndexTests extends ESTestCase {
     public void testCreateDestinationIndex_Classification() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Classification(NUMERICAL_FIELD));
         assertThat(extractValue("_doc.properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_Classification_DependentVariableIsNested() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Classification(OUTER_FIELD + "." + INNER_FIELD));
         assertThat(extractValue("_doc.properties.ml.outer-field.inner-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_Classification_DependentVariableIsAlias() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Classification(ALIAS_TO_NUMERICAL_FIELD));
         assertThat(extractValue("_doc.properties.ml.alias-to-numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_Classification_DependentVariableIsAliasToNested() throws IOException {
         Map<String, Object> map = testCreateDestinationIndex(new Classification(ALIAS_TO_NESTED_FIELD));
         assertThat(extractValue("_doc.properties.ml.alias-to-nested-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("_doc.properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("_doc.properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testCreateDestinationIndex_ResultsFieldsExistsInSourceIndex() {
@@ -255,9 +277,23 @@ public class DestinationIndexTests extends ESTestCase {
                 ImmutableOpenMap.of(), ImmutableOpenMap.of());
 
         ArgumentCaptor<PutMappingRequest> putMappingRequestCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
+        ArgumentCaptor<FieldCapabilitiesRequest> fieldCapabilitiesRequestCaptor = ArgumentCaptor.forClass(FieldCapabilitiesRequest.class);
 
-        doAnswer(callListenerOnResponse(new AcknowledgedResponse(true)))
+        doAnswer(callListenerOnResponse(AcknowledgedResponse.TRUE))
             .when(client).execute(eq(PutMappingAction.INSTANCE), putMappingRequestCaptor.capture(), any());
+
+        FieldCapabilitiesResponse fieldCapabilitiesResponse =
+            new FieldCapabilitiesResponse(
+                new String[0],
+                new HashMap<>() {{
+                    put(NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                    put(OUTER_FIELD + "." + INNER_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                    put(ALIAS_TO_NUMERICAL_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                    put(ALIAS_TO_NESTED_FIELD, singletonMap("integer", createFieldCapabilities(NUMERICAL_FIELD, "integer")));
+                }});
+
+        doAnswer(callListenerOnResponse(fieldCapabilitiesResponse))
+            .when(client).execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
 
         DestinationIndex.updateMappingsToDestIndex(
             client,
@@ -270,6 +306,7 @@ public class DestinationIndexTests extends ESTestCase {
         );
 
         verify(client, atLeastOnce()).threadPool();
+        verify(client, atMost(1)).execute(eq(FieldCapabilitiesAction.INSTANCE), any(), any());
         verify(client).execute(eq(PutMappingAction.INSTANCE), any(), any());
         verifyNoMoreInteractions(client);
 
@@ -294,25 +331,25 @@ public class DestinationIndexTests extends ESTestCase {
     public void testUpdateMappingsToDestIndex_Classification() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(NUMERICAL_FIELD));
         assertThat(extractValue("properties.ml.numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_Classification_DependentVariableIsNested() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(OUTER_FIELD + "." + INNER_FIELD));
         assertThat(extractValue("properties.ml.outer-field.inner-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_Classification_DependentVariableIsAlias() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(ALIAS_TO_NUMERICAL_FIELD));
         assertThat(extractValue("properties.ml.alias-to-numerical-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_Classification_DependentVariableIsAliasToNested() throws IOException {
         Map<String, Object> map = testUpdateMappingsToDestIndex(new Classification(ALIAS_TO_NESTED_FIELD));
         assertThat(extractValue("properties.ml.alias-to-nested-field_prediction.type", map), equalTo("integer"));
-        assertThat(extractValue("properties.ml.top_classes.class_name.type", map), equalTo("integer"));
+        assertThat(extractValue("properties.ml.top_classes.properties.class_name.type", map), equalTo("integer"));
     }
 
     public void testUpdateMappingsToDestIndex_ResultsFieldsExistsInSourceIndex() {
@@ -336,6 +373,83 @@ public class DestinationIndexTests extends ESTestCase {
         verifyZeroInteractions(client);
     }
 
+    public void testReadMetadata_GivenNoMeta() {
+        Map<String, Object> mappings = new HashMap<>();
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", mappingMetadata);
+
+        assertThat(metadata.hasMetadata(), is(false));
+        expectThrows(UnsupportedOperationException.class, () -> metadata.isCompatible());
+        expectThrows(UnsupportedOperationException.class, () -> metadata.getVersion());
+    }
+
+    public void testReadMetadata_GivenMetaWithoutCreatedTag() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", Collections.emptyMap());
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", mappingMetadata);
+
+        assertThat(metadata.hasMetadata(), is(false));
+        expectThrows(UnsupportedOperationException.class, () -> metadata.isCompatible());
+        expectThrows(UnsupportedOperationException.class, () -> metadata.getVersion());
+    }
+
+    public void testReadMetadata_GivenMetaNotCreatedByAnalytics() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", singletonMap("created", "other"));
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", mappingMetadata);
+
+        assertThat(metadata.hasMetadata(), is(false));
+        expectThrows(UnsupportedOperationException.class, () -> metadata.isCompatible());
+        expectThrows(UnsupportedOperationException.class, () -> metadata.getVersion());
+    }
+
+    public void testReadMetadata_GivenCurrentVersion() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.CURRENT));
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", mappingMetadata);
+
+        assertThat(metadata.hasMetadata(), is(true));
+        assertThat(metadata.isCompatible(), is(true));
+        assertThat(metadata.getVersion(), equalTo(Version.CURRENT.toString()));
+    }
+
+    public void testReadMetadata_GivenMinCompatibleVersion() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), DestinationIndex.MIN_COMPATIBLE_VERSION));
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", mappingMetadata);
+
+        assertThat(metadata.hasMetadata(), is(true));
+        assertThat(metadata.isCompatible(), is(true));
+        assertThat(metadata.getVersion(), equalTo(DestinationIndex.MIN_COMPATIBLE_VERSION.toString()));
+    }
+
+    public void testReadMetadata_GivenIncompatibleVersion() {
+        Map<String, Object> mappings = new HashMap<>();
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.V_7_9_3));
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
+
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", mappingMetadata);
+
+        assertThat(metadata.hasMetadata(), is(true));
+        assertThat(metadata.isCompatible(), is(false));
+        assertThat(metadata.getVersion(), equalTo(Version.V_7_9_3.toString()));
+    }
+
     private static <Response> Answer<Response> callListenerOnResponse(Response response) {
         return invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -352,5 +466,9 @@ public class DestinationIndexTests extends ESTestCase {
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, null))
             .setAnalysis(analysis)
             .build();
+    }
+
+    private static FieldCapabilities createFieldCapabilities(String field, String type) {
+        return new FieldCapabilities(field, type, true, true, null, null, null, Collections.emptyMap());
     }
 }

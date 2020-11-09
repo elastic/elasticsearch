@@ -75,6 +75,15 @@ public class DiscoveryNodesTests extends ESTestCase {
         }
     }
 
+    public void testResolveNodesNull() {
+        DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
+
+        // if assertions are enabled (should be the case for tests, but not in production), resolving null throws
+        expectThrows(AssertionError.class, () -> discoveryNodes.resolveNodes(Collections.singletonList(null).toArray(new String[0])));
+        expectThrows(AssertionError.class, () -> discoveryNodes.resolveNodes(null, "someNode"));
+        expectThrows(AssertionError.class, () -> discoveryNodes.resolveNodes("someNode", null, "someOtherNode"));
+    }
+
     public void testAll() {
         final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
 

@@ -220,7 +220,7 @@ public class TransformIT extends TransformIntegTestCase {
 
     public void testStopWaitForCheckpoint() throws Exception {
         String indexName = "wait-for-checkpoint-reviews";
-        String transformId = "data-frame-transform-wait-for-checkpoint";
+        String transformId = "transform-wait-for-checkpoint";
         createReviewsIndex(indexName, 1000);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
@@ -243,10 +243,11 @@ public class TransformIT extends TransformIntegTestCase {
         ).setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
+
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         // waitForCheckpoint: true should make the transform continue until we hit the first checkpoint, then it will stop
-        stopTransform(transformId, false, null, true);
+        assertTrue(stopTransform(transformId, false, null, true).isAcknowledged());
 
         // Wait until the first checkpoint
         waitUntilCheckpoint(config.getId(), 1L);
@@ -258,7 +259,31 @@ public class TransformIT extends TransformIntegTestCase {
             assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), equalTo(1000L));
         });
 
-        stopTransform(config.getId());
+        int additionalRuns = randomIntBetween(1, 10);
+
+        for (int i = 0; i < additionalRuns; ++i) {
+            // index some more docs using a new user
+            long timeStamp = Instant.now().toEpochMilli() - 1_000;
+            long user = 42 + i;
+            indexMoreDocs(timeStamp, user, indexName);
+            assertTrue(startTransformWithRetryOnConflict(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
+
+            boolean waitForCompletion = randomBoolean();
+            assertTrue(stopTransform(transformId, waitForCompletion, null, true).isAcknowledged());
+
+            assertBusy(() -> {
+                TransformStats stateAndStats = getTransformStats(config.getId()).getTransformsStats().get(0);
+                assertThat(stateAndStats.getState(), equalTo(TransformStats.State.STOPPED));
+            });
+            TransformStats stateAndStats = getTransformStats(config.getId()).getTransformsStats().get(0);
+            assertThat(stateAndStats.getState(), equalTo(TransformStats.State.STOPPED));
+        }
+
+        TransformStats stateAndStats = getTransformStats(config.getId()).getTransformsStats().get(0);
+        assertThat(stateAndStats.getState(), equalTo(TransformStats.State.STOPPED));
+        assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), greaterThan(1000L));
+
+        assertTrue(stopTransform(transformId).isAcknowledged());
         deleteTransform(config.getId());
     }
 

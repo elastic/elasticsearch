@@ -19,13 +19,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -40,7 +39,7 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public MockFieldMapper(MappedFieldType fieldType) {
-        super(findSimpleName(fieldType.name()), new FieldType(), fieldType,
+        super(findSimpleName(fieldType.name()), fieldType,
             MultiFields.empty(), new CopyTo.Builder().build());
     }
 
@@ -48,7 +47,12 @@ public class MockFieldMapper extends FieldMapper {
                            MappedFieldType fieldType,
                            MultiFields multifields,
                            CopyTo copyTo) {
-        super(findSimpleName(fullName), new FieldType(), fieldType, multifields, copyTo);
+        super(findSimpleName(fullName), fieldType, multifields, copyTo);
+    }
+
+    @Override
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName());
     }
 
     static String findSimpleName(String fullName) {
@@ -65,6 +69,11 @@ public class MockFieldMapper extends FieldMapper {
         public String typeName() {
             return "faketype";
         }
+
+        @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @Override
@@ -73,32 +82,36 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context) {
     }
 
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
-    }
-
-    public static class Builder extends FieldMapper.Builder<MockFieldMapper.Builder> {
-        private MappedFieldType fieldType;
+    public static class Builder extends FieldMapper.Builder {
+        private final MappedFieldType fieldType;
 
         protected Builder(String name) {
-            super(name, new FieldType());
+            super(name);
             this.fieldType = new FakeFieldType(name);
-            this.builder = this;
         }
 
         @Override
-        public MockFieldMapper build(BuilderContext context) {
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MockFieldMapper(name(), fieldType, multiFields, copyTo);
+        protected List<Parameter<?>> getParameters() {
+            return Collections.emptyList();
+        }
+
+        public Builder addMultiField(Builder builder) {
+            this.multiFieldsBuilder.add(builder);
+            return this;
+        }
+
+        public Builder copyTo(String field) {
+            this.copyTo.add(field);
+            return this;
+        }
+
+        @Override
+        public MockFieldMapper build(ContentPath contentPath) {
+            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
+            return new MockFieldMapper(name(), fieldType, multiFields, copyTo.build());
         }
     }
 }

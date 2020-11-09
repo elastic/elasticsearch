@@ -10,11 +10,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -103,11 +103,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     }
 
     @Override
-    protected BoxplotAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected BoxplotAggregatorFactory innerBuild(AggregationContext context,
                                                   ValuesSourceConfig config,
                                                   AggregatorFactory parent,
                                                   AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new BoxplotAggregatorFactory(name, config, compression, queryShardContext, parent, subFactoriesBuilder, metadata);
+        return new BoxplotAggregatorFactory(name, config, compression, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

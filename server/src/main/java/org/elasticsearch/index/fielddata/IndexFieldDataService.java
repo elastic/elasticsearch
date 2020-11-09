@@ -135,7 +135,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
             }
         }
 
-        return (IFD) builder.build(cache, circuitBreakerService, mapperService);
+        return (IFD) builder.build(cache, circuitBreakerService);
     }
 
     /**

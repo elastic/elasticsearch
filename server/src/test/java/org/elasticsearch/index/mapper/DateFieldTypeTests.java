@@ -35,6 +35,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
@@ -56,6 +57,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.List;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
 
@@ -70,14 +72,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIsFieldWithinQueryDateMillis() throws IOException {
-        DateFieldType ft = new DateFieldType("my_date", true, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, Collections.emptyMap());
+        DateFieldType ft = new DateFieldType("my_date", Resolution.MILLISECONDS);
         isFieldWithinRangeTestCase(ft);
     }
 
     public void testIsFieldWithinQueryDateNanos() throws IOException {
-        DateFieldType ft = new DateFieldType("my_date", true, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, Resolution.NANOSECONDS, Collections.emptyMap());
+        DateFieldType ft = new DateFieldType("my_date", Resolution.NANOSECONDS);
         isFieldWithinRangeTestCase(ft);
     }
 
@@ -176,7 +176,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expected, ft.termQuery(date, context));
 
         MappedFieldType unsearchable = new DateFieldType("field", false, false, true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-            Resolution.MILLISECONDS, Collections.emptyMap());
+            Resolution.MILLISECONDS, null, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery(date, context));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -211,7 +211,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             ft.rangeQuery("now", instant2, true, true, null, null, null, context));
 
         MappedFieldType unsearchable = new DateFieldType("field", false, false, true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-            Resolution.MILLISECONDS, Collections.emptyMap());
+            Resolution.MILLISECONDS, null, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.rangeQuery(date1, date2, true, true, null, null, null, context));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -275,5 +275,50 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private Instant instant(String str) {
         return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(str)).toInstant();
+    }
+
+    private static DateFieldType fieldType(Resolution resolution, String format, String nullValue) {
+        DateFormatter formatter = DateFormatter.forPattern(format);
+        return new DateFieldType("field", true, false, true, formatter, resolution, nullValue, Collections.emptyMap());
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        MappedFieldType fieldType = new DateFieldType("field", Resolution.MILLISECONDS);
+        String date = "2020-05-15T21:33:02.000Z";
+        assertEquals(List.of(date), fetchSourceValue(fieldType, date));
+        assertEquals(List.of(date), fetchSourceValue(fieldType, 1589578382000L));
+
+        MappedFieldType fieldWithFormat = fieldType(Resolution.MILLISECONDS, "yyyy/MM/dd||epoch_millis", null);
+        String dateInFormat = "1990/12/29";
+        assertEquals(List.of(dateInFormat), fetchSourceValue(fieldWithFormat, dateInFormat));
+        assertEquals(List.of(dateInFormat), fetchSourceValue(fieldWithFormat, 662428800000L));
+
+        MappedFieldType millis = fieldType(Resolution.MILLISECONDS, "epoch_millis", null);
+        String dateInMillis = "662428800000";
+        assertEquals(List.of(dateInMillis), fetchSourceValue(millis, dateInMillis));
+        assertEquals(List.of(dateInMillis), fetchSourceValue(millis, 662428800000L));
+
+        String nullValueDate = "2020-05-15T21:33:02.000Z";
+        MappedFieldType nullFieldType = fieldType(Resolution.MILLISECONDS, "strict_date_time", nullValueDate);
+        assertEquals(List.of(nullValueDate), fetchSourceValue(nullFieldType, null));
+    }
+
+    public void testParseSourceValueWithFormat() throws IOException {
+        MappedFieldType mapper = fieldType(Resolution.NANOSECONDS, "strict_date_time", "1970-12-29T00:00:00.000Z");
+        String date = "1990-12-29T00:00:00.000Z";
+        assertEquals(List.of("1990/12/29"), fetchSourceValue(mapper, date, "yyyy/MM/dd"));
+        assertEquals(List.of("662428800000"), fetchSourceValue(mapper, date, "epoch_millis"));
+        assertEquals(List.of("1970/12/29"), fetchSourceValue(mapper, null, "yyyy/MM/dd"));
+    }
+
+    public void testParseSourceValueNanos() throws IOException {
+        MappedFieldType mapper = fieldType(Resolution.NANOSECONDS, "strict_date_time||epoch_millis", null);
+        String date = "2020-05-15T21:33:02.123456789Z";
+        assertEquals(List.of("2020-05-15T21:33:02.123456789Z"), fetchSourceValue(mapper, date));
+        assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchSourceValue(mapper, 1589578382123L));
+
+        String nullValueDate = "2020-05-15T21:33:02.123456789Z";
+        MappedFieldType nullValueMapper = fieldType(Resolution.NANOSECONDS, "strict_date_time||epoch_millis", nullValueDate);
+        assertEquals(List.of(nullValueDate), fetchSourceValue(nullValueMapper, null));
     }
 }

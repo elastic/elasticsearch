@@ -10,6 +10,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -80,6 +81,15 @@ abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> extends Q
                 };
                 return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
             }
+
+            @Override
+            public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                Explanation constantExplanation = super.explain(context, doc);
+                if (constantExplanation.isMatch()) {
+                    return explainMatch(boost, constantExplanation.getDescription());
+                }
+                return constantExplanation;
+            }
         };
     }
 
@@ -97,5 +107,18 @@ abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> extends Q
         }
         AbstractScriptFieldQuery<?> other = (AbstractScriptFieldQuery<?>) obj;
         return script.equals(other.script) && fieldName.equals(other.fieldName);
+    }
+
+    final Explanation explainMatch(float boost, String description) {
+        return Explanation.match(
+            boost,
+            description,
+            Explanation.match(
+                boost,
+                "boost * runtime_field_score",
+                Explanation.match(boost, "boost"),
+                Explanation.match(1.0, "runtime_field_score is always 1")
+            )
+        );
     }
 }

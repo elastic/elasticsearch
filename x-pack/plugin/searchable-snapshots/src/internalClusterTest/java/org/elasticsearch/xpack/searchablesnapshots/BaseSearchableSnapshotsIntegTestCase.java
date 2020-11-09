@@ -24,7 +24,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
@@ -33,27 +32,21 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
-public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCase {
+public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnapshotIntegTestCase {
     @Override
     protected boolean addMockInternalEngine() {
         return false;
@@ -68,8 +61,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
     protected Settings nodeSettings(int nodeOrdinal) {
         final Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
-            .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none");
+            .put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         if (randomBoolean()) {
             builder.put(
                 CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
@@ -89,40 +81,6 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
             );
         }
         return builder.build();
-    }
-
-    protected void createFsRepository(String repositoryName, Path location) {
-        createRepository(
-            repositoryName,
-            FsRepository.TYPE,
-            Settings.builder().put(FsRepository.LOCATION_SETTING.getKey(), location).build(),
-            true
-        );
-    }
-
-    protected void createRepository(String repositoryName, String repositoryType, Settings repositorySettings, boolean verify) {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(repositoryName)
-                .setType(repositoryType)
-                .setSettings(repositorySettings)
-                .setVerify(verify)
-        );
-    }
-
-    protected SnapshotId createSnapshot(String repositoryName, List<String> indices) {
-        final CreateSnapshotResponse response = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, randomAlphaOfLength(10).toLowerCase(Locale.ROOT))
-            .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
-            .setWaitForCompletion(true)
-            .get();
-
-        final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
-        assertThat(snapshotInfo.failedShards(), equalTo(0));
-        return snapshotInfo.snapshotId();
     }
 
     protected String mountSnapshot(String repositoryName, String snapshotName, String indexName, Settings restoredIndexSettings)
@@ -155,13 +113,6 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
         final RestoreSnapshotResponse restoreResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).get();
         assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(getNumShards(restoredIndexName).numPrimaries));
         assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
-    }
-
-    protected void createRepo(String fsRepoName) {
-        final Path repo = randomRepoPath();
-        assertAcked(
-            client().admin().cluster().preparePutRepository(fsRepoName).setType("fs").setSettings(Settings.builder().put("location", repo))
-        );
     }
 
     protected void createAndPopulateIndex(String indexName, Settings.Builder settings) throws InterruptedException {

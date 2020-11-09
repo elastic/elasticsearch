@@ -25,7 +25,8 @@
         body:   { foo: 2 }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: upgraded_scroll
 
   - do:
       search:

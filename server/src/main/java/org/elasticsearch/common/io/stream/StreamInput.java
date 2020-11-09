@@ -61,7 +61,10 @@ import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.time.Instant;
+import java.time.LocalTime;
+import java.time.OffsetTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -749,6 +752,8 @@ public abstract class StreamInput extends InputStream {
                 return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
             case 26:
                 return readBigInteger();
+            case 27:
+                return readOffsetTime();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -794,6 +799,11 @@ public abstract class StreamInput extends InputStream {
     private ZonedDateTime readZonedDateTime() throws IOException {
         final String timeZoneId = readString();
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
+    }
+
+    private OffsetTime readOffsetTime() throws IOException {
+        final String zoneOffsetId = readString();
+        return OffsetTime.of(LocalTime.ofNanoOfDay(readLong()), ZoneOffset.of(zoneOffsetId));
     }
 
     private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];

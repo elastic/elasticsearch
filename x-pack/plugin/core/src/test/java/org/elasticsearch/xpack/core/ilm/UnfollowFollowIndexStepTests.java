@@ -43,7 +43,7 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
             assertThat(request.getFollowerIndex(), equalTo("follower-index"));
             @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            listener.onResponse(new AcknowledgedResponse(true));
+            listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 

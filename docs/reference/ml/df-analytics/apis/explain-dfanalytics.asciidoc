@@ -5,12 +5,12 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Explain {dfanalytics} API</titleabbrev>
+<titleabbrev>Explain {dfanalytics}</titleabbrev>
 ++++
 
 Explains a {dataframe-analytics-config}.
 
-experimental[]
+beta::[]
 
 
 [[ml-explain-dfanalytics-request]]
@@ -79,10 +79,10 @@ the field names.
 [%collapsible%open]
 ====
 `is_included`:::
-(boolean) Whether the field is selected to be included in the analysis.
+(Boolean) Whether the field is selected to be included in the analysis.
 
 `is_required`:::
-(boolean) Whether the field is required.
+(Boolean) Whether the field is required.
 
 `feature_type`:::
 (string) The feature type of this field for the analysis. May be `categorical` 

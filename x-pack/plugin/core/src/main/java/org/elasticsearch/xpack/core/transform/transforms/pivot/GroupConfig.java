@@ -54,26 +54,26 @@ public class GroupConfig implements Writeable, ToXContentObject {
         groups = in.readMap(StreamInput::readString, (stream) -> {
             SingleGroupSource.Type groupType = SingleGroupSource.Type.fromId(stream.readByte());
             switch (groupType) {
-            case TERMS:
-                return new TermsGroupSource(stream);
-            case HISTOGRAM:
-                return new HistogramGroupSource(stream);
-            case DATE_HISTOGRAM:
-                return new DateHistogramGroupSource(stream);
-            case GEOTILE_GRID:
-                return new GeoTileGroupSource(stream);
-            default:
-                throw new IOException("Unknown group type");
+                case TERMS:
+                    return new TermsGroupSource(stream);
+                case HISTOGRAM:
+                    return new HistogramGroupSource(stream);
+                case DATE_HISTOGRAM:
+                    return new DateHistogramGroupSource(stream);
+                case GEOTILE_GRID:
+                    return new GeoTileGroupSource(stream);
+                default:
+                    throw new IOException("Unknown group type");
             }
         });
     }
 
-    public Map <String, SingleGroupSource> getGroups() {
+    public Map<String, SingleGroupSource> getGroups() {
         return groups;
     }
 
     public boolean isValid() {
-        return this.groups != null;
+        return this.groups != null && this.groups.values().stream().allMatch(SingleGroupSource::isValid);
     }
 
     @Override
@@ -122,9 +122,11 @@ public class GroupConfig implements Writeable, ToXContentObject {
                 throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY);
             }
         } else {
-            try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-                    XContentParser sourceParser = XContentType.JSON.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE,
-                            BytesReference.bytes(xContentBuilder).streamInput())) {
+            try (
+                XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
+                XContentParser sourceParser = XContentType.JSON.xContent()
+                    .createParser(registry, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(xContentBuilder).streamInput())
+            ) {
                 groups = parseGroupConfig(sourceParser, lenient);
             } catch (Exception e) {
                 if (lenient) {
@@ -137,8 +139,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
         return new GroupConfig(source, groups);
     }
 
-    private static Map<String, SingleGroupSource> parseGroupConfig(final XContentParser parser,
-            boolean lenient) throws IOException {
+    private static Map<String, SingleGroupSource> parseGroupConfig(final XContentParser parser, boolean lenient) throws IOException {
         Matcher validAggMatcher = AggregatorFactories.VALID_AGG_NAME.matcher("");
         LinkedHashMap<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
@@ -156,8 +157,10 @@ public class GroupConfig implements Writeable, ToXContentObject {
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String destinationFieldName = parser.currentName();
             if (validAggMatcher.reset(destinationFieldName).matches() == false) {
-                throw new ParsingException(parser.getTokenLocation(), "Invalid group name [" + destinationFieldName
-                        + "]. Group names can contain any character except '[', ']', and '>'");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Invalid group name [" + destinationFieldName + "]. Group names can contain any character except '[', ']', and '>'"
+                );
             }
 
             token = parser.nextToken();
@@ -170,20 +173,20 @@ public class GroupConfig implements Writeable, ToXContentObject {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
             SingleGroupSource groupSource;
             switch (groupType) {
-            case TERMS:
-                groupSource = TermsGroupSource.fromXContent(parser, lenient);
-                break;
-            case HISTOGRAM:
-                groupSource = HistogramGroupSource.fromXContent(parser, lenient);
-                break;
-            case DATE_HISTOGRAM:
-                groupSource = DateHistogramGroupSource.fromXContent(parser, lenient);
-                break;
-            case GEOTILE_GRID:
-                groupSource = GeoTileGroupSource.fromXContent(parser, lenient);
-                break;
-            default:
-                throw new ParsingException(parser.getTokenLocation(), "invalid grouping type: " + groupType);
+                case TERMS:
+                    groupSource = TermsGroupSource.fromXContent(parser, lenient);
+                    break;
+                case HISTOGRAM:
+                    groupSource = HistogramGroupSource.fromXContent(parser, lenient);
+                    break;
+                case DATE_HISTOGRAM:
+                    groupSource = DateHistogramGroupSource.fromXContent(parser, lenient);
+                    break;
+                case GEOTILE_GRID:
+                    groupSource = GeoTileGroupSource.fromXContent(parser, lenient);
+                    break;
+                default:
+                    throw new ParsingException(parser.getTokenLocation(), "invalid grouping type: " + groupType);
             }
 
             parser.nextToken();

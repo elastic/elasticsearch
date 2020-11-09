@@ -259,3 +259,39 @@ setup:
   - is_true: hits.hits.0._id
   - is_true: hits.hits.0._source
   - match: { hits.hits.0.fields.date.0: "1990/12/29" }
+
+---
+"Test token count":
+  - skip:
+      version: " - 7.99.99"
+      reason: "support for token_count isn't yet backported"
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              count:
+                type: token_count
+                analyzer: standard
+              count_without_dv:
+                type: token_count
+                analyzer: standard
+                doc_values: false
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        refresh: true
+        body:
+          count: "some text"
+  - do:
+      search:
+        index: test
+        body:
+          fields: [count, count_without_dv]
+
+  - is_true: hits.hits.0._id
+  - match: { hits.hits.0.fields.count: [2] }
+  - is_false: hits.hits.0.fields.count_without_dv

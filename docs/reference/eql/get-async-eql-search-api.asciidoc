@@ -7,7 +7,7 @@
 <titleabbrev>Get async EQL search</titleabbrev>
 ++++
 
-experimental::[]
+beta::[]
 
 Returns the current status and available results for an <<eql-search-async,async
 EQL search>> or a <<eql-search-store-sync-eql-search,stored synchronous EQL

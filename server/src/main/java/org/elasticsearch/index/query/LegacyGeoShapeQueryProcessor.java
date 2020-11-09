@@ -53,7 +53,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType.QueryProcessor;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Shape;
@@ -63,7 +62,7 @@ import java.util.List;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-public class LegacyGeoShapeQueryProcessor implements QueryProcessor {
+public class LegacyGeoShapeQueryProcessor  {
 
     private AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft;
 
@@ -71,13 +70,8 @@ public class LegacyGeoShapeQueryProcessor implements QueryProcessor {
         this.ft = ft;
     }
 
-    @Override
-    public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
-    }
-
-    @Override
-    public Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation, QueryShardContext context) {
+    public Query geoShapeQuery(Geometry shape, String fieldName, SpatialStrategy strategy,
+                               ShapeRelation relation, QueryShardContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when '"
                     + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
@@ -119,7 +113,6 @@ public class LegacyGeoShapeQueryProcessor implements QueryProcessor {
         }
     }
 
-
     /**
      * Builds JTS shape from a geometry
      * <p>
@@ -128,7 +121,6 @@ public class LegacyGeoShapeQueryProcessor implements QueryProcessor {
     private static Shape buildS4J(Geometry geometry) {
         return geometryToShapeBuilder(geometry).buildS4J();
     }
-
 
     public static ShapeBuilder<?, ?, ?> geometryToShapeBuilder(Geometry geometry) {
         ShapeBuilder<?, ?, ?> shapeBuilder = geometry.visit(new GeometryVisitor<>() {

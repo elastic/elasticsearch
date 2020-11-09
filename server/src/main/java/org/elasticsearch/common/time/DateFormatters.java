@@ -158,11 +158,11 @@ public class DateFormatters {
         .appendLiteral('T')
         .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
         .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
         .optionalEnd()
         .optionalStart()
         .appendLiteral(',')
-        .appendFraction(NANO_OF_SECOND, 3, 9, false)
+        .appendFraction(NANO_OF_SECOND, 1, 9, false)
         .optionalEnd()
         .optionalStart()
         .appendZoneOrOffsetId()
@@ -1170,10 +1170,9 @@ public class DateFormatters {
     /*
      * Returns a formatter for a four digit weekyear. (YYYY)
      */
-    private static final DateFormatter WEEK_YEAR = new JavaDateFormatter("week_year",
+    private static final DateFormatter WEEKYEAR = new JavaDateFormatter("weekyear",
         new DateTimeFormatterBuilder().appendValue(WEEK_FIELDS_ROOT.weekBasedYear()).toFormatter(Locale.ROOT)
-                                      .withResolverStyle(ResolverStyle.STRICT));
-
+            .withResolverStyle(ResolverStyle.STRICT));
     /*
      * Returns a formatter for a four digit year. (uuuu)
      */
@@ -1720,8 +1719,8 @@ public class DateFormatters {
             return WEEK_DATE_TIME;
         } else if (FormatNames.WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
             return WEEK_DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.WEEK_YEAR.matches(input)) {
-            return WEEK_YEAR;
+        } else if (FormatNames.WEEKYEAR.matches(input)) {
+            return WEEKYEAR;
         } else if (FormatNames.WEEK_YEAR_WEEK.matches(input)) {
             return WEEKYEAR_WEEK;
         } else if (FormatNames.WEEKYEAR_WEEK_DAY.matches(input)) {

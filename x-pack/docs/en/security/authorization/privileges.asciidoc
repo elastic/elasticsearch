@@ -16,6 +16,9 @@ settings update, rerouting, or managing users and roles.
 Privileges to create snapshots for existing repositories. Can also list and view
 details on existing repositories and snapshots.
 
+`grant_api_key`::
+Privileges to create {es} API keys on behalf of other users.
+
 `monitor_snapshot`::
 Privileges to list and view details on existing repositories and snapshots.
 
@@ -58,6 +61,9 @@ All operations on index templates.
 
 `manage_ingest_pipelines`::
 All operations on ingest node pipelines.
+
+`manage_logstash_pipelines`::
+All operations on logstash pipelines.
 
 `manage_ml`::
 All {ml} operations, such as creating and deleting {dfeeds}, jobs, and model

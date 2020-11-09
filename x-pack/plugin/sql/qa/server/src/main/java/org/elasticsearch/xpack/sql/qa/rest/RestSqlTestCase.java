@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -689,86 +690,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 mode
             )
         );
-    }
-
-    /**
-     * Test for filtering the field_caps response with a filter.
-     * Because there is no actual SELECT involved (thus, the REST request filter not actually being applied on an actual _search), we can
-     * test if the filtering is correctly applied at field_caps request level.
-     */
-    public void testSysColumnsCommandWithFilter() throws IOException {
-        String mode = randomMode();
-        // create three indices with same @timestamp date field and with differently named one more field
-        indexWithIndexName("test2018", "{\"@timestamp\":\"2018-06-01\",\"field2018\":\"foo\"}");
-        indexWithIndexName("test2019", "{\"@timestamp\":\"2019-06-01\",\"field2019\":\"foo\"}");
-        indexWithIndexName("test2020", "{\"@timestamp\":\"2020-06-01\",\"field2020\":\"foo\"}");
-
-        // filter the results so that only test2020's columns are displayed
-        Map<String, Object> actual = runSql(
-            new StringEntity(
-                query("SYS COLUMNS").mode(mode).filter("{\"range\": {\"@timestamp\": {\"gte\": \"2020\"}}}").toString(),
-                ContentType.APPLICATION_JSON
-            ),
-            StringUtils.EMPTY,
-            mode
-        );
-        @SuppressWarnings("unchecked")
-        List<List<String>> rows = (List<List<String>>) actual.get("rows");
-        assertEquals(3, rows.size());
-        List<String> currentRow = rows.get(0);
-        assertEquals("test2020", currentRow.get(2));
-        assertEquals("@timestamp", currentRow.get(3));
-        currentRow = rows.get(1);
-        assertEquals("test2020", currentRow.get(2));
-        assertEquals("field2020", currentRow.get(3));
-        currentRow = rows.get(2);
-        assertEquals("test2020", currentRow.get(2));
-        assertEquals("field2020.keyword", currentRow.get(3));
-    }
-
-    /**
-     * Similar test with {@link #testSysColumnsCommandWithFilter()} but using "SHOW COLUMNS" command which, compared to "SYS COLUMNS"
-     * goes through a different calls path in IndexResolver
-     */
-    @SuppressWarnings("unchecked")
-    public void testShowColumnsCommandWithFilter() throws IOException {
-        String mode = randomMode();
-        // create three indices with same @timestamp date field and with differently named one more field
-        indexWithIndexName("test2018", "{\"@timestamp\":\"2018-06-01\",\"field2018\":\"foo\"}");
-        indexWithIndexName("test2019", "{\"@timestamp\":\"2019-06-01\",\"field2019\":\"foo\"}");
-        indexWithIndexName("test2020", "{\"@timestamp\":\"2020-06-01\",\"field2020\":\"foo\"}");
-
-        // filter the results so that only test2020's columns are displayed
-        Map<String, Object> actual = runSql(
-            new StringEntity(
-                query("SHOW COLUMNS FROM test2020").mode(mode).filter("{\"range\": {\"@timestamp\": {\"gte\": \"2020\"}}}").toString(),
-                ContentType.APPLICATION_JSON
-            ),
-            StringUtils.EMPTY,
-            mode
-        );
-
-        List<List<String>> rows = (List<List<String>>) actual.get("rows");
-        assertEquals(3, rows.size());
-        List<String> currentRow = rows.get(0);
-        assertEquals("@timestamp", currentRow.get(0));
-        currentRow = rows.get(1);
-        assertEquals("field2020", currentRow.get(0));
-        currentRow = rows.get(2);
-        assertEquals("field2020.keyword", currentRow.get(0));
-
-        // the second test is from an index that is filtered out by the range filter, so the result list should be empty
-        actual = runSql(
-            new StringEntity(
-                query("SHOW COLUMNS FROM test2019").mode(mode).filter("{\"range\": {\"@timestamp\": {\"gte\": \"2020\"}}}").toString(),
-                ContentType.APPLICATION_JSON
-            ),
-            StringUtils.EMPTY,
-            mode
-        );
-
-        rows = (List<List<String>>) actual.get("rows");
-        assertTrue(rows.isEmpty());
     }
 
     public void testBasicTranslateQueryWithFilter() throws IOException {

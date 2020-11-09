@@ -1272,6 +1272,24 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public void assertNoInFlightDocsInEngine() throws Exception {
+        assertBusy(() -> {
+            for (String nodeName : getNodeNames()) {
+                IndicesService indexServices = getInstance(IndicesService.class, nodeName);
+                for (IndexService indexService : indexServices) {
+                    for (IndexShard indexShard : indexService) {
+                        try {
+                            final Engine engine = IndexShardTestCase.getEngine(indexShard);
+                            assertThat(indexShard.routingEntry().toString(), EngineTestCase.getInFlightDocCount(engine), equalTo(0L));
+                        } catch (AlreadyClosedException ignored) {
+                            // shard is closed
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     private IndexShard getShardOrNull(ClusterState clusterState, ShardRouting shardRouting) {
         if (shardRouting == null || shardRouting.assignedToNode() == false) {
             return null;
@@ -2285,9 +2303,10 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized void assertAfterTest() throws IOException {
+    public synchronized void assertAfterTest() throws Exception {
         super.assertAfterTest();
         assertRequestsFinished();
+        assertNoInFlightDocsInEngine();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             NodeEnvironment env = nodeAndClient.node().getNodeEnvironment();
             Set<ShardId> shardIds = env.lockedShards();

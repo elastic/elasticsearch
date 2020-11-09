@@ -96,6 +96,30 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
     }
 
     /**
+     * Create a new instance that has a new snapshot by name {@code target} added which shares all files with the snapshot of name
+     * {@code source}.
+     *
+     * @param source source snapshot name
+     * @param target target snapshot name
+     * @return new instance with added cloned snapshot
+     */
+    public BlobStoreIndexShardSnapshots withClone(String source, String target) {
+        SnapshotFiles sourceFiles = null;
+        for (SnapshotFiles shardSnapshot : shardSnapshots) {
+            if (shardSnapshot.snapshot().equals(source)) {
+                sourceFiles = shardSnapshot;
+                break;
+            }
+        }
+        if (sourceFiles == null) {
+            throw new IllegalArgumentException("unknown source [" + source + "]");
+        }
+        final List<SnapshotFiles> updated = new ArrayList<>(shardSnapshots);
+        updated.add(sourceFiles.withSnapshotName(target));
+        return new BlobStoreIndexShardSnapshots(updated);
+    }
+
+    /**
      * Returns list of snapshots
      *
      * @return list of snapshots

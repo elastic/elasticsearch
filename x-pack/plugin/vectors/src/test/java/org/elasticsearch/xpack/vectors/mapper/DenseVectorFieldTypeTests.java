@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.vectors.mapper;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
@@ -32,5 +34,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testDocValueFormat() {
         DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType("f", 1, Collections.emptyMap());
         expectThrows(UnsupportedOperationException.class, () -> ft.docValueFormat(null, null));
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType("f", 5, Collections.emptyMap());
+        List<Double> vector = List.of(0.0, 1.0, 2.0, 3.0, 4.0);
+        assertEquals(vector, fetchSourceValue(ft, vector));
     }
 }

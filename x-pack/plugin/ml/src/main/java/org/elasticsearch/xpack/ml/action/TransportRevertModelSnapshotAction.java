@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
@@ -38,7 +37,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
-import java.io.IOException;
 import java.util.Date;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -60,22 +58,13 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                                               JobManager jobManager, JobResultsProvider jobResultsProvider,
                                               ClusterService clusterService, Client client, JobDataCountsPersister jobDataCountsPersister) {
         super(RevertModelSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            RevertModelSnapshotAction.Request::new, indexNameExpressionResolver);
+                RevertModelSnapshotAction.Request::new, indexNameExpressionResolver, RevertModelSnapshotAction.Response::new,
+                ThreadPool.Names.SAME);
         this.client = client;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
         this.jobDataCountsPersister = jobDataCountsPersister;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected RevertModelSnapshotAction.Response read(StreamInput in) throws IOException {
-        return new RevertModelSnapshotAction.Response(in);
     }
 
     @Override

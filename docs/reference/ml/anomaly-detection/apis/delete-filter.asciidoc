@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-filter]]
-= Delete filter API
+= Delete filters API
 ++++
-<titleabbrev>Delete filter</titleabbrev>
+<titleabbrev>Delete filters</titleabbrev>
 ++++
 
 Deletes a filter.

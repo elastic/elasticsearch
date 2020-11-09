@@ -285,6 +285,58 @@ GET /_xpack/usage
     "enabled" : true,
     "data_streams" : 0,
     "indices_count" : 0
+  },
+  "data_tiers" : {
+    "available" : true,
+    "enabled" : true,
+    "data_warm" : {
+      "node_count" : 0,
+      "index_count" : 0,
+      "total_shard_count" : 0,
+      "primary_shard_count" : 0,
+      "doc_count" : 0,
+      "total_size_bytes" : 0,
+      "primary_size_bytes" : 0,
+      "primary_shard_size_avg_bytes" : 0,
+      "primary_shard_size_median_bytes" : 0,
+      "primary_shard_size_mad_bytes" : 0
+    },
+    "data_cold" : {
+      "node_count" : 0,
+      "index_count" : 0,
+      "total_shard_count" : 0,
+      "primary_shard_count" : 0,
+      "doc_count" : 0,
+      "total_size_bytes" : 0,
+      "primary_size_bytes" : 0,
+      "primary_shard_size_avg_bytes" : 0,
+      "primary_shard_size_median_bytes" : 0,
+      "primary_shard_size_mad_bytes" : 0
+    },
+    "data_content" : {
+      "node_count" : 0,
+      "index_count" : 0,
+      "total_shard_count" : 0,
+      "primary_shard_count" : 0,
+      "doc_count" : 0,
+      "total_size_bytes" : 0,
+      "primary_size_bytes" : 0,
+      "primary_shard_size_avg_bytes" : 0,
+      "primary_shard_size_median_bytes" : 0,
+      "primary_shard_size_mad_bytes" : 0
+    },
+    "data_hot" : {
+      "node_count" : 0,
+      "index_count" : 0,
+      "total_shard_count" : 0,
+      "primary_shard_count" : 0,
+      "doc_count" : 0,
+      "total_size_bytes" : 0,
+      "primary_size_bytes" : 0,
+      "primary_shard_size_avg_bytes" : 0,
+      "primary_shard_size_median_bytes" : 0,
+      "primary_shard_size_mad_bytes" : 0
+    }
   }
 }
 ------------------------------------------------------------

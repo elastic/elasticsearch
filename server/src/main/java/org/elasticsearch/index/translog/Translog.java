@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -73,6 +72,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
 
 /**
  * A Translog is a per index shard component that records all non-committed index operations in a durable manner.
@@ -118,7 +119,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     // the list of translog readers is guaranteed to be in order of translog generation
     private final List<TranslogReader> readers = new ArrayList<>();
-    private BigArrays bigArrays;
+    private final BigArrays bigArrays;
     protected final ReleasableLock readLock;
     protected final ReleasableLock writeLock;
     private final Path location;
@@ -509,7 +510,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 config.getBufferSize(),
                 initialMinTranslogGen, initialGlobalCheckpoint,
                 globalCheckpointSupplier, this::getMinFileGeneration, primaryTermSupplier.getAsLong(), tragedy,
-                persistedSequenceNumberConsumer);
+                persistedSequenceNumberConsumer,
+                bigArrays);
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }
@@ -1889,7 +1891,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         IOUtils.fsync(checkpointFile, false);
         final TranslogWriter writer = TranslogWriter.create(shardId, uuid, generation, translogFile, channelFactory,
-            new ByteSizeValue(10), minTranslogGeneration, initialGlobalCheckpoint,
+            EMPTY_TRANSLOG_BUFFER_SIZE, minTranslogGeneration, initialGlobalCheckpoint,
             () -> {
                 throw new UnsupportedOperationException();
             }, () -> {
@@ -1899,7 +1901,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             new TragicExceptionHolder(),
             seqNo -> {
                 throw new UnsupportedOperationException();
-            });
+            }, BigArrays.NON_RECYCLING_INSTANCE);
         writer.close();
         return uuid;
     }

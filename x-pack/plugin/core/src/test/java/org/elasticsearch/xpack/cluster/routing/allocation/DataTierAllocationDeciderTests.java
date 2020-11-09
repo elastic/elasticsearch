@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.xpack.core.DataTier;
 
@@ -58,7 +59,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider()));
     private final AllocationService service = new AllocationService(allocationDeciders,
-        new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+        new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
+        EmptySnapshotsInfoService.INSTANCE);
 
     private final ShardRouting shard = ShardRouting.newUnassigned(new ShardId("myindex", "myindex", 0), true,
         RecoverySource.EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"));
@@ -74,7 +76,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testClusterRequires() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"));
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+            null, null, 0);
         allocation.debugDecision(true);
         clusterSettings.applySettings(Settings.builder()
             .put(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE, "data_hot")
@@ -108,7 +110,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testClusterIncludes() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"));
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+            null, null, 0);
         allocation.debugDecision(true);
         clusterSettings.applySettings(Settings.builder()
             .put(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE, "data_warm,data_cold")
@@ -143,7 +145,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testClusterExcludes() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"));
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+            null, null, 0);
         allocation.debugDecision(true);
         clusterSettings.applySettings(Settings.builder()
             .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_warm")
@@ -181,7 +183,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, "data_hot")
                 .build());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+            null, null, 0);
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;
@@ -213,7 +215,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_warm,data_cold")
                 .build());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+            null, null, 0);
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;
@@ -247,7 +249,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 .put(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE, "data_warm,data_cold")
                 .build());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+            null, null,0);
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;
@@ -292,8 +294,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .build()))
                 .build())
             .build();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;
@@ -328,7 +329,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .build()))
                 .build())
             .build();
-        allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, 0);
+        allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
         allocation.debugDecision(true);
 
         for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE)) {
@@ -376,8 +377,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .build()))
                 .build())
             .build();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;
@@ -439,8 +439,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .build()))
                 .build())
             .build();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;
@@ -502,8 +501,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .build()))
                 .build())
             .build();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;
@@ -553,7 +551,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_warm,data_cold")
                 .build());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
-            null, 0);
+            null, null,0);
         clusterSettings.applySettings(Settings.builder()
             .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_cold")
             .build());

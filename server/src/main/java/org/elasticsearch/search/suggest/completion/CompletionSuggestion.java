@@ -66,9 +66,6 @@ import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
  */
 public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 
-    @Deprecated
-    public static final int TYPE = 4;
-
     private boolean skipDuplicates;
 
     /**
@@ -232,11 +229,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 option.setShardIndex(shardIndex);
             }
         }
-    }
-
-    @Override
-    public int getWriteableType() {
-        return TYPE;
     }
 
     @Override

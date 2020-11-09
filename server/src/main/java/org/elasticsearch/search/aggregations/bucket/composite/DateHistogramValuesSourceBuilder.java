@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -320,10 +319,9 @@ public class DateHistogramValuesSourceBuilder
     }
 
     @Override
-    protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
+    protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
-        return queryShardContext.getValuesSourceRegistry()
-            .getAggregator(REGISTRY_KEY, config)
+        return registry.getAggregator(REGISTRY_KEY, config)
             .apply(config, rounding, name, config.script() != null, format(), missingBucket(), order());
     }
 }

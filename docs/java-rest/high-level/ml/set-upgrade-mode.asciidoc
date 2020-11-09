@@ -7,7 +7,7 @@
 [id="{upid}-{api}"]
 === Set upgrade mode API
 
-The set upgrade mode API temporarily halts all {ml} job and {dfeed} tasks when `enabled=true`. Their
+Temporarily halts all {ml} job and {dfeed} tasks when `enabled=true`. Their
 reported states remain unchanged. Consequently, when exiting upgrade mode the halted {ml} jobs and
 {dfeeds} will return to their previous state.
 

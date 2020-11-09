@@ -59,6 +59,19 @@ public class ReleasableLock implements Releasable {
     }
 
     /**
+     * Try acquiring lock, returning null if unable.
+     */
+    public ReleasableLock tryAcquire() {
+        boolean locked = lock.tryLock();
+        if (locked) {
+            assert addCurrentThread();
+            return this;
+        } else {
+            return null;
+        }
+    }
+
+    /**
      * Try acquiring lock, returning null if unable to acquire lock within timeout.
      */
     public ReleasableLock tryAcquire(TimeValue timeout) throws InterruptedException {

@@ -31,11 +31,11 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -382,7 +382,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(
-                QueryShardContext queryShardContext, ValuesSourceConfig config,
+                AggregationContext context, ValuesSourceConfig config,
                 AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();
         if(this.ranges.size() == 0){
@@ -392,7 +392,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
             ranges.add(new BinaryRangeAggregator.Range(range.key, toBytesRef(range.from), toBytesRef(range.to)));
         }
         return new BinaryRangeAggregatorFactory(name, config, ranges,
-                keyed, queryShardContext, parent, subFactoriesBuilder, metadata);
+                keyed, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

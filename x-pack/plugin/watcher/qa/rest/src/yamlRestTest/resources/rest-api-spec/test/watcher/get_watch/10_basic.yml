@@ -13,6 +13,8 @@ teardown:
 
 ---
 "Test get watch api":
+  - skip:
+      features: warnings
   - do:
       watcher.put_watch:
         id: "my_watch"
@@ -45,13 +47,6 @@ teardown:
             }
   - match: { _id: "my_watch" }
   - match: { created: true }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: .watches
-        body: { "query": { "term": { "_id": "my_watch" } } }
-  - match: { hits.total: 1 }
 
   - do:
       watcher.get_watch:

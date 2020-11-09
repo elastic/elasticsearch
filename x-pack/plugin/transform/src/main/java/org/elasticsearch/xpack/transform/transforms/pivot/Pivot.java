@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.Function;
 
@@ -51,7 +50,6 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -65,7 +63,6 @@ public class Pivot implements Function {
 
     private final PivotConfig config;
     private final String transformId;
-    private final boolean supportsIncrementalBucketUpdate;
 
     // objects for re-using
     private final CompositeAggregationBuilder cachedCompositeAggregation;
@@ -74,13 +71,6 @@ public class Pivot implements Function {
         this.config = config;
         this.transformId = transformId;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
-
-        boolean supportsIncrementalBucketUpdate = false;
-        for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
-            supportsIncrementalBucketUpdate |= entry.getValue().supportsIncrementalBucketUpdate();
-        }
-
-        this.supportsIncrementalBucketUpdate = supportsIncrementalBucketUpdate;
     }
 
     @Override
@@ -215,23 +205,7 @@ public class Pivot implements Function {
 
     @Override
     public ChangeCollector buildChangeCollector(String synchronizationField) {
-        CompositeAggregationBuilder aggregationBuilder = null;
-
-        // skip if none of the group_by's requires it
-        if (supportsIncrementalBucketUpdate()) {
-            aggregationBuilder = createCompositeAggregationSources(config, true);
-        }
-
-        return CompositeBucketsChangeCollector.buildChangeCollector(
-            aggregationBuilder,
-            config.getGroupConfig().getGroups(),
-            synchronizationField
-        );
-    }
-
-    @Override
-    public boolean supportsIncrementalBucketUpdate() {
-        return supportsIncrementalBucketUpdate;
+        return CompositeBucketsChangeCollector.buildChangeCollector(config.getGroupConfig().getGroups(), synchronizationField);
     }
 
     public Stream<Map<String, Object>> extractResults(
@@ -344,7 +318,7 @@ public class Pivot implements Function {
     }
 
     private static CompositeAggregationBuilder createCompositeAggregation(PivotConfig config) {
-        final CompositeAggregationBuilder compositeAggregation = createCompositeAggregationSources(config, false);
+        final CompositeAggregationBuilder compositeAggregation = createCompositeAggregationSources(config);
 
         config.getAggregationConfig().getAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
         config.getAggregationConfig().getPipelineAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
@@ -352,11 +326,11 @@ public class Pivot implements Function {
         return compositeAggregation;
     }
 
-    private static CompositeAggregationBuilder createCompositeAggregationSources(PivotConfig config, boolean forChangeDetection) {
+    private static CompositeAggregationBuilder createCompositeAggregationSources(PivotConfig config) {
         CompositeAggregationBuilder compositeAggregation;
 
         try (XContentBuilder builder = jsonBuilder()) {
-            config.toCompositeAggXContent(builder, forChangeDetection);
+            config.toCompositeAggXContent(builder);
             XContentParser parser = builder.generator()
                 .contentType()
                 .xContent()

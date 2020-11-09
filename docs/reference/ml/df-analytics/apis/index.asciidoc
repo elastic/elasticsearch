@@ -1,12 +1,12 @@
 include::ml-df-analytics-apis.asciidoc[leveloffset=+1]
 //CREATE
 include::put-dfanalytics.asciidoc[leveloffset=+2]
-include::put-inference.asciidoc[leveloffset=+2]
+include::put-trained-models.asciidoc[leveloffset=+2]
 //UPDATE
 include::update-dfanalytics.asciidoc[leveloffset=+2]
 //DELETE
 include::delete-dfanalytics.asciidoc[leveloffset=+2]
-include::delete-inference-trained-model.asciidoc[leveloffset=+2]
+include::delete-trained-models.asciidoc[leveloffset=+2]
 //EVALUATE
 include::evaluate-dfanalytics.asciidoc[leveloffset=+2]
 //ESTIMATE_MEMORY_USAGE
@@ -14,8 +14,8 @@ include::explain-dfanalytics.asciidoc[leveloffset=+2]
 //GET
 include::get-dfanalytics.asciidoc[leveloffset=+2]
 include::get-dfanalytics-stats.asciidoc[leveloffset=+2]
-include::get-inference-trained-model.asciidoc[leveloffset=+2]
-include::get-inference-trained-model-stats.asciidoc[leveloffset=+2]
+include::get-trained-models.asciidoc[leveloffset=+2]
+include::get-trained-models-stats.asciidoc[leveloffset=+2]
 //SET/START/STOP
 include::start-dfanalytics.asciidoc[leveloffset=+2]
 include::stop-dfanalytics.asciidoc[leveloffset=+2]

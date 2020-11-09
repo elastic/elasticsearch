@@ -81,6 +81,10 @@ public class LikeConversionTests extends ESTestCase {
         assertEquals("foo\\*bar*", wildcard("foo*bar%"));
     }
 
+    public void testStarLiteralWithWildcards() {
+        assertEquals("\\**\\*?foo\\*\\*?*", wildcard("*%*_foo**_%"));
+    }
+
     public void testWildcardEscapedWildcard() {
         assertEquals("foo\\*bar%", wildcard("foo*bar|%"));
     }

@@ -27,28 +27,35 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class IpFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("::1");
+    protected Object getSampleValueForDocument() {
+        return "::1";
     }
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "ip");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "::1"));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", false),
+            m -> assertFalse(((IpFieldMapper) m).ignoreMalformed()));
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -205,20 +212,5 @@ public class IpFieldMapperTests extends MapperTestCase {
             b.field("null_value", ":1");
         }));
         assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored");
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        IpFieldMapper mapper = new IpFieldMapper.Builder("field", true, Version.CURRENT).build(context);
-        assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8::2:1"));
-        assertEquals(List.of("2001:db8::2:1"), fetchSourceValue(mapper, "2001:db8:0:0:0:0:2:1"));
-        assertEquals(List.of("::1"), fetchSourceValue(mapper, "0:0:0:0:0:0:0:1"));
-
-        IpFieldMapper nullValueMapper = new IpFieldMapper.Builder("field", true, Version.CURRENT)
-            .nullValue("2001:db8:0:0:0:0:2:7")
-            .build(context);
-        assertEquals(List.of("2001:db8::2:7"), fetchSourceValue(nullValueMapper, null));
     }
 }

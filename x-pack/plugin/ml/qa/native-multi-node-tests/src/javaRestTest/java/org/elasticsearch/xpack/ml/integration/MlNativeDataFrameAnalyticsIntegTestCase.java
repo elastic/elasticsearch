@@ -355,8 +355,16 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         if (getFieldValue(mappings, "properties", "ml", "properties", "top_classes") != null) {
             assertThat(
                 mappings.toString(),
+                getFieldValue(mappings, "properties", "ml", "properties", "top_classes", "type"),
+                equalTo("nested"));
+            assertThat(
+                mappings.toString(),
                 getFieldValue(mappings, "properties", "ml", "properties", "top_classes", "properties", "class_name", "type"),
                 equalTo(expectedType));
+            assertThat(
+                mappings.toString(),
+                getFieldValue(mappings, "properties", "ml", "properties", "top_classes", "properties", "class_probability", "type"),
+                equalTo("double"));
         }
     }
 

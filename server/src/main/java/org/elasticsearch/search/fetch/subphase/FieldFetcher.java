@@ -126,7 +126,10 @@ public class FieldFetcher {
                 collect(documentFields, (Map<String, Object>) value, currentPath + ".", step(this.pathAutomaton, ".", currentState));
             } else if (value instanceof List) {
                 // iterate through list values
-                collect(documentFields, (List<Object>) value, currentPath, currentState);
+                List<Object> list = collectList(documentFields, (List<?>) value, currentPath, currentState);
+                if (list.isEmpty() == false) {
+                    documentFields.put(currentPath, new DocumentField(currentPath, list));
+                }
             } else {
                 // we have a leaf value
                 if (this.pathAutomaton.isAccept(currentState) && this.mappedToExclude.contains(currentPath) == false) {
@@ -145,20 +148,19 @@ public class FieldFetcher {
         }
     }
 
-    private void collect(Map<String, DocumentField> documentFields, Iterable<?> iterable, String parentPath, int lastState) {
+    private List<Object> collectList(Map<String, DocumentField> documentFields, Iterable<?> iterable, String parentPath, int lastState) {
         List<Object> list = new ArrayList<>();
         for (Object value : iterable) {
             if (value instanceof Map) {
                 collect(documentFields, (Map<String, Object>) value, parentPath + ".", step(this.pathAutomaton, ".", lastState));
             } else if (value instanceof List) {
-                // TODO can this happen with Json sources?
+                // weird case, but can happen for objects with "enabled" : "false"
+                list.add(collectList(documentFields, (List<?>) value, parentPath, lastState));
             } else if (this.pathAutomaton.isAccept(lastState)) {
                 list.add(value);
             }
         }
-        if (list.isEmpty() == false) {
-            documentFields.put(parentPath, new DocumentField(parentPath, list));
-        }
+        return list;
     }
 
     private static int step(CharacterRunAutomaton automaton, String key, int state) {

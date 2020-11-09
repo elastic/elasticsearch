@@ -361,3 +361,45 @@ Test unmapped field:
   -  match:
         hits.hits.0.fields.f4:
         - some other text
+---
+Test unmapped fields inside disabled objects:
+  -  skip:
+        version: ' - 7.99.99'
+        reason: support isn't yet backported
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                    f1:
+                       type: object
+                       enabled: false
+  -  do:
+        index:
+           index: test
+           id: 1
+           refresh: true
+           body:
+              f1: 
+                 - some text
+                 - a: b
+                 -
+                   - 1
+                   - 2
+                   - 3
+  -  do:
+        search:
+           index: test
+           body:
+              fields: ["*"]
+  -  match:
+        hits.hits.0.fields.f1: 
+        - some text
+        -
+          - 1
+          - 2
+          - 3
+  -  match:
+        hits.hits.0.fields.f1\.a:
+        - b

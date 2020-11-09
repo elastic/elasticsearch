@@ -41,6 +41,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class FieldFetcherTests extends ESSingleNodeTestCase {
 
@@ -520,6 +521,53 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         assertThat(fields.keySet(), containsInAnyOrder("obj.f1", "obj.f2", "obj.innerObj.f3", "obj.innerObj.f4"));
     }
 
+    public void testUnmappedFieldsInsideDisabledObject() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("obj")
+                    .field("type", "object")
+                    .field("enabled", "false")
+                .endObject()
+            .endObject()
+        .endObject();
+
+        IndexService indexService = createIndex("index", Settings.EMPTY, mapping);
+        MapperService mapperService = indexService.mapperService();
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startArray("obj")
+            .value("string_value")
+            .startObject()
+                .field("a", "b")
+            .endObject()
+            .startArray()
+                .value(1).value(2).value(3)
+            .endArray()
+            .endArray()
+        .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "*", false);
+
+        // without unmapped fields this should return nothing
+        assertThat(fields.size(), equalTo(0));
+
+        fields = fetchFields(mapperService, source, "*", true);
+        assertThat(fields.size(), equalTo(2));
+        assertThat(fields.keySet(), containsInAnyOrder("obj", "obj.a"));
+
+        List<Object> obj = fields.get("obj").getValues();
+        assertEquals(2, obj.size());
+        assertThat(obj.get(0), instanceOf(String.class));
+        assertEquals("string_value", obj.get(0).toString());
+        assertThat(obj.get(1), instanceOf(List.class));
+        assertEquals(3, ((List<?>) obj.get(1)).size());
+        assertEquals("[1, 2, 3]", obj.get(1).toString());
+
+        List<Object> innerObj = fields.get("obj.a").getValues();
+        assertEquals(1, innerObj.size());
+        assertEquals("b", fields.get("obj.a").getValue());
+    }
+
     /**
      * If a mapped field for some reason contains a "_source" value that is not returned by the
      * mapped retrieval mechanism (e.g. because its malformed), we don't want to fetch it from _source.
@@ -583,7 +631,6 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         fields = fetchFields(mapperService, source, "unmapped_object.b", true);
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.get("unmapped_object.b").getValue(), equalTo("bar"));
-
     }
 
     private Map<String, DocumentField> fetchFields(

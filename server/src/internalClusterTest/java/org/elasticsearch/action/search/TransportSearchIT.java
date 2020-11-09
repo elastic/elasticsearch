@@ -593,5 +593,10 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public void preCollection() throws IOException {}
+
+        @Override
+        public Aggregator[] subAggregators() {
+            throw new UnsupportedOperationException();
+        }
     }
 }

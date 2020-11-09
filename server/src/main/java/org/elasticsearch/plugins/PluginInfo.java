@@ -50,7 +50,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
-    private static final Version QUOTA_FS_PLUGIN_SUPPORT = Version.V_7_11_0;;
+    private static final Version QUOTA_FS_PLUGIN_SUPPORT = Version.V_7_11_0;
 
     private final String name;
     private final String description;

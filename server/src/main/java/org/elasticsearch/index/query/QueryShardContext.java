@@ -301,7 +301,6 @@ public class QueryShardContext extends QueryRewriteContext {
      * type then the fields will be returned with a type prefix.
      */
     public Set<String> simpleMatchToIndexNames(String pattern) {
-        // TODO remove the duplication with MapperService and FieldTypeLookup
         if (runtimeMappings.isEmpty()) {
             return mapperService.simpleMatchToFullName(pattern);
         }

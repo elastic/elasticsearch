@@ -1614,6 +1614,7 @@ public abstract class Engine implements Closeable {
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
             this.fromTranslog = fromTranslog;
+            assert fromTranslog == false || searcher.getIndexReader() instanceof TranslogLeafReader;
         }
 
         public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
@@ -1628,6 +1629,10 @@ public abstract class Engine implements Closeable {
             return this.version;
         }
 
+        /**
+         * Returns true iff the get was performed from a translog operation. Notes that this returns false even if the get was performed
+         * on an in-memory Lucene segment created the corresponding translog operation.
+         */
         public boolean isFromTranslog() {
             return fromTranslog;
         }

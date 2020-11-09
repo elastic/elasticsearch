@@ -92,3 +92,7 @@
   - do:
       autoscaling.get_autoscaling_policy:
         name: my_autoscaling_policy_keep
+
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: my_autoscaling_policy_keep

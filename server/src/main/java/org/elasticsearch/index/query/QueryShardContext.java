@@ -378,7 +378,7 @@ public class QueryShardContext extends QueryRewriteContext {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
         Mapper.Builder builder = typeParser.parse(field, node, parserContext);
-        Mapper mapper = builder.build(new ContentPath(1));
+        Mapper mapper = builder.build(new ContentPath(0));
         if (mapper instanceof FieldMapper) {
             return ((FieldMapper)mapper).fieldType();
         }

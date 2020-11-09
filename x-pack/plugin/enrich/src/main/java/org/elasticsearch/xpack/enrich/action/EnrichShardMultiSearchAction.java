@@ -232,8 +232,10 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
                 final FieldsVisitor visitor = new FieldsVisitor(true);
                 /*
-                 * Enrich doesn't support defining runtime fields in the search
-                 * request so we use an empty map to signal that they aren't
+                 * Enrich doesn't support defining runtime fields in its
+                 * configuration. We could add support for that if we'd
+                 * like it but, for now at least, you can't configure any
+                 * runtime fields so it is safe to build the context without
                  * any.
                  */
                 Map<String, Object> runtimeFields = emptyMap();

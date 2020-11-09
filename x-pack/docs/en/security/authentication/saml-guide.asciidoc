@@ -894,7 +894,7 @@ authentication proxy handling the authentication of end users (more correctly,
 APIs require authentication and the necessary authorization level for the authenticated
 user. For this reason, you must create a Service Account user and assign it a role
 that gives it the `manage_saml` cluster privilege. The use of the `manage_token`
-cluster privilege will be necessary after the authentication takes place, so that the
+cluster privilege will be necessary after the authentication takes place, so that
 the service account user can maintain access in order refresh access tokens on
 behalf of the authenticated users or to subsequently log them out.
 

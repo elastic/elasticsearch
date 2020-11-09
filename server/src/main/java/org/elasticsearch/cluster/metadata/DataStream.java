@@ -269,12 +269,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             indices.equals(that.indices) &&
             generation == that.generation &&
             Objects.equals(metadata, that.metadata) &&
+            hidden == that.hidden &&
             replicated == that.replicated;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampField, indices, generation, metadata, replicated);
+        return Objects.hash(name, timeStampField, indices, generation, metadata, hidden, replicated);
     }
 
     public static final class TimestampField implements Writeable, ToXContentObject {

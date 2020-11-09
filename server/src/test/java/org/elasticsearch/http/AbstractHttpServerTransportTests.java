@@ -180,39 +180,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     public void testIncorrectHeaderHandling() {
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        try (AbstractHttpServerTransport transport =
-                 new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(),
-                     new HttpServerTransport.Dispatcher() {
-                         @Override
-                         public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                             Assert.fail();
-                         }
+        {
+            try (AbstractHttpServerTransport transport =
+                     failureAssertingtHttpServerTransport(clusterSettings, "Accept")) {
 
-                         @Override
-                         public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                             assertThat(cause, instanceOf(RestRequest.MediaTypeHeaderException.class));
-                         }
-                     }, clusterSettings) {
-                     @Override
-                     protected HttpServerChannel bind(InetSocketAddress hostAddress) {
-                         return null;
-                     }
 
-                     @Override
-                     protected void doStart() {
-                     }
-
-                     @Override
-                     protected void stopInternal() {
-                     }
-
-                     @Override
-                     public HttpStats stats() {
-                         return null;
-                     }
-                 }) {
-
-            {
                 Map<String, List<String>> headers = new HashMap<>();
                 headers.put("Accept", Collections.singletonList("incorrectheader"));
 
@@ -221,7 +193,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 transport.incomingRequest(fakeHttpRequest, null);
             }
-            {
+        }
+        {
+            try (AbstractHttpServerTransport transport =
+                     failureAssertingtHttpServerTransport(clusterSettings, "Content-Type")) {
                 Map<String, List<String>> headers = new HashMap<>();
                 headers.put("Accept", Collections.singletonList("application/json"));
                 headers.put("Content-Type", Collections.singletonList("incorrectheader"));
@@ -232,6 +207,44 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 transport.incomingRequest(fakeHttpRequest, null);
             }
         }
+    }
+
+    private AbstractHttpServerTransport failureAssertingtHttpServerTransport(ClusterSettings clusterSettings,
+                                                                             final String failedHeaderName) {
+        return new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(),
+            new HttpServerTransport.Dispatcher() {
+                @Override
+                public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                    Assert.fail();
+                }
+
+                @Override
+                public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                    assertThat(cause, instanceOf(RestRequest.MediaTypeHeaderException.class));
+                    RestRequest.MediaTypeHeaderException mediaTypeHeaderException = (RestRequest.MediaTypeHeaderException) cause;
+                    assertThat(mediaTypeHeaderException.getFailedHeaderName(), equalTo(failedHeaderName));
+                    assertThat(mediaTypeHeaderException.getMessage(),
+                        equalTo("Invalid media-type value on header [" + failedHeaderName + "]"));
+                }
+            }, clusterSettings) {
+            @Override
+            protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                return null;
+            }
+
+            @Override
+            protected void doStart() {
+            }
+
+            @Override
+            protected void stopInternal() {
+            }
+
+            @Override
+            public HttpStats stats() {
+                return null;
+            }
+        };
     }
 
     @TestLogging(

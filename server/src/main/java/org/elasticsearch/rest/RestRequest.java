@@ -565,6 +565,11 @@ public class RestRequest implements ToXContent.Params {
         public String getFailedHeaderName() {
             return failedHeaderName;
         }
+
+        @Override
+        public String getMessage() {
+            return "Invalid media-type value on header [" + failedHeaderName + "]";
+        }
     }
 
     public static class BadParameterException extends RuntimeException {

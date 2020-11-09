@@ -207,7 +207,7 @@ public class RestRequestTests extends ESTestCase {
                 });
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getMessage(), equalTo("java.lang.IllegalArgumentException: invalid media type [" + type + "]"));
+        assertThat(e.getMessage(), equalTo("java.lang.IllegalArgumentException: invalid media-type [" + type + "]"));
     }
 
     public void testNoContentTypeHeader() {

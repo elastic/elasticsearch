@@ -77,6 +77,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
+import static java.util.Collections.emptyMap;
+
 final class DefaultSearchContext extends SearchContext {
 
     private final ReaderContext readerContext;
@@ -174,8 +176,14 @@ final class DefaultSearchContext extends SearchContext {
 
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
-        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), this.searcher,
-            request::nowInMillis, shardTarget.getClusterAlias(), request.source().runtimeMappings());
+        Map<String, Object> runtimeMappings = request.source() == null ? emptyMap() : request.source().runtimeMappings();
+        queryShardContext = indexService.newQueryShardContext(
+            request.shardId().id(),
+            this.searcher,
+            request::nowInMillis,
+            shardTarget.getClusterAlias(),
+            runtimeMappings
+        );
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
     }

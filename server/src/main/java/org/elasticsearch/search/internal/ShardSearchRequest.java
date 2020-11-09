@@ -61,7 +61,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**

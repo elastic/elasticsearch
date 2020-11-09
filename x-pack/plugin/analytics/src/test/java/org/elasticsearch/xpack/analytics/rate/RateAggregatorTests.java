@@ -49,6 +49,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
@@ -351,6 +352,80 @@ public class RateAggregatorTests extends AggregatorTestCase {
             assertThat(st2.getBuckets(), hasSize(2));
             assertThat(((InternalRate) st2.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
             assertThat(((InternalRate) st2.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(4.0, 0.000001));
+        }, dateType, numType, keywordType);
+    }
+
+    public void testKeywordSandwichWithSorting() throws IOException {
+        MappedFieldType numType = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType dateType = dateFieldType(DATE_FIELD);
+        MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
+        RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("week").field("val");
+        boolean useSum = randomBoolean();
+        if (useSum) {
+            if (randomBoolean()) {
+                rateAggregationBuilder.rateMode("sum");
+            }
+        } else {
+            rateAggregationBuilder.rateMode("value_count");
+        }
+        TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("my_term").field("term")
+            .order(BucketOrder.aggregation("my_rate", false))
+            .subAggregation(rateAggregationBuilder);
+        DateHistogramAggregationBuilder dateHistogramAggregationBuilder = new DateHistogramAggregationBuilder("my_date").field(DATE_FIELD)
+            .calendarInterval(new DateHistogramInterval("week"))
+            .subAggregation(termsAggregationBuilder);
+
+        testCase(dateHistogramAggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(
+                doc("2020-11-02T01:07:45", new NumericDocValuesField("val", 1), new SortedSetDocValuesField("term", new BytesRef("a")))
+            );
+            iw.addDocument(
+                doc("2020-11-03T01:07:45", new NumericDocValuesField("val", 2), new SortedSetDocValuesField("term", new BytesRef("a")))
+            );
+            iw.addDocument(
+                doc("2020-11-04T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
+            );
+            iw.addDocument(
+                doc("2020-11-09T03:43:34", new NumericDocValuesField("val", 30), new SortedSetDocValuesField("term", new BytesRef("a")))
+            );
+            iw.addDocument(
+                doc("2020-11-10T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
+            );
+            iw.addDocument(
+                doc("2020-11-11T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
+            );
+        }, (Consumer<InternalDateHistogram>) dh -> {
+            assertThat(dh.getBuckets(), hasSize(2));
+            if (useSum) {
+                StringTerms st1 = (StringTerms) dh.getBuckets().get(0).getAggregations().asList().get(0);
+                assertThat(st1.getBuckets(), hasSize(2));
+                assertThat(st1.getBuckets().get(0).getKeyAsString(), equalTo("b"));
+                assertThat(((InternalRate) st1.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(4.0, 0.000001));
+                assertThat(st1.getBuckets().get(1).getKeyAsString(), equalTo("a"));
+                assertThat(((InternalRate) st1.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
+
+                StringTerms st2 = (StringTerms) dh.getBuckets().get(1).getAggregations().asList().get(0);
+                assertThat(st2.getBuckets(), hasSize(2));
+                assertThat(st2.getBuckets().get(0).getKeyAsString(), equalTo("a"));
+                assertThat(((InternalRate) st2.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(30.0, 0.000001));
+                assertThat(st2.getBuckets().get(1).getKeyAsString(), equalTo("b"));
+                assertThat(((InternalRate) st2.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(8.0, 0.000001));
+            } else {
+                StringTerms st1 = (StringTerms) dh.getBuckets().get(0).getAggregations().asList().get(0);
+                assertThat(st1.getBuckets(), hasSize(2));
+                assertThat(st1.getBuckets().get(0).getKeyAsString(), equalTo("a"));
+                assertThat(((InternalRate) st1.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(2.0, 0.000001));
+                assertThat(st1.getBuckets().get(1).getKeyAsString(), equalTo("b"));
+                assertThat(((InternalRate) st1.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(1.0, 0.000001));
+
+                StringTerms st2 = (StringTerms) dh.getBuckets().get(1).getAggregations().asList().get(0);
+                assertThat(st2.getBuckets(), hasSize(2));
+                assertThat(st2.getBuckets().get(0).getKeyAsString(), equalTo("b"));
+                assertThat(((InternalRate) st2.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(2.0, 0.000001));
+                assertThat(st2.getBuckets().get(1).getKeyAsString(), equalTo("a"));
+                assertThat(((InternalRate) st2.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(1.0, 0.000001));
+
+            }
         }, dateType, numType, keywordType);
     }
 

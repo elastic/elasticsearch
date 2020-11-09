@@ -360,7 +360,10 @@ public class DataFrameDataExtractor {
     }
 
     private static boolean isValidValue(Object value) {
-        return value instanceof Number || value instanceof String;
+        // We should allow a number, string or a boolean.
+        // It is possible for a field to be categorical and have a `keyword` mapping, but be any of these
+        // three types, in the same index.
+        return value instanceof Number || value instanceof String || value instanceof Boolean;
     }
 
     public static class DataSummary {

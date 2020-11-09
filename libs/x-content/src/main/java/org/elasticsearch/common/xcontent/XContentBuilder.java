@@ -1010,7 +1010,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * Sets a version used for serialising a response compatible with a previous version.
      */
     public XContentBuilder withCompatibleMajorVersion(byte compatibleMajorVersion) {
-        assert compatibleMajorVersion == 0 : "Compatible version has already been set";
+        assert compatibleMajorVersion != 0 : "Compatible version has already been set";
         this.compatibleMajorVersion = compatibleMajorVersion;
         return this;
     }

@@ -24,7 +24,9 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The job that owns the snapshot
 <2> The snapshot id to upgrade
-<3> The time out of the request
+<3> The time out of the request. When `wait_for_completion` is `false` the timeout value is
+    applied to the time it takes for the task to be assigned to a node. When `wait_for_completion`
+    is `true` this timeout applies for the whole upgrade process. The default value is `30m`
 <4> When true, this causes the request to not return until the upgrade is complete.
     Otherwise, the response returns as soon as the task
     is assigned to a node. The default is false.

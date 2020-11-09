@@ -27,6 +27,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueWriter;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
@@ -38,17 +39,25 @@ public class GeoTestUtils {
     public static GeometryDocValueReader geometryDocValueReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         geometry = indexer.prepareForIndexing(geometry);
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(geometry);
         GeometryDocValueReader reader = new GeometryDocValueReader();
-        reader.reset(GeometryDocValueWriter.write(indexer.indexShape(null, geometry), encoder, new CentroidCalculator(geometry)));
+        reader.reset(GeometryDocValueWriter.write(indexer.indexShape(null, geometry), encoder, centroidCalculator));
         return reader;
     }
 
     public static BinaryGeoShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry) {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, name);
         geometry = indexer.prepareForIndexing(geometry);
-        return new BinaryGeoShapeDocValuesField(name, indexer.indexShape(null, geometry) , new CentroidCalculator(geometry));
+        BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField(name);
+        field.add(indexer.indexShape(null, geometry) , geometry);
+        return field;
     }
 
+    public static GeoShapeValues.GeoShapeValue geoShapeValue(Geometry geometry) throws IOException {
+        GeometryDocValueReader reader = geometryDocValueReader(geometry, CoordinateEncoder.GEO);
+        return new GeoShapeValues.GeoShapeValue(reader);
+    }
 
     public static GeoBoundingBox randomBBox() {
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
@@ -77,6 +86,4 @@ public class GeoTestUtils {
         Geometry geometry = new GeometryParser(true, true, true).parse(parser);
         return new GeoShapeIndexer(true, "indexer").prepareForIndexing(geometry);
     }
-
-
 }

@@ -179,7 +179,7 @@ public class QueryShardContext extends QueryRewriteContext {
             ),
             allowExpensiveQueries,
             valuesSourceRegistry,
-            parseRuntimeMappings(runtimeMappings, mapperService::parserContext, indexSettings)
+            parseRuntimeMappings(runtimeMappings, mapperService, indexSettings)
         );
     }
 
@@ -622,7 +622,7 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private static Map<String, MappedFieldType> parseRuntimeMappings(
         Map<String, Object> mappings,
-        Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier,
+        MapperService mapperService,
         IndexSettings indexSettings
     ) {
         Map<String, MappedFieldType> runtimeMappings = new HashMap<>();
@@ -638,7 +638,7 @@ public class QueryShardContext extends QueryRewriteContext {
             if (oldRuntimeType != null) {
                 throw new ElasticsearchParseException("use [type] in [runtime_mappings] instead of [runtime_type]");
             }
-            runtimeMappings.put(field, buildFieldType("runtime", field, node, parserContextSupplier.get(), indexSettings));
+            runtimeMappings.put(field, buildFieldType("runtime", field, node, mapperService.parserContext(), indexSettings));
         }
         return runtimeMappings;
     }

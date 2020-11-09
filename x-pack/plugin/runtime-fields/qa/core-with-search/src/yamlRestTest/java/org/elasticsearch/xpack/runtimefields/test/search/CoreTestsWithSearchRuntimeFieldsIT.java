@@ -37,11 +37,6 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
         super(testCandidate);
     }
 
-    @Override
-    protected boolean randomizeContentType() { // NOCOMMIT remove me
-        return false;
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return new SearchRequestRuntimeFieldTranslater().parameters();

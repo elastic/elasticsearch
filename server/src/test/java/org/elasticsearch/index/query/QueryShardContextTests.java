@@ -196,7 +196,7 @@ public class QueryShardContextTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             null,
             null,
-            mock(MapperService.class),
+            null,
             null,
             null,
             NamedXContentRegistry.EMPTY,

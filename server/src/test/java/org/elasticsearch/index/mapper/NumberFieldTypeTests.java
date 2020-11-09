@@ -70,7 +70,6 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class NumberFieldTypeTests extends FieldTypeTestCase {
 
@@ -475,7 +474,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexSearcher searcher = newSearcher(reader);
 
         QueryShardContext context = new QueryShardContext(0, indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, mock(MapperService.class), null, null, xContentRegistry(), writableRegistry(),
+            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
             null, null, () -> 0L, null, null, () -> true, null);
 
         final int iters = 10;

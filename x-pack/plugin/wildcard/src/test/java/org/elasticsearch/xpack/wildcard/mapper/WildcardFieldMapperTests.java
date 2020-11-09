@@ -53,7 +53,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -898,7 +897,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             return builder.build(new IndexFieldDataCache.None(), null);
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
-                mock(MapperService.class), null, null, xContentRegistry(), null, null, null,
+                null, null, null, xContentRegistry(), null, null, null,
                 () -> randomNonNegativeLong(), null, null, () -> true, null) {
 
             @Override

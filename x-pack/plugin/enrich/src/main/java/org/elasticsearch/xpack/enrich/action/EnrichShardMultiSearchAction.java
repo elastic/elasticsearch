@@ -231,12 +231,18 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             final IndexShard indexShard = indicesService.getShardOrNull(shardId);
             try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
                 final FieldsVisitor visitor = new FieldsVisitor(true);
+                /*
+                 * Enrich doesn't support defining runtime fields in the search
+                 * request so we use an empty map to signal that they aren't
+                 * any.
+                 */
+                Map<String, Object> runtimeFields = emptyMap();
                 final QueryShardContext context = indexService.newQueryShardContext(
                     shardId.id(),
                     searcher,
                     () -> { throw new UnsupportedOperationException(); },
                     null,
-                    emptyMap()  // Enrich doesn't support defining runtime fields
+                    runtimeFields
                 );
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {

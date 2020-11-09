@@ -59,8 +59,6 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 
-import static org.mockito.Mockito.mock;
-
 public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private static final long nowInMillis = 0;
@@ -167,7 +165,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-                BigArrays.NON_RECYCLING_INSTANCE, null, null, mock(MapperService.class), null, null,
+                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
                 xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null);
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
@@ -189,7 +187,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-                BigArrays.NON_RECYCLING_INSTANCE, null, null, mock(MapperService.class), null, null, xContentRegistry(), writableRegistry(),
+                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
                 null, null, () -> nowInMillis, null, null, () -> true, null);
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
@@ -233,7 +231,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
 
         QueryShardContext context = new QueryShardContext(0, indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, mock(MapperService.class), null, null, xContentRegistry(), writableRegistry(),
+            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
             null, null, () -> 0L, null, null, () -> true, null);
 
         MappedFieldType ft = new DateFieldType("field");

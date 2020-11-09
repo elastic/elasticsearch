@@ -141,7 +141,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     @SuppressWarnings("rawtypes")
     private static final AttributeMap EMPTY = new AttributeMap<>();
-    
+
     @SuppressWarnings("unchecked")
     public static final <E> AttributeMap<E> emptyAttributeMap() {
         return EMPTY;
@@ -364,24 +364,35 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     public static class Builder<E> {
-        private final AttributeMap<E> map = new AttributeMap<>();
+        private AttributeMap<E> map = null;
+        private AttributeMap<E> previouslyBuiltMap = null;
 
         private Builder() {}
 
+        private AttributeMap<E> map() {
+            if (map == null) {
+                map = new AttributeMap<>();
+                if (previouslyBuiltMap != null) {
+                    map.addAll(previouslyBuiltMap);
+                }
+            }
+            return map;
+        }
+
         public Builder<E> put(Attribute attr, E value) {
-            map.add(attr, value);
+            map().add(attr, value);
             return this;
         }
 
         public Builder<E> putAll(AttributeMap<E> m) {
-            map.addAll(m);
+            map().addAll(m);
             return this;
         }
 
         public AttributeMap<E> build() {
-            // copy, in case someone would do a .build, .put, .build sequence
-            AttributeMap<E> m = new AttributeMap<>();
-            m.addAll(map);
+            AttributeMap<E> m = map();
+            previouslyBuiltMap = m;
+            map = null;
             return m;
         }
     }

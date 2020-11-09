@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -22,12 +23,14 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -46,7 +49,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max", "value_count" });
+        b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max", "value_count" }).field(DEFAULT_METRIC, "max");
     }
 
     @Override
@@ -55,26 +58,44 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
             b -> b.field(IGNORE_MALFORMED_FIELD, true),
             m -> assertTrue(((AggregateDoubleMetricFieldMapper) m).ignoreMalformed())
         );
-        checker.registerUpdateCheck(
-            b -> b.field(DEFAULT_METRIC, "min"),
-            m -> assertEquals(AggregateDoubleMetricFieldMapper.Metric.min, ((AggregateDoubleMetricFieldMapper) m).defaultMetric())
+
+        checker.registerConflictCheck(
+            DEFAULT_METRIC,
+            fieldMapping(this::minimalMapping),
+            fieldMapping(
+                b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "min"); }
+            )
         );
 
         checker.registerConflictCheck(
             METRICS_FIELD,
             fieldMapping(this::minimalMapping),
-            fieldMapping(b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }); })
+            fieldMapping(
+                b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "max"); }
+            )
         );
+
         checker.registerConflictCheck(
             METRICS_FIELD,
             fieldMapping(this::minimalMapping),
-            fieldMapping(b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" }); })
+            fieldMapping(
+                b -> {
+                    b.field("type", CONTENT_TYPE)
+                        .field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" })
+                        .field(DEFAULT_METRIC, "min");
+                }
+            )
         );
     }
 
     @Override
     protected Object getSampleValueForDocument() {
         return Map.of("min", -10.1, "max", 50.0, "value_count", 14);
+    }
+
+    @Override
+    protected Object getSampleValueForQuery() {
+        return 50.0;
     }
 
     /**
@@ -133,6 +154,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", CONTENT_TYPE)
                     .field(METRICS_FIELD, new String[] { "min", "max", "value_count" })
                     .field("ignore_malformed", true)
+                    .field(DEFAULT_METRIC, "max")
             )
         );
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").endObject()));
@@ -175,7 +197,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testUnmappedMetricWithIgnoreMalformed() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field("ignore_malformed", true)
+                b -> b.field("type", CONTENT_TYPE)
+                    .field(METRICS_FIELD, new String[] { "min", "max" })
+                    .field("ignore_malformed", true)
+                    .field(DEFAULT_METRIC, "max")
             )
         );
 
@@ -209,7 +234,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testMissingMetricWithIgnoreMalformed() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field("ignore_malformed", true)
+                b -> b.field("type", CONTENT_TYPE)
+                    .field(METRICS_FIELD, new String[] { "min", "max" })
+                    .field("ignore_malformed", true)
+                    .field(DEFAULT_METRIC, "max")
             )
         );
 
@@ -243,7 +271,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testInvalidMetricValueIgnoreMalformed() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(
-                b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field("ignore_malformed", true)
+                b -> b.field("type", CONTENT_TYPE)
+                    .field(METRICS_FIELD, new String[] { "min", "max" })
+                    .field("ignore_malformed", true)
+                    .field(DEFAULT_METRIC, "max")
             )
         );
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("min", "10.0").field("max", 50.0).endObject()));
@@ -440,6 +471,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                     .startObject("subfield")
                     .field("type", CONTENT_TYPE)
                     .field(METRICS_FIELD, new String[] { "min", "max", "sum", "value_count" })
+                    .field(DEFAULT_METRIC, "max")
                     .endObject()
                     .endObject()
             )
@@ -462,6 +494,27 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getField("field.subfield.min"), notNullValue());
     }
 
+    /**
+     *  subfields of aggregate_metric_double should not be searchable or exposed in field_caps
+     */
+    public void testNoSubFieldsIterated() throws IOException {
+        AggregateDoubleMetricFieldMapper.Metric[] values = AggregateDoubleMetricFieldMapper.Metric.values();
+        List<AggregateDoubleMetricFieldMapper.Metric> subset = randomSubsetOf(randomIntBetween(1, values.length), values);
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, subset).field(DEFAULT_METRIC, subset.get(0)))
+        );
+        Iterator<Mapper> iterator = mapper.mappers().getMapper("field").iterator();
+        assertFalse(iterator.hasNext());
+    }
+
+    public void testFieldCaps() throws IOException {
+        MapperService aggMetricMapperService = createMapperService(fieldMapping(this::minimalMapping));
+        MappedFieldType fieldType = aggMetricMapperService.fieldType("field");
+        assertThat(fieldType.familyTypeName(), equalTo("double"));
+        assertTrue(fieldType.isSearchable());
+        assertTrue(fieldType.isAggregatable());
+    }
+
     /*
      * Since all queries for aggregate_metric_double fields are delegated to their default_metric numeric
      *  sub-field, we override this method so that testExistsQueryMinimalMapping() passes successfully.
@@ -474,5 +527,4 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertDocValuesField(fields, "field." + defaultMetric);
         assertNoFieldNamesField(fields);
     }
-
 }

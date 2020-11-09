@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateDoubleMetr
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -101,7 +100,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     public static class Defaults {
         public static final Set<Metric> METRICS = Collections.emptySet();
-        public static final Metric DEFAULT_METRIC = Metric.max;
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -132,19 +130,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         /**
          * Set the default metric so that query operations are delegated to it.
          */
-        private final Parameter<Metric> defaultMetric = new Parameter<>(
-            Names.DEFAULT_METRIC,
-            true,
-            () -> Defaults.DEFAULT_METRIC,
-            (n, c, o) -> {
-                try {
-                    return Metric.valueOf(o.toString());
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Metric [" + o.toString() + "] is not supported.", e);
-                }
-            },
-            m -> toType(m).defaultMetric
-        );
+        private final Parameter<Metric> defaultMetric = new Parameter<>(Names.DEFAULT_METRIC, false, () -> null, (n, c, o) -> {
+            try {
+                return Metric.valueOf(o.toString());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Metric [" + o.toString() + "] is not supported.", e);
+            }
+        }, m -> toType(m).defaultMetric);
 
         public Builder(String name, Boolean ignoreMalformedByDefault) {
             super(name);
@@ -232,7 +224,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         public AggregateDoubleMetricFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         }
 
         /**
@@ -249,6 +241,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
          */
         private NumberFieldMapper.NumberFieldType delegateFieldType() {
             return delegateFieldType(defaultMetric);
+        }
+
+        @Override
+        public String familyTypeName() {
+            return NumberFieldMapper.NumberType.DOUBLE.typeName();
         }
 
         @Override
@@ -336,7 +333,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 public LeafAggregateDoubleMetricFieldData load(LeafReaderContext context) {
                     return new LeafAggregateDoubleMetricFieldData() {
                         @Override
-                        public SortedNumericDoubleValues getAggregateMetricValues(final Metric metric) throws IOException {
+                        public SortedNumericDoubleValues getAggregateMetricValues(final Metric metric) {
                             try {
                                 final SortedNumericDocValues values = DocValues.getSortedNumeric(
                                     context.reader(),
@@ -367,13 +364,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                                     }
                                 };
                             } catch (IOException e) {
-                                throw new IOException("Cannot load doc values", e);
+                                throw new IllegalStateException("Cannot load doc values", e);
                             }
                         }
 
                         @Override
                         public ScriptDocValues<?> getScriptValues() {
-                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
+                            // getAggregateMetricValues returns all metric as doubles, including `value_count`
+                            return new ScriptDocValues.Doubles(getAggregateMetricValues(defaultMetric));
                         }
 
                         @Override
@@ -426,7 +424,18 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return new SourceValueFetcher(name(), context) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected Object parseSourceValue(Object value) {
+                    Map<String, Double> metrics = (Map<String, Double>) value;
+                    return metrics.get(defaultMetric.name());
+                }
+            };
         }
     }
 
@@ -476,8 +485,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
-        List<Mapper> mappers = new ArrayList<>(metricFieldMappers.values());
-        return mappers.iterator();
+        return Collections.emptyIterator();
     }
 
     @Override

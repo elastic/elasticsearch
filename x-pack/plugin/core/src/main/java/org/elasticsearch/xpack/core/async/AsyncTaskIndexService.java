@@ -17,7 +17,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -27,11 +26,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.indices.EnsureIndexService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -47,8 +43,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
@@ -65,7 +59,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
-    private final EnsureIndexService ensureIndexService;
 
     public AsyncTaskIndexService(String index,
                                  ClusterService clusterService,
@@ -79,7 +72,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.client = new OriginSettingClient(client, origin);
         this.registry = registry;
         this.reader = reader;
-        this.ensureIndexService = new EnsureAsyncTaskIndexService(clusterService, index, this.client);
     }
 
     /**
@@ -87,11 +79,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      */
     public Client getClient() {
         return client;
-    }
-
-    // Only exists for testing
-    void createIndexIfNecessary(ActionListener<String> listener) {
-        this.ensureIndexService.createIndexIfNecessary(listener);
     }
 
     /**
@@ -110,7 +97,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .create(true)
             .id(docId)
             .source(source, XContentType.JSON);
-        this.ensureIndexService.createIndexIfNecessary(ActionListener.wrap(v -> client.index(indexRequest, listener), listener::onFailure));
+        client.index(indexRequest, listener);
     }
 
     /**
@@ -326,51 +313,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             for (String value : entry.getValue()) {
                 threadContext.addResponseHeader(entry.getKey(), value);
             }
-        }
-    }
-
-    private static class EnsureAsyncTaskIndexService extends EnsureIndexService {
-        EnsureAsyncTaskIndexService(ClusterService clusterService, String index, Client client) {
-            super(clusterService, index, client);
-        }
-
-        @Override
-        protected Settings indexSettings() {
-            return Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                .build();
-        }
-
-        @Override
-        protected XContentBuilder mappings() throws IOException {
-            XContentBuilder builder = jsonBuilder()
-                .startObject()
-                    .startObject(SINGLE_MAPPING_NAME)
-                        .startObject("_meta")
-                            .field("version", Version.CURRENT)
-                        .endObject()
-                        .field("dynamic", "strict")
-                        .startObject("properties")
-                            .startObject(HEADERS_FIELD)
-                                .field("type", "object")
-                                .field("enabled", "false")
-                            .endObject()
-                            .startObject(RESPONSE_HEADERS_FIELD)
-                                .field("type", "object")
-                                .field("enabled", "false")
-                            .endObject()
-                            .startObject(RESULT_FIELD)
-                                .field("type", "object")
-                                .field("enabled", "false")
-                            .endObject()
-                            .startObject(EXPIRATION_TIME_FIELD)
-                                .field("type", "long")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject();
-            return builder;
         }
     }
 }

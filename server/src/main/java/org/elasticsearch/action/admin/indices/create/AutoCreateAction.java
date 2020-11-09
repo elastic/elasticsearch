@@ -40,7 +40,10 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -65,15 +68,17 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         private final MetadataCreateIndexService createIndexService;
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
         private final AutoCreateIndex autoCreateIndex;
+        private final SystemIndices systemIndices;
 
         @Inject
         public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                MetadataCreateIndexService createIndexService,
                                MetadataCreateDataStreamService metadataCreateDataStreamService,
-                               AutoCreateIndex autoCreateIndex) {
+                               AutoCreateIndex autoCreateIndex, SystemIndices systemIndices) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new, indexNameExpressionResolver,
                     CreateIndexResponse::new, ThreadPool.Names.SAME);
+            this.systemIndices = systemIndices;
             this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
@@ -149,6 +154,23 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         CreateIndexClusterStateUpdateRequest updateRequest =
                             new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
                                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+
+                        if (indexName.charAt(0) == '.') {
+                            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+
+                            if (descriptor != null) {
+                                String mappings = descriptor.getMappings();
+                                Settings settings = descriptor.getSettings();
+
+                                if (mappings != null) {
+                                    updateRequest.mappings(mappings);
+                                }
+                                if (settings != null) {
+                                    updateRequest.settings(settings);
+                                }
+                            }
+                        }
+
                         return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
                     }
                 }

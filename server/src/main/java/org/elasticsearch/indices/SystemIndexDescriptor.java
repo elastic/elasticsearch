@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 
 import java.util.Objects;
 
@@ -31,13 +32,24 @@ public class SystemIndexDescriptor {
     private final String indexPattern;
     private final String description;
     private final CharacterRunAutomaton indexPatternAutomaton;
+    private final String mappings;
+    private final Settings settings;
 
     /**
-     *
      * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
+        this(indexPattern, description, null, null);
+    }
+
+    /**
+     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
+     * @param description The name of the plugin responsible for this system index.
+     * @param mappings The mappings to apply to this index when auto-creating, if appropriate
+     * @param settings The settings to apply to this index when auto-creating, if appropriate
+     */
+    public SystemIndexDescriptor(String indexPattern, String description, String mappings, Settings settings) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
             throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
@@ -54,6 +66,8 @@ public class SystemIndexDescriptor {
         this.indexPattern = indexPattern;
         this.indexPatternAutomaton = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(indexPattern));
         this.description = description;
+        this.mappings = mappings;
+        this.settings = settings;
     }
 
     /**
@@ -82,6 +96,14 @@ public class SystemIndexDescriptor {
     @Override
     public String toString() {
         return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "]]";
+    }
+
+    public String getMappings() {
+        return mappings;
+    }
+
+    public Settings getSettings() {
+        return settings;
     }
 
     // TODO: Index settings and mapping

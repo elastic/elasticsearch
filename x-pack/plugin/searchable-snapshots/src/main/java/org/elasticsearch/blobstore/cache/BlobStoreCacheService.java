@@ -22,27 +22,19 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.EnsureIndexService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.DATA_TIERS_PREFERENCE;
 
 public class BlobStoreCacheService {
 
@@ -53,13 +45,11 @@ public class BlobStoreCacheService {
     private final ThreadPool threadPool;
     private final Client client;
     private final String index;
-    private final EnsureIndexService ensureIndexService;
 
-    public BlobStoreCacheService(ClusterService clusterService, ThreadPool threadPool, Client client, String index) {
+    public BlobStoreCacheService(ThreadPool threadPool, Client client, String index) {
         this.client = new OriginSettingClient(client, SEARCHABLE_SNAPSHOTS_ORIGIN);
         this.threadPool = threadPool;
         this.index = index;
-        this.ensureIndexService = new EnsureBlobStoreCacheIndexService(clusterService, index, this.client);
     }
 
     public CachedBlob get(String repository, String name, String path, long offset) {
@@ -131,159 +121,40 @@ public class BlobStoreCacheService {
     }
 
     public void putAsync(String repository, String name, String path, long offset, BytesReference content, ActionListener<Void> listener) {
-        this.ensureIndexService.createIndexIfNecessary(new ActionListener<>() {
-            @Override
-            public void onResponse(String s) {
-                final IndexRequest request;
-                try {
-                    final CachedBlob cachedBlob = new CachedBlob(
-                        Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()),
-                        Version.CURRENT,
-                        repository,
-                        name,
-                        path,
-                        content,
-                        offset
-                    );
-                    request = new IndexRequest(index).id(cachedBlob.generatedId());
-                    try (XContentBuilder builder = jsonBuilder()) {
-                        request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
-                    }
+        try {
+            final CachedBlob cachedBlob = new CachedBlob(
+                Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()),
+                Version.CURRENT,
+                repository,
+                name,
+                path,
+                content,
+                offset
+            );
+            final IndexRequest request = new IndexRequest(index).id(cachedBlob.generatedId());
+            try (XContentBuilder builder = jsonBuilder()) {
+                request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
+            }
 
-                    client.index(request, new ActionListener<>() {
-                        @Override
-                        public void onResponse(IndexResponse indexResponse) {
-                            logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
-                            listener.onResponse(null);
-                        }
+            client.index(request, new ActionListener<>() {
+                @Override
+                public void onResponse(IndexResponse indexResponse) {
+                    logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
+                    listener.onResponse(null);
+                }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.debug(new ParameterizedMessage("failure in cache fill: [{}]", request.id()), e);
-                            listener.onFailure(e);
-                        }
-                    });
-                } catch (Exception e) {
-                    logger.warn(
-                        new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)),
-                        e
-                    );
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug(new ParameterizedMessage("failure in cache fill: [{}]", request.id()), e);
                     listener.onFailure(e);
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(() -> new ParameterizedMessage("failed to create blob cache system index [{}]", index), e);
-                listener.onFailure(e);
-            }
-        });
-    }
-
-    private static class EnsureBlobStoreCacheIndexService extends EnsureIndexService {
-        private EnsureBlobStoreCacheIndexService(ClusterService clusterService, String index, Client client) {
-            super(clusterService, index, client);
-        }
-
-        @Override
-        protected Settings indexSettings() {
-            return Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                .put(IndexMetadata.SETTING_PRIORITY, "900")
-                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_PREFERENCE)
-                .build();
-        }
-
-        @Override
-        protected XContentBuilder mappings() throws IOException {
-            final XContentBuilder builder = jsonBuilder();
-            {
-                builder.startObject();
-                {
-                    builder.startObject(SINGLE_MAPPING_NAME);
-                    builder.field("dynamic", "strict");
-                    {
-                        builder.startObject("_meta");
-                        builder.field("version", Version.CURRENT);
-                        builder.endObject();
-                    }
-                    {
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("type");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-                        }
-                        {
-                            builder.startObject("creation_time");
-                            builder.field("type", "date");
-                            builder.field("format", "epoch_millis");
-                            builder.endObject();
-                        }
-                        {
-                            builder.startObject("version");
-                            builder.field("type", "integer");
-                            builder.endObject();
-                        }
-                        {
-                            builder.startObject("repository");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-                        }
-                        {
-                            builder.startObject("blob");
-                            builder.field("type", "object");
-                            {
-                                builder.startObject("properties");
-                                {
-                                    builder.startObject("name");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-                                    builder.startObject("path");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-                                }
-                                builder.endObject();
-                            }
-                            builder.endObject();
-                        }
-                        {
-                            builder.startObject("data");
-                            builder.field("type", "object");
-                            {
-                                builder.startObject("properties");
-                                {
-                                    builder.startObject("content");
-                                    builder.field("type", "binary");
-                                    builder.endObject();
-                                }
-                                {
-                                    builder.startObject("length");
-                                    builder.field("type", "long");
-                                    builder.endObject();
-                                }
-                                {
-                                    builder.startObject("from");
-                                    builder.field("type", "long");
-                                    builder.endObject();
-                                }
-                                {
-                                    builder.startObject("to");
-                                    builder.field("type", "long");
-                                    builder.endObject();
-                                }
-                                builder.endObject();
-                            }
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            return builder;
+            });
+        } catch (Exception e) {
+            logger.warn(
+                new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)),
+                e
+            );
+            listener.onFailure(e);
         }
     }
 }

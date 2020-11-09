@@ -28,6 +28,13 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
     public static final ParseField NODE_NAME = new ParseField("node_name");
     public static final ParseField JOB_TYPE = new ParseField("job_type");
 
+    /**
+     * The max length of an audit message in characters is 32766 / 4 = 8191
+     * where 32766 is the limit in bytes Lucene sets for a term field
+     * and 4 is the max number of bytes required to represent a UTF8 character
+     */
+    public static final int MAX_AUDIT_MESSAGE_CHARS = 8191;
+
     protected static final <T extends AbstractAuditMessage> ConstructingObjectParser<T, Void> createParser(
             String name, AbstractAuditMessageFactory<T> messageFactory, ParseField resourceField) {
 
@@ -88,7 +95,7 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
         if (resourceId != null) {
             builder.field(getResourceField(), resourceId);
         }
-        builder.field(MESSAGE.getPreferredName(), message);
+        builder.field(MESSAGE.getPreferredName(), message.substring(0, Math.min(message.length(), MAX_AUDIT_MESSAGE_CHARS)));
         builder.field(LEVEL.getPreferredName(), level);
         builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
         if (nodeName != null) {

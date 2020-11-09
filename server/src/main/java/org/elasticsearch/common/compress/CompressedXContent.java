@@ -89,7 +89,7 @@ public final class CompressedXContent {
      * that may already be compressed.
      */
     public CompressedXContent(BytesReference data) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(data);
+        Compressor compressor = CompressorFactory.compressor(data, true);
         if (compressor != null) {
             // already compressed...
             this.bytes = BytesReference.toBytes(data);
@@ -102,7 +102,7 @@ public final class CompressedXContent {
     }
 
     private void assertConsistent() {
-        assert CompressorFactory.compressor(new BytesArray(bytes)) != null;
+        assert CompressorFactory.compressor(new BytesArray(bytes), true) != null;
         assert this.crc32 == crc32(uncompressed());
     }
 

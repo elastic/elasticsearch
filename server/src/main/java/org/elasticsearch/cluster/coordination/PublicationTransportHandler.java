@@ -134,7 +134,7 @@ public class PublicationTransportHandler {
     }
 
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
-        final Compressor compressor = CompressorFactory.compressor(request.bytes());
+        final Compressor compressor = CompressorFactory.compressor(request.bytes(), true);
         StreamInput in = request.bytes().streamInput();
         try {
             if (compressor != null) {

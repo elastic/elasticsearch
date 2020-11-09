@@ -49,7 +49,7 @@ public class XContentHelper {
     @Deprecated
     public static XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
                                               BytesReference bytes) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(bytes);
+        Compressor compressor = CompressorFactory.compressor(bytes, true);
         if (compressor != null) {
             InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
@@ -68,7 +68,7 @@ public class XContentHelper {
     public static XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
                                               BytesReference bytes, XContentType xContentType) throws IOException {
         Objects.requireNonNull(xContentType);
-        Compressor compressor = CompressorFactory.compressor(bytes);
+        Compressor compressor = CompressorFactory.compressor(bytes, true);
         if (compressor != null) {
             InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
@@ -104,7 +104,7 @@ public class XContentHelper {
         try {
             final XContentType contentType;
             InputStream input;
-            Compressor compressor = CompressorFactory.compressor(bytes);
+            Compressor compressor = CompressorFactory.compressor(bytes, false);
             if (compressor != null) {
                 InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
                 if (compressedStreamInput.markSupported() == false) {
@@ -352,7 +352,7 @@ public class XContentHelper {
     @Deprecated
     public static void writeRawField(String field, BytesReference source, XContentBuilder builder,
                                      ToXContent.Params params) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(source);
+        Compressor compressor = CompressorFactory.compressor(source, true);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput);
@@ -371,7 +371,7 @@ public class XContentHelper {
     public static void writeRawField(String field, BytesReference source, XContentType xContentType, XContentBuilder builder,
                                      ToXContent.Params params) throws IOException {
         Objects.requireNonNull(xContentType);
-        Compressor compressor = CompressorFactory.compressor(source);
+        Compressor compressor = CompressorFactory.compressor(source, true);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput, xContentType);

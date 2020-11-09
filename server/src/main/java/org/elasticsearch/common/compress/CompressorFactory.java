@@ -32,11 +32,11 @@ public class CompressorFactory {
     public static final Compressor COMPRESSOR = new DeflateCompressor();
 
     public static boolean isCompressed(BytesReference bytes) {
-        return compressor(bytes) != null;
+        return compressor(bytes, true) != null;
     }
 
     @Nullable
-    public static Compressor compressor(BytesReference bytes) {
+    public static Compressor compressor(BytesReference bytes, boolean strict) {
             if (COMPRESSOR.isCompressed(bytes)) {
                 // bytes should be either detected as compressed or as xcontent,
                 // if we have bytes that can be either detected as compressed or
@@ -50,7 +50,10 @@ public class CompressorFactory {
             if (isAncient(bytes)) {
                 throw new IllegalStateException("unsupported compression: index was created before v2.0.0.beta1 and wasn't upgraded?");
             }
-            throw new NotXContentException("Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes");
+            if (strict) {
+                throw new NotXContentException("Compressor detection can only be called on some xcontent bytes or compressed xcontent " +
+                    "bytes");
+            }
         }
 
         return null;
@@ -69,13 +72,13 @@ public class CompressorFactory {
      * @throws NullPointerException a NullPointerException will be thrown when bytes is null
      */
     public static BytesReference uncompressIfNeeded(BytesReference bytes) throws IOException {
-        Compressor compressor = compressor(Objects.requireNonNull(bytes, "the BytesReference must not be null"));
+        Compressor compressor = compressor(Objects.requireNonNull(bytes, "the BytesReference must not be null"), true);
         return compressor == null ? bytes : compressor.uncompress(bytes);
     }
 
     /** Decompress the provided {@link BytesReference}. */
     public static BytesReference uncompress(BytesReference bytes) throws IOException {
-        Compressor compressor = compressor(bytes);
+        Compressor compressor = compressor(bytes, true);
         if (compressor == null) {
             throw new NotCompressedException();
         }

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.xcontent.support;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -33,7 +35,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -229,5 +233,13 @@ public class XContentHelperTests extends ESTestCase {
 
         }
 
+    }
+
+    public void testConvertToMapYaml() {
+        String inputYaml = "processors: [\"abc\"]\n";
+        Tuple<XContentType, Map<String, Object>> res = XContentHelper.convertToMap(new BytesArray(inputYaml), false,
+            XContentType.YAML);
+        assertEquals(XContentType.YAML, res.v1());
+        assertEquals(Map.of("processors", Collections.singletonList("abc")), res.v2());
     }
 }

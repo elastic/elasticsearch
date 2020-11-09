@@ -31,7 +31,7 @@ grant {
   permission java.lang.RuntimePermission "setContextClassLoader";
 
   // org.apache.hadoop.util.StringUtils clinit
-  permission java.util.PropertyPermission "*", "read,write";
+  permission java.util.PropertyPermission "*", "read";
 
   // org.apache.hadoop.util.ShutdownHookManager clinit
   permission java.lang.RuntimePermission "shutdownHooks";

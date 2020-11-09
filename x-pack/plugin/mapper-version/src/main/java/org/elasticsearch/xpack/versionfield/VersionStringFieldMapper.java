@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -94,18 +95,18 @@ public class VersionStringFieldMapper extends FieldMapper {
             super(name);
         }
 
-        private VersionStringFieldType buildFieldType(BuilderContext context, FieldType fieldtype) {
-            return new VersionStringFieldType(buildFullName(context), fieldtype, meta.getValue());
+        private VersionStringFieldType buildFieldType(ContentPath contentPath, FieldType fieldtype) {
+            return new VersionStringFieldType(buildFullName(contentPath), fieldtype, meta.getValue());
         }
 
         @Override
-        public VersionStringFieldMapper build(BuilderContext context) {
+        public VersionStringFieldMapper build(ContentPath contentPath) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             return new VersionStringFieldMapper(
                 name,
                 fieldtype,
-                buildFieldType(context, fieldtype),
-                multiFieldsBuilder.build(this, context),
+                buildFieldType(contentPath, fieldtype),
+                multiFieldsBuilder.build(this, contentPath),
                 copyTo.build()
             );
         }
@@ -122,7 +123,6 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         private VersionStringFieldType(String name, FieldType fieldType, Map<String, String> meta) {
             super(name, true, false, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -309,7 +309,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         MultiFields multiFields,
         CopyTo copyTo
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         this.fieldType = fieldType;
     }
 

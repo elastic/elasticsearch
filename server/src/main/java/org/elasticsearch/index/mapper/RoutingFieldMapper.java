@@ -71,7 +71,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public RoutingFieldMapper build(BuilderContext context) {
+        public RoutingFieldMapper build() {
             return new RoutingFieldMapper(required.getValue());
         }
     }
@@ -87,7 +87,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
         private RoutingFieldType() {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -104,7 +103,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     private final boolean required;
 
     private RoutingFieldMapper(boolean required) {
-        super(RoutingFieldType.INSTANCE);
+        super(RoutingFieldType.INSTANCE, Lucene.KEYWORD_ANALYZER);
         this.required = required;
     }
 

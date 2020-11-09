@@ -119,6 +119,11 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         public BucketComparator bucketComparator(String key, SortOrder order) {
             throw new UnsupportedOperationException("Can't sort on deferred aggregations");
         }
+
+        @Override
+        public Aggregator[] subAggregators() {
+            return in.subAggregators();
+        }
     }
 
 }

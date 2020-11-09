@@ -20,8 +20,6 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchExtBuilder;
@@ -68,20 +66,6 @@ public class FetchContext {
      */
     public ContextIndexSearcher searcher() {
         return searchContext.searcher();
-    }
-
-    /**
-     * The mapper service for the index we are fetching documents from
-     */
-    public MapperService mapperService() {
-        return searchContext.mapperService();
-    }
-
-    /**
-     * The index settings for the index we are fetching documents from
-     */
-    public IndexSettings getIndexSettings() {
-        return mapperService().getIndexSettings();
     }
 
     /**
@@ -165,6 +149,14 @@ public class FetchContext {
      */
     public SearchHighlightContext highlight() {
         return searchContext.highlight();
+    }
+
+    /**
+     * Does the index analyzer for this field have token filters that may produce
+     * backwards offsets in term vectors
+     */
+    public boolean containsBrokenAnalysis(String field) {
+        return getQueryShardContext().containsBrokenAnalysis(field);
     }
 
     /**

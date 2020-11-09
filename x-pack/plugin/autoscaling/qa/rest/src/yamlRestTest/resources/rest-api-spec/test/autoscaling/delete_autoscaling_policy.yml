@@ -31,3 +31,64 @@
       catch: /autoscaling policy with name \[does_not_exist\] does not exist/
       autoscaling.delete_autoscaling_policy:
         name: does_not_exist
+
+---
+"Test delete all non-existing autoscaling policies":
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: "*"
+
+---
+"Test delete all existing autoscaling policies":
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy_1
+        body:
+          roles: []
+
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy_2
+        body:
+          roles: []
+
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: "*"
+
+  - do:
+      catch: missing
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy_1
+
+  - do:
+      catch: missing
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy_2
+
+---
+"Test delete autoscaling policies by wildcard":
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy_delete
+        body:
+          roles: []
+
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy_keep
+        body:
+          roles: []
+
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: "my_autoscaling_policy_delete*"
+
+  - do:
+      catch: missing
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy_delete
+
+  - do:
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy_keep

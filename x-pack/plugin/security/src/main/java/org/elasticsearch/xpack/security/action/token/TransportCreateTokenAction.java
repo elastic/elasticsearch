@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.action.token;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -78,7 +79,12 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     private void authenticateAndCreateToken(GrantType grantType, CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
         Authentication originatingAuthentication = securityContext.getAuthentication();
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            final AuthenticationToken authToken = extractAuthenticationToken(grantType, request, listener);
+            final Tuple<AuthenticationToken, Exception> tokenAndException = extractAuthenticationToken(grantType, request);
+            if (tokenAndException.v2() != null) {
+                listener.onFailure(tokenAndException.v2());
+                return;
+            }
+            final AuthenticationToken authToken = tokenAndException.v1();
             if (authToken == null) {
                 listener.onFailure(new IllegalStateException(
                         "grant_type [" + request.getGrantType() + "] is not supported by the create token action"));
@@ -101,23 +107,23 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
         }
     }
 
-    private AuthenticationToken extractAuthenticationToken(GrantType grantType, CreateTokenRequest request,
-            ActionListener<CreateTokenResponse> listener) {
+    private Tuple<AuthenticationToken, Exception> extractAuthenticationToken(GrantType grantType, CreateTokenRequest request) {
         AuthenticationToken authToken = null;
         if (grantType == GrantType.PASSWORD) {
             authToken = new UsernamePasswordToken(request.getUsername(), request.getPassword());
         } else if (grantType == GrantType.KERBEROS) {
             SecureString kerberosTicket = request.getKerberosTicket();
             String base64EncodedToken = kerberosTicket.toString();
-            byte[] decodedKerberosTicket = null;
+            byte[] decodedKerberosTicket;
             try {
                 decodedKerberosTicket = Base64.getDecoder().decode(base64EncodedToken);
             } catch (IllegalArgumentException iae) {
-                listener.onFailure(new UnsupportedOperationException("could not decode base64 kerberos ticket " + base64EncodedToken));
+                return new Tuple<>(null,
+                    new UnsupportedOperationException("could not decode base64 kerberos ticket " + base64EncodedToken, iae));
             }
             authToken = new KerberosAuthenticationToken(decodedKerberosTicket);
         }
-        return authToken;
+        return new Tuple<>(authToken, null);
     }
 
     private void clearCredentialsFromRequest(GrantType grantType, CreateTokenRequest request) {

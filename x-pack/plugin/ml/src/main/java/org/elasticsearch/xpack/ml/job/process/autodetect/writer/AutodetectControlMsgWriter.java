@@ -166,6 +166,9 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
         if (params.getMaxModelMemory() != null) {
             builder.field("max_model_memory", params.getMaxModelMemory());
         }
+        if (params.getMinAvailableDiskSpace() != null) {
+            builder.field("min_available_disk_space", params.getMinAvailableDiskSpace());
+        }
         builder.endObject();
 
         writeMessage(FORECAST_MESSAGE_CODE + Strings.toString(builder));

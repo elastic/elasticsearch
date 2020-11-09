@@ -24,14 +24,18 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -42,12 +46,23 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     private static final Logger logger = LogManager.getLogger(SetSingleNodeAllocateStep.class);
     public static final String NAME = "set-single-node-allocation";
 
+    private static final Set<Setting<?>> ALL_CLUSTER_SETTINGS;
+
+    static {
+        Set<Setting<?>> allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING);
+        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING);
+        allSettings.add(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING);
+        ALL_CLUSTER_SETTINGS = allSettings;
+    }
+
     // These allocation deciders were chosen because these are the conditions that can prevent
     // allocation long-term, and that we can inspect in advance. Most other allocation deciders
     // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
     // well when reallocating potentially many shards at once (e.g. DiskThresholdDecider)
     private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(List.of(
         new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+        new DataTierAllocationDecider(new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS)),
         new NodeVersionAllocationDecider()
     ));
 

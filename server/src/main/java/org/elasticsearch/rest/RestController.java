@@ -173,11 +173,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
         final Version version = maybeWrappedHandler.compatibleWithVersion();
-        assert Version.minimumRestCompatibilityVersion() == version || Version.CURRENT == version
-            : "REST API compatibility is only supported for version " + Version.minimumRestCompatibilityVersion().major;
+        assert Version.CURRENT.minimumRestCompatibilityVersion() == version || Version.CURRENT == version
+            : "REST API compatibility is only supported for version " + Version.CURRENT.minimumRestCompatibilityVersion().major;
 
-        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, version, method),
-            (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, version, method));
+        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
+            (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
     }
 
     /**
@@ -250,7 +250,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength,
+                                                              handler.compatibleWithVersion());
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -465,33 +466,40 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
+        private final Version compatibleVersion;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength,
+                                    Version compatibleVersion) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
+            this.compatibleVersion = compatibleVersion;
         }
 
         @Override
         public XContentBuilder newBuilder() throws IOException {
-            return delegate.newBuilder();
+            return delegate.newBuilder()
+                .withCompatibleMajorVersion(compatibleVersion.major);
         }
 
         @Override
         public XContentBuilder newErrorBuilder() throws IOException {
-            return delegate.newErrorBuilder();
+            return delegate.newErrorBuilder()
+                .withCompatibleMajorVersion(compatibleVersion.major);
         }
 
         @Override
         public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
-            return delegate.newBuilder(xContentType, useFiltering);
+            return delegate.newBuilder(xContentType, useFiltering)
+                .withCompatibleMajorVersion(compatibleVersion.major);
         }
 
         @Override
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
                 throws IOException {
-            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering)
+                .withCompatibleMajorVersion(compatibleVersion.major);
         }
 
         @Override

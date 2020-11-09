@@ -142,7 +142,7 @@ public class RestControllerTests extends ESTestCase {
                         assertEquals("true", threadContext.getHeader("header.1"));
                         assertEquals("true", threadContext.getHeader("header.2"));
                         assertNull(threadContext.getHeader("header.3"));
-                    }, Version.CURRENT, RestRequest.Method.GET);
+                    }, RestRequest.Method.GET);
                 }
             });
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
@@ -639,9 +639,9 @@ public class RestControllerTests extends ESTestCase {
     public void testDispatchCompatibleHandler() {
 
         RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService,
-            (a,c,h)->Version.minimumRestCompatibilityVersion());//always return compatible version
+            (a,c,h)->Version.CURRENT.minimumRestCompatibilityVersion());//always return compatible version
 
-        final byte version = Version.minimumRestCompatibilityVersion().major;
+        final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
 
         final String mimeType = randomCompatibleMimeType(version);
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
@@ -656,7 +656,7 @@ public class RestControllerTests extends ESTestCase {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 XContentBuilder xContentBuilder = channel.newBuilder();
-//                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
+                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 

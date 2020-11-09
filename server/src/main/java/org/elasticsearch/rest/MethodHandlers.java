@@ -26,19 +26,19 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Encapsulate multiple handlers for the same path, allowing different handlers for different HTTP verbs.
+ * Encapsulate multiple handlers for the same path, allowing different handlers for different HTTP verbs and versions.
  */
 final class MethodHandlers {
 
     private final String path;
     private final Map<RestRequest.Method, Map<Version, RestHandler>> methodHandlers;
 
-    MethodHandlers(String path, RestHandler handler, Version version,  RestRequest.Method... methods) {
+    MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
         this.path = path;
         this.methodHandlers = new HashMap<>(methods.length);
         for (RestRequest.Method method : methods) {
             methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
-                .put(version, handler);
+                .put(handler.compatibleWithVersion(), handler);
         }
     }
 
@@ -46,10 +46,10 @@ final class MethodHandlers {
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    MethodHandlers addMethods(RestHandler handler, Version version, RestRequest.Method... methods) {
+    MethodHandlers addMethods(RestHandler handler, RestRequest.Method... methods) {
         for (RestRequest.Method method : methods) {
             RestHandler existing = methodHandlers.computeIfAbsent(method, k -> new HashMap<>())
-                .putIfAbsent(version, handler);
+                .putIfAbsent(handler.compatibleWithVersion(), handler);
             if (existing != null) {
                 throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
             }
@@ -58,7 +58,12 @@ final class MethodHandlers {
     }
 
     /**
-     * Returns the handler for the given method and version or {@code null} if none exists.
+     * Returns the handler for the given method and version.
+     *
+     * If a handler for given version do not exist, a handler for Version.CURRENT will be returned.
+     * The reasoning behind is that in a minor a new API could be added passively, therefore new APIs are compatible
+     * (as opposed to non-compatible/breaking)
+     * or {@code null} if none exists.
      */
     RestHandler getHandler(RestRequest.Method method, Version version) {
         Map<Version, RestHandler> versionToHandlers = methodHandlers.get(method);
@@ -66,7 +71,7 @@ final class MethodHandlers {
             return null; //method not found
         }
         final RestHandler handler = versionToHandlers.get(version);
-        return handler != null || version.equals(Version.CURRENT) ? handler : versionToHandlers.get(Version.CURRENT);
+        return handler == null ? versionToHandlers.get(Version.CURRENT) : handler;
 
     }
 

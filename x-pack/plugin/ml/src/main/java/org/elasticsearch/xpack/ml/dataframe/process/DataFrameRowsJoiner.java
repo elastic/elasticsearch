@@ -109,7 +109,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
             bulkRequest,
             analyticsId,
             () -> isCancelled == false,
-            retryMsg -> {});
+            retryMessage -> {});
     }
 
     private void checkChecksumsMatch(DataFrameDataExtractor.Row row, RowResults result) {

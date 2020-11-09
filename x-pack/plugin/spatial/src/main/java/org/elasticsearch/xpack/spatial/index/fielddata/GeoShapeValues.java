@@ -133,8 +133,8 @@ public abstract class GeoShapeValues {
             try {
                 final GeoShapeIndexer indexer = new GeoShapeIndexer(true, "missing");
                 final Geometry geometry = indexer.prepareForIndexing(MISSING_GEOMETRY_PARSER.fromWKT(missing));
-                final BinaryGeoShapeDocValuesField field =
-                    new BinaryGeoShapeDocValuesField(missing, indexer.indexShape(null, geometry), new CentroidCalculator(geometry));
+                final BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField("missing");
+                field.add(indexer.indexShape(null, geometry), geometry);
                 final GeometryDocValueReader reader = new GeometryDocValueReader();
                 reader.reset(field.binaryValue());
                 return new GeoShapeValue(reader);

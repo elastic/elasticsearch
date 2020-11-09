@@ -37,8 +37,6 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
@@ -57,7 +55,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.binaryGeoShapeDocValuesField;
-import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geometryDocValueReader;
+import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>> extends AggregatorTestCase {
@@ -183,7 +181,6 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
         }
 
         List<BinaryGeoShapeDocValuesField> docs = new ArrayList<>();
-        List<Point> points = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             Point p;
             p = randomPoint();
@@ -191,8 +188,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
             double y = GeoTestUtils.encodeDecodeLat(p.getY());
             Rectangle pointTile = getTile(x, y, precision);
 
-            GeometryDocValueReader reader = geometryDocValueReader(p, CoordinateEncoder.GEO);
-            GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue(reader);
+            GeoShapeValues.GeoShapeValue value = geoShapeValue(p);
             GeoRelation tileRelation =  value.relate(pointTile);
             boolean intersectsBounds = boundsTop >= pointTile.getMinY() && boundsBottom <= pointTile.getMaxY()
                 && (boundsEastLeft <= pointTile.getMaxX() && boundsEastRight >= pointTile.getMinX()
@@ -201,7 +197,6 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
                 numDocsWithin += 1;
             }
 
-            points.add(p);
             docs.add(binaryGeoShapeDocValuesField(FIELD_NAME, p));
         }
 

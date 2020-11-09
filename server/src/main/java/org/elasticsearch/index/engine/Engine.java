@@ -1630,8 +1630,8 @@ public abstract class Engine implements Closeable {
         }
 
         /**
-         * Returns true iff the get was performed from a translog operation. Notes that this returns false even if the get was performed
-         * on an in-memory Lucene segment created the corresponding translog operation.
+         * Returns {@code true} iff the get was performed from a translog operation. Notes that this returns {@code false}
+         * if the get was performed on an in-memory Lucene segment created from the corresponding translog operation.
          */
         public boolean isFromTranslog() {
             return fromTranslog;

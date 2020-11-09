@@ -34,10 +34,8 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
-import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.provider.Provider;
-import org.gradle.authentication.http.HttpHeaderAuthentication;
 
 import java.util.Comparator;
 
@@ -146,12 +144,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             repo.setName(name);
             repo.setUrl(url);
             repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-            // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
-            repo.credentials(HttpHeaderCredentials.class, creds -> {
-                creds.setName("X-Elastic-No-KPI");
-                creds.setValue("1");
-            });
-            repo.getAuthentication().create("header", HttpHeaderAuthentication.class);
             repo.patternLayout(layout -> layout.artifact("/downloads/elasticsearch/[module]-[revision](-[classifier]).[ext]"));
         });
         project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
@@ -164,8 +156,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (project.getRepositories().findByName(DOWNLOAD_REPO_NAME) != null) {
             return;
         }
-        addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts.elastic.co", FAKE_IVY_GROUP);
-        addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
+        addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts-no-kpi.elastic.co", FAKE_IVY_GROUP);
+        addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots-no-kpi.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
     }
 
     /**

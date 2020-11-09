@@ -42,22 +42,35 @@ public class DependenciesGraphPlugin implements Plugin<Project> {
                 t.setUrl(url);
             });
         });
+        project.getRootProject().getPluginManager().apply(DependenciesGraphHookPlugin.class);
+    }
 
-        project.getGradle().getTaskGraph().whenReady(graph -> {
-            List<String> depGraphTasks = graph.getAllTasks()
-                .stream()
-                .filter(t -> t instanceof DependenciesGraphTask)
-                .map(Task::getPath)
-                .collect(Collectors.toList());
-            if (depGraphTasks.size() > 0) {
-                if (url == null || token == null) {
-                    // If there are more than one DependenciesGraphTasks to run, print the message only for one of
-                    // them as the resolving action is the same for all
-                    throw new GradleException(
-                        "The environment variables SCA_URL and SCA_TOKEN need to be set before task " + depGraphTasks.get(0) + " can run"
-                    );
-                }
+    static class DependenciesGraphHookPlugin implements Plugin<Project> {
+
+        @Override
+        public void apply(Project project) {
+            if (project != project.getRootProject()) {
+                throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
             }
-        });
+            final String url = System.getenv("SCA_URL");
+            final String token = System.getenv("SCA_TOKEN");
+            project.getGradle().getTaskGraph().whenReady(graph -> {
+                List<String> depGraphTasks = graph.getAllTasks()
+                    .stream()
+                    .filter(t -> t instanceof DependenciesGraphTask)
+                    .map(Task::getPath)
+                    .collect(Collectors.toList());
+                if (depGraphTasks.size() > 0) {
+                    if (url == null || token == null) {
+                        // If there are more than one DependenciesGraphTasks to run, print the message only for one of
+                        // them as the resolving action is the same for all
+                        throw new GradleException(
+                            "The environment variables SCA_URL and SCA_TOKEN need to be set before task " + depGraphTasks.get(0) + " can run"
+                        );
+                    }
+                }
+            });
+
+        }
     }
 }

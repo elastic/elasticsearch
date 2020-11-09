@@ -1570,11 +1570,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     indicesService,
                     allocationService, new AliasValidator(), shardLimitValidator, environment, indexScopedSettings,
                     threadPool, namedXContentRegistry, new SystemIndices(Map.of()), false);
+                final SystemIndices systemIndices = new SystemIndices(Map.of());
                 actions.put(CreateIndexAction.INSTANCE,
                     new TransportCreateIndexAction(
                         transportService, clusterService, threadPool,
                         metadataCreateIndexService,
-                        actionFilters, indexNameExpressionResolver
+                        actionFilters, indexNameExpressionResolver, systemIndices
                     ));
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
                 final IndexingPressure indexingMemoryLimits = new IndexingPressure(settings);

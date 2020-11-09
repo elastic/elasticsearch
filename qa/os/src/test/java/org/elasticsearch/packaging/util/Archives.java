@@ -405,8 +405,13 @@ public class Archives {
                     + "Unregister-EventSubscriber -Force"
             );
         });
+        Platforms.onLinux(() -> logger.warn(sh.run("ps ax | grep " + pid).stdout));
         if (Files.exists(pidFile)) {
             Files.delete(pidFile);
+            if (Files.exists(pidFile)) {
+                Platforms.onLinux(() -> logger.warn(sh.run("tail -30 " + installation.logs.resolve("elasticsearch.log")).stdout));
+            }
+            assertThat(pidFile, fileDoesNotExist());
         }
     }
 

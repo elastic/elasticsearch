@@ -22,9 +22,7 @@ public class RestPromoteStreamsStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(RestRequest.Method.POST, "/_data_stream/_promote/{name}")
-        );
+        return List.of(new Route(RestRequest.Method.POST, "/_data_stream/_promote/{name}"));
     }
 
     @Override

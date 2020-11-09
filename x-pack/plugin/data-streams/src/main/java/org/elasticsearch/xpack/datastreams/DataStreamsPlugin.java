@@ -64,8 +64,16 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
         var dsInfoAction = new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class);
         var migrateAction = new ActionHandler<>(MigrateToDataStreamAction.INSTANCE, MigrateToDataStreamTransportAction.class);
         var promoteAction = new ActionHandler<>(PromoteDataStreamAction.INSTANCE, PromoteDataStreamTransportAction.class);
-        return List.of(createDsAction, deleteDsInfoAction, getDsAction, dsStatsAction, dsUsageAction, dsInfoAction, migrateAction,
-            promoteAction);
+        return List.of(
+            createDsAction,
+            deleteDsInfoAction,
+            getDsAction,
+            dsStatsAction,
+            dsUsageAction,
+            dsInfoAction,
+            migrateAction,
+            promoteAction
+        );
     }
 
     @Override

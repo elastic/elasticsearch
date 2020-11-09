@@ -20,11 +20,14 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
+
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
@@ -32,8 +35,8 @@ import org.hamcrest.CoreMatchers;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MAX_PRECISION;
-import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MIN_PRECISION;
+import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MAX_PRECISION;
+import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MIN_PRECISION;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -119,4 +122,14 @@ public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
 
         assertThat(total.get(), CoreMatchers.equalTo(0L));
     }
+
+    public void testAllocation() {
+        int precision = between(MIN_PRECISION, MAX_PRECISION);
+        long initialBucketCount = between(0, 100);
+        MockBigArrays.assertFitsIn(
+            ByteSizeValue.ofBytes(initialBucketCount * 16),
+            bigArrays -> new HyperLogLogPlusPlusSparse(precision, bigArrays, initialBucketCount)
+        );
+    }
+
 }

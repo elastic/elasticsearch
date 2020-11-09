@@ -105,7 +105,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
         IdFieldType(BooleanSupplier fieldDataEnabled) {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.fieldDataEnabled = fieldDataEnabled;
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -156,11 +155,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
             }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
-                    name(),
-                    TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
-                    CoreValuesSourceType.BYTES);
+                name(),
+                TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+                TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
+                CoreValuesSourceType.BYTES);
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(
@@ -200,7 +199,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
                         @Override
                         public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+                                                            Nested nested, SortOrder sortOrder, DocValueFormat format,
+                                                            int bucketSize, BucketedSort.ExtraData extra) {
                             throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
                     };
@@ -236,7 +236,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     public BytesRef nextValue() throws IOException {
                         BytesRef encoded = inValues.nextValue();
                         return new BytesRef(Uid.decodeId(
-                                Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)));
+                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)));
                     }
 
                     @Override
@@ -258,7 +258,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     private IdFieldMapper(BooleanSupplier fieldDataEnabled) {
-        super(new IdFieldType(fieldDataEnabled));
+        super(new IdFieldType(fieldDataEnabled), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

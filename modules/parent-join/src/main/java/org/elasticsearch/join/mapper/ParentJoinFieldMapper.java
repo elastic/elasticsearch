@@ -120,15 +120,15 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ParentJoinFieldMapper build(BuilderContext context) {
-            checkObjectOrNested(context.path(), name);
+        public ParentJoinFieldMapper build(ContentPath contentPath) {
+            checkObjectOrNested(contentPath, name);
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
             relations.get().stream()
                 .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent, eagerGlobalOrdinals.get()))
                 .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
             MetaJoinFieldMapper unique = new MetaJoinFieldMapper(name);
             Joiner joiner = new Joiner(name(), relations.get());
-            return new ParentJoinFieldMapper(name, new JoinFieldType(buildFullName(context), joiner, meta.get()),
+            return new ParentJoinFieldMapper(name, new JoinFieldType(buildFullName(contentPath), joiner, meta.get()),
                 unique, Collections.unmodifiableMap(parentIdFields), eagerGlobalOrdinals.get(), relations.get());
         }
     }
@@ -144,7 +144,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
         private JoinFieldType(String name, Joiner joiner, Map<String, String> meta) {
             super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.joiner = joiner;
         }
 
@@ -194,7 +193,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                                     MetaJoinFieldMapper uniqueFieldMapper,
                                     Map<String, ParentIdFieldMapper> parentIdFields,
                                     boolean eagerGlobalOrdinals, List<Relations> relations) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
         this.uniqueFieldMapper = uniqueFieldMapper;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;

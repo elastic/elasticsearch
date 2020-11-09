@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -151,14 +152,22 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     private final Parser<Parsed> parser;
 
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                          Map<String, NamedAnalyzer> indexAnalyzers,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
                                           Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
         this.indexer = indexer;
         this.parser = parser;
+    }
+
+    protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                          Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
+                                          MultiFields multiFields, CopyTo copyTo,
+                                          Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
+        this(simpleName, mappedFieldType, Collections.emptyMap(), ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
     }
 
     @Override

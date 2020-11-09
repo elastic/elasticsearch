@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -77,13 +78,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DenseVectorFieldMapper build(BuilderContext context) {
+        public DenseVectorFieldMapper build(ContentPath contentPath) {
             return new DenseVectorFieldMapper(
                 name,
-                new DenseVectorFieldType(buildFullName(context), dims.getValue(), meta.getValue()),
+                new DenseVectorFieldType(buildFullName(contentPath), dims.getValue(), meta.getValue()),
                 dims.getValue(),
                 indexVersionCreated,
-                multiFieldsBuilder.build(this, context),
+                multiFieldsBuilder.build(this, contentPath),
                 copyTo.build());
         }
     }
@@ -206,16 +207,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "] doesn't not support indexing multiple values for the same field in the same document");
         }
         context.doc().addWithKey(fieldType().name(), field);
-    }
-
-    @Override
-    protected boolean indexedByDefault() {
-        return false;
-    }
-
-    @Override
-    protected boolean docValuesByDefault() {
-        return true;
     }
 
     @Override

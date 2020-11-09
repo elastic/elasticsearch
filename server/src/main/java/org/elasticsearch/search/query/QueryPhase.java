@@ -55,6 +55,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchService;
@@ -428,8 +429,9 @@ public class QueryPhase {
 
         // check if this is a field of type Long or Date, that is indexed and has doc values
         String fieldName = sortField.getField();
+        QueryShardContext queryShardContext = searchContext.getQueryShardContext();
         if (fieldName == null) return null; // happens when _score or _doc is the 1st sort field
-        final MappedFieldType fieldType = searchContext.fieldType(fieldName);
+        final MappedFieldType fieldType = queryShardContext.getFieldType(fieldName);
         if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
         if (fieldType.isSearchable() == false) return null;
@@ -444,7 +446,7 @@ public class QueryPhase {
                 if (SortField.FIELD_DOC.equals(sField) == false) return null;
             } else {
                 //TODO: find out how to cover _script sort that don't use _score
-                if (searchContext.fieldType(sFieldName) == null) return null; // could be _script sort that uses _score
+                if (queryShardContext.getFieldType(sFieldName) == null) return null; // could be _script sort that uses _score
             }
         }
 

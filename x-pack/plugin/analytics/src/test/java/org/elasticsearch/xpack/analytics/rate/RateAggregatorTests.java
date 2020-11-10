@@ -6,23 +6,9 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import static org.elasticsearch.xpack.analytics.AnalyticsTestsUtils.histogramFieldDocValues;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
-import java.util.function.Function;
-
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -58,6 +44,22 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import static org.elasticsearch.xpack.analytics.AnalyticsTestsUtils.histogramFieldDocValues;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RateAggregatorTests extends AggregatorTestCase {
 
@@ -331,16 +333,36 @@ public class RateAggregatorTests extends AggregatorTestCase {
 
         testCase(dateHistogramAggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
-                doc("2010-03-11T01:07:45", new NumericDocValuesField("val", 1), new SortedSetDocValuesField("term", new BytesRef("a")))
+                doc(
+                    "2010-03-11T01:07:45",
+                    new NumericDocValuesField("val", 1),
+                    new IntPoint("val", 1),
+                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                )
             );
             iw.addDocument(
-                doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 2), new SortedSetDocValuesField("term", new BytesRef("a")))
+                doc(
+                    "2010-03-12T01:07:45",
+                    new NumericDocValuesField("val", 2),
+                    new IntPoint("val", 2),
+                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                )
             );
             iw.addDocument(
-                doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3), new SortedSetDocValuesField("term", new BytesRef("a")))
+                doc(
+                    "2010-04-01T03:43:34",
+                    new NumericDocValuesField("val", 3),
+                    new IntPoint("val", 3),
+                    new SortedSetDocValuesField("term", new BytesRef("a"))
+                )
             );
             iw.addDocument(
-                doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
+                doc(
+                    "2010-04-27T03:43:34",
+                    new NumericDocValuesField("val", 4),
+                    new IntPoint("val", 4),
+                    new SortedSetDocValuesField("term", new BytesRef("b"))
+                )
             );
         }, (Consumer<InternalDateHistogram>) dh -> {
             assertThat(dh.getBuckets(), hasSize(2));
@@ -681,6 +703,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
         List<IndexableField> indexableFields = new ArrayList<>();
         long instant = dateFieldType(DATE_FIELD).parse(date);
         indexableFields.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
+        indexableFields.add(new LongPoint(DATE_FIELD, instant));
         indexableFields.addAll(Arrays.asList(fields));
         return indexableFields;
     }

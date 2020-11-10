@@ -64,9 +64,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
@@ -114,6 +116,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField COLLAPSE = new ParseField("collapse");
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
+    public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -193,6 +196,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private CollapseBuilder collapse = null;
 
     private PointInTimeBuilder pointInTimeBuilder = null;
+
+    private Map<String, Object> runtimeMappings = emptyMap();
 
     /**
      * Constructs a new search source builder.
@@ -275,6 +280,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         }
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+            runtimeMappings = in.readMap();
+        }
     }
 
     @Override
@@ -349,6 +357,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeOptionalWriteable(pointInTimeBuilder);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            out.writeMap(runtimeMappings);
+        } else {
+            if (false == runtimeMappings.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "Versions before 8.0.0 don't support [runtime_mappings] and search was sent to [" + out.getVersion() + "]"
+                );
+            }
         }
     }
 
@@ -1010,6 +1027,21 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * Mappings specified on this search request that override built in mappings.
+     */
+    public Map<String, Object> runtimeMappings() {
+        return runtimeMappings;
+    }
+
+    /**
+     * Specify the mappings specified on this search request that override built in mappings.
+     */
+    public SearchSourceBuilder runtimeMappings(Map<String, Object> runtimeMappings) {
+        this.runtimeMappings = runtimeMappings == null ? emptyMap() : runtimeMappings;
+        return this;
+    }
+
+    /**
      * Rewrites this search source builder into its primitive form. e.g. by
      * rewriting the QueryBuilder. If the builder did not change the identity
      * reference must be returned otherwise the builder will be rewritten
@@ -1093,6 +1125,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
         rewrittenBuilder.collapse = collapse;
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
+        rewrittenBuilder.runtimeMappings = runtimeMappings;
         return rewrittenBuilder;
     }
 
@@ -1216,6 +1249,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     collapse = CollapseBuilder.fromXContent(parser);
                 } else if (POINT_IN_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                     pointInTimeBuilder = PointInTimeBuilder.fromXContent(parser);
+                } else if (RUNTIME_MAPPINGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    runtimeMappings = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1423,6 +1458,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (pointInTimeBuilder != null) {
             pointInTimeBuilder.toXContent(builder, params);
         }
+        if (false == runtimeMappings.isEmpty()) {
+            builder.field(RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
+        }
+
         return builder;
     }
 
@@ -1635,7 +1674,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Objects.hash(aggregations, explain, fetchSourceContext, fetchFields, docValueFields, storedFieldsContext, from,
             highlightBuilder, indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
             sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
-            seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo, pointInTimeBuilder);
+            seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo, pointInTimeBuilder, runtimeMappings);
     }
 
     @Override
@@ -1676,7 +1715,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 && Objects.equals(extBuilders, other.extBuilders)
                 && Objects.equals(collapse, other.collapse)
                 && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
-                && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder);
+                && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
+                && Objects.equals(runtimeMappings, other.runtimeMappings);
     }
 
     @Override

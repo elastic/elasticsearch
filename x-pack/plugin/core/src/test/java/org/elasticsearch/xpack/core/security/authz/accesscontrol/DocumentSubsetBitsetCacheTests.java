@@ -467,10 +467,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         }
     }
 
-    public void testDenseRoleBitSets() throws Exception {
+    public void testRoleBitSets() throws Exception {
         int maxDocs = randomIntBetween(1, 1024);
         int numDocs = 0;
-        int denseThreshold = randomIntBetween(maxDocs >>> 7, maxDocs);
         FixedBitSet matches = new FixedBitSet(maxDocs);
         for (int i = 0; i < maxDocs; i++) {
             if (numDocs < maxDocs && randomBoolean()) {
@@ -478,7 +477,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 matches.set(i);
             }
         }
-        DocIdSetIterator it = new BitSetIterator(matches, denseThreshold);
+        DocIdSetIterator it = new BitSetIterator(matches, randomIntBetween(0, numDocs));
         BitSet bitSet = DocumentSubsetBitsetCache.bitSetFromDocIterator(it, maxDocs);
         assertThat(bitSet.cardinality(), equalTo(numDocs));
         assertThat(bitSet.length(), equalTo(maxDocs));

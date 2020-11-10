@@ -127,7 +127,7 @@ public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
         int precision = between(MIN_PRECISION, MAX_PRECISION);
         long initialBucketCount = between(0, 100);
         MockBigArrays.assertFitsIn(
-            ByteSizeValue.ofBytes(initialBucketCount * 16),
+            ByteSizeValue.ofBytes(Math.max(256, initialBucketCount * 32)),
             bigArrays -> new HyperLogLogPlusPlusSparse(precision, bigArrays, initialBucketCount)
         );
     }

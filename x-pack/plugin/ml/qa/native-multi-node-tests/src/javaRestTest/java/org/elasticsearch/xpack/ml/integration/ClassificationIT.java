@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -292,20 +293,31 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     public void testWithCustomFeatureProcessors() throws Exception {
         initialize("classification_with_custom_feature_processors");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
-        indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
+        indexData(sourceIndex, 100, 0, KEYWORD_FIELD);
 
         DataFrameAnalyticsConfig config =
             buildAnalytics(jobId, sourceIndex, destIndex, null,
             new Classification(
                 KEYWORD_FIELD,
-                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(0).build(),
                 null,
                 null,
-                null,
-                null,
-                null,
+                2,
+                10.0,
+                42L,
                 Arrays.asList(
-                    new OneHotEncoding(TEXT_FIELD, Collections.singletonMap(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom"), true)
+                    new OneHotEncoding(ALIAS_TO_KEYWORD_FIELD, MapBuilder.<String, String>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom")
+                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom").map(), true),
+                    new OneHotEncoding(ALIAS_TO_NESTED_FIELD, MapBuilder.<String, String>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_1")
+                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_1").map(), true),
+                    new OneHotEncoding(NESTED_FIELD, MapBuilder.<String, String>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2")
+                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2").map(), true),
+                    new OneHotEncoding(TEXT_FIELD, MapBuilder.<String, String>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3")
+                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3").map(), true)
                 )));
         putAnalytics(config);
 
@@ -321,11 +333,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
             assertThat(getFieldValue(resultsObject, predictedClassField), is(in(KEYWORD_FIELD_VALUES)));
-            assertThat(getFieldValue(resultsObject, "is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
-            assertThat(importanceArray, hasSize(greaterThan(0)));
         }
 
         assertProgressComplete(jobId);
@@ -353,9 +361,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         TrainedModelConfig modelConfig = response.getResources().results().get(0);
         modelConfig.ensureParsedDefinition(xContentRegistry());
         assertThat(modelConfig.getModelDefinition().getPreProcessors().size(), greaterThan(0));
-        for (int i = 0; i < modelConfig.getModelDefinition().getPreProcessors().size(); i++) {
+        for (int i = 0; i < 4; i++) {
             PreProcessor preProcessor = modelConfig.getModelDefinition().getPreProcessors().get(i);
-            assertThat(preProcessor.isCustom(), equalTo(i == 0));
+            assertThat(preProcessor.isCustom(), is(true));
+        }
+        for (int i = 4; i < modelConfig.getModelDefinition().getPreProcessors().size(); i++) {
+            PreProcessor preProcessor = modelConfig.getModelDefinition().getPreProcessors().get(i);
+            assertThat(preProcessor.isCustom(), is(false));
         }
     }
 

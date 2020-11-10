@@ -20,6 +20,7 @@
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.docker.DockerSupportService;
+import org.gradle.api.Action;
 import org.gradle.api.Buildable;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.model.ObjectFactory;
@@ -31,8 +32,6 @@ import java.io.File;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Locale;
-import java.util.Optional;
-import java.util.function.Function;
 
 public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
@@ -105,7 +104,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<Boolean> bundledJdk;
     private final Property<Boolean> failIfUnavailable;
     private final Configuration extracted;
-    private Function<ElasticsearchDistribution, ElasticsearchDistribution> distributionFinalizer;
+    private Action<ElasticsearchDistribution> distributionFinalizer;
     private boolean froozen = false;
 
     ElasticsearchDistribution(
@@ -114,7 +113,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         Provider<DockerSupportService> dockerSupport,
         Configuration fileConfiguration,
         Configuration extractedConfiguration,
-        Function<ElasticsearchDistribution, ElasticsearchDistribution> distributionFinalizer
+        Action<ElasticsearchDistribution> distributionFinalizer
     ) {
         this.name = name;
         this.dockerSupport = dockerSupport;
@@ -210,7 +209,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     public ElasticsearchDistribution maybeFreeze() {
         if (!froozen) {
             finalizeValues();
-            distributionFinalizer.apply(this);
+            distributionFinalizer.execute(this);
             froozen = true;
         }
         return this;
@@ -238,26 +237,16 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
     @Override
     public TaskDependency getBuildDependencies() {
-        Optional<TaskDependency> dockerBuildDependencies = dockerBuildDependencies();
-        return dockerBuildDependencies.orElseGet(() -> {
+        if (skippingDockerDistributionBuild()) {
+            return task -> Collections.emptySet();
+        } else {
             maybeFreeze();
             return getType().shouldExtract() ? extracted.getBuildDependencies() : configuration.getBuildDependencies();
-        });
+        }
     }
 
-    public TaskDependency getArchiveBuildDependencies() {
-        Optional<TaskDependency> dockerBuildDependencies = dockerBuildDependencies();
-        return dockerBuildDependencies.orElseGet(() -> {
-            maybeFreeze();
-            return configuration.getBuildDependencies();
-        });
-    }
-
-    private Optional<TaskDependency> dockerBuildDependencies() {
-        // For non-required Docker distributions, skip building the distribution is Docker is unavailable
-        return (isDocker() && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false)
-            ? Optional.of(task -> Collections.emptySet())
-            : Optional.empty();
+    private boolean skippingDockerDistributionBuild() {
+        return isDocker() && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false;
     }
 
     @Override
@@ -328,5 +317,10 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         type.finalizeValue();
         flavor.finalizeValue();
         bundledJdk.finalizeValue();
+    }
+
+    public Configuration getArchive() {
+        maybeFreeze();
+        return configuration;
     }
 }

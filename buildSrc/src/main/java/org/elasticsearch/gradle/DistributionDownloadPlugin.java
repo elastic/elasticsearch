@@ -119,7 +119,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         return (NamedDomainObjectContainer<DistributionResolution>) project.getExtensions().getByName(RESOLUTION_CONTAINER_NAME);
     }
 
-    private ElasticsearchDistribution finalizeDistributionDependencies(Project project, ElasticsearchDistribution distribution) {
+    private void finalizeDistributionDependencies(Project project, ElasticsearchDistribution distribution) {
         DependencyHandler dependencies = project.getDependencies();
         // for the distribution as a file, just depend on the artifact directly
         DistributionDependency distributionDependency = resolveDependencyNotation(project, distribution);
@@ -130,7 +130,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             // an artifact transform registered to resolve it as an unpacked folder.
             dependencies.add(distribution.getExtracted().getName(), distributionDependency.getExtractedNotation());
         }
-        return distribution;
     }
 
     private DistributionDependency resolveDependencyNotation(Project p, ElasticsearchDistribution distribution) {

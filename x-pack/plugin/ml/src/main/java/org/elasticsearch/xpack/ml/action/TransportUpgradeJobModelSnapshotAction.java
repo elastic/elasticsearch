@@ -159,12 +159,12 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                             Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())));
                     return;
                 }
-                if (response.result.getMinVersion().major >= UPGRADE_FROM_MAJOR) {
+                if (Version.CURRENT.equals(response.result.getMinVersion())) {
                     listener.onFailure(ExceptionsHelper.conflictStatusException(
-                        "Cannot upgrade job [{}] snapshot [{}] as it is already compatible with current major version {}",
+                        "Cannot upgrade job [{}] snapshot [{}] as it is already compatible with current version {}",
                         request.getJobId(),
                         request.getSnapshotId(),
-                        UPGRADE_FROM_MAJOR));
+                        Version.CURRENT));
                     return;
                 }
                 memoryTracker.refreshAnomalyDetectorJobMemoryAndAllOthers(params.getJobId(), memoryRequirementRefreshListener);

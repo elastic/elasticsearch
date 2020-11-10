@@ -2832,13 +2832,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String jobId = "test-upgrade-model-snapshot";
         String snapshotId = "1541587919";
 
-        createModelSnapshot(jobId, snapshotId, Version.V_7_0_0);
-        //TODO add a true state from the past somehow
+        createModelSnapshot(jobId, snapshotId, Version.CURRENT);
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         UpgradeJobModelSnapshotRequest request = new UpgradeJobModelSnapshotRequest(jobId, snapshotId, null, true);
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
             () -> execute(request, machineLearningClient::upgradeJobSnapshot, machineLearningClient::upgradeJobSnapshotAsync));
-        assertThat(ex.getMessage(), containsString("Expected persisted state but no state exists"));
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "Cannot upgrade job [test-upgrade-model-snapshot] snapshot [1541587919] as it is already compatible with current version"
+            )
+        );
     }
 
     public void testRevertModelSnapshot() throws IOException {

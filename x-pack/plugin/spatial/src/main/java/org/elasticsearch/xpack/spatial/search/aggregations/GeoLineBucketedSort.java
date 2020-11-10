@@ -18,7 +18,7 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.support.MultiValuesSource;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.common.search.aggregations.MissingHelper;
@@ -28,10 +28,10 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder.SORT_FIELD;
 
 public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
-    private final MultiValuesSource.AnyMultiValuesSource valuesSources;
+    private final GeoLineMultiValuesSource valuesSources;
 
     public GeoLineBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize,
-                               MultiValuesSource.AnyMultiValuesSource valuesSources, GeoLineBucketedSort.Extra extra) {
+                               GeoLineMultiValuesSource valuesSources, GeoLineBucketedSort.Extra extra) {
         super(bigArrays, sortOrder, format, bucketSize, extra);
         this.valuesSources = valuesSources;
     }
@@ -107,11 +107,11 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
     static class Extra implements BucketedSort.ExtraData, Releasable {
 
         private final BigArrays bigArrays;
-        private final MultiValuesSource.AnyMultiValuesSource valuesSources;
+        private final GeoLineMultiValuesSource valuesSources;
         private LongArray values;
         private final MissingHelper empty;
 
-        Extra(BigArrays bigArrays, MultiValuesSource.AnyMultiValuesSource valuesSources) {
+        Extra(BigArrays bigArrays, GeoLineMultiValuesSource valuesSources) {
             this.bigArrays = bigArrays;
             this.valuesSources = valuesSources;
             this.values = bigArrays.newLongArray(1, false);

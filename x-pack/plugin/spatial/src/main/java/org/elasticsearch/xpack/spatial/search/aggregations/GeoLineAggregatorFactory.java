@@ -11,7 +11,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.MultiValuesSource;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
@@ -51,8 +51,8 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
                                           Aggregator parent,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metaData) throws IOException {
-        MultiValuesSource.AnyMultiValuesSource valuesSources =
-            new MultiValuesSource.AnyMultiValuesSource(configs, searchContext.getQueryShardContext());
+        GeoLineMultiValuesSource valuesSources =
+            new GeoLineMultiValuesSource(configs, searchContext.getQueryShardContext());
         return new GeoLineAggregator(name, valuesSources, searchContext, parent, metaData, includeSort, sortOrder, size);
     }
 

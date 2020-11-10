@@ -424,7 +424,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (docValueFields == null) {
             docValueFields = new ArrayList<>();
         }
-        docValueFields.add(new FieldAndFormat(docValueField, format));
+        docValueFields.add(new FieldAndFormat(docValueField, format, null));
         return this;
     }
 
@@ -446,15 +446,22 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     /**
      * Adds a field to load and return as part of the search request.
      */
-    public TopHitsAggregationBuilder fetchField(String field, String format) {
+    public TopHitsAggregationBuilder fetchField(String field, String format, boolean includeUnmapped) {
         if (field == null) {
             throw new IllegalArgumentException("[fields] must not be null: [" + name + "]");
         }
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(new FieldAndFormat(field, format));
+        fetchFields.add(new FieldAndFormat(field, format, includeUnmapped));
         return this;
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     */
+    public TopHitsAggregationBuilder fetchField(String field, String format) {
+        return fetchField(field, format, false);
     }
 
     /**

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,14 +41,16 @@ import java.util.Objects;
 public final class FieldAndFormat implements Writeable, ToXContentObject {
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField FORMAT_FIELD = new ParseField("format");
+    private static final ParseField INCLUDE_UNMAPPED_FIELD = new ParseField("include_unmapped");
 
     private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER =
         new ConstructingObjectParser<>("fetch_field_and_format",
-        a -> new FieldAndFormat((String) a[0], (String) a[1]));
+        a -> new FieldAndFormat((String) a[0], (String) a[1], (Boolean) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FORMAT_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_UNMAPPED_FIELD);
     }
 
     /**
@@ -56,7 +59,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     public static FieldAndFormat fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token.isValue()) {
-            return new FieldAndFormat(parser.text(), null);
+            return new FieldAndFormat(parser.text(), null, null);
         } else {
             return PARSER.apply(parser, null);
         }
@@ -69,6 +72,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         if (format != null) {
             builder.field(FORMAT_FIELD.getPreferredName(), format);
         }
+        builder.field(INCLUDE_UNMAPPED_FIELD.getPreferredName(), includeUnmapped);
         builder.endObject();
         return builder;
     }
@@ -79,28 +83,45 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     /** The format of the field, or {@code null} if defaults should be used. */
     public final String format;
 
+    /** Whether to include unmapped fields or not. */
+    public final boolean includeUnmapped;
+
     /** Sole constructor. */
-    public FieldAndFormat(String field, @Nullable String format) {
+    public FieldAndFormat(String field, @Nullable String format, Boolean includeUnmapped) {
         this.field = Objects.requireNonNull(field);
         this.format = format;
+        if (includeUnmapped != null) {
+            this.includeUnmapped = includeUnmapped;
+        } else {
+            this.includeUnmapped = false;
+        }
     }
 
     /** Serialization constructor. */
     public FieldAndFormat(StreamInput in) throws IOException {
         this.field = in.readString();
         format = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            this.includeUnmapped = in.readBoolean();
+        } else {
+            this.includeUnmapped = false;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeOptionalString(format);
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            out.writeBoolean(this.includeUnmapped);
+        }
     }
 
     @Override
     public int hashCode() {
         int h = field.hashCode();
         h = 31 * h + Objects.hashCode(format);
+        h = 31 * h + Boolean.hashCode(this.includeUnmapped);
         return h;
     }
 
@@ -110,6 +131,6 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
             return false;
         }
         FieldAndFormat other = (FieldAndFormat) obj;
-        return field.equals(other.field) && Objects.equals(format, other.format);
+        return field.equals(other.field) && Objects.equals(format, other.format) && includeUnmapped == other.includeUnmapped;
     }
 }

@@ -93,7 +93,7 @@ public abstract class InnerHitContextBuilder {
             innerHitsContext.docValuesContext(docValuesContext);
         }
         if (innerHitBuilder.getFetchFields() != null) {
-            FetchFieldsContext fieldsContext = new FetchFieldsContext(innerHitBuilder.getFetchFields(), false);
+            FetchFieldsContext fieldsContext = new FetchFieldsContext(innerHitBuilder.getFetchFields());
             innerHitsContext.fetchFieldsContext(fieldsContext);
         }
         if (innerHitBuilder.getScriptFields() != null) {

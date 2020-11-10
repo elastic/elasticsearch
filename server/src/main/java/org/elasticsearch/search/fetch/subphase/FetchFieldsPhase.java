@@ -53,12 +53,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 "in the mappings for index [" + fetchContext.getIndexName() + "]");
         }
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(
-            fetchContext.getQueryShardContext(),
-            searchLookup,
-            fetchFieldsContext.fields(),
-            fetchFieldsContext.includeUnmapped()
-        );
+        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getQueryShardContext(), searchLookup, fetchFieldsContext.fields());
 
         return new FetchSubPhaseProcessor() {
             @Override

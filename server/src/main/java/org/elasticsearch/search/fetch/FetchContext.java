@@ -135,10 +135,10 @@ public class FetchContext {
             if (dvContext == null) {
                 return new FetchDocValuesContext(
                     searchContext.getQueryShardContext(),
-                    Collections.singletonList(new FieldAndFormat(name, null))
+                    Collections.singletonList(new FieldAndFormat(name, null, null))
                 );
             } else if (searchContext.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
-                dvContext.fields().add(new FieldAndFormat(name, null));
+                dvContext.fields().add(new FieldAndFormat(name, null, null));
             }
         }
         return dvContext;

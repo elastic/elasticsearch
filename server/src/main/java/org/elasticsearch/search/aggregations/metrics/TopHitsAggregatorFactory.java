@@ -114,7 +114,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.docValuesContext(docValuesContext);
         }
         if (fetchFields != null) {
-            FetchFieldsContext fieldsContext = new FetchFieldsContext(fetchFields, true);
+            FetchFieldsContext fieldsContext = new FetchFieldsContext(fetchFields);
             subSearchContext.fetchFieldsContext(fieldsContext);
         }
         for (ScriptFieldsContext.ScriptField field : scriptFields) {

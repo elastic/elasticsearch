@@ -828,7 +828,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (docValueFields == null) {
             docValueFields = new ArrayList<>();
         }
-        docValueFields.add(new FieldAndFormat(name, format));
+        docValueFields.add(new FieldAndFormat(name, format, null));
         return this;
     }
 
@@ -851,7 +851,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Adds a field to load and return as part of the search request.
      */
     public SearchSourceBuilder fetchField(String name) {
-        return fetchField(name, null);
+        return fetchField(name, null, null);
     }
 
     /**
@@ -859,11 +859,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @param name the field name.
      * @param format an optional format string used when formatting values, for example a date format.
      */
-    public SearchSourceBuilder fetchField(String name, @Nullable String format) {
+    public SearchSourceBuilder fetchField(String name, @Nullable String format, @Nullable Boolean includeUnmapped) {
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(new FieldAndFormat(name, format));
+        fetchFields.add(new FieldAndFormat(name, format, includeUnmapped));
         return this;
     }
 

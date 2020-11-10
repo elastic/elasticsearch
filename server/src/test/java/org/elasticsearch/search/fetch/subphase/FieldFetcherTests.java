@@ -34,6 +34,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,9 +56,9 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         .endObject();
 
         List<FieldAndFormat> fieldAndFormats = List.of(
-            new FieldAndFormat("field", null),
-            new FieldAndFormat("object.field", null));
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormats, false);
+            new FieldAndFormat("field", null, null),
+            new FieldAndFormat("object.field", null, null));
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormats);
         assertThat(fields.size(), equalTo(2));
 
         DocumentField field = fields.get("field");
@@ -218,8 +219,8 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(
-            new FieldAndFormat("field", null),
-            new FieldAndFormat("date_field", "yyyy/MM/dd")), false);
+            new FieldAndFormat("field", null, null),
+            new FieldAndFormat("date_field", "yyyy/MM/dd", null)));
         assertThat(fields.size(), equalTo(2));
 
         DocumentField field = fields.get("field");
@@ -547,7 +548,6 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "*", false);
-
         // without unmapped fields this should return nothing
         assertThat(fields.size(), equalTo(0));
 
@@ -590,14 +590,14 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
             .endObject();
 
         // this should not return a field bc. f1 is in the ignored fields
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null)), false, Set.of("f1"));
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)), Set.of("f1"));
         assertThat(fields.size(), equalTo(0));
 
         // and this should neither
-        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null)), true, Set.of("f1"));
+        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)), Set.of("f1"));
         assertThat(fields.size(), equalTo(0));
 
-        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null)), true, Set.of("f1"));
+        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, true)), Set.of("f1"));
         assertThat(fields.size(), equalTo(0));
     }
 
@@ -636,45 +636,41 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
     private Map<String, DocumentField> fetchFields(
         MapperService mapperService,
         XContentBuilder source,
-        String fieldPattern
+        String fieldPattern,
+        boolean includeUnmapped
     ) throws IOException {
-
-        List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null));
-        return fetchFields(mapperService, source, fields, false);
+        List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null, includeUnmapped));
+        return fetchFields(mapperService, source, fields, Collections.emptySet());
     }
 
     private Map<String, DocumentField> fetchFields(
         MapperService mapperService,
         XContentBuilder source,
-        String fieldPattern,
-        boolean includeUnmapped
+        String fieldPattern
     ) throws IOException {
-        List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null));
-        return fetchFields(mapperService, source, fields, includeUnmapped);
+        List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null, false));
+        return fetchFields(mapperService, source, fields);
+    }
+
+    private static Map<String, DocumentField> fetchFields(
+        MapperService mapperService,
+        XContentBuilder source,
+        List<FieldAndFormat> fields
+    ) throws IOException {
+        return fetchFields(mapperService, source, fields, Collections.emptySet());
     }
 
     private static Map<String, DocumentField> fetchFields(
         MapperService mapperService,
         XContentBuilder source,
         List<FieldAndFormat> fields,
-        boolean includeUnmapped
-    ) throws IOException {
-
-        return fetchFields(mapperService, source, fields, includeUnmapped, Set.of());
-    }
-
-    private static Map<String, DocumentField> fetchFields(
-        MapperService mapperService,
-        XContentBuilder source,
-        List<FieldAndFormat> fields,
-        boolean includeUnmapped,
         Set<String> ignoreFields
     ) throws IOException {
 
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(createQueryShardContext(mapperService), null, fields, includeUnmapped);
+        FieldFetcher fieldFetcher = FieldFetcher.create(createQueryShardContext(mapperService), null, fields);
         return fieldFetcher.fetch(sourceLookup, ignoreFields);
     }
 

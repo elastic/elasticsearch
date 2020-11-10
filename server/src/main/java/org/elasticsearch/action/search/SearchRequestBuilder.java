@@ -310,7 +310,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param name The field to load
      */
     public SearchRequestBuilder addFetchField(String name) {
-        sourceBuilder().fetchField(name, null);
+        sourceBuilder().fetchField(name, null, null);
         return this;
     }
 
@@ -319,9 +319,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      *
      * @param name The field to load
      * @param format an optional format string used when formatting values, for example a date format.
+     * @param includeUnmapped whether this field pattern should also include unmapped fields
      */
-    public SearchRequestBuilder addFetchField(String name, String format) {
-        sourceBuilder().fetchField(name, format);
+    public SearchRequestBuilder addFetchField(String name, String format, boolean includeUnmapped) {
+        sourceBuilder().fetchField(name, format, null);
         return this;
     }
 

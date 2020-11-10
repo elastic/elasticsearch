@@ -138,22 +138,17 @@ public class BootstrapForTesting {
                 // TODO: cut over all tests to bind to ephemeral ports
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
 
-                boolean inGradle = System.getProperty("tests.gradle") != null;
-
                 // read test-framework permissions
                 Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
                 // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
                 addClassCodebase(codebases,"elasticsearch", "org.elasticsearch.plugins.PluginsService");
-                if (inGradle == false) {
-                    // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
-                    addClassCodebase(codebases,"elasticsearch-plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
-                    addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
-                    addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
-                    addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
-                }
+                addClassCodebase(codebases,"elasticsearch-plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
+                addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
+                addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
+                addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
                 final Policy testFramework = PolicyUtil.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
                 final Policy runnerPolicy;
-                if (inGradle) {
+                if (System.getProperty("tests.gradle") != null) {
                     runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("gradle.policy"), codebases);
                 } else {
                     runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("intellij.policy"), codebases);
@@ -195,6 +190,9 @@ public class BootstrapForTesting {
     /** Add the codebase url of the given classname to the codebases map, if the class exists. */
     private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {
         try {
+            if (codebases.containsKey(name)) {
+                return; // the codebase already exists, from the classpath
+            }
             Class<?> clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
             URL location = clazz.getProtectionDomain().getCodeSource().getLocation();
             if (location.toString().endsWith(".jar") == false) {

@@ -66,7 +66,7 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                 cardinality,
                 metadata) -> {
                 DistanceSource distanceSource = new DistanceSource((ValuesSource.GeoPoint) valuesSource, distanceType, origin, units);
-                return new RangeAggregator(
+                return RangeAggregator.buildWithoutAttemptedToAdaptToFilters(
                     name,
                     factories,
                     distanceSource,

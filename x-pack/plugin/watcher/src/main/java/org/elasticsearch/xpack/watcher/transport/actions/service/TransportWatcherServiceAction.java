@@ -71,39 +71,32 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
     private void setWatcherMetadataAndWait(boolean manuallyStopped, final ActionListener<AcknowledgedResponse> listener) {
         String source = manuallyStopped ? "update_watcher_manually_stopped" : "update_watcher_manually_started";
 
-        clusterService.submitStateUpdateTask(source,
-                new AckedClusterStateUpdateTask<AcknowledgedResponse>(ackedRequest, listener) {
+        clusterService.submitStateUpdateTask(source, new AckedClusterStateUpdateTask(ackedRequest, listener) {
+            @Override
+            public ClusterState execute(ClusterState clusterState) {
+                XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-                    @Override
-                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                        return AcknowledgedResponse.of(acknowledged);
-                    }
+                WatcherMetadata newWatcherMetadata = new WatcherMetadata(manuallyStopped);
+                WatcherMetadata currentMetadata = clusterState.metadata().custom(WatcherMetadata.TYPE);
 
-                    @Override
-                    public ClusterState execute(ClusterState clusterState) {
-                        XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+                // adhere to the contract of returning the original state if nothing has changed
+                if (newWatcherMetadata.equals(currentMetadata)) {
+                    return clusterState;
+                } else {
+                    ClusterState.Builder builder = new ClusterState.Builder(clusterState);
+                    builder.metadata(Metadata.builder(clusterState.getMetadata())
+                        .putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
+                    return builder.build();
+                }
+            }
 
-                        WatcherMetadata newWatcherMetadata = new WatcherMetadata(manuallyStopped);
-                        WatcherMetadata currentMetadata = clusterState.metadata().custom(WatcherMetadata.TYPE);
-
-                        // adhere to the contract of returning the original state if nothing has changed
-                        if (newWatcherMetadata.equals(currentMetadata)) {
-                            return clusterState;
-                        } else {
-                            ClusterState.Builder builder = new ClusterState.Builder(clusterState);
-                            builder.metadata(Metadata.builder(clusterState.getMetadata())
-                                    .putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
-                            return builder.build();
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.error(new ParameterizedMessage("could not update watcher stopped status to [{}], source [{}]",
-                                manuallyStopped, source), e);
-                        listener.onFailure(e);
-                    }
-                });
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error(new ParameterizedMessage("could not update watcher stopped status to [{}], source [{}]",
+                    manuallyStopped, source), e);
+                listener.onFailure(e);
+            }
+        });
     }
 
     @Override

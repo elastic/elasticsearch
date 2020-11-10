@@ -277,14 +277,6 @@ To create a dedicated ingest node, set:
 node.roles: [ ingest ]
 ----
 
-[[node-ingest-node-setting]]
-// tag::node-ingest-tag[]
-`node.ingest` {ess-icon}::
-Determines whether a node is an ingest node. <<ingest,Ingest nodes>> can apply
-an ingest pipeline to transform and enrich a document before indexing. Default:
-`true`.
-// end::node-ingest-tag[]
-
 [[coordinating-only-node]]
 ==== Coordinating only node
 

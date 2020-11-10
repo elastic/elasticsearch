@@ -43,7 +43,7 @@ import java.util.Objects;
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
-    public static final Version HIDDEN_VERSION = Version.V_8_0_0;
+    public static final Version HIDDEN_VERSION = Version.V_7_11_0;
 
     private final String name;
     private final TimestampField timeStampField;

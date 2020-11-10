@@ -302,7 +302,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 OrderBy ob = (OrderBy) project.child();
 
                 // resolve function references (that maybe hiding the target)
-                final Map<Attribute, Function> collectRefs = new LinkedHashMap<>();
+                AttributeMap.Builder<Function> collectRefs = AttributeMap.builder();
 
                 // collect Attribute sources
                 // only Aliases are interesting since these are the only ones that hide expressions
@@ -316,7 +316,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }));
 
-                AttributeMap<Function> functions = new AttributeMap<>(collectRefs);
+                AttributeMap<Function> functions = collectRefs.build();
 
                 // track the direct parents
                 Map<String, Order> nestedOrders = new LinkedHashMap<>();
@@ -541,14 +541,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             //TODO: this need rewriting when moving functions of NamedExpression
 
             // collect aliases in the lower list
-            Map<Attribute, NamedExpression> map = new LinkedHashMap<>();
+            AttributeMap.Builder<NamedExpression> aliasesBuilder = AttributeMap.builder();
             for (NamedExpression ne : lower) {
                 if ((ne instanceof Attribute) == false) {
-                    map.put(ne.toAttribute(), ne);
+                    aliasesBuilder.put(ne.toAttribute(), ne);
                 }
             }
 
-            AttributeMap<NamedExpression> aliases = new AttributeMap<>(map);
+            AttributeMap<NamedExpression> aliases = aliasesBuilder.build();
             List<NamedExpression> replaced = new ArrayList<>();
 
             // replace any matching attribute with a lower alias (if there's a match)

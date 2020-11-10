@@ -291,6 +291,13 @@ public abstract class Rounding implements Writeable {
          * next rounded value in specified units if possible.
          */
         double roundingSize(long utcMillis, DateTimeUnit timeUnit);
+        /**
+         * If this rounding mechanism precalculates rounding points then
+         * this array stores dates such that each date between each entry.
+         * if the rounding mechanism doesn't precalculate points then this
+         * is {@code null}.
+         */
+        long[] fixedRoundingPoints();
     }
     /**
      * Prepare to round many times.
@@ -434,6 +441,11 @@ public abstract class Rounding implements Writeable {
                 values[i++]= rounded;
             }
             return new ArrayRounding(values, i, this);
+        }
+
+        @Override
+        public long[] fixedRoundingPoints() {
+            return null;
         }
     }
 
@@ -1253,6 +1265,12 @@ public abstract class Rounding implements Writeable {
                 public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
                     return delegatePrepared.roundingSize(utcMillis, timeUnit);
                 }
+
+                @Override
+                public long[] fixedRoundingPoints() {
+                    // TODO we can likely translate here
+                    return null;
+                }
             };
         }
 
@@ -1334,6 +1352,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
             return delegate.roundingSize(utcMillis, timeUnit);
+        }
+
+        @Override
+        public long[] fixedRoundingPoints() {
+            return Arrays.copyOf(values, max);
         }
     }
 }

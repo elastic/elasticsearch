@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -39,7 +40,6 @@ import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
@@ -67,8 +67,6 @@ import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesAction extends AbstractCatAction {
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestIndicesAction.class);
-    static final String LOCAL_DEPRECATED_MESSAGE = "The parameter [local] is deprecated and will be removed in a future release.";
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
 
@@ -99,10 +97,10 @@ public class RestIndicesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
-        if (request.hasParam("local")) {
-            DEPRECATION_LOGGER.deprecate("local", LOCAL_DEPRECATED_MESSAGE);
+        // needed only in v8 to catch breaking usages and may be removed in v9
+        if (request.hasParam("local")  && Version.CURRENT.major == Version.V_7_0_0.major + 1) {
+            throw new IllegalArgumentException("parameter [local] is not supported");
         }
-        final boolean local = request.paramAsBoolean("local", false);
         final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
 
@@ -114,7 +112,7 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             });
 
-            sendGetSettingsRequest(indices, indicesOptions, local, masterNodeTimeout, client, new ActionListener<>() {
+            sendGetSettingsRequest(indices, indicesOptions, masterNodeTimeout, client, new ActionListener<>() {
                 @Override
                 public void onResponse(final GetSettingsResponse getSettingsResponse) {
                     final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
@@ -136,9 +134,9 @@ public class RestIndicesAction extends AbstractCatAction {
                     // index names with the same indices options that we used for the initial cluster state request (strictExpand).
                     sendIndicesStatsRequest(indices, subRequestIndicesOptions, includeUnloadedSegments, client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
-                    sendClusterStateRequest(indices, subRequestIndicesOptions, local, masterNodeTimeout, client,
+                    sendClusterStateRequest(indices, subRequestIndicesOptions, masterNodeTimeout, client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
-                    sendClusterHealthRequest(indices, subRequestIndicesOptions, local, masterNodeTimeout, client,
+                    sendClusterHealthRequest(indices, subRequestIndicesOptions, masterNodeTimeout, client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
                 }
 
@@ -160,14 +158,12 @@ public class RestIndicesAction extends AbstractCatAction {
      */
     private void sendGetSettingsRequest(final String[] indices,
                                         final IndicesOptions indicesOptions,
-                                        final boolean local,
                                         final TimeValue masterNodeTimeout,
                                         final NodeClient client,
                                         final ActionListener<GetSettingsResponse> listener) {
         final GetSettingsRequest request = new GetSettingsRequest();
         request.indices(indices);
         request.indicesOptions(indicesOptions);
-        request.local(local);
         request.masterNodeTimeout(masterNodeTimeout);
         request.names(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
 
@@ -176,7 +172,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private void sendClusterStateRequest(final String[] indices,
                                          final IndicesOptions indicesOptions,
-                                         final boolean local,
                                          final TimeValue masterNodeTimeout,
                                          final NodeClient client,
                                          final ActionListener<ClusterStateResponse> listener) {
@@ -184,7 +179,6 @@ public class RestIndicesAction extends AbstractCatAction {
         final ClusterStateRequest request = new ClusterStateRequest();
         request.indices(indices);
         request.indicesOptions(indicesOptions);
-        request.local(local);
         request.masterNodeTimeout(masterNodeTimeout);
 
         client.admin().cluster().state(request, listener);
@@ -192,7 +186,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private void sendClusterHealthRequest(final String[] indices,
                                           final IndicesOptions indicesOptions,
-                                          final boolean local,
                                           final TimeValue masterNodeTimeout,
                                           final NodeClient client,
                                           final ActionListener<ClusterHealthResponse> listener) {
@@ -200,7 +193,6 @@ public class RestIndicesAction extends AbstractCatAction {
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.indices(indices);
         request.indicesOptions(indicesOptions);
-        request.local(local);
         request.masterNodeTimeout(masterNodeTimeout);
 
         client.admin().cluster().health(request, listener);

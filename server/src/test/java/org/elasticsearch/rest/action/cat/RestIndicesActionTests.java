@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -177,14 +178,16 @@ public class RestIndicesActionTests extends ESTestCase {
         }
     }
 
-    public void testCatIndicesWithLocalDeprecationWarning() {
+    public void testCatIndicesRejectsLocalParameter() {
+        assumeTrue("test is needed only in v8 and can be removed in v9", Version.CURRENT.major == Version.V_7_0_0.major + 1);
         TestThreadPool threadPool = new TestThreadPool(RestIndicesActionTests.class.getName());
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         FakeRestRequest request = new FakeRestRequest();
-        request.params().put("local", randomFrom("", "true", "false"));
+        request.params().put("local", randomFrom("", "true", "false", randomAlphaOfLength(10)));
 
-        action.doCatRequest(request, client);
-        assertWarnings(RestIndicesAction.LOCAL_DEPRECATED_MESSAGE);
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> action.doCatRequest(request, client)).getMessage(),
+            is("parameter [local] is not supported"));
 
         terminate(threadPool);
     }

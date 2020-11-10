@@ -22,8 +22,8 @@ You can also limit the amount of shards a node can have regardless of the index:
 +
 --
 (<<dynamic-cluster-setting,Dynamic>>)
-Maximum number of primary and replica shards allocated to each node. This limit
-includes primary and replica shards. Defaults to `-1` (unlimited).
+Maximum number of primary and replica shards allocated to each node. Defaults to
+`-1` (unlimited).
 
 For example, a cluster has a `cluster.routing.allocation.total_shards_per_node`
 setting of `100` and three nodes with the following shard allocations:

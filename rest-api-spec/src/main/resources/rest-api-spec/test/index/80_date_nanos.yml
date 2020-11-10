@@ -1,5 +1,8 @@
 ---
 "date_nanos requires dates after 1970 and before 2262":
+  - skip:
+      version: " - 6.99.99"
+      reason:  "Implemented in 7.0"
 
   - do:
       indices.create:

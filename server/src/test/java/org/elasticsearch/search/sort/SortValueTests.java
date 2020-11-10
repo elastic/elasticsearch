@@ -19,8 +19,11 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,7 +54,12 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
 
     @Override
     protected SortValue createTestInstance() {
-        return randomBoolean() ? SortValue.from(randomDouble()) : SortValue.from(randomLong());
+        switch (between(0, 2)) {
+            case 0: return SortValue.from(randomDouble());
+            case 1: return SortValue.from(randomLong());
+            case 2: return SortValue.from(new BytesRef(randomAlphaOfLength(5)));
+            default: throw new AssertionError();
+        }
     }
 
     @Override
@@ -81,11 +89,23 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         assertThat(toXContent(SortValue.from(1), STRICT_DATE_TIME), equalTo("{\"test\":\"1970-01-01T00:00:00.001Z\"}"));
     }
 
+    public void testToXContentBytes() {
+        assertThat(toXContent(SortValue.from(new BytesRef("cat")), DocValueFormat.RAW), equalTo("{\"test\":\"cat\"}"));
+        assertThat(
+            toXContent(SortValue.from(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1")))), DocValueFormat.IP),
+            equalTo("{\"test\":\"127.0.0.1\"}")
+        );
+    }
+
     public void testCompareDifferentTypes() {
         assertThat(SortValue.from(1.0), lessThan(SortValue.from(1)));
         assertThat(SortValue.from(Double.MAX_VALUE), lessThan(SortValue.from(Long.MIN_VALUE)));
         assertThat(SortValue.from(1), greaterThan(SortValue.from(1.0)));
         assertThat(SortValue.from(Long.MIN_VALUE), greaterThan(SortValue.from(Double.MAX_VALUE)));
+        assertThat(SortValue.from(new BytesRef("cat")), lessThan(SortValue.from(1)));
+        assertThat(SortValue.from(1), greaterThan(SortValue.from(new BytesRef("cat"))));
+        assertThat(SortValue.from(new BytesRef("cat")), lessThan(SortValue.from(1.0)));
+        assertThat(SortValue.from(1.0), greaterThan(SortValue.from(new BytesRef("cat"))));
     }
 
     public void testCompareDoubles() {
@@ -100,6 +120,13 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         assertThat(SortValue.from(r), equalTo(SortValue.from(r)));
         assertThat(SortValue.from(r), lessThan(SortValue.from(r + 1)));
         assertThat(SortValue.from(r), greaterThan(SortValue.from(r - 1)));
+    }
+
+    public void testBytes() {
+        String r = randomAlphaOfLength(5);
+        assertThat(SortValue.from(new BytesRef(r)), equalTo(SortValue.from(new BytesRef(r))));
+        assertThat(SortValue.from(new BytesRef(r)), lessThan(SortValue.from(new BytesRef(r + "with_suffix"))));
+        assertThat(SortValue.from(new BytesRef(r)), greaterThan(SortValue.from(new BytesRef(new byte[] {}))));
     }
 
     public String toXContent(SortValue sortValue, DocValueFormat format) {

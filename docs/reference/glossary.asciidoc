@@ -207,6 +207,13 @@ Frozen indices use a memory-efficient shard implementation and throttle searches
 Searching a frozen index is lower overhead than re-opening a closed index to enable searching.
 // end::frozen-index-def[]
 
+[[glossary-hidden-index]] hidden index ::
+// tag::hidden-index-def[]
+An index that is excluded by default when you access indices using a wildcard expression. 
+You can specify the `expand_wildcards` parameter to include hidden indices.
+Note that hidden indices _are_ included if the wildcard expression starts with a dot, for example `.watcher-history*`.
+// end::hidden-index-def[]
+
 [[glossary-hot-phase]] hot phase ::
 // tag::hot-phase-def[]
 The first possible phase in the <<glossary-index-lifecycle,index lifecycle>>.
@@ -561,6 +568,14 @@ from an ID.
 To grow the amount of shards in an index.
 See the {ref}/indices-split-index.html[split index API].
 // end::split-def[]
+
+[[glossary-system-index]] system index ::
+// tag::system-index-def[]
+An index that contains configuration information or other data used internally by the system, 
+such as the `.security` index. 
+The name of a system index is always prefixed with a dot.
+You should not directly access or modify system indices.
+// end::system-index-def[]
 
 [[glossary-term]] term ::
 +

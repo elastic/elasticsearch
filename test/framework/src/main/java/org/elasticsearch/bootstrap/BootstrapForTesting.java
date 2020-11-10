@@ -39,6 +39,7 @@ import java.net.SocketPermission;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.Permission;
 import java.security.Permissions;
 import java.security.Policy;
@@ -53,6 +54,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
@@ -142,6 +144,10 @@ public class BootstrapForTesting {
                 Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
                 // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
                 addClassCodebase(codebases,"elasticsearch", "org.elasticsearch.plugins.PluginsService");
+                // TODO: adding these codebases manually is necessary when testing within code which has not yet built
+                // the jars the code is contained in. it would be better to automatically do this, where each
+                // lib/module/plugin gets an additional codebase for itself when running unit tests without needing
+                // an explicit entry here
                 addClassCodebase(codebases,"elasticsearch-plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
                 addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
                 addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
@@ -201,6 +207,7 @@ public class BootstrapForTesting {
                 }
             }
         } catch (ClassNotFoundException e) {
+            System.out.println(e);
             // no class, fall through to not add. this can happen for any tests that do not include
             // the given class. eg only core tests include plugin-classloader
         }
@@ -232,11 +239,25 @@ public class BootstrapForTesting {
                 Assert.class.getProtectionDomain().getCodeSource().getLocation()
         ));
         codebases.removeAll(excluded);
+        final Map<String, URL> codebasesMap = PolicyUtil.getCodebaseJarMap(codebases);
 
         // parse each policy file, with codebase substitution from the classpath
         final List<Policy> policies = new ArrayList<>(pluginPolicies.size());
         for (URL policyFile : pluginPolicies) {
-            policies.add(PolicyUtil.readPolicy(policyFile, PolicyUtil.getCodebaseJarMap(codebases)));
+            Path policyPath = PathUtils.get(policyFile.toURI());
+            Path codebasesPath = policyPath.getParent().resolve("plugin-security.codebases");
+
+            Map<String, URL> policyCodebases = codebasesMap;
+            if (Files.exists(codebasesPath)) {
+                // load codebase to class map used for tests
+                policyCodebases = new HashMap<>(codebasesMap);
+                Map<String, String> codebasesProps = parsePropertiesFile(codebasesPath);
+                for (var entry : codebasesProps.entrySet()) {
+                    addClassCodebase(policyCodebases, entry.getKey(), entry.getValue());
+                }
+            }
+
+            policies.add(PolicyUtil.readPolicy(policyFile, policyCodebases));
         }
 
         // consult each policy file for those codebases
@@ -256,6 +277,14 @@ public class BootstrapForTesting {
             });
         }
         return Collections.unmodifiableMap(map);
+    }
+
+    static Map<String, String> parsePropertiesFile(Path propertiesFile) throws Exception {
+        Properties props = new Properties();
+        try (InputStream is = Files.newInputStream(propertiesFile)) {
+            props.load(is);
+        }
+        return props.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
     }
 
     /**

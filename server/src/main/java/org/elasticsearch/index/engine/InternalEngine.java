@@ -73,6 +73,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.fieldvisitor.IdOnlyFieldVisitor;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -618,14 +619,34 @@ public class InternalEngine extends Engine {
         }
     }
 
+    private GetResult getFromTranslog(Get get, Translog.Index index, DocumentMapper mapper,
+                                      Function<Searcher, Searcher> searcherWrapper) throws IOException {
+        assert get.isReadFromTranslog();
+        final SingleDocDirectoryReader inMemoryReader = new SingleDocDirectoryReader(shardId, index, mapper, config().getAnalyzer());
+        final Engine.Searcher searcher = new Engine.Searcher("realtime_get", ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
+            config().getSimilarity(), config().getQueryCache(), config().getQueryCachingPolicy(), inMemoryReader);
+        final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
+        if (wrappedSearcher == searcher) {
+            searcher.close();
+            assert inMemoryReader.assertMemorySegmentStatus(false);
+            final TranslogLeafReader translogLeafReader = new TranslogLeafReader(index);
+            return new GetResult(new Engine.Searcher("realtime_get", translogLeafReader,
+                IndexSearcher.getDefaultSimilarity(), null, IndexSearcher.getDefaultQueryCachingPolicy(), translogLeafReader),
+                new VersionsAndSeqNoResolver.DocIdAndVersion(
+                    0, index.version(), index.seqNo(), index.primaryTerm(), translogLeafReader, 0), true);
+        } else {
+            assert inMemoryReader.assertMemorySegmentStatus(true);
+            return getFromSearcher(get, wrappedSearcher);
+        }
+    }
+
     @Override
-    public GetResult get(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory) throws EngineException {
+    public GetResult get(Get get, DocumentMapper mapper, Function<Engine.Searcher, Engine.Searcher> searcherWrapper) {
         assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            SearcherScope scope;
             if (get.realtime()) {
-                VersionValue versionValue = null;
+                final VersionValue versionValue;
                 try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
                     // we need to lock here to access the version map to do this truly in RT
                     versionValue = getVersionFromMap(get.uid().bytes());
@@ -649,15 +670,9 @@ public class InternalEngine extends Engine {
                         // the update call doesn't need the consistency since it's source only + _parent but parent can go away in 7.0
                         if (versionValue.getLocation() != null) {
                             try {
-                                Translog.Operation operation = translog.readOperation(versionValue.getLocation());
+                                final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
                                 if (operation != null) {
-                                    // in the case of a already pruned translog generation we might get null here - yet very unlikely
-                                    final Translog.Index index = (Translog.Index) operation;
-                                    TranslogLeafReader reader = new TranslogLeafReader(index);
-                                    return new GetResult(new Engine.Searcher("realtime_get", reader,
-                                        IndexSearcher.getDefaultSimilarity(), null, IndexSearcher.getDefaultQueryCachingPolicy(), reader),
-                                        new VersionsAndSeqNoResolver.DocIdAndVersion(0, index.version(), index.seqNo(), index.primaryTerm(),
-                                            reader, 0), true);
+                                    return getFromTranslog(get, (Translog.Index) operation, mapper, searcherWrapper);
                                 }
                             } catch (IOException e) {
                                 maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
@@ -670,14 +685,11 @@ public class InternalEngine extends Engine {
                     assert versionValue.seqNo >= 0 : versionValue;
                     refreshIfNeeded("realtime_get", versionValue.seqNo);
                 }
-                scope = SearcherScope.INTERNAL;
+                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper));
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
-                scope = SearcherScope.EXTERNAL;
+                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper));
             }
-
-            // no version, get the version from the index, we know that we refresh on flush
-            return getFromSearcher(get, searcherFactory, scope);
         }
     }
 

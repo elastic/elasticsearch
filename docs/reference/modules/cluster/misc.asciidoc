@@ -53,6 +53,7 @@ Closed indices do not contribute to the shard count.
 
 You can dynamically adjust the cluster shard limit with the following setting:
 
+[[cluster-max-shards-per-node]]
 `cluster.max_shards_per_node`::
 +
 --

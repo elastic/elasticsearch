@@ -77,17 +77,8 @@ public class DataFrameDataExtractor {
     DataFrameDataExtractor(Client client, DataFrameDataExtractorContext context) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(context);
-        Set<String> processedFieldInputs = context.extractedFields.getProcessedFieldInputs();
-        this.organicFeatures = context.extractedFields.getAllFields()
-            .stream()
-            .map(ExtractedField::getName)
-            .filter(f -> processedFieldInputs.contains(f) == false)
-            .toArray(String[]::new);
-        this.processedFeatures = context.extractedFields.getProcessedFields()
-            .stream()
-            .map(ProcessedField::getOutputFieldNames)
-            .flatMap(List::stream)
-            .toArray(String[]::new);
+        this.organicFeatures = context.extractedFields.extractOrganicFeatureNames();
+        this.processedFeatures = context.extractedFields.extractProcessedFeatureNames();
         this.extractedFieldsByName = new LinkedHashMap<>();
         context.extractedFields.getAllFields().forEach(f -> this.extractedFieldsByName.put(f.getName(), f));
         hasNext = true;

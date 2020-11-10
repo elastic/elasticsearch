@@ -67,6 +67,8 @@ subprojects {
           'search.aggregation/20_terms/string profiler via global ordinals',
           'search.aggregation/20_terms/Global ordinals are loaded with the global_ordinals execution hint',
           'search.aggregation/170_cardinality_metric/profiler string',
+          'search/171_terms_query_with_types/*',
+          'msearch/12_basic_with_types/*'
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

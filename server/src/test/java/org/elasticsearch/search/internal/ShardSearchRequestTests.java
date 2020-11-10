@@ -47,6 +47,7 @@ import org.elasticsearch.search.SearchSortValuesAndFormatsTests;
 import java.io.IOException;
 import java.io.InputStream;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
@@ -76,6 +77,9 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     public void testAllowPartialResultsSerializationPre7_0_0() throws IOException {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
         ShardSearchRequest shardSearchTransportRequest = createShardSearchRequest();
+        if(shardSearchTransportRequest.source() != null) {
+            shardSearchTransportRequest.source().runtimeMappings(emptyMap());
+        }
         ShardSearchRequest deserializedRequest =
             copyWriteable(shardSearchTransportRequest, namedWriteableRegistry, ShardSearchRequest::new, version);
         if (version.before(Version.V_6_3_0)) {

@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -45,12 +43,12 @@ import org.elasticsearch.xpack.autoscaling.action.TransportDeleteAutoscalingPoli
 import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportPutAutoscalingPolicyAction;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderConfiguration;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderConfiguration;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
@@ -68,7 +66,7 @@ import java.util.stream.Collectors;
  * Container class for autoscaling functionality.
  */
 public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugin, AutoscalingExtension {
-    private static final Logger logger = LogManager.getLogger(AutoscalingExtension.class);
+
     private static final Boolean AUTOSCALING_FEATURE_FLAG_REGISTERED;
 
     static {
@@ -91,7 +89,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
 
     public static final Setting<Boolean> AUTOSCALING_ENABLED_SETTING = Setting.boolSetting(
         "xpack.autoscaling.enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 

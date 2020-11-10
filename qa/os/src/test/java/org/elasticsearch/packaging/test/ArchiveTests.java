@@ -396,10 +396,7 @@ public class ArchiveTests extends PackagingTestCase {
         stopElasticsearch();
 
         // (@rory) this is for debugging
-        Platforms.onLinux(() -> { logger.warn(sh.run("ls -l /tmp/node.lock; ls -ld /tmp").stdout); });
-
-        Path pidFile = installation.home.resolve("elasticsearch.pid");
-        assertThat(pidFile, fileDoesNotExist());
+        Platforms.onLinux(() -> { logger.warn(sh.run("ls -l /tmp/node.lock; echo $USER / $UID / $GROUPS").stdout); });
 
         Result result = sh.run("echo y | " + installation.executables().nodeTool + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));

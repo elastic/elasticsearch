@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +24,8 @@ import java.util.List;
  * A {@link LifecycleAction} which freezes the index.
  */
 public class FreezeAction implements LifecycleAction {
+    private final Logger logger = LogManager.getLogger(FreezeAction.class);
+
     public static final String NAME = "freeze";
     public static final String CONDITIONAL_SKIP_FREEZE_STEP = BranchingStep.NAME + "-freeze-check-prerequisites";
 
@@ -65,7 +69,14 @@ public class FreezeAction implements LifecycleAction {
         StepKey freezeStepKey = new StepKey(phase, NAME, FreezeStep.NAME);
 
         BranchingStep conditionalSkipFreezeStep = new BranchingStep(preFreezeMergeBranchingKey, checkNotWriteIndex, nextStepKey,
-            (index, clusterState) -> clusterState.getMetadata().index(index).getSettings().get("index.store.snapshot.index_name") != null);
+            (index, clusterState) -> {
+                if (clusterState.getMetadata().index(index).getSettings().get("index.store.snapshot.index_name") != null) {
+                    logger.warn("[{}] action is configured for index [{}] which is mounted as searchable snapshot. Skipping this action",
+                        FreezeAction.NAME, index.getName());
+                    return true;
+                }
+                return false;
+            });
         CheckNotDataStreamWriteIndexStep checkNoWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             freezeStepKey);
         FreezeStep freezeStep = new FreezeStep(freezeStepKey, nextStepKey, client);

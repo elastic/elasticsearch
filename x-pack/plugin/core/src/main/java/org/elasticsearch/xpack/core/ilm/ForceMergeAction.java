@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -31,6 +33,8 @@ import java.util.Objects;
  * A {@link LifecycleAction} which force-merges the index.
  */
 public class ForceMergeAction implements LifecycleAction {
+    private final Logger logger = LogManager.getLogger(ForceMergeAction.class);
+
     public static final String NAME = "forcemerge";
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
     public static final ParseField CODEC = new ParseField("index_codec");
@@ -134,7 +138,14 @@ public class ForceMergeAction implements LifecycleAction {
         StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
 
         BranchingStep conditionalSkipShrinkStep = new BranchingStep(preForceMergeBranchingKey, checkNotWriteIndex, nextStepKey,
-            (index, clusterState) -> clusterState.getMetadata().index(index).getSettings().get("index.store.snapshot.index_name") != null);
+            (index, clusterState) -> {
+                if (clusterState.getMetadata().index(index).getSettings().get("index.store.snapshot.index_name") != null) {
+                    logger.warn("[{}] action is configured for index [{}] which is mounted as searchable snapshot. Skipping this action",
+                        ForceMergeAction.NAME, index.getName());
+                    return true;
+                }
+                return false;
+            });
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             readOnlyKey);
         UpdateSettingsStep readOnlyStep =

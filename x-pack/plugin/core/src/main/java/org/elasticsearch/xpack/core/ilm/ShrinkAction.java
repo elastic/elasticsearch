@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,6 +29,8 @@ import java.util.Objects;
  * A {@link LifecycleAction} which shrinks the index.
  */
 public class ShrinkAction implements LifecycleAction {
+    private final Logger logger = LogManager.getLogger(ShrinkAction.class);
+
     public static final String NAME = "shrink";
     public static final String SHRUNKEN_INDEX_PREFIX = "shrink-";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
@@ -106,8 +110,15 @@ public class ShrinkAction implements LifecycleAction {
         BranchingStep conditionalSkipShrinkStep = new BranchingStep(preShrinkBranchingKey, checkNotWriteIndex, nextStepKey,
             (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-                return indexMetadata.getNumberOfShards() == numberOfShards ||
-                    indexMetadata.getSettings().get("index.store.snapshot.index_name") != null;
+                if (indexMetadata.getNumberOfShards() == numberOfShards) {
+                    return true;
+                }
+                if (indexMetadata.getSettings().get("index.store.snapshot.index_name") != null) {
+                    logger.warn("[{}] action is configured for index [{}] which is mounted as searchable snapshot. Skipping this action",
+                        ShrinkAction.NAME, indexMetadata.getIndex().getName());
+                    return true;
+                }
+                return false;
             });
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             waitForNoFollowerStepKey);

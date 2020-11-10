@@ -26,6 +26,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Task;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
@@ -34,6 +35,7 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.testing.Test;
 
+import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -64,8 +66,11 @@ public class TestingConventionsTasks extends DefaultTask {
     private Map<String, File> testClassNames;
 
     private final NamedDomainObjectContainer<TestingConventionRule> naming;
+    private ProjectLayout projectLayout;
 
-    public TestingConventionsTasks() {
+    @Inject
+    public TestingConventionsTasks(ProjectLayout projectLayout) {
+        this.projectLayout = projectLayout;
         setDescription("Tests various testing conventions");
         // Run only after everything is compiled
         GradleUtils.getJavaSourceSets(getProject()).all(sourceSet -> dependsOn(sourceSet.getOutput().getClassesDirs()));
@@ -148,7 +153,7 @@ public class TestingConventionsTasks extends DefaultTask {
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getValue, entry -> loadClassWithoutInitializing(entry.getKey(), isolatedClassLoader)));
 
-            final FileTree allTestClassFiles = getProject().files(
+            final FileTree allTestClassFiles = projectLayout.files(
                 classes.values()
                     .stream()
                     .filter(isStaticClass.negate())

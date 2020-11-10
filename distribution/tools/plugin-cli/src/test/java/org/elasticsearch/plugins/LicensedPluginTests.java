@@ -25,14 +25,11 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import java.io.UnsupportedEncodingException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.*;
 
 public class LicensedPluginTests extends ESTestCase {
 

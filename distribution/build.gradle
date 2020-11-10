@@ -335,7 +335,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   dependencies {
     libs project(':server')
-    libs project(':libs:elasticsearch-plugin-classloader')
     libs project(':distribution:tools:java-version-checker')
     libs project(':distribution:tools:launchers')
 

@@ -207,7 +207,8 @@ public class RestRequestTests extends ESTestCase {
                 });
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getMessage(), equalTo("java.lang.IllegalArgumentException: invalid media type [" + type + "]"));
+        assertThat(e.getCause().getMessage(), equalTo("invalid media-type [" + type + "]"));
+        assertThat(e.getMessage(), equalTo("Invalid media-type value on header [Content-Type]"));
     }
 
     public void testNoContentTypeHeader() {
@@ -222,8 +223,8 @@ public class RestRequestTests extends ESTestCase {
                 () -> contentRestRequest("", Collections.emptyMap(), Collections.singletonMap("Content-Type", headers)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf((IllegalArgumentException.class)));
-        assertThat(e.getMessage(), equalTo("java.lang.IllegalArgumentException: Incorrect header [Content-Type]." +
-            " Only one value should be provided"));
+        assertThat(e.getCause().getMessage(), equalTo("Incorrect header [Content-Type]. Only one value should be provided"));
+        assertThat(e.getMessage(), equalTo("Invalid media-type value on header [Content-Type]"));
     }
 
     public void testRequiredContent() {

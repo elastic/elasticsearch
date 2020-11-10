@@ -244,16 +244,21 @@ public class BootstrapForTesting {
         // parse each policy file, with codebase substitution from the classpath
         final List<Policy> policies = new ArrayList<>(pluginPolicies.size());
         for (URL policyFile : pluginPolicies) {
-            Path policyPath = PathUtils.get(policyFile.toURI());
-            Path codebasesPath = policyPath.getParent().resolve("plugin-security.codebases");
-
             Map<String, URL> policyCodebases = codebasesMap;
-            if (Files.exists(codebasesPath)) {
-                // load codebase to class map used for tests
-                policyCodebases = new HashMap<>(codebasesMap);
-                Map<String, String> codebasesProps = parsePropertiesFile(codebasesPath);
-                for (var entry : codebasesProps.entrySet()) {
-                    addClassCodebase(policyCodebases, entry.getKey(), entry.getValue());
+
+            // if the codebases file is inside a jar, then we don't need to load it since the jar will
+            // have already been read from the classpath
+            if (policyFile.toString().contains(".jar") == false) {
+                Path policyPath = PathUtils.get(policyFile.toURI());
+                Path codebasesPath = policyPath.getParent().resolve("plugin-security.codebases");
+
+                if (Files.exists(codebasesPath)) {
+                    // load codebase to class map used for tests
+                    policyCodebases = new HashMap<>(codebasesMap);
+                    Map<String, String> codebasesProps = parsePropertiesFile(codebasesPath);
+                    for (var entry : codebasesProps.entrySet()) {
+                        addClassCodebase(policyCodebases, entry.getKey(), entry.getValue());
+                    }
                 }
             }
 

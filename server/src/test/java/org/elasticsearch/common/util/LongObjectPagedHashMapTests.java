@@ -21,19 +21,20 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
-public class LongObjectHashMapTests extends ESTestCase {
+public class LongObjectPagedHashMapTests extends ESTestCase {
 
-    private BigArrays randomBigArrays() {
+    private BigArrays mockBigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
     public void testDuel() {
         final LongObjectHashMap<Object> map1 = new LongObjectHashMap<>();
         final LongObjectPagedHashMap<Object> map2 =
-            new LongObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, randomBigArrays());
+            new LongObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, mockBigArrays());
         final int maxKey = randomIntBetween(1, 10000);
         final int iters = scaledRandomIntBetween(10000, 100000);
         for (int i = 0; i < iters; ++i) {
@@ -59,6 +60,10 @@ public class LongObjectHashMapTests extends ESTestCase {
         }
         map2.close();
         assertEquals(map1, copy);
+    }
+
+    public void testAllocation() {
+        MockBigArrays.assertFitsIn(new ByteSizeValue(256), bigArrays -> new LongObjectPagedHashMap<Object>(1, bigArrays));
     }
 
 }

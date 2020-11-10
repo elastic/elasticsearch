@@ -189,7 +189,9 @@ public class PolicyUtilTests extends ESTestCase {
     void assertIllegalPermission(String clazz, String name, String actions, Path tmpDir, PolicyParser parser) throws Exception {
         // global policy
         final Path globalPlugin = makeSinglePermissionPlugin(null, clazz, name, actions);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse(globalPlugin, tmpDir)); // no error
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            "Permission (" + clazz + " " + name + (actions == null ? "" : (" " + actions)) + ") should be illegal",
+            () -> parser.parse(globalPlugin, tmpDir)); // no error
         assertThat(e.getMessage(), containsString("contains illegal permission"));
         assertThat(e.getMessage(), containsString("in global grant"));
 
@@ -236,6 +238,8 @@ public class PolicyUtilTests extends ESTestCase {
         "java.sql.SQLPermission setNetworkTimeout",
         "java.util.PropertyPermission * read",
         "java.util.PropertyPermission someProperty read",
+        "java.util.PropertyPermission * write",
+        "java.util.PropertyPermission foo.bar write",
         "javax.security.auth.AuthPermission doAs",
         "javax.security.auth.AuthPermission doAsPrivileged",
         "javax.security.auth.AuthPermission getSubject",
@@ -272,11 +276,8 @@ public class PolicyUtilTests extends ESTestCase {
     static final List<String> MODULE_TEST_PERMISSIONS = List.of(
         "java.io.FilePermission /foo/bar read",
         "java.io.FilePermission /foo/bar write",
-        "java.util.PropertyPermission * write",
-        "java.util.PropertyPermission foo.bar write",
         "java.lang.RuntimePermission getFileStoreAttributes",
-        "java.lang.RuntimePermission accessUserInformation",
-        "javax.security.auth.AuthPermission modifyPrivateCredentials"
+        "java.lang.RuntimePermission accessUserInformation"
     );
 
     public void testModulePolicyAllowedPermissions() throws Exception {

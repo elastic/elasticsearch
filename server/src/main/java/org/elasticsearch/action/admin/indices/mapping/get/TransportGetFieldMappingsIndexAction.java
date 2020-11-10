@@ -39,9 +39,9 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -155,6 +155,8 @@ public class TransportGetFieldMappingsIndexAction
         if (documentMapper == null) {
             return Collections.emptyMap();
         }
+        //TODO the logic here needs to be reworked to also include runtime fields. Though matching is against mappers rather
+        // than field types, and runtime fields are mixed with ordinary fields in FieldTypeLookup
         Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
         final MappingLookup allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {

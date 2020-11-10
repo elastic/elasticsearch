@@ -32,8 +32,10 @@ import java.util.Set;
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
+//TODO Does this need to implement Iterable? It's used in two places
 final class FieldTypeLookup implements Iterable<MappedFieldType> {
 
+    //TODO aliases could be added directly to fullNameToFieldType
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
     private final Map<String, String> aliasToConcreteName = new HashMap<>();
 
@@ -47,8 +49,10 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
     private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
+    //TODO ideally the constructor would not take mappers, but MappedFieldTypes and an external method does the conversion
     FieldTypeLookup(Collection<FieldMapper> fieldMappers,
-                    Collection<FieldAliasMapper> fieldAliasMappers) {
+                    Collection<FieldAliasMapper> fieldAliasMappers,
+                    Collection<RuntimeFieldType> runtimeFieldTypes) {
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
@@ -70,10 +74,16 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
 
+        //TODO field aliases should probably be defined as runtime fields?
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
             String aliasName = fieldAliasMapper.name();
             String path = fieldAliasMapper.path();
             aliasToConcreteName.put(aliasName, path);
+        }
+
+        for (RuntimeFieldType runtimeFieldType : runtimeFieldTypes) {
+            //this will override concrete fields with runtime fields that have the same name
+            fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
         }
 
         this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);

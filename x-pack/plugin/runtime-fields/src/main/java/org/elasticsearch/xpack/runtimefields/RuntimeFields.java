@@ -6,29 +6,55 @@
 
 package org.elasticsearch.xpack.runtimefields;
 
-import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.BooleanScriptFieldType;
 import org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.DateScriptFieldType;
 import org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.DoubleScriptFieldType;
 import org.elasticsearch.xpack.runtimefields.mapper.GeoPointFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.GeoPointScriptFieldType;
 import org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript;
+import org.elasticsearch.xpack.runtimefields.mapper.IpScriptFieldType;
+import org.elasticsearch.xpack.runtimefields.mapper.KeywordScriptFieldType;
 import org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript;
-import org.elasticsearch.xpack.runtimefields.mapper.RuntimeFieldMapper;
+import org.elasticsearch.xpack.runtimefields.mapper.LongScriptFieldType;
 import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptPlugin {
 
     @Override
-    public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(RuntimeFieldMapper.CONTENT_TYPE, RuntimeFieldMapper.PARSER);
+    public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
+        return Map.of(
+            BooleanFieldMapper.CONTENT_TYPE,
+            BooleanScriptFieldType.PARSER,
+            NumberFieldMapper.NumberType.LONG.typeName(),
+            LongScriptFieldType.PARSER,
+            NumberFieldMapper.NumberType.DOUBLE.typeName(),
+            DoubleScriptFieldType.PARSER,
+            IpFieldMapper.CONTENT_TYPE,
+            IpScriptFieldType.PARSER,
+            DateFieldMapper.CONTENT_TYPE,
+            DateScriptFieldType.PARSER,
+            KeywordFieldMapper.CONTENT_TYPE,
+            KeywordScriptFieldType.PARSER,
+            GeoPointFieldMapper.CONTENT_TYPE,
+            GeoPointScriptFieldType.PARSER
+        );
     }
 
     @Override

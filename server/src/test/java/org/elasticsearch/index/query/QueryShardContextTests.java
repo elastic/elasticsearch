@@ -312,7 +312,7 @@ public class QueryShardContextTests extends ESTestCase {
         when(mapperService.index()).thenReturn(indexMetadata.getIndex());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         Map<String, Mapper.TypeParser> typeParserMap = IndicesModule.getMappers(Collections.emptyList());
-        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(name -> null, typeParserMap::get,
+        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(name -> null, typeParserMap::get, type -> null,
             Version.CURRENT, () -> null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
             () -> {
                 throw new UnsupportedOperationException();

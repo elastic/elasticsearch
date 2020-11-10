@@ -25,8 +25,9 @@ You can also limit the amount of shards a node can have regardless of the index:
 Maximum number of primary and replica shards allocated to each node. Defaults to
 `-1` (unlimited).
 
-For example, a cluster has a `cluster.routing.allocation.total_shards_per_node`
-setting of `100` and three nodes with the following shard allocations:
+{es} checks this setting during shard allocation. For example, a cluster has a
+`cluster.routing.allocation.total_shards_per_node` setting of `100` and three
+nodes with the following shard allocations:
 
 - Node A: 100 shards
 - Node B: 98 shards

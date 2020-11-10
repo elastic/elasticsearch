@@ -257,7 +257,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     @Override
                     public void onResponse(CreateIndexResponse result) {
                         if (counter.decrementAndGet() == 0) {
-                            threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
+                            threadPool.executor(executorName).execute(new ActionRunnable<BulkResponse>(listener) {
 
                                 @Override
                                 protected void doRun() {
@@ -287,7 +287,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 inner.addSuppressed(e);
                                 listener.onFailure(inner);
                             });
-                            threadPool.executor(executorName).execute(new ActionRunnable<>(wrappedListener) {
+                            threadPool.executor(executorName).execute(new ActionRunnable<BulkResponse>(wrappedListener) {
                                 @Override
                                 protected void doRun() {
                                     executeBulk(task, bulkRequest, startTime, wrappedListener, responses, indicesThatCannotBeCreated);
@@ -722,7 +722,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             assert Thread.currentThread().getName().contains(executorName);
                             doInternalExecute(task, bulkRequest, executorName, actionListener);
                         } else {
-                            threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
+                            threadPool.executor(executorName).execute(new ActionRunnable<BulkResponse>(listener) {
                                 @Override
                                 protected void doRun() {
                                     doInternalExecute(task, bulkRequest, executorName, actionListener);

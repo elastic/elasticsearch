@@ -96,7 +96,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         private static final SeqNoFieldType INSTANCE = new SeqNoFieldType();
 
         private SeqNoFieldType() {
-            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, Collections.emptyMap());
         }
 
         @Override
@@ -122,7 +122,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 

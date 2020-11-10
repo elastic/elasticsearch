@@ -28,6 +28,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InternalStats extends InternalNumericMetricsAggregation.MultiValue implements Stats {
     enum Metrics {
@@ -38,6 +40,8 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             return Metrics.valueOf(name);
         }
     }
+
+    public static List<String> metricNames = Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toList());
 
     protected final long count;
     protected final double min;
@@ -141,6 +145,11 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             default:
                 throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         }
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return metricNames;
     }
 
     @Override

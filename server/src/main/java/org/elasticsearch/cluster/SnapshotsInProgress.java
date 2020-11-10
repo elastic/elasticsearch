@@ -399,10 +399,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (partial != entry.partial) return false;
             if (startTime != entry.startTime) return false;
             if (!indices.equals(entry.indices)) return false;
+            if (!dataStreams.equals(entry.dataStreams)) return false;
             if (!shards.equals(entry.shards)) return false;
             if (!snapshot.equals(entry.snapshot)) return false;
             if (state != entry.state) return false;
             if (repositoryStateId != entry.repositoryStateId) return false;
+            if (Objects.equals(failure, ((Entry) o).failure) == false) return false;
+            if (Objects.equals(userMetadata, ((Entry) o).userMetadata) == false) return false;
             if (version.equals(entry.version) == false) return false;
             if (Objects.equals(source, ((Entry) o).source) == false) return false;
             if (clones.equals(((Entry) o).clones) == false) return false;
@@ -418,8 +421,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             result = 31 * result + (partial ? 1 : 0);
             result = 31 * result + shards.hashCode();
             result = 31 * result + indices.hashCode();
+            result = 31 * result + dataStreams.hashCode();
             result = 31 * result + Long.hashCode(startTime);
             result = 31 * result + Long.hashCode(repositoryStateId);
+            result = 31 * result + (failure == null ? 0 : failure.hashCode());
+            result = 31 * result + (userMetadata == null ? 0 : userMetadata.hashCode());
             result = 31 * result + version.hashCode();
             result = 31 * result + (source == null ? 0 : source.hashCode());
             result = 31 * result + clones.hashCode();

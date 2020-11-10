@@ -90,7 +90,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `open`.
 
 `flush`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 {es} performs a <<indices-flush,flush>> on the indices
 after the force merge.
@@ -113,7 +113,7 @@ If so, executes it.
 `only_expunge_deletes`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 only expunge segments containing document deletions.
 Defaults to `false`.

@@ -71,16 +71,15 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays.grow(counts, bucket + 1);
-                sums = bigArrays.grow(sums, bucket + 1);
-                compensations = bigArrays.grow(compensations, bucket + 1);
+                counts = bigArrays().grow(counts, bucket + 1);
+                sums = bigArrays().grow(sums, bucket + 1);
+                compensations = bigArrays().grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();

@@ -131,11 +131,12 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     private void createToken(GrantType grantType, CreateTokenRequest request, Authentication authentication, Authentication originatingAuth,
             boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
         tokenService.createOAuth2Tokens(authentication, originatingAuth, Collections.emptyMap(), includeRefreshToken,
-                ActionListener.wrap(tuple -> {
+                ActionListener.wrap(tokenResult -> {
                     final String scope = getResponseScopeValue(request.getScope());
                     final String base64AuthenticateResponse = (grantType == GrantType.KERBEROS) ? extractOutToken() : null;
-                    final CreateTokenResponse response = new CreateTokenResponse(tuple.v1(), tokenService.getExpirationDelay(), scope,
-                            tuple.v2(), base64AuthenticateResponse, authentication);
+                    final CreateTokenResponse response = new CreateTokenResponse(tokenResult.getAccessToken(),
+                        tokenService.getExpirationDelay(), scope, tokenResult.getRefreshToken(), base64AuthenticateResponse,
+                        authentication);
                     listener.onResponse(response);
                 }, listener::onFailure));
     }

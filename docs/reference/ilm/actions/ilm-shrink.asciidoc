@@ -2,7 +2,7 @@
 [[ilm-shrink]]
 === Shrink
 
-Phases allowed: warm
+Phases allowed: hot, warm.
 
 Sets an index to <<dynamic-index-settings, read-only>> 
 and shrinks it into a new index with fewer primary shards. 
@@ -11,8 +11,11 @@ For example, if the name of the source index is _logs_,
 the name of the shrunken index is _shrink-logs_.
 
 The shrink action allocates all primary shards of the index to one node so it 
-can call  the <<indices-shrink-index,Shrink API>> to shrink the index.
+can call the <<indices-shrink-index,Shrink API>> to shrink the index.
 After shrinking, it swaps aliases that point to the original index to the new shrunken index. 
+
+To use the `shrink` action in the `hot` phase, the `rollover` action *must* be present.
+If no rollover action is configured, {ilm-init} will reject the policy.
 
 [IMPORTANT]
 If the shrink action is used on a <<ccr-put-follow,follower index>>, 

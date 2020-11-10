@@ -263,6 +263,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
+import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -628,8 +629,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
-        AnnotationPersister anomalyDetectionAnnotationPersister =
-            new AnnotationPersister(resultsPersisterService, anomalyDetectionAuditor);
+        AnnotationPersister anomalyDetectionAnnotationPersister = new AnnotationPersister(resultsPersisterService);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings, indexNameExpressionResolver);
         JobResultsPersister jobResultsPersister =
             new JobResultsPersister(originSettingClient, resultsPersisterService, anomalyDetectionAuditor);
@@ -715,14 +715,12 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 anomalyDetectionAuditor,
                 anomalyDetectionAnnotationPersister,
                 System::currentTimeMillis,
-                jobConfigProvider,
-                jobResultsProvider,
-                datafeedConfigProvider,
                 jobResultsPersister,
                 settings,
                 clusterService.getNodeName());
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
-                System::currentTimeMillis, anomalyDetectionAuditor, autodetectProcessManager);
+                System::currentTimeMillis, anomalyDetectionAuditor, autodetectProcessManager, jobConfigProvider, datafeedConfigProvider,
+                jobResultsProvider);
         this.datafeedManager.set(datafeedManager);
 
         // Inference components
@@ -825,7 +823,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         }
 
         return Arrays.asList(
-                new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get(),
+                new OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get(),
                     memoryTracker.get(), client, expressionResolver),
                 new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedManager.get(), expressionResolver),
                 new TransportStartDataFrameAnalyticsAction.TaskExecutor(settings, client, clusterService, dataFrameAnalyticsManager.get(),

@@ -146,6 +146,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
+    protected final MapperService createMapperService(Settings settings, String mappings) throws IOException {
+        MapperService mapperService = createMapperService(Version.CURRENT, settings, () -> true, mapping(b -> {}));
+        merge(mapperService, mappings);
+        return mapperService;
+    }
+
     protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
@@ -236,6 +242,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         mapperService.merge(null, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
+    protected final void merge(MapperService mapperService, MapperService.MergeReason reason, String mapping) throws IOException {
+        mapperService.merge(null, new CompressedXContent(mapping), reason);
+    }
+
     /**
      * Merge a new mapping into the one in the provided {@link MapperService} with a specific {@code MergeReason}
      */
@@ -271,7 +281,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         });
     }
 
-    private AggregationContext aggregationContext(MapperService mapperService, IndexSearcher searcher, Query query) {
+    private AggregationContext aggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
+        MapperService mapperService,
+        IndexSearcher searcher,
+        Query query
+    ) {
         return new AggregationContext() {
             @Override
             public IndexSearcher searcher() {
@@ -300,7 +315,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public ValuesSourceRegistry getValuesSourceRegistry() {
-                throw new UnsupportedOperationException();
+                return valuesSourceRegistry;
             }
 
             @Override
@@ -355,10 +370,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         List<SourceToParse> docs,
         CheckedConsumer<AggregationContext, IOException> test
     ) throws IOException {
-        withAggregationContext(mapperService, docs, null, test);
+        withAggregationContext(null, mapperService, docs, null, test);
     }
 
     protected final void withAggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
         MapperService mapperService,
         List<SourceToParse> docs,
         Query query,
@@ -371,7 +387,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                     writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
                 }
             },
-            reader -> test.accept(aggregationContext(mapperService, new IndexSearcher(reader), query))
+            reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query))
         );
     }
 
@@ -382,11 +398,13 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
         when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
+        when(queryShardContext.getObjectMapper(anyString())).thenAnswer(
+            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString()));
         when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );
         when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
-        when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService, (ft, s) -> {
+        when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
         }));
         return queryShardContext;

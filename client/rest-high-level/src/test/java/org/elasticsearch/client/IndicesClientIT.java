@@ -1579,7 +1579,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}");
         Template template = new Template(null, mappings, null);
         ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(Collections.singletonList(dataStreamName), template,
-            Collections.emptyList(), 1L, 1L, new HashMap<>(), new ComposableIndexTemplate.DataStreamTemplate());
+            Collections.emptyList(), 1L, 1L, new HashMap<>(), new ComposableIndexTemplate.DataStreamTemplate(), null);
         PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
             new PutComposableIndexTemplateRequest().name("ds-template").create(true).indexTemplate(indexTemplate);
         AcknowledgedResponse response = execute(putComposableIndexTemplateRequest,
@@ -1658,7 +1658,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Template template = new Template(settings, mappings, Map.of("alias", alias));
         List<String> pattern = List.of("pattern");
         ComposableIndexTemplate indexTemplate =
-            new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
+            new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null, null);
         PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
             new PutComposableIndexTemplateRequest().name(templateName).create(true).indexTemplate(indexTemplate);
 
@@ -1705,7 +1705,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Template template = new Template(settings, mappings, Map.of("alias", alias));
         List<String> pattern = List.of("pattern");
         ComposableIndexTemplate indexTemplate =
-            new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
+            new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null, null);
         PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
             new PutComposableIndexTemplateRequest().name(templateName).create(true).indexTemplate(indexTemplate);
 
@@ -1716,7 +1716,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest("pattern");
         AliasMetadata simulationAlias = AliasMetadata.builder("simulation-alias").writeIndex(true).build();
         ComposableIndexTemplate simulationTemplate = new ComposableIndexTemplate(pattern, new Template(null, null,
-            Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L, new HashMap<>(), null);
+            Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L, new HashMap<>(), null, null);
         PutComposableIndexTemplateRequest newIndexTemplateReq =
             new PutComposableIndexTemplateRequest().name("used-for-simulation").create(true).indexTemplate(indexTemplate);
         newIndexTemplateReq.indexTemplate(simulationTemplate);

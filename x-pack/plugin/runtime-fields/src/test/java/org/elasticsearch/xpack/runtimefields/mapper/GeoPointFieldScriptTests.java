@@ -11,7 +11,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -20,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldScript.Factory> {
     public static final GeoPointFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new GeoPointFieldScript(
@@ -52,7 +50,7 @@ public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldS
                 GeoPointFieldScript script = new GeoPointFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
+                    new SearchLookup(field -> null, (ft, lookup) -> null),
                     reader.leaves().get(0)
                 ) {
                     @Override

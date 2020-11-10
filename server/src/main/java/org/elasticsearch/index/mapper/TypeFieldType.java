@@ -51,6 +51,13 @@ public final class TypeFieldType extends ConstantFieldType {
         this.type = type;
     }
 
+    /**
+     * Returns the name of the current type
+     */
+    public String getType() {
+        return type;
+    }
+
     @Override
     public String typeName() {
         return CONTENT_TYPE;
@@ -69,7 +76,7 @@ public final class TypeFieldType extends ConstantFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+    public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
         throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
     }
 

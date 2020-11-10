@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -1305,14 +1304,14 @@ public class AuthenticationServiceTests extends ESTestCase {
         User user = new User("_username", "r1");
         final AtomicBoolean completed = new AtomicBoolean(false);
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
-        PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
             tokenService.createOAuth2Tokens(userTokenId, refreshToken, expected, originatingAuth, Collections.emptyMap(), tokenFuture);
         }
-        String token = tokenFuture.get().v1();
+        String token = tokenFuture.get().getAccessToken();
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         mockGetTokenFromId(tokenService, userTokenId, expected, false, client);
         when(securityIndex.freeze()).thenReturn(securityIndex);
@@ -1393,14 +1392,14 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(securityIndex.indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
-        PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
             tokenService.createOAuth2Tokens(userTokenId, refreshToken, expected, originatingAuth, Collections.emptyMap(), tokenFuture);
         }
-        String token = tokenFuture.get().v1();
+        String token = tokenFuture.get().getAccessToken();
         mockGetTokenFromId(tokenService, userTokenId, expected, true, client);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();

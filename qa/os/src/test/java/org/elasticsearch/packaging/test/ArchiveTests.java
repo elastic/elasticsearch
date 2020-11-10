@@ -34,6 +34,7 @@ import java.util.List;
 
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
+import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
@@ -128,7 +129,7 @@ public class ArchiveTests extends PackagingTestCase {
         } catch (Exception e) {
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
-                logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
+                logger.info("Dumping jstack of elasticsearch process ({}) that failed to start", pid);
                 sh.runIgnoreExitCode("jstack " + pid);
             }
             throw e;
@@ -392,7 +393,12 @@ public class ArchiveTests extends PackagingTestCase {
         startElasticsearch();
         stopElasticsearch();
 
-        Result result = sh.run("echo y | " + installation.executables().nodeTool + " unsafe-bootstrap");
+        String nodeTool = installation.executables().nodeTool.toString();
+        if (Platforms.WINDOWS == false) {
+            nodeTool = "sudo -E -u " + ARCHIVE_OWNER + " " + nodeTool;
+        }
+
+        Result result = sh.run("echo y | " + nodeTool + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));
     }
 

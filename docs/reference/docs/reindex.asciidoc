@@ -410,6 +410,9 @@ POST _reindex
 --------------------------------------------------
 // TEST[s/^/PUT source\n/]
 
+[[reindex-with-an-ingest-pipeline]]
+===== Reindex with an ingest pipeline
+
 Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
 

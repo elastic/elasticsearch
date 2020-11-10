@@ -401,8 +401,6 @@ public class ArchiveTests extends PackagingTestCase {
         Path pidFile = installation.home.resolve("elasticsearch.pid");
         assertThat(pidFile, fileDoesNotExist());
 
-        assertThat(Path.of("/tmp/node.lock"), fileDoesNotExist());
-
         Result result = sh.run("echo y | " + installation.executables().nodeTool + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));
     }

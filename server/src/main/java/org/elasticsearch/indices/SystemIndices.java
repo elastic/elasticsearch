@@ -119,6 +119,10 @@ public class SystemIndices {
         return featureSystemIndexDescriptors;
     }
 
+    public Collection<String> getFeatures() {
+        return featureSystemIndexDescriptors.keySet();
+    }
+
     private static CharacterRunAutomaton buildCharacterRunAutomaton(Map<String, Collection<SystemIndexDescriptor>> descriptors) {
         Optional<Automaton> automaton = descriptors.values().stream()
             .flatMap(Collection::stream)

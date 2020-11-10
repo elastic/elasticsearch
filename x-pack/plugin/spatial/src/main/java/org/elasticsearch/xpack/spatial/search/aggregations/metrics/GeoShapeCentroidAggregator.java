@@ -5,7 +5,7 @@
  */
 
 
-package org.elasticsearch.xpack.spatial.aggregations.metrics;
+package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;

@@ -507,6 +507,39 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(rows.get().get(2).shouldSkip(), is(false));
     }
 
+    public void testExtractionWithMultipleScalarTypesInSource() throws IOException {
+        extractedFields = new ExtractedFields(Arrays.asList(
+            new DocValueField("field_1", Collections.singleton("keyword")),
+            new DocValueField("field_2", Collections.singleton("keyword"))),
+            Collections.emptyList(),
+            Collections.emptyMap());
+
+        TestExtractor dataExtractor = createExtractor(true, true);
+
+        // First and only batch
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1, "true", false), Arrays.asList(2_1, 2_2, 2_3));
+        dataExtractor.setNextResponse(response1);
+
+        // Empty
+        SearchResponse lastAndEmptyResponse = createEmptySearchResponse();
+        dataExtractor.setNextResponse(lastAndEmptyResponse);
+
+        assertThat(dataExtractor.hasNext(), is(true));
+
+        // First batch
+        Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
+        assertThat(rows.isPresent(), is(true));
+        assertThat(rows.get().size(), equalTo(3));
+
+        assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"1", "21",}));
+        assertThat(rows.get().get(1).getValues(), equalTo(new String[] {"true", "22"}));
+        assertThat(rows.get().get(2).getValues(), equalTo(new String[] {"false", "23"}));
+
+        assertThat(rows.get().get(0).shouldSkip(), is(false));
+        assertThat(rows.get().get(1).shouldSkip(), is(false));
+        assertThat(rows.get().get(2).shouldSkip(), is(false));
+    }
+
     private TestExtractor createExtractor(boolean includeSource, boolean supportsRowsWithMissingValues) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(JOB_ID, extractedFields, indices, query, scrollSize,
             headers, includeSource, supportsRowsWithMissingValues, trainTestSplitterFactory);
@@ -523,7 +556,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             true);
     }
 
-    private SearchResponse createSearchResponse(List<Number> field1Values, List<Number> field2Values) {
+    private SearchResponse createSearchResponse(List<Object> field1Values, List<Object> field2Values) {
         assertThat(field1Values.size(), equalTo(field2Values.size()));
         SearchResponse searchResponse = mock(SearchResponse.class);
         List<SearchHit> hits = new ArrayList<>();
@@ -540,7 +573,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         return searchResponse;
     }
 
-    private static void addField(SearchHitBuilder searchHitBuilder, String field, @Nullable Number value) {
+    private static void addField(SearchHitBuilder searchHitBuilder, String field, @Nullable Object value) {
         searchHitBuilder.addField(field, value == null ? Collections.emptyList() : Collections.singletonList(value));
     }
 

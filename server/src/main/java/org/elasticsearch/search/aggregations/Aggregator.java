@@ -172,6 +172,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      */
     public void collectDebugInfo(BiConsumer<String, Object> add) {}
 
+    /**
+     * Get the aggregators running under this one.
+     */
+    public abstract Aggregator[] subAggregators();
+
     /** Aggregation mode for sub aggregations. */
     public enum SubAggCollectionMode implements Writeable {
 

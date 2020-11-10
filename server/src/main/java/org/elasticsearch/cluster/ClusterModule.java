@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -143,7 +144,8 @@ public class ClusterModule extends AbstractModule {
             ComposableIndexTemplateMetadata::readDiffFrom);
         registerMetadataCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
 
-        if (RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED != null && RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED) {
+        if (Build.CURRENT.isSnapshot() ||
+                (RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED != null && RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED)) {
             registerMetadataCustom(entries, RollupMetadata.TYPE, RollupMetadata::new, RollupMetadata::readDiffFrom);
         }
         // Task Status (not Diffable)
@@ -170,7 +172,8 @@ public class ClusterModule extends AbstractModule {
             ComposableIndexTemplateMetadata::fromXContent));
         entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(DataStreamMetadata.TYPE),
             DataStreamMetadata::fromXContent));
-        if (RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED != null && RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED) {
+        if (Build.CURRENT.isSnapshot() ||
+                (RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED != null && RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED)) {
             entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(RollupMetadata.TYPE),
                 RollupMetadata::fromXContent));
         }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,11 +30,11 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.ccr.CCRInfoTransportAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -150,6 +151,7 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
+import org.elasticsearch.xpack.core.rollup.v2.RollupV2Action;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -259,154 +261,162 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
 
     @Override
     public List<ActionType<? extends ActionResponse>> getClientActions() {
-        return Arrays.asList(
-                // deprecation
-                DeprecationInfoAction.INSTANCE,
-                // graph
-                GraphExploreAction.INSTANCE,
-                // ML
-                GetJobsAction.INSTANCE,
-                GetJobsStatsAction.INSTANCE,
-                MlInfoAction.INSTANCE,
-                PutJobAction.INSTANCE,
-                UpdateJobAction.INSTANCE,
-                DeleteJobAction.INSTANCE,
-                OpenJobAction.INSTANCE,
-                GetFiltersAction.INSTANCE,
-                PutFilterAction.INSTANCE,
-                UpdateFilterAction.INSTANCE,
-                DeleteFilterAction.INSTANCE,
-                KillProcessAction.INSTANCE,
-                GetBucketsAction.INSTANCE,
-                GetInfluencersAction.INSTANCE,
-                GetOverallBucketsAction.INSTANCE,
-                GetRecordsAction.INSTANCE,
-                PostDataAction.INSTANCE,
-                CloseJobAction.INSTANCE,
-                FinalizeJobExecutionAction.INSTANCE,
-                FlushJobAction.INSTANCE,
-                ValidateDetectorAction.INSTANCE,
-                ValidateJobConfigAction.INSTANCE,
-                GetCategoriesAction.INSTANCE,
-                GetModelSnapshotsAction.INSTANCE,
-                RevertModelSnapshotAction.INSTANCE,
-                UpdateModelSnapshotAction.INSTANCE,
-                GetDatafeedsAction.INSTANCE,
-                GetDatafeedsStatsAction.INSTANCE,
-                PutDatafeedAction.INSTANCE,
-                UpdateDatafeedAction.INSTANCE,
-                DeleteDatafeedAction.INSTANCE,
-                PreviewDatafeedAction.INSTANCE,
-                StartDatafeedAction.INSTANCE,
-                StopDatafeedAction.INSTANCE,
-                IsolateDatafeedAction.INSTANCE,
-                DeleteModelSnapshotAction.INSTANCE,
-                UpdateProcessAction.INSTANCE,
-                DeleteExpiredDataAction.INSTANCE,
-                ForecastJobAction.INSTANCE,
-                DeleteForecastAction.INSTANCE,
-                GetCalendarsAction.INSTANCE,
-                PutCalendarAction.INSTANCE,
-                DeleteCalendarAction.INSTANCE,
-                DeleteCalendarEventAction.INSTANCE,
-                UpdateCalendarJobAction.INSTANCE,
-                GetCalendarEventsAction.INSTANCE,
-                PostCalendarEventsAction.INSTANCE,
-                PersistJobAction.INSTANCE,
-                FindFileStructureAction.INSTANCE,
-                SetUpgradeModeAction.INSTANCE,
-                PutDataFrameAnalyticsAction.INSTANCE,
-                GetDataFrameAnalyticsAction.INSTANCE,
-                GetDataFrameAnalyticsStatsAction.INSTANCE,
-                UpdateDataFrameAnalyticsAction.INSTANCE,
-                DeleteDataFrameAnalyticsAction.INSTANCE,
-                StartDataFrameAnalyticsAction.INSTANCE,
-                EvaluateDataFrameAction.INSTANCE,
-                ExplainDataFrameAnalyticsAction.INSTANCE,
-                InternalInferModelAction.INSTANCE,
-                GetTrainedModelsAction.INSTANCE,
-                DeleteTrainedModelAction.INSTANCE,
-                GetTrainedModelsStatsAction.INSTANCE,
-                PutTrainedModelAction.INSTANCE,
-                // security
-                ClearRealmCacheAction.INSTANCE,
-                ClearRolesCacheAction.INSTANCE,
-                GetUsersAction.INSTANCE,
-                PutUserAction.INSTANCE,
-                DeleteUserAction.INSTANCE,
-                GetRolesAction.INSTANCE,
-                PutRoleAction.INSTANCE,
-                DeleteRoleAction.INSTANCE,
-                ChangePasswordAction.INSTANCE,
-                AuthenticateAction.INSTANCE,
-                SetEnabledAction.INSTANCE,
-                HasPrivilegesAction.INSTANCE,
-                GetRoleMappingsAction.INSTANCE,
-                PutRoleMappingAction.INSTANCE,
-                DeleteRoleMappingAction.INSTANCE,
-                CreateTokenAction.INSTANCE,
-                InvalidateTokenAction.INSTANCE,
-                GetCertificateInfoAction.INSTANCE,
-                RefreshTokenAction.INSTANCE,
-                CreateApiKeyAction.INSTANCE,
-                InvalidateApiKeyAction.INSTANCE,
-                GetApiKeyAction.INSTANCE,
-                // watcher
-                PutWatchAction.INSTANCE,
-                DeleteWatchAction.INSTANCE,
-                GetWatchAction.INSTANCE,
-                WatcherStatsAction.INSTANCE,
-                AckWatchAction.INSTANCE,
-                ActivateWatchAction.INSTANCE,
-                WatcherServiceAction.INSTANCE,
-                ExecuteWatchAction.INSTANCE,
-                // license
-                PutLicenseAction.INSTANCE,
-                GetLicenseAction.INSTANCE,
-                DeleteLicenseAction.INSTANCE,
-                PostStartTrialAction.INSTANCE,
-                GetTrialStatusAction.INSTANCE,
-                PostStartBasicAction.INSTANCE,
-                GetBasicStatusAction.INSTANCE,
-                // x-pack
-                XPackInfoAction.INSTANCE,
-                XPackUsageAction.INSTANCE,
-                // rollup
-                RollupSearchAction.INSTANCE,
-                PutRollupJobAction.INSTANCE,
-                StartRollupJobAction.INSTANCE,
-                StopRollupJobAction.INSTANCE,
-                DeleteRollupJobAction.INSTANCE,
-                GetRollupJobsAction.INSTANCE,
-                GetRollupCapsAction.INSTANCE,
-                // ILM
-                DeleteLifecycleAction.INSTANCE,
-                GetLifecycleAction.INSTANCE,
-                PutLifecycleAction.INSTANCE,
-                ExplainLifecycleAction.INSTANCE,
-                RemoveIndexLifecyclePolicyAction.INSTANCE,
-                MoveToStepAction.INSTANCE,
-                RetryAction.INSTANCE,
-                PutSnapshotLifecycleAction.INSTANCE,
-                GetSnapshotLifecycleAction.INSTANCE,
-                DeleteSnapshotLifecycleAction.INSTANCE,
-                ExecuteSnapshotLifecycleAction.INSTANCE,
-                GetSnapshotLifecycleStatsAction.INSTANCE,
-                // Freeze
-                FreezeIndexAction.INSTANCE,
-                // Data Frame
-                PutTransformAction.INSTANCE,
-                StartTransformAction.INSTANCE,
-                StopTransformAction.INSTANCE,
-                DeleteTransformAction.INSTANCE,
-                GetTransformAction.INSTANCE,
-                GetTransformStatsAction.INSTANCE,
-                PreviewTransformAction.INSTANCE,
-                // Async Search
-                SubmitAsyncSearchAction.INSTANCE,
-                GetAsyncSearchAction.INSTANCE,
-                DeleteAsyncResultAction.INSTANCE
-        );
+        List<ActionType<? extends ActionResponse>> actions = new ArrayList<>(Arrays.asList(
+            // deprecation
+            DeprecationInfoAction.INSTANCE,
+            // graph
+            GraphExploreAction.INSTANCE,
+            // ML
+            GetJobsAction.INSTANCE,
+            GetJobsStatsAction.INSTANCE,
+            MlInfoAction.INSTANCE,
+            PutJobAction.INSTANCE,
+            UpdateJobAction.INSTANCE,
+            DeleteJobAction.INSTANCE,
+            OpenJobAction.INSTANCE,
+            GetFiltersAction.INSTANCE,
+            PutFilterAction.INSTANCE,
+            UpdateFilterAction.INSTANCE,
+            DeleteFilterAction.INSTANCE,
+            KillProcessAction.INSTANCE,
+            GetBucketsAction.INSTANCE,
+            GetInfluencersAction.INSTANCE,
+            GetOverallBucketsAction.INSTANCE,
+            GetRecordsAction.INSTANCE,
+            PostDataAction.INSTANCE,
+            CloseJobAction.INSTANCE,
+            FinalizeJobExecutionAction.INSTANCE,
+            FlushJobAction.INSTANCE,
+            ValidateDetectorAction.INSTANCE,
+            ValidateJobConfigAction.INSTANCE,
+            GetCategoriesAction.INSTANCE,
+            GetModelSnapshotsAction.INSTANCE,
+            RevertModelSnapshotAction.INSTANCE,
+            UpdateModelSnapshotAction.INSTANCE,
+            GetDatafeedsAction.INSTANCE,
+            GetDatafeedsStatsAction.INSTANCE,
+            PutDatafeedAction.INSTANCE,
+            UpdateDatafeedAction.INSTANCE,
+            DeleteDatafeedAction.INSTANCE,
+            PreviewDatafeedAction.INSTANCE,
+            StartDatafeedAction.INSTANCE,
+            StopDatafeedAction.INSTANCE,
+            IsolateDatafeedAction.INSTANCE,
+            DeleteModelSnapshotAction.INSTANCE,
+            UpdateProcessAction.INSTANCE,
+            DeleteExpiredDataAction.INSTANCE,
+            ForecastJobAction.INSTANCE,
+            DeleteForecastAction.INSTANCE,
+            GetCalendarsAction.INSTANCE,
+            PutCalendarAction.INSTANCE,
+            DeleteCalendarAction.INSTANCE,
+            DeleteCalendarEventAction.INSTANCE,
+            UpdateCalendarJobAction.INSTANCE,
+            GetCalendarEventsAction.INSTANCE,
+            PostCalendarEventsAction.INSTANCE,
+            PersistJobAction.INSTANCE,
+            FindFileStructureAction.INSTANCE,
+            SetUpgradeModeAction.INSTANCE,
+            PutDataFrameAnalyticsAction.INSTANCE,
+            GetDataFrameAnalyticsAction.INSTANCE,
+            GetDataFrameAnalyticsStatsAction.INSTANCE,
+            UpdateDataFrameAnalyticsAction.INSTANCE,
+            DeleteDataFrameAnalyticsAction.INSTANCE,
+            StartDataFrameAnalyticsAction.INSTANCE,
+            EvaluateDataFrameAction.INSTANCE,
+            ExplainDataFrameAnalyticsAction.INSTANCE,
+            InternalInferModelAction.INSTANCE,
+            GetTrainedModelsAction.INSTANCE,
+            DeleteTrainedModelAction.INSTANCE,
+            GetTrainedModelsStatsAction.INSTANCE,
+            PutTrainedModelAction.INSTANCE,
+            // security
+            ClearRealmCacheAction.INSTANCE,
+            ClearRolesCacheAction.INSTANCE,
+            GetUsersAction.INSTANCE,
+            PutUserAction.INSTANCE,
+            DeleteUserAction.INSTANCE,
+            GetRolesAction.INSTANCE,
+            PutRoleAction.INSTANCE,
+            DeleteRoleAction.INSTANCE,
+            ChangePasswordAction.INSTANCE,
+            AuthenticateAction.INSTANCE,
+            SetEnabledAction.INSTANCE,
+            HasPrivilegesAction.INSTANCE,
+            GetRoleMappingsAction.INSTANCE,
+            PutRoleMappingAction.INSTANCE,
+            DeleteRoleMappingAction.INSTANCE,
+            CreateTokenAction.INSTANCE,
+            InvalidateTokenAction.INSTANCE,
+            GetCertificateInfoAction.INSTANCE,
+            RefreshTokenAction.INSTANCE,
+            CreateApiKeyAction.INSTANCE,
+            InvalidateApiKeyAction.INSTANCE,
+            GetApiKeyAction.INSTANCE,
+            // watcher
+            PutWatchAction.INSTANCE,
+            DeleteWatchAction.INSTANCE,
+            GetWatchAction.INSTANCE,
+            WatcherStatsAction.INSTANCE,
+            AckWatchAction.INSTANCE,
+            ActivateWatchAction.INSTANCE,
+            WatcherServiceAction.INSTANCE,
+            ExecuteWatchAction.INSTANCE,
+            // license
+            PutLicenseAction.INSTANCE,
+            GetLicenseAction.INSTANCE,
+            DeleteLicenseAction.INSTANCE,
+            PostStartTrialAction.INSTANCE,
+            GetTrialStatusAction.INSTANCE,
+            PostStartBasicAction.INSTANCE,
+            GetBasicStatusAction.INSTANCE,
+            // x-pack
+            XPackInfoAction.INSTANCE,
+            XPackUsageAction.INSTANCE,
+            // rollup
+            RollupSearchAction.INSTANCE,
+            PutRollupJobAction.INSTANCE,
+            StartRollupJobAction.INSTANCE,
+            StopRollupJobAction.INSTANCE,
+            DeleteRollupJobAction.INSTANCE,
+            GetRollupJobsAction.INSTANCE,
+            GetRollupCapsAction.INSTANCE,
+            // ILM
+            DeleteLifecycleAction.INSTANCE,
+            GetLifecycleAction.INSTANCE,
+            PutLifecycleAction.INSTANCE,
+            ExplainLifecycleAction.INSTANCE,
+            RemoveIndexLifecyclePolicyAction.INSTANCE,
+            MoveToStepAction.INSTANCE,
+            RetryAction.INSTANCE,
+            PutSnapshotLifecycleAction.INSTANCE,
+            GetSnapshotLifecycleAction.INSTANCE,
+            DeleteSnapshotLifecycleAction.INSTANCE,
+            ExecuteSnapshotLifecycleAction.INSTANCE,
+            GetSnapshotLifecycleStatsAction.INSTANCE,
+            // Freeze
+            FreezeIndexAction.INSTANCE,
+            // Data Frame
+            PutTransformAction.INSTANCE,
+            StartTransformAction.INSTANCE,
+            StopTransformAction.INSTANCE,
+            DeleteTransformAction.INSTANCE,
+            GetTransformAction.INSTANCE,
+            GetTransformStatsAction.INSTANCE,
+            PreviewTransformAction.INSTANCE,
+            // Async Search
+            SubmitAsyncSearchAction.INSTANCE,
+            GetAsyncSearchAction.INSTANCE,
+            DeleteAsyncResultAction.INSTANCE
+        ));
+
+        // rollupV2
+        if (Build.CURRENT.isSnapshot() ||
+                (RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED != null && RollupV2.ROLLUPV2_FEATURE_FLAG_REGISTERED)) {
+            actions.add(RollupV2Action.INSTANCE);
+        }
+
+        return actions;
     }
 
     @Override
@@ -502,8 +512,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SPATIAL, SpatialFeatureSetUsage::new),
             // Analytics
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new),
-            // Aggregate metric field type
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.AGGREGATE_METRIC, AggregateMetricFeatureSetUsage::new),
             // Enrich
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ENRICH, EnrichFeatureSetUsage::new),
             new NamedWriteableRegistry.Entry(Task.Status.class, ExecuteEnrichPolicyStatus.NAME, ExecuteEnrichPolicyStatus::new),
@@ -550,7 +558,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         RollupJobStatus::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(RollupJobStatus.NAME),
                         RollupJobStatus::fromXContent),
-                // Transforms
+            // Transforms
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TransformField.TASK_NAME),
                         TransformTaskParams::fromXContent),
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(TransformField.TASK_NAME),

@@ -1,0 +1,31 @@
+{
+  "rollup.rollup_vtwo":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-vtwo.html",
+      "description":"Rollup an index"
+    },
+    "stability":"experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_rollup_vtwo/{index}",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "The index to roll up",
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The rollup configuration",
+      "required":true
+    }
+  }
+}

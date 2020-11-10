@@ -29,6 +29,7 @@ public class RollupV2 {
         if (Build.CURRENT.isSnapshot() && property != null) {
             throw new IllegalArgumentException("es.rollupv2_feature_flag_registered is only supported in non-snapshot builds");
         }
+
         if ("true".equals(property)) {
             ROLLUPV2_FEATURE_FLAG_REGISTERED = true;
         } else if ("false".equals(property)) {

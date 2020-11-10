@@ -34,6 +34,7 @@ import java.util.List;
 
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
+import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
@@ -388,17 +389,12 @@ public class ArchiveTests extends PackagingTestCase {
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
 
-        logger.warn("Settings [path.data] to [" + relativeDataPath + "]");
-
         sh.setWorkingDirectory(getRootTempDir());
 
         startElasticsearch();
         stopElasticsearch();
 
-        // (@rory) this is for debugging
-        Platforms.onLinux(() -> { logger.warn(sh.run("ls -l /tmp/node.lock; echo $USER / $UID / $GROUPS").stdout); });
-
-        Result result = sh.run("echo y | " + installation.executables().nodeTool + " unsafe-bootstrap");
+        Result result = sh.run("echo y | sudo -E -u " + ARCHIVE_OWNER + " " + installation.executables().nodeTool + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));
     }
 

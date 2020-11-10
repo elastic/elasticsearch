@@ -191,7 +191,8 @@ Searching a frozen index is lower overhead than re-opening a closed index to ena
 [[glossary-hidden-index]] hidden index ::
 // tag::hidden-index-def[]
 An index that is excluded by default when you access indices using a wildcard expression. 
-To include hidden indices, you must specify the `expand_wildcards` parameter.
+You can specify the `expand_wildcards` parameter to include hidden indices.
+Note that hidden indices _are_ included if the wildcard expression starts with a dot, for example `.watcher-history*`.
 // end::hidden-index-def[]
 
 [[glossary-hot-phase]] hot phase ::

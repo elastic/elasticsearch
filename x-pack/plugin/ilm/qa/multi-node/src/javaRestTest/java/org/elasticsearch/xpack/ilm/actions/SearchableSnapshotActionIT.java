@@ -211,7 +211,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             "allowed after the managed index was mounted as searchable snapshot"));
     }
 
-    public void testRestoredIndexToInvalidPolicySkipsInvalidActions() throws Exception {
+    public void testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped() throws Exception {
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
@@ -261,6 +261,82 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // skip and ILM should not be blocked (not should the managed index move into the ERROR step)
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredIndexName);
+            assertThat(stepKeyForIndex.getPhase(), is("cold"));
+            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testRestoredIndexManagedByLocalPolicySkipsIllegalActions() throws Exception{
+        // let's create a data stream, rollover it and convert the first generation backing index into a searchable snapshot
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createPolicy(client(), policy,
+            new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
+            new Phase("warm", TimeValue.timeValueDays(30), Map.of(SetPriorityAction.NAME, new SetPriorityAction(999))),
+            null, null
+        );
+
+        createComposableTemplate(client(), "template-name", dataStream,
+            new Template(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .build(), null, null)
+        );
+
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            indexDocument(client(), dataStream, true);
+        }
+        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        String searchableSnapMountedIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX +
+            DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        assertTrue(waitUntil(() -> {
+            try {
+                return indexExists(searchableSnapMountedIndexName);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+
+        assertBusy(() -> {
+            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
+            assertThat(stepKeyForIndex.getPhase(), is("hot"));
+            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
+
+        // snapshot the data stream
+        String dsSnapshotName = "snapshot_ds_" + dataStream;
+        Request takeSnapshotRequest = new Request("PUT", "/_snapshot/" + snapshotRepo + "/" + dsSnapshotName);
+        takeSnapshotRequest.addParameter("wait_for_completion", "true");
+        takeSnapshotRequest.setJsonEntity("{\"indices\": \"" + dataStream + "\", \"include_global_state\": false}");
+        assertOK(client().performRequest(takeSnapshotRequest));
+
+        // now that we have a backup of the data stream, let's delete the local one and update the ILM policy to include some illegal
+        // actions for when we restore the data stream (given that the first generation backing index will be backed by a searchable
+        // snapshot)
+        assertOK(client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream)));
+
+        createPolicy(client(), policy,
+            new Phase("hot", TimeValue.ZERO, Map.of()),
+            new Phase("warm", TimeValue.ZERO,
+                Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME, new ForceMergeAction(1, null))
+            ),
+            new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction())),
+            null
+        );
+
+        // restore the datastream
+        Request restoreSnapshot = new Request("POST", "/_snapshot/" + snapshotRepo + "/" + dsSnapshotName + "/_restore");
+        restoreSnapshot.addParameter("wait_for_completion", "true");
+        restoreSnapshot.setJsonEntity("{\"indices\": \"" + dataStream + "\", \"include_global_state\": true}");
+        assertOK(client().performRequest(restoreSnapshot));
+
+        assertThat(indexExists(searchableSnapMountedIndexName), is(true));
+
+        // the restored index is now managed by the now updated ILM policy and needs to go through the warm and cold phase
+        assertBusy(() -> {
+            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
             assertThat(stepKeyForIndex.getPhase(), is("cold"));
             assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);

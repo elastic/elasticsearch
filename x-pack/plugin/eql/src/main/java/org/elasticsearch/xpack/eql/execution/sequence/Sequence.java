@@ -72,7 +72,7 @@ public class Sequence implements Comparable<Sequence> {
 
     @Override
     public int compareTo(Sequence o) {
-        return startOrdinal().compareTo(o.startOrdinal());
+        return ordinal().compareTo(o.ordinal());
     }
 
     @Override

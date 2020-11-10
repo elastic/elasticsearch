@@ -85,7 +85,7 @@ public class TestThreadPool extends ThreadPool {
             return;
         }
         ThreadFactory factory = EsExecutors.daemonThreadFactory("reject_thread");
-        rejectingExecutor = EsExecutors.newFixed("rejecting", 1, 0, factory, getThreadContext(), false);
+        rejectingExecutor = EsExecutors.newFixed("rejecting", 1, 0, factory, getThreadContext());
 
         CountDownLatch startedLatch = new CountDownLatch(1);
         rejectingExecutor.execute(() -> {

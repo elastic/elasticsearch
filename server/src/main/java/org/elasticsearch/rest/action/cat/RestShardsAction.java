@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -30,7 +31,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -61,8 +61,6 @@ import java.util.function.Function;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestShardsAction extends AbstractCatAction {
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestShardsAction.class);
-    static final String LOCAL_DEPRECATED_MESSAGE = "The parameter [local] is deprecated and will be removed in a future release.";
 
     @Override
     public List<Route> routes() {
@@ -90,10 +88,10 @@ public class RestShardsAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        if (request.hasParam("local")) {
-            DEPRECATION_LOGGER.deprecate("local", LOCAL_DEPRECATED_MESSAGE);
+        // needed only in v8 to catch breaking usages and can be removed in v9
+        if (request.hasParam("local")  && Version.CURRENT.major == Version.V_7_0_0.major + 1) {
+            throw new IllegalArgumentException("parameter [local] is not supported");
         }
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {

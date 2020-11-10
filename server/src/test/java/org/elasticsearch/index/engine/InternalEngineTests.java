@@ -1123,7 +1123,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L));
 
         engine.index(indexForDoc(createParsedDoc("1", null)));
-        try (Engine.GetResult get = engine.get(new Engine.Get(true, true, type, "1", newUid("1")), mapper, randomSearcherWrapper())) {
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, true, type, "1", newUid("1")), mapper, searcher -> searcher)) {
             assertTrue(get.exists());
             assertTrue(get.isFromTranslog());
         }

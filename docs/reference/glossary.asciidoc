@@ -546,7 +546,7 @@ See the {ref}/indices-split-index.html[split index API].
 // tag::hidden-index-def[]
 An index that contains configuration information or other data used internally by the system, 
 such as the `.security` index
-You cannot directly access or modify system indices.
+You should not directly access or modify system indices.
 // end::system-index-def[]
 
 [[glossary-term]] term ::

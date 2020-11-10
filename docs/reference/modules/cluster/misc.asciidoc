@@ -59,7 +59,7 @@ You can dynamically adjust the cluster shard limit with the following setting:
 --
 (<<dynamic-cluster-setting,Dynamic>>)
 Limits the total number of primary and replica shards for the cluster. {es}
-calculates this limit as follows:
+calculates the limit as follows:
 
 `cluster.max_shards_per_node * number of data nodes`
 

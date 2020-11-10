@@ -20,11 +20,10 @@
 package org.elasticsearch.search.builder;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -93,16 +92,18 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testSerialization() throws IOException {
-        SearchSourceBuilder testBuilder = createSearchSourceBuilder();
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            testBuilder.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                SearchSourceBuilder deserializedBuilder = new SearchSourceBuilder(in);
-                assertEquals(deserializedBuilder, testBuilder);
-                assertEquals(deserializedBuilder.hashCode(), testBuilder.hashCode());
-                assertNotSame(deserializedBuilder, testBuilder);
-            }
-        }
+        SearchSourceBuilder original = createSearchSourceBuilder();
+        SearchSourceBuilder copy = copyBuilder(original);
+        assertEquals(copy, original);
+        assertEquals(copy.hashCode(), original.hashCode());
+        assertNotSame(copy, original);
+    }
+
+    public void testSerializingWithRuntimeFieldsBeforeSupportedThrows() {
+        SearchSourceBuilder original = new SearchSourceBuilder().runtimeMappings(randomRuntimeMappings());
+        Version v = Version.V_8_0_0.minimumCompatibilityVersion();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> copyBuilder(original, v));
+        assertThat(e.getMessage(), equalTo("Versions before 8.0.0 don't support [runtime_mappings] and search was sent to [" + v + "]"));
     }
 
     public void testShallowCopy() {
@@ -118,9 +119,12 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createSearchSourceBuilder(), this::copyBuilder);
     }
 
-    //we use the streaming infra to create a copy of the builder provided as argument
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original) throws IOException {
-        return ESTestCase.copyWriteable(original, namedWriteableRegistry, SearchSourceBuilder::new);
+        return copyBuilder(original, Version.CURRENT);
+    }
+
+    private SearchSourceBuilder copyBuilder(SearchSourceBuilder original, Version version) throws IOException {
+        return ESTestCase.copyWriteable(original, namedWriteableRegistry, SearchSourceBuilder::new, version);
     }
 
     public void testParseIncludeExclude() throws IOException {

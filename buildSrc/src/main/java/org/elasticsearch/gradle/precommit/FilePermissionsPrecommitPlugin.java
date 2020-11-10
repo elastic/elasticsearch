@@ -19,13 +19,36 @@
 
 package org.elasticsearch.gradle.precommit;
 
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskProvider;
 
+import javax.inject.Inject;
+import java.util.stream.Collectors;
+
 public class FilePermissionsPrecommitPlugin extends PrecommitPlugin {
+
+    private ProviderFactory providerFactory;
+
+    @Inject
+    public FilePermissionsPrecommitPlugin(ProviderFactory providerFactory) {
+        this.providerFactory = providerFactory;
+    }
+
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        return project.getTasks().register("filepermissions", FilePermissionsTask.class);
+        return project.getTasks()
+            .register(
+                "filepermissions",
+                FilePermissionsTask.class,
+                filePermissionsTask -> filePermissionsTask.getSources()
+                    .addAll(
+                        providerFactory.provider(
+                            () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
+                        )
+                    )
+            );
     }
 }

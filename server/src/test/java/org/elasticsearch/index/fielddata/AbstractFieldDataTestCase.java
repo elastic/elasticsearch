@@ -59,6 +59,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -139,7 +140,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         writer = new IndexWriter(
             new ByteBuffersDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
-        shardContext = indexService.newQueryShardContext(0, null, () -> 0, null);
+        shardContext = indexService.newQueryShardContext(0, null, () -> 0, null, emptyMap());
     }
 
     protected final List<LeafReaderContext> refreshReader() throws Exception {

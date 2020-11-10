@@ -953,7 +953,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mapper == null || mapper.type().equals(mapperService.resolveDocumentType(get.type())) == false) {
             return GetResult.NOT_EXISTS;
         }
-        return getEngine().get(get, this::acquireSearcher);
+        return getEngine().get(get, mapper, this::wrapSearcher);
     }
 
     /**

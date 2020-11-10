@@ -642,12 +642,6 @@ The number of search or bulk index operations processed. Documents are
 processed in batches instead of individually.
 end::pages-processed[]
 
-tag::path-pipeline[]
-`<pipeline>`::
-(Optional, string) Comma-separated list or wildcard expression of pipeline IDs
-used to limit the request.
-end::path-pipeline[]
-
 tag::pivot[]
 The method for transforming the data. These objects define the pivot function
 `group by` fields and the aggregation to reduce the data.

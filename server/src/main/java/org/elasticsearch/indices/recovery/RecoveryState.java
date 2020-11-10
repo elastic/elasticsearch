@@ -108,12 +108,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private final VerifyIndex verifyIndex;
     private final Timer timer;
 
-    private final RecoverySource recoverySource;
-    private final ShardId shardId;
+    private RecoverySource recoverySource;
+    private ShardId shardId;
     @Nullable
-    private final DiscoveryNode sourceNode;
-    private final DiscoveryNode targetNode;
-    private final boolean primary;
+    private DiscoveryNode sourceNode;
+    private DiscoveryNode targetNode;
+    private boolean primary;
 
     public RecoveryState(ShardRouting shardRouting,
                          DiscoveryNode targetNode,

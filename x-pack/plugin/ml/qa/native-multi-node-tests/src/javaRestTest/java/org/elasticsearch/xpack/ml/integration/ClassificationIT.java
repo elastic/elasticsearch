@@ -371,11 +371,11 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         TrainedModelConfig modelConfig = response.getResources().results().get(0);
         modelConfig.ensureParsedDefinition(xContentRegistry());
         assertThat(modelConfig.getModelDefinition().getPreProcessors().size(), greaterThan(0));
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 5; i++) {
             PreProcessor preProcessor = modelConfig.getModelDefinition().getPreProcessors().get(i);
             assertThat(preProcessor.isCustom(), is(true));
         }
-        for (int i = 4; i < modelConfig.getModelDefinition().getPreProcessors().size(); i++) {
+        for (int i = 5; i < modelConfig.getModelDefinition().getPreProcessors().size(); i++) {
             PreProcessor preProcessor = modelConfig.getModelDefinition().getPreProcessors().get(i);
             assertThat(preProcessor.isCustom(), is(false));
         }

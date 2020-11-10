@@ -634,7 +634,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final boolean useDataStream = randomBoolean();
         final Metadata.Builder builder = Metadata.builder();
         if (useDataStream) {
-            DataStream dataStream = DataStreamTestHelper.randomInstance();
+            DataStream dataStream = DataStreamTestHelper.randomInstance()
+                // ensure no replicate data stream
+                .promoteDataStream();
             rolloverTarget = dataStream.getName();
             sourceIndexName = dataStream.getIndices().get(dataStream.getIndices().size() - 1).getName();
             defaultRolloverIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);

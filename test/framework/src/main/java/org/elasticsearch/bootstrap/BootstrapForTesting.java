@@ -151,7 +151,6 @@ public class BootstrapForTesting {
                     addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
                     addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
                 }
-                // unknown codebases are ok since some grants are for intellij classes
                 final Policy testFramework = PolicyUtil.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
                 final Policy runnerPolicy;
                 if (inGradle) {

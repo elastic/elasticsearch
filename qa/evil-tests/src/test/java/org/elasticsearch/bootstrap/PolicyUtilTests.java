@@ -48,12 +48,12 @@ import static org.hamcrest.collection.IsMapContaining.hasKey;
 
 public class PolicyUtilTests extends ESTestCase {
 
-    /*@Before
+    @Before
     public void assumeSecurityManagerDisabled() {
         assumeTrue(
             "test cannot run with security manager enabled",
             System.getSecurityManager() == null);
-    }*/
+    }
 
     URL makeUrl(String s) {
         try {

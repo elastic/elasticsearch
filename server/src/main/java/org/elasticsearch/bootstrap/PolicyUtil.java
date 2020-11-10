@@ -119,12 +119,12 @@ public class PolicyUtil {
                     Object previous = tempProps.setProperty(property, url.toString());
                     if (previous != null) {
                         throw new IllegalStateException("codebase property already set: " + property + " -> " + previous +
-                            ", cannot set to " + url.toString());
+                                                        ", cannot set to " + url.toString());
                     }
                 }
                 Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
                 if (unknownCodebases.isEmpty() == false) {
-                    throw new IllegalArgumentException("Unknown codebases " + unknownCodebases + " in policy file [" + policyFile + "]\nAvailable codebases: " + codebases.keySet());
+                    throw new IllegalArgumentException("Unknown codebases " + unknownCodebases + " in policy file [" + policyFile + "]");
                 }
                 return policy;
             } finally {

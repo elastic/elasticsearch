@@ -20,6 +20,7 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -394,7 +395,12 @@ public class ArchiveTests extends PackagingTestCase {
         startElasticsearch();
         stopElasticsearch();
 
-        Result result = sh.run("echo y | sudo -E -u " + ARCHIVE_OWNER + " " + installation.executables().nodeTool + " unsafe-bootstrap");
+        String nodeTool = installation.executables().nodeTool.toString();
+        if (Platforms.WINDOWS == false) {
+            nodeTool = "sudo -E -u " + ARCHIVE_OWNER + " " + nodeTool;
+        }
+
+        Result result = sh.run("echo y | " + nodeTool + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));
     }
 

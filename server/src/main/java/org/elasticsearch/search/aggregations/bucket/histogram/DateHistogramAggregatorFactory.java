@@ -42,7 +42,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         builder.register(
             DateHistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            DateHistogramAggregator::new,
+            DateHistogramAggregator::build,
                 true);
 
         builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new, true);
@@ -111,7 +111,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new DateHistogramAggregator(name, factories, rounding, order, keyed, minDocCount, extendedBounds, hardBounds,
+        return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds, hardBounds,
             config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

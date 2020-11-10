@@ -34,7 +34,7 @@ transform field values in the response using a script. However, scripts can’t
 make use of {es}'s index structures or related optimizations. This can sometimes
 result in slower search speeds.
 
-You can find more detailed information on each of these methods in the 
+You can find more detailed information on each of these methods in the
 following sections:
 
 * <<source-filtering>>
@@ -101,12 +101,6 @@ GET /_search
 
 For finer control, you can specify an object containing arrays of `includes` and
 `excludes` patterns in the `_source` parameter.
-
-The `fields` parameter handles field types like <<alias, field aliases>> and
-<<constant-keyword-field-type, `constant_keyword`>> whose values aren't always present in
-the `_source`. Other mapping options are also respected, including
-<<ignore-above, `ignore_above`>>, <<ignore-malformed, `ignore_malformed`>> and
-<<null-value, `null_value`>>.
 
 If the `includes` property is not specified, the entire document source is
 returned, excluding any fields that match a pattern in the `excludes` property.

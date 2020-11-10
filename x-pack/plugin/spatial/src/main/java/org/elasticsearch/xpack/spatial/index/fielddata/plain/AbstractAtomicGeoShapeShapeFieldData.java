@@ -4,11 +4,13 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.fielddata;
+package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
 
 import java.util.Collection;
 import java.util.Collections;

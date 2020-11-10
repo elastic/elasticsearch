@@ -102,11 +102,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testSerializingWithRuntimeFieldsBeforeSupportedThrows() {
         SearchSourceBuilder original = new SearchSourceBuilder().runtimeMappings(randomRuntimeMappings());
-        Version v = VersionUtils.randomVersionBetween(
-            random(),
-            Version.V_7_11_0.minimumCompatibilityVersion(),
-            VersionUtils.getPreviousVersion(Version.V_7_11_0)
-        );
+        Version v = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_11_0));
         Exception e = expectThrows(IllegalArgumentException.class, () -> copyBuilder(original, v));
         assertThat(e.getMessage(), equalTo("Versions before 7.11.0 don't support [runtime_mappings] and search was sent to [" + v + "]"));
     }

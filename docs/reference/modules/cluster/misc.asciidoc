@@ -65,14 +65,13 @@ calculates this limit as follows:
 
 Defaults to `-1` (unlimited). A cluster with no data nodes is also unlimited.
 
-To prevent <<size-your-shards,oversharding>>, {es} rejects any request that
-creates shards in excess of this limit. For example, a cluster with a
-`cluster.max_shards_per_node` setting of `100` and three data nodes has a shard
-limit of 300. If the cluster already contains 296 shards, {es} rejects any
-request that adds 5 or more shards to the cluster.
+{es} rejects any request that creates more shards than this limit allows. For
+example, a cluster with a `cluster.max_shards_per_node` setting of `100` and
+three data nodes has a shard limit of 300. If the cluster already contains 296
+shards, {es} rejects any request that adds five or more shards to the cluster.
 
 NOTE: This setting does not limit shards for individual nodes. To limit the
-number of shards allocated to each node, use the
+number of shards for each node, use the
 <<cluster-total-shards-per-node,`cluster.routing.allocation.total_shards_per_node`>>
 setting.
 --

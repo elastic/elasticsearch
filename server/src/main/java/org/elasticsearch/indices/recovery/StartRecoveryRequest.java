@@ -67,14 +67,14 @@ public class StartRecoveryRequest extends TransportRequest {
     /**
      * Construct a request for starting a peer recovery.
      *
-     * @param shardId            the shard ID to recover
-     * @param targetAllocationId the allocation id of the target shard
-     * @param sourceNode         the source node to remover from
-     * @param targetNode         the target node to recover to
-     * @param metadataSnapshot   the Lucene metadata
-     * @param primaryRelocation  whether or not the recovery is a primary relocation
-     * @param recoveryId         the recovery ID
-     * @param startingSeqNo      the starting sequence number
+     * @param shardId                        the shard ID to recover
+     * @param targetAllocationId             the allocation id of the target shard
+     * @param sourceNode                     the source node to remover from
+     * @param targetNode                     the target node to recover to
+     * @param metadataSnapshot               the Lucene metadata
+     * @param primaryRelocation              whether or not the recovery is a primary relocation
+     * @param recoveryId                     the recovery ID
+     * @param startingSeqNo                  the starting sequence number
      * @param waitIndefinitelyForRelocation  whether or not to wait for primary relocation handoff indefinitely
      */
     public StartRecoveryRequest(final ShardId shardId,

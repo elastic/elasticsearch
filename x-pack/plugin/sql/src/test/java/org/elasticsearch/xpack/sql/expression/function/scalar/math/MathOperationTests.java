@@ -35,4 +35,25 @@ public class MathOperationTests extends ESTestCase {
         assertEquals(42f, MathOperation.ABS.apply(-42f));
         assertEquals(42d, MathOperation.ABS.apply(-42d));
     }
+
+    public void testSignIntegerType() {
+        assertEquals(-1, MathOperation.SIGN.apply((byte) -42));
+        assertEquals( -1, MathOperation.SIGN.apply((short) -42));
+        assertEquals(-1, MathOperation.SIGN.apply(-42));
+        assertEquals( -1, MathOperation.SIGN.apply((long) -42));
+        assertEquals(-1, MathOperation.SIGN.apply(-42.0f));
+        assertEquals(-1, MathOperation.SIGN.apply(-42.0d));
+        assertEquals( 1, MathOperation.SIGN.apply((byte) 42));
+        assertEquals( 1, MathOperation.SIGN.apply((short) 42));
+        assertEquals(1, MathOperation.SIGN.apply(42));
+        assertEquals( 1, MathOperation.SIGN.apply((long) 42));
+        assertEquals(1, MathOperation.SIGN.apply(42.0f));
+        assertEquals(1, MathOperation.SIGN.apply(42.0d));
+        assertEquals(0, MathOperation.SIGN.apply((byte) 0));
+        assertEquals( 0, MathOperation.SIGN.apply((short) 0));
+        assertEquals(0, MathOperation.SIGN.apply(0));
+        assertEquals( 0, MathOperation.SIGN.apply((long) 0));
+        assertEquals(0, MathOperation.SIGN.apply(-0.0f));
+        assertEquals(0, MathOperation.SIGN.apply(-0.0d));
+    }
 }

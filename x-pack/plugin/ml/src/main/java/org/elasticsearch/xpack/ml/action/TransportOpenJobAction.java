@@ -51,9 +51,6 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
-import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
-import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
-import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.makeAssignmentsNotAllowedException;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.makeCurrentlyBeingUpgradedException;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.makeNoSuitableNodesException;

@@ -49,6 +49,10 @@ public class NativeMemoryCapacity  {
     AutoscalingCapacity autoscalingCapacity(int maxMemoryPercent, boolean useAuto) {
         int memoryPercentForMl = jvmSize == null ?
             NativeMemoryCalculator.modelMemoryPercent(node, maxMemoryPercent, useAuto) :
+            // We make the assumption that the JVM size is the same across the entire tier
+            // This simplifies calculating the tier as it means that each node in the tier
+            // will have the same dynamic memory calculation. And thus the tier is simply the sum of the memory necessary
+            // times that scaling factor.
             NativeMemoryCalculator.modelMemoryPercent(node, jvmSize, maxMemoryPercent, useAuto);
         double inverseScale = 100.0 / memoryPercentForMl;
         return new AutoscalingCapacity(

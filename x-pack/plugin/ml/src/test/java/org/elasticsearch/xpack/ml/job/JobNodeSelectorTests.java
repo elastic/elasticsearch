@@ -446,7 +446,6 @@ public class JobNodeSelectorTests extends ESTestCase {
         csBuilder.metadata(Metadata.builder(cs.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks));
         cs = csBuilder.build();
         jobNodeSelector = new JobNodeSelector(cs, job7.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
-
             node -> nodeFilter(node, job7));
         result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, isMemoryTrackerRecentlyRefreshed, false);
         assertNull("no node selected, because stale task", result.getExecutorNode());
@@ -595,7 +594,6 @@ public class JobNodeSelectorTests extends ESTestCase {
         metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks);
         cs.metadata(metadata);
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), job.getId(),
-
             MlTasks.JOB_TASK_NAME, memoryTracker, 0, node -> nodeFilter(node, job));
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10,
             2,

@@ -90,10 +90,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
-import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
-import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
-import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
 /**
  * Starts the persistent task for running data frame analytics.

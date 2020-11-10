@@ -363,7 +363,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         } else {
             if (false == runtimeMappings.isEmpty()) {
                 throw new IllegalArgumentException(
-                    "Versions before 8.0.0 don't support [runtime_mappings] and search was sent to [" + out.getVersion() + "]"
+                    "Versions before 7.11.0 don't support [runtime_mappings] and search was sent to [" + out.getVersion() + "]"
                 );
             }
         }

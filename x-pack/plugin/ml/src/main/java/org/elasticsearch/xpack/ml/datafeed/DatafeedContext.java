@@ -61,7 +61,7 @@ class DatafeedContext {
             return this;
         }
 
-        public Job getJob() {
+        Job getJob() {
             return job;
         }
 

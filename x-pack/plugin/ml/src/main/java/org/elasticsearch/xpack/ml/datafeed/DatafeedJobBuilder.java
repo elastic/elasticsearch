@@ -61,7 +61,7 @@ public class DatafeedJobBuilder {
         final Job job = context.getJob();
         final long latestFinalBucketEndMs = context.getRestartTimeInfo().getLatestFinalBucketTimeMs() == null ?
             -1 : context.getRestartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
-        long latestRecordTimeMs = context.getRestartTimeInfo().getLatestRecordTimeMs() == null ?
+        final long latestRecordTimeMs = context.getRestartTimeInfo().getLatestRecordTimeMs() == null ?
             -1 : context.getRestartTimeInfo().getLatestRecordTimeMs();
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(context.getTimingStats(),
             jobResultsPersister::persistDatafeedTimingStats);

@@ -388,6 +388,8 @@ public class ArchiveTests extends PackagingTestCase {
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
 
+        logger.warn("Settings [path.data] to [" + relativeDataPath + "]");
+
         sh.setWorkingDirectory(getRootTempDir());
 
         startElasticsearch();

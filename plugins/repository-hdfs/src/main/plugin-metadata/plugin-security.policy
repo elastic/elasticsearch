@@ -31,7 +31,7 @@ grant {
   permission java.lang.RuntimePermission "setContextClassLoader";
 
   // org.apache.hadoop.util.StringUtils clinit
-  permission java.util.PropertyPermission "*", "read";
+  permission java.util.PropertyPermission "*", "read,write";
 
   // org.apache.hadoop.util.ShutdownHookManager clinit
   permission java.lang.RuntimePermission "shutdownHooks";
@@ -83,7 +83,3 @@ grant {
   // org.apache.hadoop.ipc.Client.Connection.setupConnection
   permission java.net.SocketPermission "localhost:0", "listen,resolve";
 };
-
-grant codeBase "${codebase.repository-hdfs}" {
-  permission java.util.PropertyPermission "hadoop.home.dir", "write";
-}

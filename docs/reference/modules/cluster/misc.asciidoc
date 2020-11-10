@@ -63,7 +63,8 @@ calculates this limit as follows:
 
 `cluster.max_shards_per_node * number of data nodes`
 
-Defaults to `-1` (unlimited). A cluster with no data nodes is also unlimited.
+Shards for closed indices do not count toward this limit. Defaults to `-1`
+(unlimited). A cluster with no data nodes is also unlimited.
 
 {es} rejects any request that creates more shards than this limit allows. For
 example, a cluster with a `cluster.max_shards_per_node` setting of `100` and

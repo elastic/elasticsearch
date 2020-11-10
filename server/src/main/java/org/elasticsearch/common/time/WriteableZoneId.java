@@ -31,7 +31,7 @@ import java.time.ZoneId;
 import java.util.Objects;
 
 /**
- * Simple wrapper around {@link ZoneId} so that it can be
+ * Simple wrapper around {@link ZoneId} so that it can be written to XContent
  */
 public class WriteableZoneId implements Writeable, ToXContentFragment {
 

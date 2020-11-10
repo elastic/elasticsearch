@@ -104,7 +104,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     private final Function<Rounding, Rounding.Prepared> roundingPreparer;
     /**
      * A reference to the collector so we can
-     * {@link BestBucketsDeferringCollector#rewriteBuckets.
+     * {@link BestBucketsDeferringCollector#rewriteBuckets}.
      */
     private BestBucketsDeferringCollector deferringCollector;
 

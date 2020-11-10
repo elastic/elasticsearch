@@ -90,12 +90,16 @@ public class RestRequest implements ToXContent.Params {
                         Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
         try {
             this.parsedAccept = parseHeaderWithMediaType(httpRequest.getHeaders(), "Accept");
+        } catch (IllegalArgumentException e) {
+            throw new MediaTypeHeaderException(e, "Accept");
+        }
+        try {
             this.parsedContentType = parseHeaderWithMediaType(httpRequest.getHeaders(), "Content-Type");
             if (parsedContentType != null) {
                 this.xContentType.set(parsedContentType.toMediaType(XContentType.MEDIA_TYPE_REGISTRY));
             }
         } catch (IllegalArgumentException e) {
-            throw new MediaTypeHeaderException(e);
+            throw new MediaTypeHeaderException(e, "Content-Type");
         }
         this.xContentRegistry = xContentRegistry;
         this.httpRequest = httpRequest;
@@ -551,10 +555,21 @@ public class RestRequest implements ToXContent.Params {
 
     public static class MediaTypeHeaderException extends RuntimeException {
 
-        MediaTypeHeaderException(final IllegalArgumentException cause) {
+        private String failedHeaderName;
+
+        MediaTypeHeaderException(final IllegalArgumentException cause, String failedHeaderName) {
             super(cause);
+            this.failedHeaderName = failedHeaderName;
         }
 
+        public String getFailedHeaderName() {
+            return failedHeaderName;
+        }
+
+        @Override
+        public String getMessage() {
+            return "Invalid media-type value on header [" + failedHeaderName + "]";
+        }
     }
 
     public static class BadParameterException extends RuntimeException {

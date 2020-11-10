@@ -141,17 +141,8 @@ public class BootstrapForTesting {
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
 
                 // read test-framework permissions
-                Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
-                // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
-                addClassCodebase(codebases,"elasticsearch", "org.elasticsearch.plugins.PluginsService");
-                // TODO: adding these codebases manually is necessary when testing within code which has not yet built
-                // the jars the code is contained in. it would be better to automatically do this, where each
-                // lib/module/plugin gets an additional codebase for itself when running unit tests without needing
-                // an explicit entry here
-                addClassCodebase(codebases,"elasticsearch-plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
-                addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
-                addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
-                addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
+                Map<String, URL> codebases = getCodebases();
+
                 final Policy testFramework = PolicyUtil.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
                 final Policy runnerPolicy;
                 if (System.getProperty("tests.gradle") != null) {
@@ -191,6 +182,17 @@ public class BootstrapForTesting {
                 throw new RuntimeException("unable to install test security manager", e);
             }
         }
+    }
+
+    static Map<String, URL> getCodebases() {
+        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
+        // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
+        addClassCodebase(codebases,"elasticsearch", "org.elasticsearch.plugins.PluginsService");
+        addClassCodebase(codebases,"elasticsearch-plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
+        addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
+        addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
+        addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
+        return codebases;
     }
 
     /** Add the codebase url of the given classname to the codebases map, if the class exists. */

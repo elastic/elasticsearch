@@ -226,11 +226,6 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                                 public void handleException(TransportException exp) {
                                     onFailure(idx, node.getId(), exp);
                                 }
-
-                                @Override
-                                public String executor() {
-                                    return ThreadPool.Names.SAME;
-                                }
                             });
                 } catch (Exception e) {
                     onFailure(idx, nodeId, e);

@@ -38,7 +38,6 @@ import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -73,8 +72,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             IndexWriterConfig config = new IndexWriterConfig(new WhitespaceAnalyzer());
             config.setMergePolicy(NoMergePolicy.INSTANCE);
             Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
-            BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(
-                new Mapper.BuilderContext(settings, new ContentPath(0)));
+            BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(new ContentPath(0));
 
             Version version = Version.CURRENT;
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {

@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -31,9 +30,8 @@ import java.util.Map;
 public interface RangeAggregatorSupplier {
     Aggregator build(String name,
                      AggregatorFactories factories,
-                     ValuesSource.Numeric valuesSource,
-                     DocValueFormat format,
-                     InternalRange.Factory rangeFactory,
+                     ValuesSourceConfig valuesSourceConfig,
+                     InternalRange.Factory<?, ?> rangeFactory,
                      RangeAggregator.Range[] ranges,
                      boolean keyed,
                      SearchContext context,

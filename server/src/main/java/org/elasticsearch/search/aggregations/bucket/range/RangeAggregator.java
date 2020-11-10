@@ -82,6 +82,12 @@ public abstract class RangeAggregator extends BucketsAggregator {
      * of half a millisecond just to build its {@link ScorerSupplier}. If there
      * are only a couple of thousand docs in the range then it tends not to
      * be worth it to kick in the optimization.
+     * <p>
+     * The value of this field was experimentally derived but the experiment
+     * wasn't particularly rigorous. We had a performance test that collected
+     * 123 buckets with an average of 900 documents per bucket that jumped
+     * from 35ms to 90ms. I figure that 5000 is fairly close to where the break
+     * even point is. 
      */
     public static final double DOCS_PER_RANGE_TO_USE_FILTERS = 5000;
     /**

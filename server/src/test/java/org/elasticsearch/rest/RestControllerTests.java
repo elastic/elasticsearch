@@ -652,6 +652,7 @@ public class RestControllerTests extends ESTestCase {
             .withHeaders(Map.of("Content-Type", mimeTypeList, "Accept", mimeTypeList))
             .build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+        // dispatch to a compatible handler
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
@@ -662,7 +663,47 @@ public class RestControllerTests extends ESTestCase {
 
             @Override
             public Version compatibleWithVersion() {
-                return Version.V_7_0_0;
+                return Version.CURRENT.minimumRestCompatibilityVersion();
+            }
+        });
+
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDispatchCompatibleRequestToNewlyAddedHandler() {
+
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService,
+            (a,c,h)->Version.CURRENT.minimumRestCompatibilityVersion());//always return compatible version
+
+        final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
+
+        final String mimeType = randomCompatibleMimeType(version);
+        String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
+        final List<String> mimeTypeList = Collections.singletonList(mimeType);
+        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray(content), RestRequest.parseContentType(mimeTypeList))
+            .withPath("/foo")
+            .withHeaders(Map.of("Content-Type", mimeTypeList, "Accept", mimeTypeList))
+            .build();
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+
+        // dispatch to a CURRENT newly added handler
+        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                XContentBuilder xContentBuilder = channel.newBuilder();
+                // even though the handler is CURRENT, the xContentBuilder has the version requested by a client.
+                // This allows to implement the compatible logic within the serialisation without introducing V7 (compatible) handler
+                // when only response shape has changed
+                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+
+            @Override
+            public Version compatibleWithVersion() {
+                return Version.CURRENT;
             }
         });
 

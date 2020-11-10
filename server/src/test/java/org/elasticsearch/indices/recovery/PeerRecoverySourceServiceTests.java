@@ -49,7 +49,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         StartRecoveryRequest startRecoveryRequest = new StartRecoveryRequest(primary.shardId(), randomAlphaOfLength(10),
             getFakeDiscoNode("source"), getFakeDiscoNode("target"), Store.MetadataSnapshot.EMPTY, randomBoolean(), randomLong(),
-            SequenceNumbers.UNASSIGNED_SEQ_NO);
+            SequenceNumbers.UNASSIGNED_SEQ_NO, false);
         peerRecoverySourceService.start();
         RecoverySourceHandler handler = peerRecoverySourceService.ongoingRecoveries.addNewRecovery(startRecoveryRequest, primary);
         DelayRecoveryException delayRecoveryException = expectThrows(DelayRecoveryException.class,

@@ -37,6 +37,11 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
         return super.setStage(stage);
     }
 
+    @Override
+    public boolean waitForRelocation() {
+        return true;
+    }
+
     public synchronized void setPreWarmComplete() {
         // For small shards it's possible that the
         // cache is pre-warmed before the stage has transitioned

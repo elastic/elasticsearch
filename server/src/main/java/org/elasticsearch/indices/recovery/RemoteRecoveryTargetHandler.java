@@ -78,10 +78,12 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
     private final Consumer<Long> onSourceThrottle;
     private final boolean retriesSupported;
+    private final boolean waitIndefinitelyOnRelocation;
     private volatile boolean isCancelled = false;
 
     public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService,
-                                       DiscoveryNode targetNode, RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
+                                       DiscoveryNode targetNode, RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle,
+                                       boolean waitIndefinitelyOnRelocation) {
         this.transportService = transportService;
         this.threadPool = transportService.getThreadPool();
         this.recoveryId = recoveryId;
@@ -97,6 +99,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionTimeout())
                 .build();
+        this.waitIndefinitelyOnRelocation = waitIndefinitelyOnRelocation;
         this.retriesSupported = targetNode.getVersion().onOrAfter(Version.V_7_9_0);
     }
 
@@ -133,10 +136,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     @Override
     public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
         TransportFuture<TransportResponse.Empty> handler = new TransportFuture<>(EmptyTransportResponseHandler.INSTANCE_SAME);
-        transportService.sendRequest(
-            targetNode, PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,
-            new RecoveryHandoffPrimaryContextRequest(recoveryId, shardId, primaryContext),
-            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(), handler);
+        final TransportRequestOptions requestOptions = waitIndefinitelyOnRelocation ? TransportRequestOptions.EMPTY :
+                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build();
+        transportService.sendRequest(targetNode, PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,
+                new RecoveryHandoffPrimaryContextRequest(recoveryId, shardId, primaryContext), requestOptions, handler);
         handler.txGet();
     }
 

@@ -7,6 +7,7 @@ package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
@@ -114,7 +115,9 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     )
                 ) {
                     RecoveryState recoveryState = createRecoveryState();
-                    final boolean loaded = directory.loadSnapshot(recoveryState);
+                    final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+                    final boolean loaded = directory.loadSnapshot(recoveryState, future);
+                    // TODO: do something about this future
                     assertThat("Failed to load snapshot", loaded, is(true));
                     assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
                     assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
@@ -204,7 +207,9 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 )
             ) {
                 RecoveryState recoveryState = createRecoveryState();
-                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState);
+                final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState, future);
+                // TODO: do something about this future
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", searchableSnapshotDirectory.snapshot(), notNullValue());
                 assertThat("BlobContainer should be loaded", searchableSnapshotDirectory.blobContainer(), notNullValue());

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,14 +35,17 @@ import java.io.IOException;
  */
 public class StartRecoveryRequest extends TransportRequest {
 
-    private long recoveryId;
-    private ShardId shardId;
-    private String targetAllocationId;
-    private DiscoveryNode sourceNode;
-    private DiscoveryNode targetNode;
-    private Store.MetadataSnapshot metadataSnapshot;
-    private boolean primaryRelocation;
-    private long startingSeqNo;
+    public static final Version WAIT_FOR_RELOCATION_VERSION = Version.V_8_0_0;
+
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final String targetAllocationId;
+    private final DiscoveryNode sourceNode;
+    private final DiscoveryNode targetNode;
+    private final Store.MetadataSnapshot metadataSnapshot;
+    private final boolean primaryRelocation;
+    private final boolean waitIndefinitelyForRelocation;
+    private final long startingSeqNo;
 
     public StartRecoveryRequest(StreamInput in) throws IOException {
         super(in);
@@ -52,6 +56,11 @@ public class StartRecoveryRequest extends TransportRequest {
         targetNode = new DiscoveryNode(in);
         metadataSnapshot = new Store.MetadataSnapshot(in);
         primaryRelocation = in.readBoolean();
+        if (primaryRelocation && in.getVersion().onOrAfter(WAIT_FOR_RELOCATION_VERSION)) {
+            waitIndefinitelyForRelocation = in.readBoolean();
+        } else {
+            waitIndefinitelyForRelocation = false;
+        }
         startingSeqNo = in.readLong();
     }
 
@@ -66,6 +75,7 @@ public class StartRecoveryRequest extends TransportRequest {
      * @param primaryRelocation  whether or not the recovery is a primary relocation
      * @param recoveryId         the recovery ID
      * @param startingSeqNo      the starting sequence number
+     * @param waitIndefinitelyForRelocation  whether or not to wait for primary relocation handoff indefinitely
      */
     public StartRecoveryRequest(final ShardId shardId,
                                 final String targetAllocationId,
@@ -74,7 +84,8 @@ public class StartRecoveryRequest extends TransportRequest {
                                 final Store.MetadataSnapshot metadataSnapshot,
                                 final boolean primaryRelocation,
                                 final long recoveryId,
-                                final long startingSeqNo) {
+                                final long startingSeqNo,
+                                final boolean waitIndefinitelyForRelocation) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.targetAllocationId = targetAllocationId;
@@ -82,6 +93,7 @@ public class StartRecoveryRequest extends TransportRequest {
         this.targetNode = targetNode;
         this.metadataSnapshot = metadataSnapshot;
         this.primaryRelocation = primaryRelocation;
+        this.waitIndefinitelyForRelocation = waitIndefinitelyForRelocation;
         this.startingSeqNo = startingSeqNo;
         assert startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || metadataSnapshot.getHistoryUUID() != null :
                         "starting seq no is set but not history uuid";
@@ -111,6 +123,10 @@ public class StartRecoveryRequest extends TransportRequest {
         return primaryRelocation;
     }
 
+    public boolean waitIndefinitelyForRelocation() {
+        return waitIndefinitelyForRelocation;
+    }
+
     public Store.MetadataSnapshot metadataSnapshot() {
         return metadataSnapshot;
     }
@@ -129,6 +145,9 @@ public class StartRecoveryRequest extends TransportRequest {
         targetNode.writeTo(out);
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
+        if (primaryRelocation && out.getVersion().onOrAfter(WAIT_FOR_RELOCATION_VERSION)) {
+            out.writeBoolean(waitIndefinitelyForRelocation);
+        }
         out.writeLong(startingSeqNo);
     }
 }

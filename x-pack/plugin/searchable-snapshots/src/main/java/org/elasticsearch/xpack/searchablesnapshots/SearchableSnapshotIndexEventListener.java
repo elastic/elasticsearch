@@ -5,7 +5,12 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -23,18 +28,43 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCon
 
 public class SearchableSnapshotIndexEventListener implements IndexEventListener {
 
+    private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
+
     @Override
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
-        ensureSnapshotIsLoaded(indexShard);
+        final PlainActionFuture<Void> preWarmFuture = PlainActionFuture.newFuture();
+        if (indexShard.routingEntry().isRelocationTarget() == false) {
+            preWarmFuture.onResponse(null);
+        }
+        ensureSnapshotIsLoaded(indexShard, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.trace("Done pre-warming [{}]", indexShard);
+                preWarmFuture.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(() -> new ParameterizedMessage("Exception during pre-warming [{}]", indexShard), e);
+                // TODO: we must still keep going here even if pre-warm fails?, discuss this
+                preWarmFuture.onResponse(null);
+            }
+        });
+        if (preWarmFuture.isDone() == false) {
+            indexShard.addRelocationCondition(preWarmFuture);
+        }
         associateNewEmptyTranslogWithIndex(indexShard);
     }
 
-    private static void ensureSnapshotIsLoaded(IndexShard indexShard) {
+    private static void ensureSnapshotIsLoaded(IndexShard indexShard, ActionListener<Void> preWarmListener) {
         final SearchableSnapshotDirectory directory = SearchableSnapshotDirectory.unwrapDirectory(indexShard.store().directory());
         assert directory != null;
 
-        final boolean success = directory.loadSnapshot(indexShard.recoveryState());
+        final boolean success = directory.loadSnapshot(indexShard.recoveryState(), preWarmListener);
+        if (success == false) {
+            preWarmListener.onResponse(null);
+        }
         assert directory.listAll().length > 0 : "expecting directory listing to be non-empty";
         assert success
             || indexShard.routingEntry()

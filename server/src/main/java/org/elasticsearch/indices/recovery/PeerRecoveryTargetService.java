@@ -282,7 +282,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             metadataSnapshot,
             recoveryTarget.state().getPrimary(),
             recoveryTarget.recoveryId(),
-            startingSeqNo);
+            startingSeqNo,
+            recoveryTarget.state().waitForRelocation());
         return request;
     }
 

@@ -169,6 +169,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -2385,6 +2386,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
     }
 
+    private Future<Void> relocationCondition;
+
+    public void addRelocationCondition(final Future<Void> relocationCondition) {
+        synchronized (mutex) {
+            assert this.relocationCondition == null;
+            this.relocationCondition = relocationCondition;
+        }
+    }
+
     /**
      * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
      *
@@ -2398,6 +2408,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId())
             .getLocalCheckpoint() || indexSettings().getTranslogDurability() == Translog.Durability.ASYNC :
             "local checkpoint [" + getLocalCheckpoint() + "] does not match checkpoint from primary context [" + primaryContext + "]";
+        final Future<Void> future;
+        synchronized (mutex) {
+            future = relocationCondition;
+            relocationCondition = null;
+        }
+        if (future != null) {
+            try {
+                future.get();
+            } catch (Exception e) {
+                throw new RecoveryFailedException(recoveryState, "await condition failed", e);
+            }
+        }
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }

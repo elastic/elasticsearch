@@ -108,12 +108,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private final VerifyIndex verifyIndex;
     private final Timer timer;
 
-    private RecoverySource recoverySource;
-    private ShardId shardId;
+    private final RecoverySource recoverySource;
+    private final ShardId shardId;
     @Nullable
-    private DiscoveryNode sourceNode;
-    private DiscoveryNode targetNode;
-    private boolean primary;
+    private final DiscoveryNode sourceNode;
+    private final DiscoveryNode targetNode;
+    private final boolean primary;
 
     public RecoveryState(ShardRouting shardRouting,
                          DiscoveryNode targetNode,
@@ -267,6 +267,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
     public boolean getPrimary() {
         return primary;
+    }
+
+    public boolean waitForRelocation() {
+        return false;
     }
 
     public static RecoveryState readRecoveryState(StreamInput in) throws IOException {

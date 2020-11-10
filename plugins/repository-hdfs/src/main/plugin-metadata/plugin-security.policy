@@ -83,3 +83,7 @@ grant {
   // org.apache.hadoop.ipc.Client.Connection.setupConnection
   permission java.net.SocketPermission "localhost:0", "listen,resolve";
 };
+
+grant codeBase "${codebase.repository-hdfs}" {
+  permission java.util.PropertyPermission "hadoop.home.dir", "write";
+}

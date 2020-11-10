@@ -119,7 +119,8 @@ public class PolicyUtil {
             new SecurityPermission("putProviderProperty.*"),
             // apache abuses the SecurityPermission class for it's own purposes
             new SecurityPermission("org.apache.*"),
-            new PropertyPermission("*", "read"),
+            // write is needed because of HdfsPlugin
+            new PropertyPermission("*", "read,write"),
             new AuthPermission("doAs"),
             new AuthPermission("doAsPrivileged"),
             new AuthPermission("getSubject"),
@@ -169,7 +170,6 @@ public class PolicyUtil {
         // but that we do not think plugins in general should need.
         List<Permission> modulePermissions = List.of(
             createFilePermission("<<ALL FILES>>", "read,write"),
-            new PropertyPermission("*", "write"),
             new RuntimePermission("getFileStoreAttributes"),
             new RuntimePermission("accessUserInformation"),
             new AuthPermission("modifyPrivateCredentials")

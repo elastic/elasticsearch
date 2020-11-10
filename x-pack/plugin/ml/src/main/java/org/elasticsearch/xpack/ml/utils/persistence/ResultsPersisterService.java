@@ -111,19 +111,19 @@ public class ResultsPersisterService {
                                        String id,
                                        boolean requireAlias,
                                        Supplier<Boolean> shouldRetry,
-                                       Consumer<String> msgHandler) throws IOException {
+                                       Consumer<String> retryMsgHandler) throws IOException {
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
         try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
             bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
         }
-        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, msgHandler);
+        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler);
     }
 
     public BulkResponse bulkIndexWithRetry(BulkRequest bulkRequest,
                                            String jobId,
                                            Supplier<Boolean> shouldRetry,
-                                           Consumer<String> msgHandler) {
-        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, msgHandler,
+                                           Consumer<String> retryMsgHandler) {
+        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler,
             providedBulkRequest -> client.bulk(providedBulkRequest).actionGet());
     }
 
@@ -131,8 +131,8 @@ public class ResultsPersisterService {
                                                       BulkRequest bulkRequest,
                                                       String jobId,
                                                       Supplier<Boolean> shouldRetry,
-                                                      Consumer<String> msgHandler) {
-        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, msgHandler,
+                                                      Consumer<String> retryMsgHandler) {
+        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler,
             providedBulkRequest -> ClientHelper.executeWithHeaders(
                 headers, ClientHelper.ML_ORIGIN, client, () -> client.execute(BulkAction.INSTANCE, bulkRequest).actionGet()));
     }
@@ -140,9 +140,9 @@ public class ResultsPersisterService {
     private BulkResponse bulkIndexWithRetry(BulkRequest bulkRequest,
                                             String jobId,
                                             Supplier<Boolean> shouldRetry,
-                                            Consumer<String> msgHandler,
+                                            Consumer<String> retryMsgHandler,
                                             Function<BulkRequest, BulkResponse> actionExecutor) {
-        RetryContext retryContext = new RetryContext(jobId, shouldRetry, msgHandler);
+        RetryContext retryContext = new RetryContext(jobId, shouldRetry, retryMsgHandler);
         while (true) {
             BulkResponse bulkResponse = actionExecutor.apply(bulkRequest);
             if (bulkResponse.hasFailures() == false) {
@@ -172,8 +172,8 @@ public class ResultsPersisterService {
     public SearchResponse searchWithRetry(SearchRequest searchRequest,
                                           String jobId,
                                           Supplier<Boolean> shouldRetry,
-                                          Consumer<String> msgHandler) {
-        RetryContext retryContext = new RetryContext(jobId, shouldRetry, msgHandler);
+                                          Consumer<String> retryMsgHandler) {
+        RetryContext retryContext = new RetryContext(jobId, shouldRetry, retryMsgHandler);
         while (true) {
             String failureMessage;
             try {

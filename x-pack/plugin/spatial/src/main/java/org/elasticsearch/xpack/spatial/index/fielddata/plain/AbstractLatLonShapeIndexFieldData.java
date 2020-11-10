@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.fielddata;
+package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -21,6 +21,8 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
 
 public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShapeFieldData {
     protected final String fieldName;

@@ -421,19 +421,20 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
             // track aliases defined in the SELECT and used inside GROUP BY
             // SELECT x AS a ... GROUP BY a
-            Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
             String id = null;
+
+            AttributeMap.Builder<Expression> aliases = AttributeMap.builder();
             for (NamedExpression ne : a.aggregates()) {
                 if (ne instanceof Alias) {
-                    aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
+                    aliases.put(ne.toAttribute(), ((Alias) ne).child());
                 }
             }
 
-            if (aliasMap.isEmpty() == false) {
-                Map<Attribute, Expression> newAliases = new LinkedHashMap<>(queryC.aliases());
-                newAliases.putAll(aliasMap);
-                queryC = queryC.withAliases(new AttributeMap<>(newAliases));
+            if (aliases.build().isEmpty() == false) {
+                aliases.putAll(queryC.aliases());
+                queryC = queryC.withAliases(aliases.build());
             }
+
 
             // build the group aggregation
             // NB: any reference in grouping is already "optimized" by its source so there's no need to look for aliases

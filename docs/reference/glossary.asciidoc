@@ -546,7 +546,8 @@ See the {ref}/indices-split-index.html[split index API].
 [[glossary-system-index]] system index ::
 // tag::system-index-def[]
 An index that contains configuration information or other data used internally by the system, 
-such as the `.security` index
+such as the `.security` index. 
+The name of a system index is always prefixed with a dot.
 You should not directly access or modify system indices.
 // end::system-index-def[]
 

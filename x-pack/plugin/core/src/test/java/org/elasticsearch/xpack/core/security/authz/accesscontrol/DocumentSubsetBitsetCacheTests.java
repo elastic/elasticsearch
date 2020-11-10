@@ -25,7 +25,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
@@ -468,29 +467,6 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         }
     }
 
-    public void testSparseRoleBitSets() throws Exception {
-        int maxDocs = randomIntBetween(1 << 7, 1 << 10);
-        int numDocs = 0;
-        SparseFixedBitSet matches = new SparseFixedBitSet(maxDocs);
-        for (int i = 0; i < maxDocs; i++) {
-            if (numDocs < maxDocs && randomBoolean()) {
-                numDocs ++;
-                matches.set(i);
-            }
-        }
-        int denseThreshold = randomIntBetween(0, (maxDocs >>> 7) - 1);
-        DocIdSetIterator it = new BitSetIterator(matches, denseThreshold);
-        BitSet bitSet = DocumentSubsetBitsetCache.bitSetFromDocIterator(it, maxDocs);
-        assertThat(bitSet.cardinality(), equalTo(numDocs));
-        assertThat(bitSet.length(), equalTo(maxDocs));
-        assertThat(bitSet, instanceOf(SparseFixedBitSet.class));
-        for (int i = 0; i < maxDocs; i++) {
-            assertThat(bitSet.get(i), equalTo(matches.get(i)));
-            assertThat(bitSet.nextSetBit(i), equalTo(matches.nextSetBit(i)));
-            assertThat(bitSet.prevSetBit(i), equalTo(matches.prevSetBit(i)));
-        };
-    }
-
     public void testDenseRoleBitSets() throws Exception {
         int maxDocs = randomIntBetween(1, 1024);
         int numDocs = 0;
@@ -506,8 +482,11 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         BitSet bitSet = DocumentSubsetBitsetCache.bitSetFromDocIterator(it, maxDocs);
         assertThat(bitSet.cardinality(), equalTo(numDocs));
         assertThat(bitSet.length(), equalTo(maxDocs));
-        assertThat(bitSet, instanceOf(FixedBitSet.class));
-        assertThat(bitSet, equalTo(matches));
+        for (int i = 0; i < maxDocs; i++) {
+            assertThat(bitSet.get(i), equalTo(matches.get(i)));
+            assertThat(bitSet.nextSetBit(i), equalTo(matches.nextSetBit(i)));
+            assertThat(bitSet.prevSetBit(i), equalTo(matches.prevSetBit(i)));
+        }
     }
 
     public void testMatchAllRoleBitSet() throws Exception {

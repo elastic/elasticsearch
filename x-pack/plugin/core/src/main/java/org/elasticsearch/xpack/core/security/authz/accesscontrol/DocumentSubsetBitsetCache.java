@@ -21,7 +21,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -344,24 +343,8 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     }
 
     static BitSet bitSetFromDocIterator(DocIdSetIterator iter, int maxDoc) throws IOException {
-        // TODO: This snippet is copied from Lucene Bitset#of. Should we integrate it to Lucene?
-        final long cost = iter.cost();
-        final int threshold = maxDoc >>> 7;
-        final BitSet set;
-        if (cost < threshold) {
-            set = new SparseFixedBitSet(maxDoc);
-        } else {
-            set = new FixedBitSet(maxDoc);
-        }
-        if (iter.docID() != -1) {
-            throw new IllegalStateException("Must be an unpositioned iterator, got current position = " + iter.docID());
-        }
-        int matches = 0;
-        for (int doc = iter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iter.nextDoc()) {
-            matches++;
-            set.set(doc);
-        }
-        if (matches == maxDoc) {
+        final BitSet set = BitSet.of(iter, maxDoc);
+        if (set.cardinality() == maxDoc) {
             return new MatchAllRoleBitSet(maxDoc);
         } else {
             return set;

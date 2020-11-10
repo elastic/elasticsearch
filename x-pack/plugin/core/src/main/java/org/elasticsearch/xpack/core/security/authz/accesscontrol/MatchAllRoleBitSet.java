@@ -26,11 +26,10 @@
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 
 final class MatchAllRoleBitSet extends BitSet {
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MatchAllRoleBitSet.class);
     private final int length;
 
     MatchAllRoleBitSet(int length) {

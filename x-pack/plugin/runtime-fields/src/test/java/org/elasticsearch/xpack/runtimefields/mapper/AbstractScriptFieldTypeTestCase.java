@@ -6,16 +6,11 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -23,25 +18,16 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 
 import java.io.IOException;
@@ -57,7 +43,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
+public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestCase {
 
     private static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(Map.of("include_defaults", "true"));
 
@@ -331,57 +317,9 @@ public abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
         b.startObject("script").field("source", "dummy_source").field("lang", "test").endObject();
     }
 
-    protected final XContentBuilder runtimeFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
-        return runtimeMapping(b -> {
-            b.startObject("field");
-            buildField.accept(b);
-            b.endObject();
-        });
-    }
-
-    private XContentBuilder runtimeMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("runtime");
-        buildFields.accept(builder);
-        return builder.endObject().endObject().endObject();
-    }
-
-    protected final MapperService createMapperService(XContentBuilder mapping) throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", 1)
-            .put("index.version.created", Version.CURRENT)
-            .build();
-        IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
-        IndexSettings indexSettings = new IndexSettings(meta, settings);
-        RuntimeFields runtimeFields = new RuntimeFields();
-        MapperRegistry mapperRegistry = new IndicesModule(Collections.singletonList(runtimeFields)).getMapperRegistry();
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(new TestScriptPlugin(), runtimeFields));
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
-        SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Map.of());
-        MapperService mapperService = new MapperService(
-            indexSettings,
-            createIndexAnalyzers(),
-            xContentRegistry(),
-            similarityService,
-            mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
-            () -> true,
-            scriptService
-        );
-        merge(mapperService, mapping);
-        return mapperService;
-    }
-
-    private void merge(MapperService mapperService, XContentBuilder mapping) throws IOException {
-        mapperService.merge(null, new CompressedXContent(BytesReference.bytes(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
-    }
-
-    private IndexAnalyzers createIndexAnalyzers() {
-        return new IndexAnalyzers(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Map.of(),
-            Map.of()
-        );
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new RuntimeFields(), new TestScriptPlugin());
     }
 
     private static class TestScriptPlugin extends Plugin implements ScriptPlugin {

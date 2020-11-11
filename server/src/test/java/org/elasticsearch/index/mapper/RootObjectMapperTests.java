@@ -19,33 +19,23 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
@@ -53,134 +43,104 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RootObjectMapperTests extends ESTestCase {
-
-    private static MapperService createMapperService() {
-        return createMapperService(Version.CURRENT);
-    }
-
-    private static MapperService createMapperService(Version indexCreatedVersion) {
-        return createMapperService(indexCreatedVersion, Collections.emptyList());
-    }
-
-    private static MapperService createMapperService(List<MapperPlugin> mapperPlugins) {
-        return createMapperService(Version.CURRENT, mapperPlugins);
-    }
-
-    private static MapperService createMapperService(Version indexCreatedVersion, List<MapperPlugin> mapperPlugins) {
-        Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", indexCreatedVersion).build();
-        IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())), Map.of(), Map.of());
-        IndicesModule indicesModule = new IndicesModule(mapperPlugins);
-        SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
-        return new MapperService(indexSettings, indexAnalyzers, NamedXContentRegistry.EMPTY, similarityService,
-            indicesModule.getMapperRegistry(), () -> {
-                throw new UnsupportedOperationException();
-            }, () -> true, null);
-    }
+public class RootObjectMapperTests extends MapperServiceTestCase {
 
     public void testNumericDetection() throws Exception {
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("type")
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                         .field("numeric_detection", false)
                     .endObject()
                 .endObject());
-        MapperService mapperService = createMapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), reason);
-        assertEquals(mapping, mapper.mappingSource().toString());
+        MapperService mapperService = createMapperService(mapping);
+        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
 
         // update with a different explicit value
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .field("numeric_detection", true)
                 .endObject()
             .endObject());
-        mapper = mapperService.merge("type", new CompressedXContent(mapping2), reason);
-        assertEquals(mapping2, mapper.mappingSource().toString());
+        merge(mapperService, reason, mapping2);
+        assertEquals(mapping2, mapperService.documentMapper().mappingSource().toString());
 
         // update with an implicit value: no change
         String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                 .endObject()
             .endObject());
-        mapper = mapperService.merge("type", new CompressedXContent(mapping3), reason);
-        assertEquals(mapping2, mapper.mappingSource().toString());
+        merge(mapperService, reason, mapping3);
+        assertEquals(mapping2, mapperService.documentMapper().mappingSource().toString());
     }
 
     public void testDateDetection() throws Exception {
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("type")
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                         .field("date_detection", true)
                     .endObject()
                 .endObject());
-        MapperService mapperService = createMapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), reason);
-        assertEquals(mapping, mapper.mappingSource().toString());
+        MapperService mapperService = createMapperService(mapping);
+        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
 
         // update with a different explicit value
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .field("date_detection", false)
                 .endObject()
             .endObject());
-        mapper = mapperService.merge("type", new CompressedXContent(mapping2), reason);
-        assertEquals(mapping2, mapper.mappingSource().toString());
+        merge(mapperService, reason, mapping2);
+        assertEquals(mapping2, mapperService.documentMapper().mappingSource().toString());
 
         // update with an implicit value: no change
         String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                 .endObject()
             .endObject());
-        mapper = mapperService.merge("type", new CompressedXContent(mapping3), reason);
-        assertEquals(mapping2, mapper.mappingSource().toString());
+        merge(mapperService, reason, mapping3);
+        assertEquals(mapping2, mapperService.documentMapper().mappingSource().toString());
     }
 
     public void testDateFormatters() throws Exception {
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("type")
-                        .field("dynamic_date_formats", Arrays.asList("yyyy-MM-dd"))
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
+                        .field("dynamic_date_formats", Collections.singletonList("yyyy-MM-dd"))
                     .endObject()
                 .endObject());
-        MapperService mapperService = createMapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), reason);
-        assertEquals(mapping, mapper.mappingSource().toString());
+        MapperService mapperService = createMapperService(mapping);
+        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
 
         // no update if formatters are not set explicitly
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                 .endObject()
             .endObject());
-        mapper = mapperService.merge("type", new CompressedXContent(mapping2), reason);
-        assertEquals(mapping, mapper.mappingSource().toString());
+        merge(mapperService, reason, mapping2);
+        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
 
         String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
-                    .field("dynamic_date_formats", Arrays.asList())
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .field("dynamic_date_formats", Collections.emptyList())
                 .endObject()
             .endObject());
-        mapper = mapperService.merge("type", new CompressedXContent(mapping3), reason);
-        assertEquals(mapping3, mapper.mappingSource().toString());
+        merge(mapperService, reason, mapping3);
+        assertEquals(mapping3, mapperService.documentMapper().mappingSource().toString());
     }
 
     public void testDynamicTemplates() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("type")
+                    .startObject(MapperService.SINGLE_MAPPING_NAME)
                         .startArray("dynamic_templates")
                             .startObject()
                                 .startObject("my_template")
@@ -193,51 +153,50 @@ public class RootObjectMapperTests extends ESTestCase {
                         .endArray()
                     .endObject()
                 .endObject());
-        MapperService mapperService = createMapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping, mapper.mappingSource().toString());
+        MapperService mapperService = createMapperService(mapping);
+        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
 
         // no update if templates are not set explicitly
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                 .endObject()
             .endObject());
-        mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping, mapper.mappingSource().toString());
+        merge(mapperService, mapping2);
+        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
 
         String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .field("dynamic_templates", Collections.emptyList())
                 .endObject()
             .endObject());
-        mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping3, mapper.mappingSource().toString());
+        merge(mapperService, mapping3);
+        assertEquals(mapping3, mapperService.documentMapper().mappingSource().toString());
     }
 
     public void testDynamicTemplatesForIndexTemplate() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startArray("dynamic_templates")
-                .startObject()
-                    .startObject("first_template")
-                        .field("path_match", "first")
-                        .startObject("mapping")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .startObject()
-                    .startObject("second_template")
-                        .field("path_match", "second")
-                        .startObject("mapping")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
-                .endObject()
+            .startObject()
+            .startObject("first_template")
+            .field("path_match", "first")
+            .startObject("mapping")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("second_template")
+            .field("path_match", "second")
+            .startObject("mapping")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
             .endArray()
         .endObject());
-        MapperService mapperService = createMapperService();
+        MapperService mapperService = createMapperService(Version.CURRENT, Settings.EMPTY, () -> true);
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
 
         // There should be no update if templates are not set.
@@ -294,7 +253,7 @@ public class RootObjectMapperTests extends ESTestCase {
     public void testIllegalFormatField() throws Exception {
         String dynamicMapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startArray("dynamic_date_formats")
                         .startArray().value("test_format").endArray()
                     .endArray()
@@ -302,41 +261,36 @@ public class RootObjectMapperTests extends ESTestCase {
             .endObject());
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startArray("date_formats")
                         .startArray().value("test_format").endArray()
                     .endArray()
                 .endObject()
             .endObject());
-
-        MapperService mapperService = createMapperService();
         for (String m : Arrays.asList(mapping, dynamicMapping)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> mapperService.parse("type", new CompressedXContent(m)));
-            assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(m));
+            assertEquals("Failed to parse mapping: Invalid format: [[test_format]]: expected string value", e.getMessage());
         }
     }
 
     public void testIllegalDynamicTemplates() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("type")
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("dynamic_templates")
                     .endObject()
                 .endObject()
             .endObject());
 
-        MapperService mapperService = createMapperService();
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> mapperService.parse("type", new CompressedXContent(mapping)));
-            assertEquals("Dynamic template syntax error. An array of named objects is expected.", e.getMessage());
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertEquals("Failed to parse mapping: Dynamic template syntax error. An array of named objects is expected.", e.getMessage());
     }
 
     public void testIllegalDynamicTemplateUnknownFieldType() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject();
         {
-            mapping.startObject("type");
+            mapping.startObject(MapperService.SINGLE_MAPPING_NAME);
             mapping.startArray("dynamic_templates");
             {
                 mapping.startObject();
@@ -352,9 +306,7 @@ public class RootObjectMapperTests extends ESTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        MapperService mapperService = createMapperService();
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getRootCause().getMessage(), equalTo("No mapper found for type [string]"));
     }
@@ -363,7 +315,7 @@ public class RootObjectMapperTests extends ESTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject();
         {
-            mapping.startObject("type");
+            mapping.startObject(MapperService.SINGLE_MAPPING_NAME);
             mapping.startArray("dynamic_templates");
             {
                 mapping.startObject();
@@ -380,9 +332,7 @@ public class RootObjectMapperTests extends ESTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        MapperService mapperService = createMapperService();
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getRootCause(), instanceOf(MapperParsingException.class));
         assertThat(e.getRootCause().getMessage(),
             equalTo("unknown parameter [foo] on mapper [__dynamic__my_template] of type [keyword]"));
@@ -392,7 +342,7 @@ public class RootObjectMapperTests extends ESTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject();
         {
-            mapping.startObject("type");
+            mapping.startObject(MapperService.SINGLE_MAPPING_NAME);
             mapping.startArray("dynamic_templates");
             {
                 mapping.startObject();
@@ -409,21 +359,18 @@ public class RootObjectMapperTests extends ESTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        MapperService mapperService = createMapperService();
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getRootCause().getMessage(), equalTo("analyzer [foobar] has not been configured in mappings"));
     }
 
     public void testIllegalDynamicTemplateNoMappingType() throws Exception {
         MapperService mapperService;
-
         {
             XContentBuilder mapping = XContentFactory.jsonBuilder();
             mapping.startObject();
             {
-                mapping.startObject("type");
+                mapping.startObject(MapperService.SINGLE_MAPPING_NAME);
                 mapping.startArray("dynamic_templates");
                 {
                     mapping.startObject();
@@ -444,16 +391,14 @@ public class RootObjectMapperTests extends ESTestCase {
                 mapping.endObject();
             }
             mapping.endObject();
-            mapperService = createMapperService();
-            DocumentMapper mapper =
-                mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
-            assertThat(mapper.mappingSource().toString(), containsString("\"index_phrases\":true"));
+            mapperService = createMapperService(mapping);
+            assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"index_phrases\":true"));
         }
         {
             XContentBuilder mapping = XContentFactory.jsonBuilder();
             mapping.startObject();
             {
-                mapping.startObject("type");
+                mapping.startObject(MapperService.SINGLE_MAPPING_NAME);
                 mapping.startArray("dynamic_templates");
                 {
                     mapping.startObject();
@@ -474,8 +419,7 @@ public class RootObjectMapperTests extends ESTestCase {
                 mapping.endObject();
             }
             mapping.endObject();
-            MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping));
             assertThat(e.getRootCause(), instanceOf(MapperParsingException.class));
             assertThat(e.getRootCause().getMessage(),
                 equalTo("unknown parameter [foo] on mapper [__dynamic__my_template] of type [binary]"));
@@ -486,7 +430,7 @@ public class RootObjectMapperTests extends ESTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject();
         {
-            mapping.startObject("type");
+            mapping.startObject(MapperService.SINGLE_MAPPING_NAME);
             mapping.startArray("dynamic_templates");
             {
                 mapping.startObject();
@@ -503,72 +447,41 @@ public class RootObjectMapperTests extends ESTestCase {
         }
         mapping.endObject();
         Version createdVersion = randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_7_0);
-        MapperService mapperService = createMapperService(createdVersion);
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
-        assertThat(mapper.mappingSource().toString(), containsString("\"type\":\"string\""));
+        MapperService mapperService = createMapperService(createdVersion, mapping);
+        assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"type\":\"string\""));
         assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"type\":" +
             "\"string\"}}], caused by [No mapper found for type [string]]");
     }
 
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return Collections.singletonList(new RuntimeFieldPlugin());
+    }
+
     public void testRuntimeSection() throws IOException {
-        MapperService mapperService = createMapperService(Collections.singletonList(new RuntimeFieldPlugin()));
-        MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .startObject("runtime")
-            .startObject("field1")
-            .field("type", "test")
-            .field("prop1", "value1")
-            .endObject()
-            .startObject("field2")
-            .field("type", "test")
-            .field("prop2", "value2")
-            .endObject()
-            .startObject("field3")
-            .field("type", "test")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject());
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), reason);
-        assertEquals(mapping, mapper.mappingSource().toString());
+        String mapping = Strings.toString(runtimeMapping(builder -> {
+            builder.startObject("field1").field("type", "test").field("prop1", "value1").endObject();
+            builder.startObject("field2").field("type", "test").field("prop2", "value2").endObject();
+            builder.startObject("field3").field("type", "test").endObject();
+        }));
+        MapperService mapperService = createMapperService(mapping);
+        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
     }
 
     public void testRuntimeSectionMerge() throws IOException {
-        MapperService mapperService = createMapperService(Collections.singletonList(new RuntimeFieldPlugin()));
-        MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
+        MapperService mapperService;
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("runtime")
-                .startObject("field1")
-                .field("type", "test")
-                .field("prop1", "first version")
-                .endObject()
-                .startObject("field2")
-                .field("type", "test")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject());
-            DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), reason);
-            assertEquals(mapping, mapper.mappingSource().toString());
+            String mapping = Strings.toString(runtimeMapping(builder -> {
+                builder.startObject("field1").field("type", "test").field("prop1", "first version").endObject();
+                builder.startObject("field2").field("type", "test").endObject();
+            }));
+            mapperService = createMapperService(mapping);
+            assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
         }
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("runtime")
-                .startObject("field1")
-                .field("type", "test")
-                .field("prop2", "second version")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject());
-            mapperService.merge("type", new CompressedXContent(mapping), reason);
+            String mapping = Strings.toString(runtimeMapping(
+                builder -> builder.startObject("field1").field("type", "test").field("prop2", "second version").endObject()));
+            merge(mapperService, mapping);
             RuntimeField field1 = (RuntimeField)mapperService.fieldType("field1");
             assertNull(field1.prop1);
             assertEquals("second version", field1.prop2);
@@ -579,91 +492,33 @@ public class RootObjectMapperTests extends ESTestCase {
     }
 
     public void testRuntimeSectionNonRuntimeType() throws IOException {
-        MapperService mapperService = createMapperService();
-        MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .startObject("runtime")
-            .startObject("field")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject());
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge("type", new CompressedXContent(mapping), reason));
+        XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "keyword"));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertEquals("Failed to parse mapping: No handler for type [keyword] declared on runtime field [field]", e.getMessage());
     }
 
     public void testRuntimeSectionHandlerNotFound() throws IOException {
-        MapperService mapperService = createMapperService(Collections.singletonList(new RuntimeFieldPlugin()));
-        MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .startObject("runtime")
-            .startObject("field")
-            .field("type", "unknown")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject());
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge("type", new CompressedXContent(mapping), reason));
+        XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "unknown"));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertEquals("Failed to parse mapping: No handler for type [unknown] declared on runtime field [field]", e.getMessage());
     }
 
     public void testRuntimeSectionMissingType() throws IOException {
-        MapperService mapperService = createMapperService(Collections.singletonList(new RuntimeFieldPlugin()));
-        MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .startObject("runtime")
-            .startObject("field")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject());
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge("type", new CompressedXContent(mapping), reason));
+        XContentBuilder mapping = runtimeFieldMapping(builder -> {});
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertEquals("Failed to parse mapping: No type specified for runtime field [field]", e.getMessage());
     }
 
     public void testRuntimeSectionWrongFormat() throws IOException {
-        MapperService mapperService = createMapperService(Collections.singletonList(new RuntimeFieldPlugin()));
-        MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .startObject("runtime")
-            .field("field", "value")
-            .endObject()
-            .endObject()
-            .endObject());
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge("type", new CompressedXContent(mapping), reason));
+        XContentBuilder mapping = runtimeMapping(builder -> builder.field("field", "value"));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertEquals("Failed to parse mapping: Expected map for runtime field [field] definition but got a java.lang.String",
             e.getMessage());
     }
 
     public void testRuntimeSectionRemainingField() throws IOException {
-        MapperService mapperService = createMapperService(Collections.singletonList(new RuntimeFieldPlugin()));
-        MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .startObject("runtime")
-            .startObject("field")
-            .field("type", "test")
-            .field("unsupported", "value")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject());
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge("type", new CompressedXContent(mapping), reason));
+        XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "test").field("unsupported", "value"));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertEquals("Failed to parse mapping: Mapping definition for [field] has unsupported parameters:  " +
             "[unsupported : value]", e.getMessage());
     }

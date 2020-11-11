@@ -207,12 +207,12 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     }
 
     /**
-     *  For runtime fields the {@link RuntimeFieldType.Parser} returns directly the {@link org.elasticsearch.index.mapper.MappedFieldType}.
+     *  For runtime fields the {@link RuntimeFieldType.Parser} returns directly the {@link MappedFieldType}.
      *  Internally we still create a {@link Builder} so we reuse the {@link FieldMapper.Parameter} infrastructure,
      *  but {@link Builder#init(FieldMapper)} and {@link Builder#build(ContentPath)} are never called as
      *  {@link RuntimeFieldTypeParser#parse(String, Map, Mapper.TypeParser.ParserContext)} calls
      *  {@link Builder#parse(String, Mapper.TypeParser.ParserContext, Map)} and returns the corresponding
-     *  {@link org.elasticsearch.index.mapper.MappedFieldType}.
+     *  {@link MappedFieldType}.
      */
     abstract static class Builder extends FieldMapper.Builder {
         final FieldMapper.Parameter<Map<String, String>> meta = FieldMapper.Parameter.metaParam();

@@ -72,7 +72,6 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
 
-        //TODO field aliases should probably be defined as runtime fields?
         final Map<String, String> aliasToConcreteName = new HashMap<>();
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
             String aliasName = fieldAliasMapper.name();

@@ -34,7 +34,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
@@ -48,12 +47,10 @@ import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -328,10 +325,6 @@ public abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Cyclic dependency detected while resolving runtime fields: test -> test"));
     }
 
-    private Collection<? extends Plugin> getPlugins() {
-        return List.of(new RuntimeFields(), new TestScriptPlugin());
-    }
-
     protected final void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", typeName());
         b.startObject("script").field("source", "dummy_source").field("lang", "test").endObject();
@@ -359,13 +352,9 @@ public abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
             .build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(meta, settings);
-        MapperRegistry mapperRegistry = new IndicesModule(
-            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
-        ).getMapperRegistry();
-        ScriptModule scriptModule = new ScriptModule(
-            Settings.EMPTY,
-            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
-        );
+
+        MapperRegistry mapperRegistry = new IndicesModule(Collections.singletonList(new RuntimeFields())).getMapperRegistry();
+        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, Collections.singletonList(new TestScriptPlugin()));
         ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Map.of());
         MapperService mapperService = new MapperService(

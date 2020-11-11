@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -238,7 +239,7 @@ public abstract class AggregationContext {
         public ProductionAggregationContext(SearchContext context, MultiBucketConsumer multiBucketConsumer) {
             this( // TODO we'd prefer to not use SearchContext everywhere but we have a bunch of tests that use this now
                 context.getQueryShardContext(),
-                context.query(),
+                context.query() == null ? new MatchAllDocsQuery() : context.query(),
                 context.getProfilers() == null ? null : context.getProfilers().getAggregationProfiler(),
                 multiBucketConsumer,
                 () -> new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext()),

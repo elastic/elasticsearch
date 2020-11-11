@@ -18,7 +18,7 @@ tasks.register("resolve") {
   }
 }
 task 'leader-cluster'(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
+  mustRunAfter("precommit")
   systemProperty 'tests.target_cluster', 'leader'
 }
 

@@ -50,7 +50,7 @@ def generateVersionProperties = tasks.register("generateVersionProperties", Writ
   properties(props)
 }
 
-processResources {
+tasks.named("processResources").configure {
   from(generateVersionProperties)
 }
 
@@ -154,7 +154,7 @@ if (project != rootProject) {
 
   // build-tools is not ready for primetime with these...
   tasks.named("dependencyLicenses").configure { it.enabled = false }
-  dependenciesInfo.enabled = false
+  tasks.named("dependenciesInfo").configure {it.enabled = false }
   disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   tasks.named("jarHell").configure {
     it.enabled = false
@@ -246,7 +246,7 @@ if (project != rootProject) {
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath
   }
-  check.dependsOn("integTest")
+  tasks.named("check").configure { it.dependsOn("integTest") }
 
   // for now we hardcode the tests for our build to use the gradle jvm.
   tasks.withType(Test).configureEach {

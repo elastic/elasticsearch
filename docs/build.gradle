@@ -25,22 +25,24 @@ apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
-buildRestTests.expectedUnconvertedCandidates = [
-  'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
-  'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-category.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-job.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-record.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
-  'reference/ml/anomaly-detection/apis/post-data.asciidoc',
-  'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
-  'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
-  'reference/ml/anomaly-detection/apis/update-job.asciidoc'
-]
+tasks.named("buildRestTests").configure {
+  expectedUnconvertedCandidates = [
+          'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
+          'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-category.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-job.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-record.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
+          'reference/ml/anomaly-detection/apis/post-data.asciidoc',
+          'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
+          'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
+          'reference/ml/anomaly-detection/apis/update-job.asciidoc'
+  ]
+}
 
 restResources {
   restApi {
@@ -97,7 +99,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
   testClusters.integTest.plugin subproj.path
 }
 
-buildRestTests.docs = fileTree(projectDir) {
+def docsFileTree = fileTree(projectDir) {
   // No snippets in here!
   exclude 'build.gradle'
   // That is where the snippets go, not where they come from!
@@ -116,12 +118,21 @@ buildRestTests.docs = fileTree(projectDir) {
   }
 }
 
-listSnippets.docs = buildRestTests.docs
+tasks.named("buildRestTests").configure {
+  docs = docsFileTree
+}
 
-listConsoleCandidates.docs = buildRestTests.docs
+tasks.named("listSnippets").configure {
+  docs = docsFileTree
+}
+
+tasks.named("listConsoleCandidates").configure {
+  docs = docsFileTree
+}
 
 Closure setupMyIndex = { String name, int count ->
-  buildRestTests.setups[name] = '''
+  tasks.named("buildRestTests").configure {
+    setups[name] = '''
   - do:
         indices.create:
           index: my-index-000001
@@ -160,9 +171,10 @@ Closure setupMyIndex = { String name, int count ->
       ip = '10.42.42.42'
       user_id= 'elkbee'
     }
-    buildRestTests.setups[name] += """
+    setups[name] += """
             { "index":{"_id": "$i"} }
             { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "$ip" }, "user": { "id": "$user_id" } }"""
+    }
   }
 }
 setupMyIndex('my_index', 5)
@@ -170,7 +182,8 @@ setupMyIndex('my_index_big', 120)
 setupMyIndex('my_index_huge', 1200)
 
 // Used for several full-text search and agg examples
-buildRestTests.setups['messages'] = '''
+tasks.named("buildRestTests").configure {
+  setups['messages'] = '''
   - do:
         indices.create:
           index: my-index-000001
@@ -195,7 +208,7 @@ buildRestTests.setups['messages'] = '''
             {"message": "some message with the number 4"}'''
 
 // Used for EQL
-buildRestTests.setups['sec_logs'] = '''
+  setups['sec_logs'] = '''
   - do:
         indices.create:
           index: my-index-000001
@@ -221,7 +234,7 @@ buildRestTests.setups['sec_logs'] = '''
             {"index":{}}
             {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}'''
 
-buildRestTests.setups['host'] = '''
+  setups['host'] = '''
   # Fetch the http host. We use the host of the master because we know there will always be a master.
   - do:
       cluster.state: {}
@@ -233,7 +246,7 @@ buildRestTests.setups['host'] = '''
   - set: {nodes.$master.transport.publish_address: transport_host}
 '''
 
-buildRestTests.setups['node'] = '''
+  setups['node'] = '''
   # Fetch the node name. We use the host of the master because we know there will always be a master.
   - do:
       cluster.state: {}
@@ -242,7 +255,7 @@ buildRestTests.setups['node'] = '''
 '''
 
 // Used by scripted metric docs
-buildRestTests.setups['ledger'] = '''
+  setups['ledger'] = '''
   - do:
         indices.create:
           index: ledger
@@ -273,7 +286,7 @@ buildRestTests.setups['ledger'] = '''
             {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "advertisement"}'''
 
 // Used by aggregation docs
-buildRestTests.setups['sales'] = '''
+  setups['sales'] = '''
   - do:
         indices.create:
           index: sales
@@ -306,7 +319,7 @@ buildRestTests.setups['sales'] = '''
             {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}'''
 
 // Used by cumulative cardinality aggregation docs
-buildRestTests.setups['user_hits'] = '''
+  setups['user_hits'] = '''
   - do:
         indices.create:
           index: user_hits
@@ -342,7 +355,7 @@ buildRestTests.setups['user_hits'] = '''
 
 
 // Fake bank account data used by getting-started.asciidoc
-buildRestTests.setups['bank'] = '''
+  setups['bank'] = '''
   - do:
         indices.create:
           index: bank
@@ -357,21 +370,21 @@ buildRestTests.setups['bank'] = '''
           body: |
 #bank_data#
 '''
-/* Load the actual accounts only if we're going to use them. This complicates
- * dependency checking but that is a small price to pay for not building a
- * 400kb string every time we start the build. */
-File accountsFile = new File("$projectDir/src/test/resources/accounts.json")
-buildRestTests.inputs.file(accountsFile)
-buildRestTests.doFirst {
-  String accounts = accountsFile.getText('UTF-8')
-  // Indent like a yaml test needs
-  accounts = accounts.replaceAll('(?m)^', '            ')
-  buildRestTests.setups['bank'] =
-    buildRestTests.setups['bank'].replace('#bank_data#', accounts)
-}
+  /* Load the actual accounts only if we're going to use them. This complicates
+   * dependency checking but that is a small price to pay for not building a
+   * 400kb string every time we start the build. */
+  File accountsFile = new File("$projectDir/src/test/resources/accounts.json")
+  inputs.file(accountsFile)
+  doFirst {
+    String accounts = accountsFile.getText('UTF-8')
+    // Indent like a yaml test needs
+    accounts = accounts.replaceAll('(?m)^', '            ')
+    setups['bank'] =
+            setups['bank'].replace('#bank_data#', accounts)
+  }
 
 // Used by sampler and diversified-sampler aggregation docs
-buildRestTests.setups['stackoverflow'] = '''
+  setups['stackoverflow'] = '''
   - do:
         indices.create:
           index: stackoverflow
@@ -396,35 +409,35 @@ buildRestTests.setups['stackoverflow'] = '''
 // Make JavaScript strongly connected to jquery and angular
 // Make Cabana strongly connected to elasticsearch but only as a result of a single author
 
-for (int i = 0; i < 150; i++) {
-  buildRestTests.setups['stackoverflow'] += """
+  for (int i = 0; i < 150; i++) {
+    setups['stackoverflow'] += """
             {"index":{}}
             {"author": "very_relevant_$i", "tags": ["elasticsearch", "kibana"]}"""
-}
-for (int i = 0; i < 50; i++) {
-  buildRestTests.setups['stackoverflow'] += """
+  }
+  for (int i = 0; i < 50; i++) {
+    setups['stackoverflow'] += """
             {"index":{}}
             {"author": "very_relevant_$i", "tags": ["logstash", "kibana"]}"""
-}
-for (int i = 0; i < 200; i++) {
-  buildRestTests.setups['stackoverflow'] += """
+  }
+  for (int i = 0; i < 200; i++) {
+    setups['stackoverflow'] += """
             {"index":{}}
             {"author": "partially_relevant_$i", "tags": ["javascript", "jquery"]}"""
-}
-for (int i = 0; i < 200; i++) {
-  buildRestTests.setups['stackoverflow'] += """
+  }
+  for (int i = 0; i < 200; i++) {
+    setups['stackoverflow'] += """
             {"index":{}}
             {"author": "partially_relevant_$i", "tags": ["javascript", "angular"]}"""
-}
-for (int i = 0; i < 50; i++) {
-  buildRestTests.setups['stackoverflow'] += """
+  }
+  for (int i = 0; i < 50; i++) {
+    setups['stackoverflow'] += """
             {"index":{}}
             {"author": "noisy author", "tags": ["elasticsearch", "cabana"]}"""
-}
-buildRestTests.setups['stackoverflow'] += """
+  }
+  setups['stackoverflow'] += """
 """
 // Used by significant_text aggregation docs
-buildRestTests.setups['news'] = '''
+  setups['news'] = '''
   - do:
         indices.create:
           index: news
@@ -449,36 +462,36 @@ buildRestTests.setups['news'] = '''
 
 // Make h5n1 strongly connected to bird flu
 
-for (int i = 0; i < 100; i++) {
-  buildRestTests.setups['news'] += """
+  for (int i = 0; i < 100; i++) {
+    setups['news'] += """
             {"index":{}}
             {"source": "very_relevant_$i", "content": "bird flu h5n1"}"""
-}
-for (int i = 0; i < 100; i++) {
-  buildRestTests.setups['news'] += """
+  }
+  for (int i = 0; i < 100; i++) {
+    setups['news'] += """
             {"index":{}}
             {"source": "filler_$i", "content": "bird dupFiller "}"""
-}
-for (int i = 0; i < 100; i++) {
-  buildRestTests.setups['news'] += """
+  }
+  for (int i = 0; i < 100; i++) {
+    setups['news'] += """
             {"index":{}}
             {"source": "filler_$i", "content": "flu dupFiller "}"""
-}
-for (int i = 0; i < 20; i++) {
-  buildRestTests.setups['news'] += """
+  }
+  for (int i = 0; i < 20; i++) {
+    setups['news'] += """
             {"index":{}}
             {"source": "partially_relevant_$i", "content": "elasticsearch dupFiller dupFiller dupFiller dupFiller pozmantier"}"""
-}
-for (int i = 0; i < 10; i++) {
-  buildRestTests.setups['news'] += """
+  }
+  for (int i = 0; i < 10; i++) {
+    setups['news'] += """
             {"index":{}}
             {"source": "partially_relevant_$i", "content": "elasticsearch logstash kibana"}"""
-}
-buildRestTests.setups['news'] += """
+  }
+  setups['news'] += """
 """
 
 // Used by some aggregations
-buildRestTests.setups['exams'] = '''
+  setups['exams'] = '''
   - do:
         indices.create:
           index: exams
@@ -500,7 +513,7 @@ buildRestTests.setups['exams'] = '''
             {"index":{}}
             {"grade": 50, "weight": 3}'''
 
-buildRestTests.setups['stored_example_script'] = '''
+  setups['stored_example_script'] = '''
   # Simple script to load a field. Not really a good example, but a simple one.
   - do:
       put_script:
@@ -509,7 +522,7 @@ buildRestTests.setups['stored_example_script'] = '''
   - match: { acknowledged: true }
 '''
 
-buildRestTests.setups['stored_scripted_metric_script'] = '''
+  setups['stored_scripted_metric_script'] = '''
   - do:
       put_script:
         id: "my_init_script"
@@ -536,7 +549,7 @@ buildRestTests.setups['stored_scripted_metric_script'] = '''
 '''
 
 // Used by analyze api
-buildRestTests.setups['analyze_sample'] = '''
+  setups['analyze_sample'] = '''
   - do:
         indices.create:
           index: analyze_sample
@@ -554,8 +567,8 @@ buildRestTests.setups['analyze_sample'] = '''
                 obj1.field1:
                   type: text'''
 
-// Used by percentile/percentile-rank aggregations
-buildRestTests.setups['latency'] = '''
+  // Used by percentile/percentile-rank aggregations
+  setups['latency'] = '''
   - do:
         indices.create:
           index: latency
@@ -574,18 +587,18 @@ buildRestTests.setups['latency'] = '''
           body: |'''
 
 
-for (int i = 0; i < 100; i++) {
-  def value = i
-  if (i % 10) {
-    value = i * 10
-  }
-  buildRestTests.setups['latency'] += """
+  for (int i = 0; i < 100; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    setups['latency'] += """
             {"index":{}}
             {"load_time": "$value"}"""
-}
+  }
 
-// Used by t_test aggregations
-buildRestTests.setups['node_upgrade'] = '''
+  // Used by t_test aggregations
+  setups['node_upgrade'] = '''
   - do:
         indices.create:
           index: node_upgrade
@@ -619,8 +632,8 @@ buildRestTests.setups['node_upgrade'] = '''
             {"index":{}}
             {"group": "B", "startup_time_before": 99, "startup_time_after": 98}'''
 
-// Used by iprange agg
-buildRestTests.setups['iprange'] = '''
+  // Used by iprange agg
+  setups['iprange'] = '''
   - do:
         indices.create:
           index: ip_addresses
@@ -639,24 +652,24 @@ buildRestTests.setups['iprange'] = '''
           body: |'''
 
 
-for (int i = 0; i < 255; i++) {
-  buildRestTests.setups['iprange'] += """
+  for (int i = 0; i < 255; i++) {
+    setups['iprange'] += """
             {"index":{}}
             {"ip": "10.0.0.$i"}"""
-}
-for (int i = 0; i < 5; i++) {
-  buildRestTests.setups['iprange'] += """
+  }
+  for (int i = 0; i < 5; i++) {
+    setups['iprange'] += """
             {"index":{}}
             {"ip": "9.0.0.$i"}"""
-  buildRestTests.setups['iprange'] += """
+    setups['iprange'] += """
             {"index":{}}
             {"ip": "11.0.0.$i"}"""
-  buildRestTests.setups['iprange'] += """
+    setups['iprange'] += """
             {"index":{}}
             {"ip": "12.0.0.$i"}"""
-}
-// Used by SQL because it looks SQL-ish
-buildRestTests.setups['library'] = '''
+  }
+  // Used by SQL because it looks SQL-ish
+  setups['library'] = '''
   - do:
         indices.create:
           index: library
@@ -735,7 +748,7 @@ buildRestTests.setups['library'] = '''
             {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
 
 '''
-buildRestTests.setups['sensor_rollup_job'] = '''
+  setups['sensor_rollup_job'] = '''
   - do:
       indices.create:
         index: sensor-1
@@ -785,7 +798,7 @@ buildRestTests.setups['sensor_rollup_job'] = '''
                 ]
             }
 '''
-buildRestTests.setups['sensor_started_rollup_job'] = '''
+  setups['sensor_started_rollup_job'] = '''
   - do:
       indices.create:
         index: sensor-1
@@ -859,7 +872,7 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
         path: _rollup/job/sensor/_start
 '''
 
-buildRestTests.setups['sensor_index'] = '''
+  setups['sensor_index'] = '''
   - do:
       indices.create:
         index: sensor-1
@@ -889,7 +902,7 @@ buildRestTests.setups['sensor_index'] = '''
                 type: keyword
 '''
 
-buildRestTests.setups['sensor_prefab_data'] = '''
+  setups['sensor_prefab_data'] = '''
   - do:
       indices.create:
         index: sensor-1
@@ -987,7 +1000,7 @@ buildRestTests.setups['sensor_prefab_data'] = '''
           {"node.terms.value":"c","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.0,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516294800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
 
 '''
-buildRestTests.setups['sample_job'] = '''
+  setups['sample_job'] = '''
   - do:
       ml.put_job:
         job_id: "sample_job"
@@ -1007,7 +1020,7 @@ buildRestTests.setups['sample_job'] = '''
             }
           }
 '''
-buildRestTests.setups['farequote_index'] = '''
+  setups['farequote_index'] = '''
   - do:
         indices.create:
           index: farequote
@@ -1027,7 +1040,7 @@ buildRestTests.setups['farequote_index'] = '''
                   doc_count:
                      type: integer
 '''
-buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index'] + '''
+  setups['farequote_data'] = setups['farequote_index'] + '''
   - do:
         bulk:
           index: farequote
@@ -1040,7 +1053,7 @@ buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index
             {"index": {"_id":"3"}}
             {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000", "doc_count": 42}
 '''
-buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data'] + '''
+  setups['farequote_job'] = setups['farequote_data'] + '''
   - do:
       ml.put_job:
         job_id: "farequote"
@@ -1060,7 +1073,7 @@ buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data']
             }
           }
 '''
-buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_job'] + '''
+  setups['farequote_datafeed'] = setups['farequote_job'] + '''
   - do:
       ml.put_datafeed:
         datafeed_id: "datafeed-farequote"
@@ -1070,7 +1083,7 @@ buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_j
           "indexes":"farequote"
           }
 '''
-buildRestTests.setups['server_metrics_index'] = '''
+  setups['server_metrics_index'] = '''
   - do:
         indices.create:
           index: server-metrics
@@ -1085,7 +1098,7 @@ buildRestTests.setups['server_metrics_index'] = '''
                 total:
                   type: long
 '''
-buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_metrics_index'] + '''
+  setups['server_metrics_data'] = setups['server_metrics_index'] + '''
   - do:
         bulk:
           index: server-metrics
@@ -1122,7 +1135,7 @@ buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_met
             {"index": {"_id":"1191"}}
             {"timestamp":"2017-03-23T13:00:00","total":31659}
 '''
-buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metrics_data'] + '''
+  setups['server_metrics_job'] = setups['server_metrics_data'] + '''
   - do:
       ml.put_job:
         job_id: "total-requests"
@@ -1144,7 +1157,7 @@ buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metr
             }
           }
 '''
-buildRestTests.setups['server_metrics_job-raw'] = buildRestTests.setups['server_metrics_data'] + '''
+  setups['server_metrics_job-raw'] = setups['server_metrics_data'] + '''
   - do:
       raw:
         method: PUT
@@ -1167,7 +1180,7 @@ buildRestTests.setups['server_metrics_job-raw'] = buildRestTests.setups['server_
             }
           }
 '''
-buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server_metrics_job'] + '''
+  setups['server_metrics_datafeed'] = setups['server_metrics_job'] + '''
   - do:
       ml.put_datafeed:
         datafeed_id: "datafeed-total-requests"
@@ -1177,7 +1190,7 @@ buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server
           "indexes":"server-metrics"
           }
 '''
-buildRestTests.setups['server_metrics_datafeed-raw'] = buildRestTests.setups['server_metrics_job-raw'] + '''
+  setups['server_metrics_datafeed-raw'] = setups['server_metrics_job-raw'] + '''
   - do:
       raw:
         method: PUT
@@ -1188,28 +1201,28 @@ buildRestTests.setups['server_metrics_datafeed-raw'] = buildRestTests.setups['se
           "indexes":"server-metrics"
           }
 '''
-buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_metrics_datafeed'] + '''
+  setups['server_metrics_openjob'] = setups['server_metrics_datafeed'] + '''
   - do:
       ml.open_job:
         job_id: "total-requests"
 '''
-buildRestTests.setups['server_metrics_openjob-raw'] = buildRestTests.setups['server_metrics_datafeed-raw'] + '''
+  setups['server_metrics_openjob-raw'] = setups['server_metrics_datafeed-raw'] + '''
   - do:
       raw:
         method: POST
         path: _ml/anomaly_detectors/total-requests/_open
 '''
-buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
+  setups['server_metrics_startdf'] = setups['server_metrics_openjob'] + '''
   - do:
       ml.start_datafeed:
         datafeed_id: "datafeed-total-requests"
 '''
-buildRestTests.setups['calendar_outages'] = '''
+  setups['calendar_outages'] = '''
   - do:
         ml.put_calendar:
           calendar_id: "planned-outages"
 '''
-buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages'] + '''
+  setups['calendar_outages_addevent'] = setups['calendar_outages'] + '''
   - do:
         ml.post_calendar_events:
           calendar_id: "planned-outages"
@@ -1218,12 +1231,12 @@ buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['cale
 
 
 '''
-buildRestTests.setups['calendar_outages_openjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
+  setups['calendar_outages_openjob'] = setups['server_metrics_openjob'] + '''
   - do:
        ml.put_calendar:
          calendar_id: "planned-outages"
 '''
-buildRestTests.setups['calendar_outages_addjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
+  setups['calendar_outages_addjob'] = setups['server_metrics_openjob'] + '''
   - do:
        ml.put_calendar:
          calendar_id: "planned-outages"
@@ -1232,7 +1245,7 @@ buildRestTests.setups['calendar_outages_addjob'] = buildRestTests.setups['server
            "job_ids": ["total-requests"]
            }
 '''
-buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages_addjob'] + '''
+  setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
   - do:
        ml.post_calendar_events:
          calendar_id: "planned-outages"
@@ -1245,7 +1258,7 @@ buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['cale
 '''
 
 // used by median absolute deviation aggregation
-buildRestTests.setups['reviews'] = '''
+  setups['reviews'] = '''
   - do:
         indices.create:
           index: reviews
@@ -1269,7 +1282,7 @@ buildRestTests.setups['reviews'] = '''
             {"index": {"_id": "2"}}
             {"product": "widget-foo", "rating": 5}
 '''
-buildRestTests.setups['remote_cluster'] = buildRestTests.setups['host'] + '''
+  setups['remote_cluster'] = setups['host'] + '''
   - do:
       cluster.put_settings:
         body:
@@ -1277,7 +1290,7 @@ buildRestTests.setups['remote_cluster'] = buildRestTests.setups['host'] + '''
             cluster.remote.remote_cluster.seeds: $transport_host
 '''
 
-buildRestTests.setups['remote_cluster_and_leader_index'] = buildRestTests.setups['remote_cluster'] + '''
+  setups['remote_cluster_and_leader_index'] = setups['remote_cluster'] + '''
   - do:
       indices.create:
         index: leader_index
@@ -1288,7 +1301,7 @@ buildRestTests.setups['remote_cluster_and_leader_index'] = buildRestTests.setups
             index.soft_deletes.enabled: true
 '''
 
-buildRestTests.setups['seats'] = '''
+  setups['seats'] = '''
   - do:
         indices.create:
           index: seats
@@ -1321,7 +1334,7 @@ buildRestTests.setups['seats'] = '''
             {"theatre": "Graye", "cost": 33, "row": 2, "number": 6, "sold": false}
             {"index":{"_id": "4"}}
             {"theatre": "Skyline", "cost": 20, "row": 5, "number": 2, "sold": false}'''
-buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
+  setups['kibana_sample_data_ecommerce'] = '''
   - do:
         indices.create:
           index: kibana_sample_data_ecommerce
@@ -1330,7 +1343,7 @@ buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
               number_of_shards: 1
               number_of_replicas: 0
 '''
-buildRestTests.setups['add_timestamp_pipeline'] = '''
+  setups['add_timestamp_pipeline'] = '''
   - do:
       ingest.put_pipeline:
         id: "add_timestamp_pipeline"
@@ -1346,7 +1359,7 @@ buildRestTests.setups['add_timestamp_pipeline'] = '''
             ]
           }
 '''
-buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + buildRestTests.setups['add_timestamp_pipeline']  + '''
+  setups['simple_kibana_continuous_pivot'] = setups['kibana_sample_data_ecommerce'] + setups['add_timestamp_pipeline'] + '''
   - do:
       raw:
         method: PUT
@@ -1393,7 +1406,7 @@ buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups[
             }
           }
 '''
-buildRestTests.setups['setup_logdata'] = '''
+  setups['setup_logdata'] = '''
   - do:
         indices.create:
           index: logdata
@@ -1415,7 +1428,7 @@ buildRestTests.setups['setup_logdata'] = '''
             {"index":{}}
             {"grade": 50, "weight": 3}
 '''
-buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + '''
+  setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + '''
   - do:
       ml.put_data_frame_analytics:
         id: "loganalytics"
@@ -1433,7 +1446,7 @@ buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + 
           }
 '''
 // Used by snapshot lifecycle management docs
-buildRestTests.setups['setup-repository'] = '''
+  setups['setup-repository'] = '''
   - do:
       snapshot.create_repository:
         repository: my_repository
@@ -1444,7 +1457,7 @@ buildRestTests.setups['setup-repository'] = '''
 '''
 
 // Fake sec logs data used by EQL search
-buildRestTests.setups['atomic_red_regsvr32'] = '''
+  setups['atomic_red_regsvr32'] = '''
   - do:
         indices.create:
           index: my-index-000001
@@ -1460,12 +1473,13 @@ buildRestTests.setups['atomic_red_regsvr32'] = '''
 #atomic_red_data#
 '''
 /* Load the actual events only if we're going to use them. */
-File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
-buildRestTests.inputs.file(atomicRedRegsvr32File)
-buildRestTests.doFirst {
-  String events = atomicRedRegsvr32File.getText('UTF-8')
-  // Indent like a yaml test needs
-  events = events.replaceAll('(?m)^', '            ')
-  buildRestTests.setups['atomic_red_regsvr32'] =
-    buildRestTests.setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
+  File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
+  inputs.file(atomicRedRegsvr32File)
+  doFirst {
+    String events = atomicRedRegsvr32File.getText('UTF-8')
+    // Indent like a yaml test needs
+    events = events.replaceAll('(?m)^', '            ')
+    setups['atomic_red_regsvr32'] =
+            setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
+  }
 }

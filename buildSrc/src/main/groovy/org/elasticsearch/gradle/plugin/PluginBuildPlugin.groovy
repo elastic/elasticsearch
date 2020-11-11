@@ -125,7 +125,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                 .extendsFrom(project.configurations.getByName('runtimeClasspath'))
         // allow running ES with this plugin in the foreground of a build
         project.tasks.register('run', RunTask) {
-            dependsOn(project.tasks.bundlePlugin)
+            dependsOn(project.tasks.named("bundlePlugin"))
         }
     }
 

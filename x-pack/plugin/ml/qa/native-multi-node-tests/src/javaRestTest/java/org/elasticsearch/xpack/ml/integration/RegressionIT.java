@@ -482,7 +482,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Finished analysis");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63268")
     public void testAliasFields() throws Exception {
         // The goal of this test is to assert alias fields are included in the analytics job.
         // We have a simple dataset with two integer fields: field_1 and field_2.
@@ -548,7 +547,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
-        waitUntilAnalyticsIsStopped(jobId);
+
+        // This seems to some times take a bit longer than 30 seconds on CI
+        // so we give it a minute.
+        waitUntilAnalyticsIsStopped(jobId, TimeValue.timeValueMinutes(1));
 
         double predictionErrorSum = 0.0;
 

@@ -60,22 +60,12 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask(
-            "delete-autoscaling-policy",
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
-                @Override
-                protected AcknowledgedResponse newResponse(final boolean acknowledged) {
-                    return AcknowledgedResponse.of(acknowledged);
-                }
-
-                @Override
-                public ClusterState execute(final ClusterState currentState) {
-                    return deleteAutoscalingPolicy(currentState, request.name(), logger);
-                }
-
+        clusterService.submitStateUpdateTask("delete-autoscaling-policy", new AckedClusterStateUpdateTask(request, listener) {
+            @Override
+            public ClusterState execute(final ClusterState currentState) {
+                return deleteAutoscalingPolicy(currentState, request.name(), logger);
             }
-        );
+        });
     }
 
     @Override

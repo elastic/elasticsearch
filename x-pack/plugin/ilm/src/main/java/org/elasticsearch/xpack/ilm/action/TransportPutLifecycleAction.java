@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Response;
 import org.elasticsearch.xpack.ilm.IndexLifecycleTransition;
 
 import java.time.Instant;
@@ -59,7 +59,7 @@ import java.util.stream.StreamSupport;
  * This class is responsible for bootstrapping {@link IndexLifecycleMetadata} into the cluster-state, as well
  * as adding the desired new policy to be inserted.
  */
-public class TransportPutLifecycleAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportPutLifecycleAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutLifecycleAction.class);
     private final NamedXContentRegistry xContentRegistry;
@@ -70,13 +70,13 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                        NamedXContentRegistry namedXContentRegistry, Client client) {
         super(PutLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
-            indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
+            indexNameExpressionResolver, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME);
         this.xContentRegistry = namedXContentRegistry;
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
+    protected void masterOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         // headers from the thread context stored by the AuthenticationService to be shared between the
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
@@ -86,12 +86,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),
-                new AckedClusterStateUpdateTask<Response>(request, listener) {
-                    @Override
-                    protected Response newResponse(boolean acknowledged) {
-                        return new Response(acknowledged);
-                    }
-
+                new AckedClusterStateUpdateTask(request, listener) {
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         ClusterState.Builder stateBuilder = ClusterState.builder(currentState);

@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -31,12 +30,12 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     private static AttributeMap<String> threeMap() {
-        Map<Attribute, String> map = new LinkedHashMap<>();
-        map.put(a("one"), "one");
-        map.put(a("two"), "two");
-        map.put(a("three"), "three");
+        AttributeMap.Builder<String> builder = AttributeMap.builder();
+        builder.put(a("one"), "one");
+        builder.put(a("two"), "two");
+        builder.put(a("three"), "three");
 
-        return new AttributeMap<>(map);
+        return builder.build();
     }
 
     public void testAttributeMapWithSameAliasesCanResolveAttributes() {
@@ -50,19 +49,6 @@ public class AttributeMapTests extends ESTestCase {
         assertTrue(param1.toAttribute().equals(param2.toAttribute()));
         assertFalse(param1.toAttribute().semanticEquals(param2.toAttribute()));
 
-        Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
-        for (Alias a : Arrays.asList(param1, param2)) {
-            collectRefs.put(a.toAttribute(), a.child());
-        }
-        // we can look up the same item by both attributes
-        assertNotNull(collectRefs.get(param1.toAttribute()));
-        assertNotNull(collectRefs.get(param2.toAttribute()));
-        AttributeMap<Expression> attributeMap = new AttributeMap<>(collectRefs);
-
-        // validate that all Alias can be e
-        assertTrue(attributeMap.containsKey(param1.toAttribute()));
-        assertFalse(attributeMap.containsKey(param2.toAttribute())); // results in unknown attribute exception
-
         AttributeMap.Builder<Expression> mapBuilder = AttributeMap.builder();
         for (Alias a : Arrays.asList(param1, param2)) {
             mapBuilder.put(a.toAttribute(), a.child());
@@ -70,7 +56,9 @@ public class AttributeMapTests extends ESTestCase {
         AttributeMap<Expression> newAttributeMap = mapBuilder.build();
 
         assertTrue(newAttributeMap.containsKey(param1.toAttribute()));
-        assertTrue(newAttributeMap.containsKey(param2.toAttribute())); // no more unknown attribute exception
+        assertTrue(newAttributeMap.get(param1.toAttribute()) == param1.child());
+        assertTrue(newAttributeMap.containsKey(param2.toAttribute()));
+        assertTrue(newAttributeMap.get(param2.toAttribute()) == param2.child());
     }
 
     private Alias createIntParameterAlias(int index, int value) {
@@ -86,13 +74,13 @@ public class AttributeMapTests extends ESTestCase {
         assertThat(m.isEmpty(), is(true));
     }
 
-    public void testMapConstructor() {
-        Map<Attribute, String> map = new LinkedHashMap<>();
-        map.put(a("one"), "one");
-        map.put(a("two"), "two");
-        map.put(a("three"), "three");
+    public void testBuilder() {
+        AttributeMap.Builder<String> builder = AttributeMap.builder();
+        builder.put(a("one"), "one");
+        builder.put(a("two"), "two");
+        builder.put(a("three"), "three");
 
-        AttributeMap<String> m = new AttributeMap<>(map);
+        AttributeMap<String> m = builder.build();
         assertThat(m.size(), is(3));
         assertThat(m.isEmpty(), is(false));
 
@@ -102,12 +90,7 @@ public class AttributeMapTests extends ESTestCase {
         assertThat(m.containsValue("one"), is(true));
         assertThat(m.containsValue("on"), is(false));
         assertThat(m.attributeNames(), contains("one", "two", "three"));
-        assertThat(m.values(), contains(map.values().toArray()));
-
-        // defensive copying
-        map.put(a("four"), "four");
-        assertThat(m.size(), is(3));
-        assertThat(m.isEmpty(), is(false));
+        assertThat(m.values(), contains("one", "two", "three"));
     }
 
     public void testSingleItemConstructor() {
@@ -165,12 +148,7 @@ public class AttributeMapTests extends ESTestCase {
         Attribute two = a("two");
         Attribute three = a("three");
 
-        Map<Attribute, String> map = new LinkedHashMap<>();
-        map.put(one, "one");
-        map.put(two, "two");
-        map.put(three, "three");
-
-        Set<Attribute> keySet = new AttributeMap<>(map).keySet();
+        Set<Attribute> keySet = threeMap().keySet();
         assertThat(keySet, contains(one, two, three));
 
         // toObject
@@ -193,12 +171,7 @@ public class AttributeMapTests extends ESTestCase {
         Attribute two = a("two");
         Attribute three = a("three");
 
-        Map<Attribute, String> map = new LinkedHashMap<>();
-        map.put(one, "one");
-        map.put(two, "two");
-        map.put(three, "three");
-
-        Set<Entry<Attribute, String>> set = new AttributeMap<>(map).entrySet();
+        Set<Entry<Attribute, String>> set = threeMap().entrySet();
 
         assertThat(set, hasSize(3));
 
@@ -212,12 +185,9 @@ public class AttributeMapTests extends ESTestCase {
         assertThat(values, contains("one", "two", "three"));
     }
 
-    public void testForEach() {
+    public void testCopy() {
         AttributeMap<String> m = threeMap();
-
-        Map<Attribute, String> collect = new LinkedHashMap<>();
-        m.forEach(collect::put);
-        AttributeMap<String> copy = new AttributeMap<>(collect);
+        AttributeMap<String> copy = AttributeMap.<String>builder().putAll(m).build();
 
         assertThat(m, is(copy));
     }

@@ -27,15 +27,12 @@ import static java.util.Collections.singletonMap;
 
 public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin, ActionPlugin, SearchPlugin {
 
-    public AggregateMetricMapperPlugin() { }
+    public AggregateMetricMapperPlugin() {}
 
     @Override
     public Collection<Module> createGuiceModules() {
-        return Collections.singletonList(b -> {
-            XPackPlugin.bindFeatureSet(b, AggregateMetricFeatureSet.class);
-        });
+        return Collections.singletonList(b -> { XPackPlugin.bindFeatureSet(b, AggregateMetricFeatureSet.class); });
     }
-
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {

@@ -73,6 +73,8 @@ RUN curl --retry 8 -S -L \\
 """.trim()
   }
 
+  def (major,minor) = VersionProperties.elasticsearch.split("\\.")
+
   return [
     'base_image'          : base.getImage(),
     'bin_dir'             : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
@@ -84,7 +86,8 @@ RUN curl --retry 8 -S -L \\
     'package_manager'     : base == DockerBase.UBI ? 'microdnf' : 'yum',
     'source_elasticsearch': sourceElasticsearch,
     'docker_base'         : base.name().toLowerCase(),
-    'version'             : VersionProperties.elasticsearch
+    'version'             : VersionProperties.elasticsearch,
+    'major_minor_version' : "${major}.${minor}"
   ]
 }
 

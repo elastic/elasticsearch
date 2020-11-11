@@ -29,9 +29,9 @@ visiting [Elastic Community](https://www.elastic.co/community).
 
 
 This software is governed by the [Elastic
-License](https://github.com/elastic/elasticsearch/blob/7.8/licenses/ELASTIC-LICENSE.txt),
+License](https://github.com/elastic/elasticsearch/blob/${major_minor_version}/licenses/ELASTIC-LICENSE.txt),
 and includes the full set of [free
 features](https://www.elastic.co/subscriptions).
 
 View the detailed release notes
-[here](https://www.elastic.co/guide/en/elasticsearch/reference/7.8/es-release-notes.html).
+[here](https://www.elastic.co/guide/en/elasticsearch/reference/${major_minor_version}/es-release-notes.html).

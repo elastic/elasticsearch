@@ -20,12 +20,14 @@ import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -77,6 +79,7 @@ public class AutoscalingCalculateCapacityService {
         if (hasUnknownRoles(policy)) {
             return new AutoscalingDeciderResults(
                 AutoscalingCapacity.ZERO,
+                Collections.emptySortedSet(),
                 new TreeMap<>(Map.of("_unknown_role", new AutoscalingDeciderResult(null, null)))
             );
         }
@@ -86,7 +89,7 @@ public class AutoscalingCalculateCapacityService {
             .stream()
             .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getValue(), context)))
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new UnsupportedOperationException(); }, TreeMap::new));
-        return new AutoscalingDeciderResults(context.currentCapacity, results);
+        return new AutoscalingDeciderResults(context.currentCapacity, context.currentNodes, results);
     }
 
     /**
@@ -112,6 +115,7 @@ public class AutoscalingCalculateCapacityService {
         private final SortedSet<DiscoveryNodeRole> roles;
         private final ClusterState state;
         private final ClusterInfo clusterInfo;
+        private final SortedSet<DiscoveryNode> currentNodes;
         private final AutoscalingCapacity currentCapacity;
         private final boolean currentCapacityAccurate;
 
@@ -121,6 +125,9 @@ public class AutoscalingCalculateCapacityService {
             Objects.requireNonNull(clusterInfo);
             this.state = state;
             this.clusterInfo = clusterInfo;
+            this.currentNodes = StreamSupport.stream(state.nodes().spliterator(), false)
+                .filter(this::rolesFilter)
+                .collect(Collectors.toCollection(() -> new TreeSet<>(AutoscalingDeciderResults.DISCOVERY_NODE_COMPARATOR)));
             this.currentCapacity = calculateCurrentCapacity();
             this.currentCapacityAccurate = calculateCurrentCapacityAccurate();
         }
@@ -141,13 +148,11 @@ public class AutoscalingCalculateCapacityService {
 
         @Override
         public Set<DiscoveryNode> nodes() {
-            return StreamSupport.stream(state.nodes().spliterator(), false).filter(this::rolesFilter).collect(Collectors.toSet());
+            return currentNodes;
         }
 
         private boolean calculateCurrentCapacityAccurate() {
-            return StreamSupport.stream(state.nodes().spliterator(), false)
-                .filter(this::rolesFilter)
-                .allMatch(this::nodeHasAccurateCapacity);
+            return currentNodes.stream().allMatch(this::nodeHasAccurateCapacity);
         }
 
         private boolean nodeHasAccurateCapacity(DiscoveryNode node) {
@@ -156,8 +161,7 @@ public class AutoscalingCalculateCapacityService {
         }
 
         private AutoscalingCapacity calculateCurrentCapacity() {
-            return StreamSupport.stream(state.nodes().spliterator(), false)
-                .filter(this::rolesFilter)
+            return currentNodes.stream()
                 .map(this::resourcesFor)
                 .map(c -> new AutoscalingCapacity(c, c))
                 .reduce(

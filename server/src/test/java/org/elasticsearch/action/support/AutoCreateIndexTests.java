@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class AutoCreateIndexTests extends ESTestCase {
 
@@ -198,7 +200,7 @@ public class AutoCreateIndexTests extends ESTestCase {
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AutoCreateIndex autoCreateIndex = new AutoCreateIndex(settings, clusterSettings,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            new SystemIndices(Map.of()));
+            new SystemIndices(Map.of(), mock(Client.class)));
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value));
 
         Settings newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), !value).build();
@@ -329,7 +331,10 @@ public class AutoCreateIndexTests extends ESTestCase {
     }
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
-        SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, ""))));
+        SystemIndices systemIndices = new SystemIndices(
+            Map.of("plugin", List.of(SystemIndexDescriptor.builder().setIndexPattern(TEST_SYSTEM_INDEX_NAME).setDescription("").build())),
+            null
+        );
         return new AutoCreateIndex(settings, new ClusterSettings(settings,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), systemIndices);
     }

@@ -107,7 +107,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).checkIndexStateThenExecute(any(Consumer.class), any(Runnable.class));
         Mockito.doAnswer(invocationOnMock -> {
             assertThat(invocationOnMock.getArguments().length, equalTo(2));
             assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));

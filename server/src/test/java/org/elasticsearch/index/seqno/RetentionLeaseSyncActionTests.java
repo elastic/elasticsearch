@@ -20,6 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -109,7 +110,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
                 new IndexingPressure(Settings.EMPTY),
-                new SystemIndices(Map.of()));
+                new SystemIndices(Map.of(), mock(Client.class)));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
         action.dispatchedShardOperationOnPrimary(request, indexShard,
@@ -147,7 +148,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
                 new IndexingPressure(Settings.EMPTY),
-                new SystemIndices(Map.of()));
+                new SystemIndices(Map.of(), mock(Client.class)));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
@@ -187,7 +188,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
                 new IndexingPressure(Settings.EMPTY),
-                new SystemIndices(Map.of()));
+                new SystemIndices(Map.of(), mock(Client.class)));
 
         assertNull(action.indexBlockLevel());
     }

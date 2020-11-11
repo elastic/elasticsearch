@@ -700,9 +700,11 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(
-            new SystemIndexDescriptor(Watch.INDEX, "Contains Watch definitions"),
-            new SystemIndexDescriptor(TriggeredWatchStoreField.INDEX_NAME, "Used to track current and queued Watch execution")
+        return List.of(SystemIndexDescriptor.builder().setIndexPattern(Watch.INDEX)
+                .setDescription("Contains Watch definitions")
+                .build(), SystemIndexDescriptor.builder().setIndexPattern(TriggeredWatchStoreField.INDEX_NAME)
+                .setDescription("Used to track current and queued Watch execution")
+                .build()
         );
     }
 }

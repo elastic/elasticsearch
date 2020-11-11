@@ -229,13 +229,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(
-            new SystemIndexDescriptor(
-                SNAPSHOT_BLOB_CACHE_INDEX,
-                "Contains cached data of blob store repositories",
-                getIndexMappings(),
-                getIndexSettings()
-            )
+        return List.of(SystemIndexDescriptor.builder().setIndexPattern(SNAPSHOT_BLOB_CACHE_INDEX)
+                .setDescription("Contains cached data of blob store repositories")
+                .setMappings(getIndexMappings())
+                .setSettings(getIndexSettings())
+                .build()
         );
     }
 

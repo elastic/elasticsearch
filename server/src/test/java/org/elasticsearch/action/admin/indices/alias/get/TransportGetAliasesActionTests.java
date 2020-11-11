@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -30,11 +31,13 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class TransportGetAliasesActionTests extends ESTestCase {
-    private final SystemIndices EMPTY_SYSTEM_INDICES = new SystemIndices(Collections.emptyMap());
+    private final SystemIndices EMPTY_SYSTEM_INDICES = new SystemIndices(Map.of(), mock(Client.class));
 
     public void testPostProcess() {
         GetAliasesRequest request = new GetAliasesRequest();
@@ -162,8 +165,13 @@ public class TransportGetAliasesActionTests extends ESTestCase {
 
     public void testDeprecationWarningEmittedWhenRequestingNonExistingAliasInSystemPattern() {
         ClusterState state = systemIndexTestClusterState();
-        SystemIndices systemIndices = new SystemIndices(Collections.singletonMap(this.getTestName(),
-            Collections.singletonList(new SystemIndexDescriptor(".y", "an index that doesn't exist"))));
+        SystemIndices systemIndices = new SystemIndices(
+            Map.of(
+                this.getTestName(),
+                List.of(SystemIndexDescriptor.builder().setIndexPattern(".y").setDescription("an index that doesn't exist").build())
+            ),
+            mock(Client.class)
+        );
 
         GetAliasesRequest request = new GetAliasesRequest(".y");
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()

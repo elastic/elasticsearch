@@ -140,7 +140,9 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "System indices for tests"));
+            return Collections.singletonList(SystemIndexDescriptor.builder().setIndexPattern(SYSTEM_INDEX_NAME)
+                    .setDescription("System indices for tests")
+                    .build());
         }
 
         public static class AddDocRestHandler extends BaseRestHandler {

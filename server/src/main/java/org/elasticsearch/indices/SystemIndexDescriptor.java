@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +35,10 @@ public class SystemIndexDescriptor {
     private final CharacterRunAutomaton indexPatternAutomaton;
     private final String mappings;
     private final Settings settings;
+    private final String aliasName;
+    private final int indexFormat;
+    private final String versionMetaKey;
+    private final String origin;
 
     /**
      * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
@@ -50,6 +55,17 @@ public class SystemIndexDescriptor {
      * @param settings The settings to apply to this index when auto-creating, if appropriate
      */
     public SystemIndexDescriptor(String indexPattern, String description, String mappings, Settings settings) {
+        this(indexPattern, description, mappings, settings, null, 0, null, null);
+    }
+
+    /**
+     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
+     * @param description The name of the plugin responsible for this system index.
+     * @param mappings The mappings to apply to this index when auto-creating, if appropriate
+     * @param settings The settings to apply to this index when auto-creating, if appropriate
+     */
+    public SystemIndexDescriptor(String indexPattern, String description, String mappings, Settings settings, String aliasName,
+                                 int indexFormat, String versionMetaKey, String origin) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
             throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
@@ -63,11 +79,23 @@ public class SystemIndexDescriptor {
             throw new IllegalArgumentException("system index pattern provided as [" + indexPattern +
                 "] but must not start with the character sequence [.*] to prevent conflicts");
         }
+        if (indexFormat < 0) {
+            throw new IllegalArgumentException("Index format cannot be negative");
+        }
         this.indexPattern = indexPattern;
-        this.indexPatternAutomaton = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(indexPattern));
+
+        final Automaton automaton = aliasName == null
+            ? Regex.simpleMatchToAutomaton(indexPattern)
+            : Regex.simpleMatchToAutomaton(indexPattern, aliasName);
+        this.indexPatternAutomaton = new CharacterRunAutomaton(automaton);
+
         this.description = description;
         this.mappings = mappings;
         this.settings = settings;
+        this.aliasName = aliasName;
+        this.indexFormat = indexFormat;
+        this.versionMetaKey = versionMetaKey;
+        this.origin = origin;
     }
 
     /**
@@ -106,7 +134,86 @@ public class SystemIndexDescriptor {
         return settings;
     }
 
+    public String getAliasName() {
+        return aliasName;
+    }
+
+    public int getIndexFormat() {
+        return this.indexFormat;
+    }
+
+    public String getVersionMetaKey() {
+        return this.versionMetaKey;
+    }
+
+    public boolean shouldAutoCreate() {
+        return this.mappings != null || this.settings != null;
+    }
+
+    public String getOrigin() {
+        return this.origin;
+    }
+
     // TODO: Index settings and mapping
     // TODO: getThreadpool()
     // TODO: Upgrade handling (reindex script?)
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private String indexPattern;
+        private String description;
+        private String mappings = null;
+        private Settings settings = null;
+        private String aliasName = null;
+        private int indexFormat = 0;
+        private String versionMetaKey = null;
+        private String origin = null;
+
+        public Builder setIndexPattern(String indexPattern) {
+            this.indexPattern = indexPattern;
+            return this;
+        }
+
+        public Builder setDescription(String description) {
+            this.description = description;
+            return this;
+        }
+
+        public Builder setMappings(String mappings) {
+            this.mappings = mappings;
+            return this;
+        }
+
+        public Builder setSettings(Settings settings) {
+            this.settings = settings;
+            return this;
+        }
+
+        public Builder setAliasName(String aliasName) {
+            this.aliasName = aliasName;
+            return this;
+        }
+
+        public Builder setIndexFormat(int indexFormat) {
+            this.indexFormat = indexFormat;
+            return this;
+        }
+
+        public Builder setVersionMetaKey(String versionMetaKey) {
+            this.versionMetaKey = versionMetaKey;
+            return this;
+        }
+
+        public Builder setOrigin(String origin) {
+            this.origin = origin;
+            return this;
+        }
+
+        public SystemIndexDescriptor build() {
+            return new SystemIndexDescriptor(indexPattern, description, mappings, settings, aliasName, indexFormat, versionMetaKey, origin);
+        }
+    }
 }

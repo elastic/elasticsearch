@@ -494,7 +494,7 @@ public class Node implements Closeable {
                 .collect(Collectors.toUnmodifiableMap(
                     plugin -> plugin.getClass().getSimpleName(),
                     plugin -> plugin.getSystemIndexDescriptors(settings)));
-            final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
+            final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap, client);
 
             final RerouteService rerouteService
                 = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);

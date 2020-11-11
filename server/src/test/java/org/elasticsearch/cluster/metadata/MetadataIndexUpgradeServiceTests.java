@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class MetadataIndexUpgradeServiceTests extends ESTestCase {
 
@@ -161,7 +163,13 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            new SystemIndices(Map.of("system-plugin", List.of(new SystemIndexDescriptor(".system", "a system index")))),
+            new SystemIndices(
+                Map.of(
+                    "system-plugin",
+                    List.of(SystemIndexDescriptor.builder().setIndexPattern(".system").setDescription("a system index").build())
+                ),
+                mock(Client.class)
+            ),
             null
         );
     }

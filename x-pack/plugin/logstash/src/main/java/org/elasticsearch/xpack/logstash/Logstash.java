@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.logstash.rest.RestPutPipelineAction;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -81,17 +80,18 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(
-            new SystemIndexDescriptor(
-                LOGSTASH_CONCRETE_INDEX_NAME,
-                "Contains data for Logstash Central Management",
-                buildMappings(),
-                buildSettings()
-            )
+        return List.of(
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(LOGSTASH_CONCRETE_INDEX_NAME)
+                .setDescription("Contains data for Logstash Central Management")
+                .setMappings(getIndexMappings())
+                .setSettings(getIndexSettings())
+                .setVersionMetaKey("logstash-version")
+                .build()
         );
     }
 
-    private Settings buildSettings() {
+    private Settings getIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
@@ -99,7 +99,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private String buildMappings() {
+    private String getIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
             {

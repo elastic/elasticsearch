@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -369,7 +370,7 @@ public class TransportWriteActionTests extends ESTestCase {
                     new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                         x -> null, null, Collections.emptySet()), TransportWriteActionTests.this.clusterService, null, null, null,
                 new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ignore -> ThreadPool.Names.SAME, false,
-                new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of()));
+                new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of(), mock(Client.class)));
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
         }
@@ -379,7 +380,7 @@ public class TransportWriteActionTests extends ESTestCase {
             super(settings, actionName, transportService, clusterService,
                     mockIndicesService(clusterService), threadPool, shardStateAction,
                     new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ignore -> ThreadPool.Names.SAME, false,
-                    new IndexingPressure(settings), new SystemIndices(Map.of()));
+                    new IndexingPressure(settings), new SystemIndices(Map.of(), mock(Client.class)));
             this.withDocumentFailureOnPrimary = false;
             this.withDocumentFailureOnReplica = false;
         }

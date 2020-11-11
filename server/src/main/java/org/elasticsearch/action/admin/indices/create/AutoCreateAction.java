@@ -18,13 +18,16 @@
  */
 package org.elasticsearch.action.admin.indices.create;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,12 +51,15 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
  */
 public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
+
+    private static final Logger logger = LogManager.getLogger(AutoCreateAction.class);
 
     public static final AutoCreateAction INSTANCE = new AutoCreateAction();
     public static final String NAME = "indices:admin/auto_create";
@@ -146,28 +152,61 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             return currentState;
                         }
 
-                        CreateIndexClusterStateUpdateRequest updateRequest =
-                            new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
-                                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
-
-                        if (indexName.charAt(0) == '.') {
-                            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-
-                            if (descriptor != null) {
-                                String mappings = descriptor.getMappings();
-                                Settings settings = descriptor.getSettings();
-
-                                if (mappings != null) {
-                                    updateRequest.mappings(mappings);
-                                }
-                                if (settings != null) {
-                                    updateRequest.settings(settings);
-                                }
-                            }
-                        }
+                        CreateIndexClusterStateUpdateRequest updateRequest = buildUpdateRequest(indexName);
 
                         return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
                     }
+                }
+
+                private CreateIndexClusterStateUpdateRequest buildUpdateRequest(String indexName) {
+                    boolean isSystemIndex = false;
+                    String mappings = null;
+                    Settings settings = null;
+                    String aliasName = null;
+                    String concreteIndexName = indexName;
+
+                    if (indexName.charAt(0) == '.') {
+                        final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+
+                        if (descriptor != null) {
+                            logger.warn("Matched a system index descriptor");
+                            isSystemIndex = true;
+
+                            mappings = descriptor.getMappings();
+                            settings = descriptor.getSettings();
+                            aliasName = descriptor.getAliasName();
+
+                            if (aliasName != null) {
+                                concreteIndexName = descriptor.getIndexPattern();
+                            }
+                        }
+                    }
+
+                    CreateIndexClusterStateUpdateRequest updateRequest =
+                        new CreateIndexClusterStateUpdateRequest(request.cause(), concreteIndexName, request.index())
+                            .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+
+                    if (isSystemIndex) {
+                        updateRequest.waitForActiveShards(ActiveShardCount.ALL);
+                    }
+
+                    if (mappings != null) {
+                        updateRequest.mappings(mappings);
+                    }
+                    if (settings != null) {
+                        updateRequest.settings(settings);
+                    }
+                    if (aliasName != null) {
+                        updateRequest.aliases(Set.of(new Alias(aliasName)));
+                    }
+
+                    if (isSystemIndex) {
+                        logger.info("Auto-creating system index {}", concreteIndexName);
+                    } else {
+                        logger.debug("Auto-creating index {}", concreteIndexName);
+                    }
+
+                    return updateRequest;
                 }
             });
         }

@@ -57,8 +57,11 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(
-            new SystemIndexDescriptor(XPackPlugin.ASYNC_RESULTS_INDEX, this.getClass().getSimpleName(), getMappings(), getIndexSettings())
+        return Collections.singletonList(SystemIndexDescriptor.builder().setIndexPattern(XPackPlugin.ASYNC_RESULTS_INDEX)
+                .setDescription(this.getClass().getSimpleName())
+                .setMappings(getMappings())
+                .setSettings(getIndexSettings())
+                .build()
         );
     }
 

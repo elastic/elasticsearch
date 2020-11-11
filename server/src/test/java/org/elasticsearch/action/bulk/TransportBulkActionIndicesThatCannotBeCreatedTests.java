@@ -26,6 +26,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -128,7 +129,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
         TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
             null, null, mock(ActionFilters.class), indexNameExpressionResolver,
-            new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of())) {
+            new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of(), mock(Client.class))) {
             @Override
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
                     AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -31,15 +32,26 @@ import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
 
 public class SystemIndicesTests extends ESTestCase {
 
     public void testBasicOverlappingPatterns() {
-        SystemIndexDescriptor broadPattern = new SystemIndexDescriptor(".a*c*", "test");
-        SystemIndexDescriptor notOverlapping = new SystemIndexDescriptor(".bbbddd*", "test");
-        SystemIndexDescriptor overlapping1 = new SystemIndexDescriptor(".ac*", "test");
-        SystemIndexDescriptor overlapping2 = new SystemIndexDescriptor(".aaaabbbccc", "test");
-        SystemIndexDescriptor overlapping3 = new SystemIndexDescriptor(".aaabb*cccddd*", "test");
+        SystemIndexDescriptor broadPattern = SystemIndexDescriptor.builder().setIndexPattern(".a*c*")
+                .setDescription("test")
+                .build();
+        SystemIndexDescriptor notOverlapping = SystemIndexDescriptor.builder().setIndexPattern(".bbbddd*")
+                .setDescription("test")
+                .build();
+        SystemIndexDescriptor overlapping1 = SystemIndexDescriptor.builder().setIndexPattern(".ac*")
+                .setDescription("test")
+                .build();
+        SystemIndexDescriptor overlapping2 = SystemIndexDescriptor.builder().setIndexPattern(".aaaabbbccc")
+                .setDescription("test")
+                .build();
+        SystemIndexDescriptor overlapping3 = SystemIndexDescriptor.builder().setIndexPattern(".aaabb*cccddd*")
+                .setDescription("test")
+                .build();
 
         // These sources have fixed prefixes to make sure they sort in the same order, so that the error message is consistent
         // across tests
@@ -59,14 +71,21 @@ public class SystemIndicesTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(overlapping3.toString() + fromPluginString));
         assertThat(exception.getMessage(), not(containsString(notOverlapping.toString())));
 
-        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
+        IllegalStateException constructorException = expectThrows(
+            IllegalStateException.class,
+            () -> new SystemIndices(descriptors, mock(Client.class))
+        );
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
     public void testComplexOverlappingPatterns() {
         // These patterns are slightly more complex to detect because pattern1 does not match pattern2 and vice versa
-        SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".a*c", "test");
-        SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".ab*", "test");
+        SystemIndexDescriptor pattern1 = SystemIndexDescriptor.builder().setIndexPattern(".a*c")
+                .setDescription("test")
+                .build();
+        SystemIndexDescriptor pattern2 = SystemIndexDescriptor.builder().setIndexPattern(".ab*")
+                .setDescription("test")
+                .build();
 
         // These sources have fixed prefixes to make sure they sort in the same order, so that the error message is consistent
         // across tests
@@ -82,12 +101,15 @@ public class SystemIndicesTests extends ESTestCase {
             "] from [" + source1 + "] overlaps with other system index descriptors:"));
         assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
 
-        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
+        IllegalStateException constructorException = expectThrows(
+            IllegalStateException.class,
+            () -> new SystemIndices(descriptors, mock(Client.class))
+        );
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
     public void testBuiltInSystemIndices() {
-        SystemIndices systemIndices = new SystemIndices(Map.of());
+        SystemIndices systemIndices = new SystemIndices(Map.of(), mock(Client.class));
         assertTrue(systemIndices.isSystemIndex(".tasks"));
         assertTrue(systemIndices.isSystemIndex(".tasks1"));
         assertTrue(systemIndices.isSystemIndex(".tasks-old"));
@@ -95,9 +117,11 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {
         Map<String, Collection<SystemIndexDescriptor>> pluginMap = Map.of(
-            TaskResultsService.class.getName(), List.of(new SystemIndexDescriptor(TASK_INDEX, "Task Result Index"))
+            TaskResultsService.class.getName(), List.of(SystemIndexDescriptor.builder().setIndexPattern(TASK_INDEX)
+                        .setDescription("Task Result Index")
+                        .build())
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap, mock(Client.class)));
         assertThat(e.getMessage(), containsString("plugin or module attempted to define the same source"));
     }
 }

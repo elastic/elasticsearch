@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -67,6 +68,7 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class TransportBulkActionTests extends ESTestCase {
 
@@ -84,7 +86,7 @@ public class TransportBulkActionTests extends ESTestCase {
         TestTransportBulkAction() {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
-                    new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of()));
+                    new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of(), mock(Client.class)));
         }
 
         @Override
@@ -247,7 +249,10 @@ public class TransportBulkActionTests extends ESTestCase {
             new Index(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
         indicesLookup.put(".bar",
             new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
-        SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(".test", ""))));
+        SystemIndices systemIndices = new SystemIndices(
+            Map.of("plugin", List.of(SystemIndexDescriptor.builder().setIndexPattern(".test").setDescription("").build())),
+            mock(Client.class)
+        );
         List<String> onlySystem = List.of(".foo", ".bar");
         assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 

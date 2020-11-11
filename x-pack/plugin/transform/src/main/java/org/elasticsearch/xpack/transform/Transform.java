@@ -370,8 +370,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(
-            new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, "Contains Transform configuration data")
+        return Collections.singletonList(SystemIndexDescriptor.builder().setIndexPattern(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
+                .setDescription("Contains Transform configuration data")
+                .build()
         );
     }
 }

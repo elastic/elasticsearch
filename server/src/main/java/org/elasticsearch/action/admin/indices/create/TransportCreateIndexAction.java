@@ -73,13 +73,13 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         String mappings = request.mappings();
         Settings settings = request.settings();
 
-        if (systemIndices.isSystemIndex(indexName)) {
-            // System indices define their own settings and mappings, which cannot be overridden.
-            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-            assert descriptor != null;
-            mappings = descriptor.getMappings();
-            settings = descriptor.getSettings();
-        }
+//        if (systemIndices.isSystemIndex(indexName)) {
+//            // System indices define their own settings and mappings, which cannot be overridden.
+//            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+//            assert descriptor != null;
+//            mappings = descriptor.getMappings();
+//            settings = descriptor.getSettings();
+//        }
 
         final CreateIndexClusterStateUpdateRequest updateRequest =
             new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index())

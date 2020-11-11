@@ -90,7 +90,9 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
+            return List.of(SystemIndexDescriptor.builder().setIndexPattern(TEST_SYSTEM_INDEX_NAME)
+                    .setDescription("System index for [" + getTestClass().getName() + ']')
+                    .build());
         }
     }
 

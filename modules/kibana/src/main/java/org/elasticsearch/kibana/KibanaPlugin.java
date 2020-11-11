@@ -71,7 +71,9 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return KIBANA_INDEX_NAMES_SETTING.get(settings)
             .stream()
-            .map(pattern -> new SystemIndexDescriptor(pattern, "System index used by kibana"))
+            .map(pattern -> SystemIndexDescriptor.builder().setIndexPattern(pattern)
+                    .setDescription("System index used by kibana")
+                    .build())
             .collect(Collectors.toUnmodifiableList());
     }
 

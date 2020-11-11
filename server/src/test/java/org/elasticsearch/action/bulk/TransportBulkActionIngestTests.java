@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -143,7 +144,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         TestTransportBulkAction() {
             super(threadPool, transportService, clusterService, ingestService,
                 null, new ActionFilters(Collections.emptySet()), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-                new IndexingPressure(SETTINGS), new SystemIndices(Map.of())
+                new IndexingPressure(SETTINGS), new SystemIndices(Map.of(), mock(Client.class))
             );
         }
 

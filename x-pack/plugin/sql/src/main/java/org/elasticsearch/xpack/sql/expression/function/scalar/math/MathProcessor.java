@@ -77,7 +77,7 @@ public class MathProcessor implements Processor {
                 Randomness.get().nextDouble(), true),
         SIGN((Object l) -> {
             if (l instanceof Double) {
-                return (int)Math.signum((Double) l);
+                return (int) Math.signum((Double) l);
             }
             if (l instanceof Float) {
                 return (int)Math.signum((Float) l);

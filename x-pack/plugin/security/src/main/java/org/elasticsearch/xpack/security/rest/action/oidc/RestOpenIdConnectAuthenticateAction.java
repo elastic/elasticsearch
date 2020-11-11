@@ -70,6 +70,9 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
                         builder.field("access_token", response.getAccessTokenString());
                         builder.field("refresh_token", response.getRefreshTokenString());
                         builder.field("expires_in", response.getExpiresIn().seconds());
+                        if(response.getRealmName() != null){
+                            builder.field("realm_name", response.getRealmName());
+                        }
                         if(response.getAuthentication() != null) {
                             builder.field("authentication", response.getAuthentication());
                         }

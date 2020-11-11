@@ -19,14 +19,16 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
     private String accessTokenString;
     private String refreshTokenString;
     private TimeValue expiresIn;
+    private String realmName;
     private Authentication authentication;
 
     public OpenIdConnectAuthenticateResponse(Authentication authentication, String accessTokenString, String refreshTokenString,
-                                             TimeValue expiresIn) {
+                                             TimeValue expiresIn, String realmName) {
         this.principal = authentication.getUser().principal();;
         this.accessTokenString = accessTokenString;
         this.refreshTokenString = refreshTokenString;
         this.expiresIn = expiresIn;
+        this.realmName = realmName;
         this.authentication = authentication;
     }
 
@@ -37,6 +39,7 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         refreshTokenString = in.readString();
         expiresIn = in.readTimeValue();
         if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+            realmName = in.readString();
             authentication = new Authentication(in);
         }
     }
@@ -57,6 +60,8 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         return expiresIn;
     }
 
+    public String getRealmName() { return realmName; }
+
     public Authentication getAuthentication() { return authentication; }
 
     @Override
@@ -66,6 +71,7 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         out.writeString(refreshTokenString);
         out.writeTimeValue(expiresIn);
         if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            out.writeString(realmName);
             authentication.writeTo(out);
         }
     }

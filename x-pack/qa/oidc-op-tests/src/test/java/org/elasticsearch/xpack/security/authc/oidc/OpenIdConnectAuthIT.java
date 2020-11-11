@@ -420,6 +420,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             logger.info(" OpenIDConnect authentication response {}", responseBody);
             assertNotNull(responseBody.get("access_token"));
             assertNotNull(responseBody.get("refresh_token"));
+            assertNotNull(responseBody.get("realm_name"));
             assertNotNull(responseBody.get("authentication"));
             assertEquals("alice", ((Map)responseBody.get("authentication")).get("username"));
             return Tuple.tuple(responseBody.get("access_token").toString(), responseBody.get("refresh_token").toString());

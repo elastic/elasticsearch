@@ -118,11 +118,11 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
             new Tuple<>(forceMerge, segmentCount),
             new Tuple<>(segmentCount, nextStepKey)));
 
-        UpdateSettingsStep secondStep = (UpdateSettingsStep) steps.get(1);
-        UpdateSettingsStep fourthStep = (UpdateSettingsStep) steps.get(3);
+        UpdateSettingsStep thirdStep = (UpdateSettingsStep) steps.get(2);
+        UpdateSettingsStep fifthStep = (UpdateSettingsStep) steps.get(4);
 
-        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(secondStep.getSettings()));
-        assertThat(fourthStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(CodecService.BEST_COMPRESSION_CODEC));
+        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(thirdStep.getSettings()));
+        assertThat(fifthStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(CodecService.BEST_COMPRESSION_CODEC));
     }
 
     public void testMissingMaxNumSegments() throws IOException {

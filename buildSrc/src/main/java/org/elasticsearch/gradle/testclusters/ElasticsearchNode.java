@@ -235,7 +235,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void doSetVersion(String version) {
-        String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version + "-";
+        String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version;
         NamedDomainObjectContainer<ElasticsearchDistribution> container = DistributionDownloadPlugin.getContainer(project);
         if (container.findByName(distroName) == null) {
             container.create(distroName);
@@ -429,6 +429,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public void freeze() {
         requireNonNull(testDistribution, "null testDistribution passed when configuring test cluster `" + this + "`");
         LOGGER.info("Locking configuration of `{}`", this);
+        distributions.stream().forEach(d -> d.maybeFreeze());
         configurationFrozen.set(true);
     }
 

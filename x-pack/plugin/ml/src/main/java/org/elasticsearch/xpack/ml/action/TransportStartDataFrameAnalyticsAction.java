@@ -549,9 +549,9 @@ public class TransportStartDataFrameAnalyticsAction
                 case FAILED:
                 default:
                     exception = ExceptionsHelper.serverError(
-                        "Unexpected task state [{}] with reason [{}] while waiting to be started",
+                        "Unexpected task state [{}] {}while waiting to be started",
                         analyticsState,
-                        reason);
+                        reason == null ? "" : "with reason [" + reason + "] ");
                     return true;
             }
         }

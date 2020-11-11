@@ -272,11 +272,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         @Override
         public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
             JobState jobState = JobState.CLOSED;
-            String reason = "__unknown__";
+            String reason = null;
             if (persistentTask != null) {
                 JobTaskState jobTaskState = (JobTaskState) persistentTask.getState();
                 jobState = jobTaskState == null ? JobState.OPENING : jobTaskState.getState();
-                reason = jobTaskState != null ? jobTaskState.getReason() : reason;
+                reason = jobTaskState == null ? null : jobTaskState.getReason();
 
                 PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
 
@@ -326,9 +326,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 default:
                     // Default http status is SERVER ERROR
                     exception = ExceptionsHelper.serverError(
-                        "Unexpected job state [{}] with reason [{}] while waiting for job to be {}",
+                        "Unexpected job state [{}] {}while waiting for job to be {}",
                         jobState,
-                        reason,
+                        reason == null ? "" : "with reason [" + reason + "] ",
                         JobState.OPENED
                     );
                     return true;

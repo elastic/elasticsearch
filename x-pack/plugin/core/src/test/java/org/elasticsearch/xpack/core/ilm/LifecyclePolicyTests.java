@@ -149,7 +149,6 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 // let's make sure the other phases don't configure actions that conflict with the `searchable_snapshot` action
                 // configured in the hot phase
                 actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
-
             }
             for (String action : actionNames) {
                 actions.put(action, randomAction.apply(action));
@@ -205,6 +204,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 default:
                     throw new IllegalArgumentException("invalid action [" + action + "]");
             }};
+        // as what actions end up in the hot phase influence what actions are allowed in the subsequent phases we'll move the hot phase
+        // at the front of the phases to process (if it exists)
+        if (phaseNames.contains(TimeseriesLifecycleType.HOT_PHASE)) {
+            phaseNames.remove(TimeseriesLifecycleType.HOT_PHASE);
+            phaseNames.add(0, TimeseriesLifecycleType.HOT_PHASE);
+        }
         boolean hotPhaseContainsSearchableSnap = false;
         for (String phase : phaseNames) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");

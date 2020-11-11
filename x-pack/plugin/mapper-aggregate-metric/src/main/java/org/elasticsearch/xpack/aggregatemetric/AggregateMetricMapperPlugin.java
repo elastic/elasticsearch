@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.aggregatemetric;
 
 import org.elasticsearch.common.collect.List;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -15,13 +16,26 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.metrics.AggregateMetricsAggregatorsRegistrar;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singletonMap;
 
 public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin, ActionPlugin, SearchPlugin {
+
+    public AggregateMetricMapperPlugin() { }
+
+    @Override
+    public Collection<Module> createGuiceModules() {
+        return Collections.singletonList(b -> {
+            XPackPlugin.bindFeatureSet(b, AggregateMetricFeatureSet.class);
+        });
+    }
+
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {

@@ -210,6 +210,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     throw new SearchPhaseExecutionException(getName(), msg, null, ShardSearchFailure.EMPTY_ARRAY);
                 }
             }
+            if (checkMinimumVersion(shardsIts) == false) {
+                throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]",
+                    request.minVersion());
+            }
             for (int index = 0; index < shardsIts.size(); index++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(index);
                 assert shardRoutings.skip() == false;
@@ -223,6 +227,22 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         skippedOps.incrementAndGet();
         assert iterator.skip();
         successfulShardExecution(iterator);
+    }
+
+
+    private boolean checkMinimumVersion(GroupShardsIterator<SearchShardIterator> shardsIts) {
+        for (SearchShardIterator it : shardsIts) {
+            if (it.getTargetNodeIds().isEmpty() == false) {
+                boolean isCompatible = it.getTargetNodeIds().stream().anyMatch(nodeId -> {
+                    Transport.Connection conn = getConnection(it.getClusterAlias(), nodeId);
+                    return conn == null ? true : conn.getVersion().onOrAfter(request.minVersion());
+                });
+                if (isCompatible == false) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {

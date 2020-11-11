@@ -94,6 +94,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private boolean ccsMinimizeRoundtrips = true;
 
+    private Version minVersion = Version.CURRENT.minimumCompatibilityVersion();
+
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS =
         IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
@@ -157,6 +159,16 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return new SearchRequest(originalSearchRequest, indices, clusterAlias, absoluteStartMillis, finalReduce);
     }
 
+    public static SearchRequest withMinimumVersion(SearchRequest searchRequest, Version minVersion) {
+        return new SearchRequest(searchRequest, minVersion);
+    }
+
+    private SearchRequest(SearchRequest searchRequest, Version minVersion) {
+        this(searchRequest, searchRequest.indices, searchRequest.localClusterAlias,
+            searchRequest.absoluteStartMillis, searchRequest.finalReduce);
+        this.minVersion = minVersion;
+    }
+
     private SearchRequest(SearchRequest searchRequest, String[] indices, String localClusterAlias, long absoluteStartMillis,
                           boolean finalReduce) {
         this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
@@ -214,6 +226,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+            minVersion = Version.readVersion(in);
+        }
     }
 
     @Override
@@ -241,7 +256,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            Version.writeVersion(minVersion, out);
+        }
     }
 
     @Override
@@ -319,6 +336,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return absoluteStartMillis;
     }
 
+    Version minVersion() {
+        return minVersion;
+    }
     /**
      * Sets the indices the search will be executed on.
      */
@@ -656,14 +676,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults) &&
                 Objects.equals(localClusterAlias, that.localClusterAlias) &&
                 absoluteStartMillis == that.absoluteStartMillis &&
-                ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips;
+                ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips &&
+                Objects.equals(minVersion, that.minVersion);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
                 scroll, indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips);
+                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips, minVersion);
     }
 
     @Override

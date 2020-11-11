@@ -405,7 +405,6 @@ public class Archives {
                     + "Unregister-EventSubscriber -Force"
             );
         });
-        Platforms.onLinux(() -> logger.warn(sh.run("ps ax | grep " + pid).stdout));
         if (Files.exists(pidFile)) {
             Files.delete(pidFile);
         }

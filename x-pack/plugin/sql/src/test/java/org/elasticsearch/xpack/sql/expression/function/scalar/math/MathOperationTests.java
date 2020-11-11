@@ -40,7 +40,8 @@ public class MathOperationTests extends ESTestCase {
     }
 
     public void testSignIntegerType() {
-        List<Number> negative = Arrays.asList((byte) -42, (short) -42, -42, Long.valueOf(-42), Float.valueOf(-42.0f), Double.valueOf(-42.0d));
+        List<Number> negative = Arrays.asList((byte) -42, (short) -42, -42, Long.valueOf(-42), Float.valueOf(-42.0f),
+            Double.valueOf(-42.0d));
         List<Number> zero = Arrays.asList((byte) 0, (short) 0, 0, Long.valueOf(0), Float.valueOf(0.0f), Double.valueOf(0.0d));
         List<Number> positive = Arrays.asList((byte) 42, (short) 42, 42, Long.valueOf(42), Float.valueOf(42.0f), Double.valueOf(42.0d));
 

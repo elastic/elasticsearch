@@ -107,7 +107,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final TimeUnit ADDITIONAL_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
         "path.repo",
-        "discovery.seed_providers"
+        "discovery.seed_providers",
+        "path.data"
 
     );
 

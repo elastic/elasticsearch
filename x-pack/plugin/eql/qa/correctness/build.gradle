@@ -21,6 +21,7 @@ dependencies {
 }
 
 File serviceAccountFile = (System.getenv("eql_test_credentials_file") ?: System.getProperty("eql.test.credentials.file")) as File
+String esDataDir = System.getenv("eql_test_es_data_dir") ?: System.getProperty("eql.test.data.dir")
 
 testClusters {
   all {
@@ -30,6 +31,9 @@ testClusters {
     }
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'basic'
+    if (esDataDir) {
+      setting 'path.data', esDataDir
+    }
     jvmArgs '-Xms4g', '-Xmx4g'
   }
   runTask {

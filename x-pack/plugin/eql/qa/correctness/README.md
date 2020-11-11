@@ -74,7 +74,14 @@ If one wants to run an ES node manually (most probably to be able to debug the s
 ./gradlew :x-pack:plugin:eql:qa:correctness:runEqlCorrectnessNode --debug-jvm
 ```
 
-**Set the `eql_test_credentials_file` environmental variable correctly in the shell before running the command above,**
+**Set the `eql_test_credentials_file` environmental variable correctly in the shell before running the command above.**
+
+#### Preserve data across node restarts
+If you'd like to preserve the restored index and avoid the network download and delay of restoring them on every run of the node,
+you can set the `eql_test_es_data_dir` environmental variable to point to a desired directory, e.g.:
+```shell script
+export eql_test_es_data_dir=/tmp/esData
+```
 
 Once the ES node is up and running, the data can be restored from the snapshot by running the `main` of the 
 `EqlDataLoader` class.
@@ -84,4 +91,4 @@ Once the data is loaded, a specific query can be run against the running ES node
 ./gradlew ':x-pack:plugin:eql:qa:correctness:javaRestTest' --tests "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT.test {<queryNo>}" -Dtests.rest.cluster=localhost:9200 -Dtests.cluster=localhost:9200 -Dtests.clustername=runTask-0
 ```
 
-**Set the `eql_test_credentials_file` environmental variable correctly in the shell before running the command above,**
+**Set the `eql_test_credentials_file` environmental variable correctly in the shell before running the command above.**

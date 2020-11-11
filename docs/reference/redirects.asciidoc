@@ -13,6 +13,11 @@ See <<node-name,Node name setting>>.
 
 See <<cluster-name,Cluster name setting>>.
 
+[role="exclude",id="heap-size"]
+=== Heap size settings
+
+See <<heap-size-settings>>.
+
 [role="exclude",id="ccr-remedy-follower-index"]
 === Leader index retaining operations for replication
 

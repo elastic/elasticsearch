@@ -54,20 +54,7 @@ tasks.named("bundlePlugin").configure {
   }
 }
 
-// add all sub-projects of the qa sub-project
-def checkTaskProvider = tasks.named("check")
-gradle.projectsEvaluated {
-    project.subprojects
-            .find { it.path == project.path + ":qa" }
-            .subprojects
-            .findAll { it.path.startsWith(project.path + ":qa") }
-            .each { p ->
-                checkTaskProvider.configure {
-                    dependsOn(p.tasks.named("check"))
-                }
-            }
-}
-
+addQaCheckDependencies()
 
 /**********************************************
  *          SQL Parser regeneration           *

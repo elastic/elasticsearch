@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -333,7 +334,7 @@ public abstract class AggregationContext {
 
         @Override
         public Query buildQuery(QueryBuilder builder) throws IOException {
-            return builder.toQuery(context);
+            return Rewriteable.rewrite(builder, context, true).toQuery(context);
         }
 
         @Override

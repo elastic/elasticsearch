@@ -42,14 +42,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
 
-Some indices (hereafter "system indices") are used by various system
-modules and/or plugins to store state or configuration. These indices
-are not intended to be accessed directly, and accessing them directly is
-deprecated. In the next major version, access to these indices will no longer be
-allowed to prevent accidental operations that may cause problems with
-Elasticsearch features which depend on the consistency of data in these
-indices.
-
 Some multi-target APIs that can target indices also support the following query
 string parameter:
 
@@ -58,6 +50,28 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 NOTE: Single index APIs, such as the <<docs>> and
 <<indices-aliases,single-index `alias` APIs>>, do not support multi-target
 syntax.
+
+[[hidden-indices]]
+==== Hidden indices
+
+Indices that are configured to be hidden with the <<index-hidden,index.hidden>> setting are 
+excluded from mult-target queries by default. 
+To include hidden indices, you must specify the `expand_wildcards` parameter.
+
+The backing indices for data streams are hidden indices, 
+and some features like {ml} store information in hidden indices. 
+
+Global index templates that match all indices are not applied to hidden indices.
+
+[[system-indices]]
+==== System indices
+
+{es} modules and plugins can store configuration and state information in internal _system indices_. 
+You should not directly access or modify system indices 
+as they contain data essential to the operation of the system.
+
+IMPORTANT: Direct access to system indices is deprecated and 
+will no longer be allowed in the next major version.
 
 [[date-math-index-names]]
 === Date math support in index names

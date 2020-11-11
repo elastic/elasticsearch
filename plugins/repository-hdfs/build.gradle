@@ -48,7 +48,6 @@ configurations {
 
 dependencies {
   api "org.apache.hadoop:hadoop-client:${versions.hadoop2}"
-  //api "org.apache.hadoop:hadoop-common:${versions.hadoop2}"
   api project(path: 'hadoop-common', configuration: 'archives')
   api "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
   api "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"

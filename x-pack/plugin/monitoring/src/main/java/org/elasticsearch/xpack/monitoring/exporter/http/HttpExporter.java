@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 
 import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
@@ -371,6 +372,11 @@ public class HttpExporter extends Exporter {
      */
     private final AtomicBoolean clusterAlertsAllowed = new AtomicBoolean(false);
 
+    /**
+     * A barrier object to keep the exporter from installing or operating during a migration operation.
+     */
+    private final MonitoringMigrationCoordinator migrationCoordinator;
+
     private static final ConcurrentHashMap<String, SecureString> SECURE_AUTH_PASSWORDS = new ConcurrentHashMap<>();
     private final ThreadContext threadContext;
     private final DateFormatter dateTimeFormatter;
@@ -396,8 +402,9 @@ public class HttpExporter extends Exporter {
      * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
      * @throws SettingsException if any setting is malformed
      */
-    public HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext) {
-        this(config, sslService, threadContext, new NodeFailureListener(), createResources(config));
+    public HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext,
+                        MonitoringMigrationCoordinator migrationCoordinator) {
+        this(config, sslService, threadContext, migrationCoordinator, new NodeFailureListener(), createResources(config));
     }
 
     /**
@@ -409,8 +416,9 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting is malformed
      */
     private HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext,
-                         final NodeFailureListener listener, final Resources resource) {
-        this(config, sslService, threadContext, listener, resource.allResources, resource.alertingResource);
+                         final MonitoringMigrationCoordinator migrationCoordinator, final NodeFailureListener listener,
+                         final Resources resource) {
+        this(config, sslService, threadContext, migrationCoordinator, listener, resource.allResources, resource.alertingResource);
     }
 
     /**
@@ -421,9 +429,11 @@ public class HttpExporter extends Exporter {
      * @param listener The node failure listener used to notify an optional sniffer and resources
      * @throws SettingsException if any setting is malformed
      */
-    HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext, final NodeFailureListener listener,
+    HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext,
+                 final MonitoringMigrationCoordinator migrationCoordinator, final NodeFailureListener listener,
                  final HttpResource resource, final HttpResource alertingResource) {
-        this(config, createRestClient(config, sslService, listener), threadContext, listener, resource, alertingResource);
+        this(config, createRestClient(config, sslService, listener), threadContext, migrationCoordinator, listener, resource,
+            alertingResource);
     }
 
     /**
@@ -434,9 +444,11 @@ public class HttpExporter extends Exporter {
      * @param listener The node failure listener used to notify an optional sniffer and resources
      * @throws SettingsException if any setting is malformed
      */
-    HttpExporter(final Config config, final RestClient client, final ThreadContext threadContext, final NodeFailureListener listener,
+    HttpExporter(final Config config, final RestClient client, final ThreadContext threadContext,
+                 final MonitoringMigrationCoordinator migrationCoordinator, final NodeFailureListener listener,
                  final HttpResource resource, final HttpResource alertingResource) {
-        this(config, client, createSniffer(config, client, listener), threadContext, listener, resource, alertingResource);
+        this(config, client, createSniffer(config, client, listener), threadContext, migrationCoordinator, listener, resource,
+            alertingResource);
     }
 
     /**
@@ -450,7 +462,8 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting is malformed
      */
     HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final ThreadContext threadContext,
-                 final NodeFailureListener listener, final HttpResource resource, final HttpResource alertingResource) {
+                 final MonitoringMigrationCoordinator migrationCoordinator, final NodeFailureListener listener,
+                 final HttpResource resource, final HttpResource alertingResource) {
         super(config);
 
         this.client = Objects.requireNonNull(client);
@@ -459,6 +472,7 @@ public class HttpExporter extends Exporter {
         this.alertingResource = alertingResource;
         this.defaultParams = createDefaultParams(config);
         this.threadContext = threadContext;
+        this.migrationCoordinator = migrationCoordinator;
         this.dateTimeFormatter = dateTimeFormatter(config);
 
         // mark resources as dirty after any node failure or license change
@@ -868,7 +882,6 @@ public class HttpExporter extends Exporter {
     private static HttpResource configureClusterAlertsResources(final Config config, final String resourceOwnerName) {
         // don't create watches if we're not using them
         if (CLUSTER_ALERTS_MANAGEMENT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())) {
-            logger.info("Alerts Enabled");
             final ClusterService clusterService = config.clusterService();
             final List<HttpResource> watchResources = new ArrayList<>();
             final List<String> blacklist = ClusterAlertsUtil.getClusterAlertsBlacklist(config);
@@ -887,7 +900,6 @@ public class HttpExporter extends Exporter {
             return new WatcherExistsHttpResource(resourceOwnerName, clusterService,
                                                         new MultiHttpResource(resourceOwnerName, watchResources));
         }
-        logger.info("Alerts Disabled");
         return null;
     }
 
@@ -904,9 +916,8 @@ public class HttpExporter extends Exporter {
                             status = ExporterResourceStatus.ready(name(), TYPE);
                             break;
                         case CHECKING:
-                            status = ExporterResourceStatus.inProgress(name(), TYPE);
-                            break;
                         case DIRTY:
+                            // CHECKING should be unlikely, but in case of that, we mark it as not ready
                             status = ExporterResourceStatus.notReady(name(), TYPE, result.getReason());
                             break;
                         default:
@@ -928,16 +939,21 @@ public class HttpExporter extends Exporter {
             resource.markDirty();
         }
 
-        resource.checkAndPublishIfDirty(client, ActionListener.wrap((success) -> {
-            if (success) {
-                final String name = "xpack.monitoring.exporters." + config.name();
+        if (migrationCoordinator.canInstall()) {
+            resource.checkAndPublishIfDirty(client, ActionListener.wrap((success) -> {
+                if (success) {
+                    final String name = "xpack.monitoring.exporters." + config.name();
 
-                listener.onResponse(new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext));
-            } else {
-                // we're not ready yet, so keep waiting
-                listener.onResponse(null);
-            }
-        }, listener::onFailure));
+                    listener.onResponse(new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext));
+                } else {
+                    // we're not ready yet, so keep waiting
+                    listener.onResponse(null);
+                }
+            }, listener::onFailure));
+        } else {
+            // we're migrating right now, so keep waiting
+            listener.onResponse(null);
+        }
     }
 
     @Override

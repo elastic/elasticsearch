@@ -101,7 +101,8 @@ public class ExportersTests extends ESTestCase {
         sslService = mock(SSLService.class);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, mock(CleanerService.class)));
+        factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, new MonitoringMigrationCoordinator(),
+            mock(CleanerService.class)));
 
         exporters = new Exporters(Settings.EMPTY, factories, clusterService, licenseState, threadContext, sslService);
     }

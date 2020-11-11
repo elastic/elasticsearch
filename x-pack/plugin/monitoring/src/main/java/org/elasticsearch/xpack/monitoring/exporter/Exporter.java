@@ -227,32 +227,21 @@ public abstract class Exporter implements AutoCloseable {
         Exporter create(Config config);
     }
 
-    public enum DeployState {
-        IN_PROGRESS,
-        READY,
-        NOT_READY,
-        UNKNOWN
-    }
-
     public static class ExporterResourceStatus {
         private final String exporterName;
         private final String exporterType;
-        private final DeployState deployState;
+        private final boolean complete;
         private final List<Exception> exceptions;
 
-        public ExporterResourceStatus(String exporterName, String exporterType, DeployState deployState, List<Exception> exceptions) {
+        public ExporterResourceStatus(String exporterName, String exporterType, boolean complete, List<Exception> exceptions) {
             this.exporterName = exporterName;
             this.exporterType = exporterType;
-            this.deployState = deployState;
+            this.complete = complete;
             this.exceptions = exceptions;
         }
 
-        public static ExporterResourceStatus inProgress(String exporterName, String exporterType) {
-            return new ExporterResourceStatus(exporterName, exporterType, DeployState.IN_PROGRESS, null);
-        }
-
         public static ExporterResourceStatus ready(String exporterName, String exporterType) {
-            return new ExporterResourceStatus(exporterName, exporterType, DeployState.READY, null);
+            return new ExporterResourceStatus(exporterName, exporterType, true, null);
         }
 
         public static ExporterResourceStatus notReady(String exporterName, String exporterType, String reason, Object... args) {
@@ -260,20 +249,11 @@ public abstract class Exporter implements AutoCloseable {
         }
 
         public static ExporterResourceStatus notReady(String exporterName, String exporterType, Exception reason) {
-            return new ExporterResourceStatus(exporterName, exporterType, DeployState.NOT_READY, Collections.singletonList(reason));
-        }
-
-        public static ExporterResourceStatus unknown(String exporterName, String exporterType, String reason, Object... args) {
-            return unknown(exporterName, exporterType, new ElasticsearchException(reason, args));
-        }
-
-        public static ExporterResourceStatus unknown(String exporterName, String exporterType, Exception reason) {
-            return new ExporterResourceStatus(exporterName, exporterType, DeployState.UNKNOWN, Collections.singletonList(reason));
+            return new ExporterResourceStatus(exporterName, exporterType, false, Collections.singletonList(reason));
         }
 
         public static ExporterResourceStatus determineReadiness(String exporterName, String exporterType, List<Exception> exceptions) {
-            return new ExporterResourceStatus(exporterName, exporterType,
-                exceptions.size() > 0 ? DeployState.NOT_READY : DeployState.READY, exceptions);
+            return new ExporterResourceStatus(exporterName, exporterType, exceptions.size() <= 0, exceptions);
         }
 
         public String getExporterName() {
@@ -284,12 +264,8 @@ public abstract class Exporter implements AutoCloseable {
             return exporterType;
         }
 
-        public boolean isReady() {
-            return deployState == DeployState.READY;
-        }
-
-        public DeployState getDeployState() {
-            return deployState;
+        public boolean isComplete() {
+            return complete;
         }
 
         @Nullable

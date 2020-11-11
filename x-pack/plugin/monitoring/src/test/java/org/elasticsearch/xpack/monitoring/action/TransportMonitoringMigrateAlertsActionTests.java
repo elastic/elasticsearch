@@ -143,6 +143,56 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
+    public void testRepeatedLocalAlertsRemoval() throws Exception {
+        try {
+            // start monitoring service
+            final Settings.Builder exporterSettings = Settings.builder()
+                .put(MonitoringService.ENABLED.getKey(), true)
+                .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
+                .put("xpack.monitoring.exporters._local.enabled", true)
+                .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", true);
+
+            // enable local exporter
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+
+            // ensure resources exist
+            assertBusy(() -> {
+                assertThat(indexExists(".monitoring-*"), is(true));
+                ensureYellowAndNoInitializingShards(".monitoring-*");
+                checkMonitoringTemplates();
+                assertWatchesExist(true);
+            });
+
+            // call migration api
+            MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
+                new MonitoringMigrateAlertsRequest()).actionGet();
+
+            // check response
+            assertThat(response.getExporters().size(), is(1));
+            MonitoringMigrateAlertsResponse.ExporterMigrationResult localExporterResult = response.getExporters().get(0);
+            assertThat(localExporterResult.getName(), is("_local"));
+            assertThat(localExporterResult.getType(), is(LocalExporter.TYPE));
+            assertThat(localExporterResult.isMigrationComplete(), is(true));
+            assertThat(localExporterResult.getReason(), nullValue());
+
+            // ensure no watches
+            assertWatchesExist(false);
+
+            // call migration api again
+            response = client().execute(MonitoringMigrateAlertsAction.INSTANCE, new MonitoringMigrateAlertsRequest()).actionGet();
+
+            // check second response
+            assertThat(response.getExporters().size(), is(1));
+            localExporterResult = response.getExporters().get(0);
+            assertThat(localExporterResult.getName(), is("_local"));
+            assertThat(localExporterResult.getType(), is(LocalExporter.TYPE));
+            assertThat(localExporterResult.isMigrationComplete(), is(true));
+            assertThat(localExporterResult.getReason(), nullValue());
+        } finally {
+            stopMonitoring();
+        }
+    }
+
     public void testDisabledLocalExporterAlertsRemoval() throws Exception {
         try {
             // start monitoring service

@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.shards.ShardsCollector;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringBulkAction;
@@ -105,10 +106,12 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());
         final SSLService dynamicSSLService = getSslService().createDynamicSSLService();
+        final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
 
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
-        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext()));
-        exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, cleanerService));
+        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext(),
+            migrationCoordinator));
+        exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, migrationCoordinator, cleanerService));
         exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(), threadPool.getThreadContext(),
             dynamicSSLService);
 
@@ -126,7 +129,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
         var usageServices = new MonitoringUsageServices(monitoringService, exporters);
-        return Arrays.asList(monitoringService, exporters, cleanerService, usageServices);
+        return Arrays.asList(monitoringService, exporters, migrationCoordinator, cleanerService, usageServices);
     }
 
     @Override

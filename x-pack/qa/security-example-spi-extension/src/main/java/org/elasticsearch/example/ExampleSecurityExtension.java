@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.security.Security;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,7 +37,7 @@ public class ExampleSecurityExtension implements SecurityExtension {
     static {
         // check that the extension's policy works.
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            System.getSecurityManager().checkPrintJobAccess();
+            System.getSecurityManager().checkCreateClassLoader();
             return null;
         });
     }

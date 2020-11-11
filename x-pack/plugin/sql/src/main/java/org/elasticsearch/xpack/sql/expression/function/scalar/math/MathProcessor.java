@@ -80,7 +80,7 @@ public class MathProcessor implements Processor {
                 return (int) Math.signum((Double) l);
             }
             if (l instanceof Float) {
-                return (int)Math.signum((Float) l);
+                return (int) Math.signum((Float) l);
             }
 
             return Long.signum(((Number) l).longValue());

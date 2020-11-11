@@ -285,6 +285,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
@@ -722,7 +723,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                 () -> {
                                     throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
 
-                                }, null),
+                                },
+                                null,
+                                // Don't use runtime mappings in the security query
+                                emptyMap()),
                                 dlsBitsetCache.get(),
                                 securityContext.get(),
                                 getLicenseState(),

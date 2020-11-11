@@ -63,7 +63,7 @@ gradle.projectsEvaluated {
             .findAll { it.path.startsWith(project.path + ":qa") }
             .each { p ->
                 checkTaskProvider.configure {
-                    dependsOn(it.named("check"))
+                    dependsOn(p.tasks.named("check"))
                 }
             }
 }

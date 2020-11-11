@@ -68,7 +68,7 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     public OneHotEncoding(String field, Map<String, String> hotMap, Boolean custom) {
         this.field = ExceptionsHelper.requireNonNull(field, FIELD);
         this.hotMap = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(hotMap, HOT_MAP));
-        this.custom = custom == null ? false : custom;
+        this.custom = custom != null && custom;
     }
 
     public OneHotEncoding(StreamInput in) throws IOException {

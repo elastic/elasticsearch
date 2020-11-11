@@ -30,13 +30,17 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.internal.SearchContext;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,9 +48,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
     /**
@@ -1138,6 +1145,84 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
         assertThat(ex.getMessage(), equalTo("Extended bounds have to be inside hard bounds, " +
             "hard bounds: [2010-01-01--2020-01-01], extended bounds: [2009-01-01--2021-01-01]"));
+    }
+
+    public void testFewRoundingPointsUsesFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            IntStream.range(2000, 2010).mapToObj(Integer::toString).collect(toList()),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
+            true
+        );
+    }
+
+    public void testManyRoundingPointsDoesNotUseFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            IntStream.range(2000, 3000).mapToObj(Integer::toString).collect(toList()),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
+            false
+        );
+    }
+
+    /**
+     * Nanos doesn't use from range, but we don't get the fancy compile into
+     * filters because of potential loss of precision.
+     */
+    public void testNanosDoesUseFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(true, true, DateFormatter.forPattern("yyyy")),
+            List.of("2017", "2018"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
+            true
+        );
+    }
+
+    public void testFarFutureDoesNotUseFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyyyy")),
+            List.of("402017", "402018"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
+            false
+        );
+    }
+
+    public void testMissingValueDoesNotUseFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            List.of("2017", "2018"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR).missing("2020"),
+            false
+        );
+    }
+
+    private void aggregationImplementationChoiceTestCase(
+        DateFieldMapper.DateFieldType ft,
+        List<String> data,
+        DateHistogramAggregationBuilder builder,
+        boolean usesFromRange
+    ) throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            for (String d : data) {
+                long instant = asLong(d, ft);
+                indexWriter.addDocument(
+                    List.of(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant), new LongPoint(AGGREGABLE_DATE, instant))
+                );
+            }
+            try (IndexReader reader = indexWriter.getReader()) {
+                SearchContext context = createSearchContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft);
+                Aggregator agg = createAggregator(builder, context);
+                Matcher<Aggregator> matcher = instanceOf(DateHistogramAggregator.FromDateRange.class);
+                if (usesFromRange == false) {
+                    matcher = not(matcher);
+                }
+                assertThat(agg, matcher);
+                agg.preCollection();
+                context.searcher().search(context.query(), agg);
+                InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
+                assertThat(result.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(toList()), equalTo(data));
+            }
+        }
     }
 
     public void testIllegalInterval() throws IOException {

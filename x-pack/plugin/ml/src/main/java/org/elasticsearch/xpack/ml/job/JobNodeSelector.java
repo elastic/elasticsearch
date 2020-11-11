@@ -207,7 +207,8 @@ public class JobNodeSelector {
         return createAssignment(
             allocateByMemory ? minLoadedNodeByMemory : minLoadedNodeByCount,
             reasons,
-            allocateByMemory ? NativeMemoryCalculator.allowedBytesForMl(maxNodeSize, maxMachineMemoryPercent, useAutoMemoryPercentage) :
+            allocateByMemory && maxNodeSize > 0L ?
+                NativeMemoryCalculator.allowedBytesForMl(maxNodeSize, maxMachineMemoryPercent, useAutoMemoryPercentage) :
                 Long.MAX_VALUE);
     }
 

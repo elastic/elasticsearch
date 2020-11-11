@@ -486,7 +486,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
      * This is the maximum possible node size for a machine learning node. It is useful when determining if a job could ever be opened
      * on the cluster.
      *
-     * If the value is the default special case of `0b`, then that means the value is the current largest ML node.
+     * If the value is the default special case of `0b`, that means the value is ignored when assigning jobs.
      */
     public static final Setting<ByteSizeValue> MAX_ML_NODE_SIZE = Setting.byteSizeSetting(
         "xpack.ml.max_ml_node_size",

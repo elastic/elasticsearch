@@ -8,6 +8,8 @@ package org.elasticsearch.license;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
@@ -29,6 +31,11 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.service.ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME;
+import static org.elasticsearch.index.mapper.RangeFieldMapper.Defaults.DATE_FORMATTER;
+import static org.elasticsearch.license.LicenseService.GRACE_PERIOD_DURATION;
+import static org.elasticsearch.xpack.core.XPackPlugin.getSharedLicenseService;
 
 /**
  * A holder for the current state of the license for all xpack features.
@@ -506,11 +513,23 @@ public class XPackLicenseState {
      * Checks whether the given feature is allowed, tracking the last usage time.
      */
     public boolean checkFeature(Feature feature) {
+        License license;
         boolean allowed = isAllowed(feature);
         LongAccumulator maxEpochAccumulator = lastUsed.get(feature);
+        long now = System.currentTimeMillis();
         if (maxEpochAccumulator != null) {
             maxEpochAccumulator.accumulate(epochMillisProvider.getAsLong());
         }
+
+        if(getSharedLicenseService() != null && getSharedLicenseService().getLifecycleState() == Lifecycle.State.STARTED
+            && (Thread.currentThread().getName().contains(CLUSTER_UPDATE_THREAD_NAME) == false)
+            && (license = getSharedLicenseService().getLicense()) != null
+            && feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0
+            && now > license.expiryDate() - GRACE_PERIOD_DURATION.getMillis()) {
+            HeaderWarning.addWarning("The license [{}] is going to expire on [{}]", license.uid(),
+                DATE_FORMATTER.formatMillis(license.expiryDate()));
+        }
+
         return allowed;
     }
 

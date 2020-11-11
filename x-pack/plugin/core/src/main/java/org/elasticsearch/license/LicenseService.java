@@ -350,6 +350,10 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         return license == LicensesMetadata.LICENSE_TOMBSTONE ? null : license;
     }
 
+    public Lifecycle.State getLifecycleState() {
+        return clusterService.lifecycleState();
+    }
+
     private LicensesMetadata getLicensesMetadata() {
         return this.clusterService.state().metadata().custom(LicensesMetadata.TYPE);
     }

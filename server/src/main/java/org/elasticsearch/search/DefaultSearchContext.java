@@ -180,8 +180,13 @@ final class DefaultSearchContext extends SearchContext {
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
         this.minNodeVersion = minNodeVersion;
-        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), this.searcher,
-            request::nowInMillis, shardTarget.getClusterAlias());
+        queryShardContext = indexService.newQueryShardContext(
+            request.shardId().id(),
+            this.searcher,
+            request::nowInMillis,
+            shardTarget.getClusterAlias(),
+            request.getRuntimeMappings()
+        );
         queryShardContext.setTypes(request.types());
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;

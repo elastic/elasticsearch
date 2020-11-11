@@ -39,21 +39,14 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
 
     @Override
     public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
-        return Map.of(
-            BooleanFieldMapper.CONTENT_TYPE,
-            BooleanScriptFieldType.PARSER,
-            NumberFieldMapper.NumberType.LONG.typeName(),
-            LongScriptFieldType.PARSER,
-            NumberFieldMapper.NumberType.DOUBLE.typeName(),
-            DoubleScriptFieldType.PARSER,
-            IpFieldMapper.CONTENT_TYPE,
-            IpScriptFieldType.PARSER,
-            DateFieldMapper.CONTENT_TYPE,
-            DateScriptFieldType.PARSER,
-            KeywordFieldMapper.CONTENT_TYPE,
-            KeywordScriptFieldType.PARSER,
-            GeoPointFieldMapper.CONTENT_TYPE,
-            GeoPointScriptFieldType.PARSER
+        return Map.ofEntries(
+            Map.entry(BooleanFieldMapper.CONTENT_TYPE, BooleanScriptFieldType.PARSER),
+            Map.entry(NumberFieldMapper.NumberType.LONG.typeName(), LongScriptFieldType.PARSER),
+            Map.entry(NumberFieldMapper.NumberType.DOUBLE.typeName(), DoubleScriptFieldType.PARSER),
+            Map.entry(IpFieldMapper.CONTENT_TYPE, IpScriptFieldType.PARSER),
+            Map.entry(DateFieldMapper.CONTENT_TYPE, DateScriptFieldType.PARSER),
+            Map.entry(KeywordFieldMapper.CONTENT_TYPE, KeywordScriptFieldType.PARSER),
+            Map.entry(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER)
         );
     }
 

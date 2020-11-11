@@ -85,6 +85,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -555,7 +556,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
                         QueryShardContext context =
-                            indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null);
+                            indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null, emptyMap());
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }

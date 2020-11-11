@@ -178,6 +178,8 @@ import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.client.tasks.GetTaskRequest;
+import org.elasticsearch.client.tasks.GetTaskResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -190,6 +192,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.TaskId;
 import org.junit.After;
 
 import java.io.IOException;
@@ -201,6 +204,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -302,7 +306,18 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DeleteJobResponse response = execute(deleteJobRequest, machineLearningClient::deleteJob, machineLearningClient::deleteJobAsync);
 
         assertNull(response.getAcknowledged());
-        assertNotNull(response.getTask());
+
+        final TaskId taskId = response.getTask();
+        assertNotNull(taskId);
+
+        // When wait_for_completion=false the DeleteJobAction stored the task result in the .tasks index. In tests we need to wait
+        // for the delete job task to complete, otherwise the .tasks index could be created during the execution of a following test.
+        final GetTaskRequest taskRequest = new GetTaskRequest(taskId.getNodeId(), taskId.getId());
+        assertBusy(() -> {
+            Optional<GetTaskResponse> taskResponse = highLevelClient().tasks().get(taskRequest, RequestOptions.DEFAULT);
+            assertTrue(taskResponse.isPresent());
+            assertTrue(taskResponse.get().isCompleted());
+        }, 30L, TimeUnit.SECONDS);
     }
 
     public void testOpenJob() throws Exception {

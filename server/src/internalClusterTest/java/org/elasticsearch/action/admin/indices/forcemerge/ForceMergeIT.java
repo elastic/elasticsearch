@@ -85,15 +85,15 @@ public class ForceMergeIT extends ESIntegTestCase {
         assertThat(primaryForceMergeUUID, is(replicaForceMergeUUID));
     }
 
-    public void testForceMergeBlockedByIndexReadOnly() {
+    public void testForceMergeShouldRejectedByFrozenIndex() {
         internalCluster().startNodes(1);
         final String index = "test-index";
         createIndex(index,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
         ensureGreen(index);
-        assertAcked(client().admin().indices().prepareUpdateSettings("test-index")
-            .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, true)).get());
+       /* assertAcked(client().freprepareUpdateSettings("test-index")
+            .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, true)).get());*/
         ClusterBlockException exception =
             expectThrows(ClusterBlockException.class, () -> client().admin().indices().prepareForceMerge("test-index").get());
         assertThat(exception.getMessage(), containsString("index [test-index] blocked by: [FORBIDDEN/8/index write (api)]"));

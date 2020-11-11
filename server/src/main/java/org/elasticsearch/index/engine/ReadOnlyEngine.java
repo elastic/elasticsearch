@@ -370,6 +370,8 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
                            boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) {
+        assert false : "this should not be called";
+        throw new UnsupportedOperationException("force merge is not supported on a read-only engine");
     }
 
     @Override

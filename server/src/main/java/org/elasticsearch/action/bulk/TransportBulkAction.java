@@ -713,7 +713,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             assert Thread.currentThread().getName().contains(executorName);
                             doInternalExecute(task, bulkRequest, executorName, actionListener);
                         } else {
-                            threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
+                            threadPool.executor(executorName).execute(new ActionRunnable<>(actionListener) {
                                 @Override
                                 protected void doRun() {
                                     doInternalExecute(task, bulkRequest, executorName, actionListener);

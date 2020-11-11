@@ -65,7 +65,7 @@ public class DataFrameDataExtractor {
     private long lastSortKey = -1;
     private boolean isCancelled;
     private boolean hasNext;
-    private boolean searchHasShardFailure;
+    private boolean hasPreviousSearchFailed;
     private final CachedSupplier<TrainTestSplitter> trainTestSplitter;
     // These are fields that are sent directly to the analytics process
     // They are not passed through a feature_processor
@@ -82,7 +82,7 @@ public class DataFrameDataExtractor {
         this.extractedFieldsByName = new LinkedHashMap<>();
         context.extractedFields.getAllFields().forEach(f -> this.extractedFieldsByName.put(f.getName(), f));
         hasNext = true;
-        searchHasShardFailure = false;
+        hasPreviousSearchFailed = false;
         this.trainTestSplitter = new CachedSupplier<>(context.trainTestSplitterFactory::create);
     }
 
@@ -129,12 +129,14 @@ public class DataFrameDataExtractor {
             SearchResponse searchResponse = request.get();
             LOGGER.debug("[{}] Search response was obtained", context.jobId);
 
-            // Request was successful so we can restore the flag to retry if a future failure occurs
-            searchHasShardFailure = false;
+            List<Row> rows = processSearchResponse(searchResponse);
 
-            return processSearchResponse(searchResponse);
+            // Request was successfully executed and processed so we can restore the flag to retry if a future failure occurs
+            hasPreviousSearchFailed = false;
+
+            return rows;
         } catch (Exception e) {
-            if (searchHasShardFailure) {
+            if (hasPreviousSearchFailed) {
                 throw e;
             }
             LOGGER.warn(new ParameterizedMessage("[{}] Search resulted to failure; retrying once", context.jobId), e);
@@ -286,7 +288,7 @@ public class DataFrameDataExtractor {
     private void markScrollAsErrored() {
         // This could be a transient error with the scroll Id.
         // Reinitialise the scroll and try again but only once.
-        searchHasShardFailure = true;
+        hasPreviousSearchFailed = true;
     }
 
     public List<String> getFieldNames() {

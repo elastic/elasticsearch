@@ -80,8 +80,6 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyMap;
-
 /**
  * Context object used to create lucene queries on the shard level.
  */
@@ -111,32 +109,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final Map<String, MappedFieldType> runtimeMappings;
 
     /**
-     * Build a {@linkplain QueryShardContext} without any information from the search request.
-     */
-    public QueryShardContext(int shardId,
-                             IndexSettings indexSettings,
-                             BigArrays bigArrays,
-                             BitsetFilterCache bitsetFilterCache,
-                             TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-                             MapperService mapperService,
-                             SimilarityService similarityService,
-                             ScriptService scriptService,
-                             NamedXContentRegistry xContentRegistry,
-                             NamedWriteableRegistry namedWriteableRegistry,
-                             Client client,
-                             IndexSearcher searcher,
-                             LongSupplier nowInMillis,
-                             String clusterAlias,
-                             Predicate<String> indexNameMatcher,
-                             BooleanSupplier allowExpensiveQueries,
-                             ValuesSourceRegistry valuesSourceRegistry) {
-        this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
-                scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
-                indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry, emptyMap());
-    }
-
-    /**
-     * Build a {@linkplain QueryShardContext} with information from the search request.
+     * Build a {@linkplain QueryShardContext}.
      */
     public QueryShardContext(
         int shardId,

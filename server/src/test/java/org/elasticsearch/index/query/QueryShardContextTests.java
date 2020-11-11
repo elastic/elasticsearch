@@ -79,6 +79,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -207,7 +208,8 @@ public class QueryShardContextTests extends ESTestCase {
             null,
             null,
             () -> true,
-            null
+            null,
+            emptyMap()
         );
 
         assertTrue(context.indexSortedOnField("sort_field"));
@@ -388,7 +390,7 @@ public class QueryShardContextTests extends ESTestCase {
             0, mapperService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE, null,
                 (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
                 mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
+            null, null, () -> nowInMillis, clusterAlias, null, () -> true, null, emptyMap());
     }
 
     private static MapperService mockMapperService(String indexUuid, List<MapperPlugin> mapperPlugins) {

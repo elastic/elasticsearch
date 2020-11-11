@@ -43,14 +43,14 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
     public void testMatchesNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
-                List.of(
+                org.elasticsearch.common.collect.List.of(
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
                 )
             );
 
             iw.addDocument(
-                List.of(
+                org.elasticsearch.common.collect.List.of(
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
                 )
@@ -83,21 +83,21 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
     public void testQueryFiltering() throws IOException {
         testCase(new TermQuery(new Term("match", "yes")), iw -> {
             iw.addDocument(
-                List.of(
+                org.elasticsearch.common.collect.List.of(
                     new StringField("match", "yes", Field.Store.NO),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
                 )
             );
             iw.addDocument(
-                List.of(
+                org.elasticsearch.common.collect.List.of(
                     new StringField("match", "yes", Field.Store.NO),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(20)),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
                 )
             );
             iw.addDocument(
-                List.of(
+                org.elasticsearch.common.collect.List.of(
                     new StringField("match", "no", Field.Store.NO),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(40)),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
@@ -118,7 +118,7 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
     private AggregateDoubleMetricFieldType createDefaultFieldType(String fieldName) {
         AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(fieldName);
 
-        for (Metric m : List.of(Metric.value_count, Metric.sum)) {
+        for (Metric m : org.elasticsearch.common.collect.List.of(Metric.value_count, Metric.sum)) {
             String subfieldName = subfieldName(fieldName, m);
             NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(
                 subfieldName,
@@ -139,7 +139,7 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new AggregateMetricMapperPlugin());
+        return org.elasticsearch.common.collect.List.of(new AggregateMetricMapperPlugin());
     }
 
     @Override
@@ -149,7 +149,7 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(
+        return org.elasticsearch.common.collect.List.of(
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,

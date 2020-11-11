@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricField
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
@@ -45,7 +44,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     protected AggregateDoubleMetricFieldType createDefaultFieldType(String name, Map<String, String> meta, Metric defaultMetric) {
         AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(name, meta);
-        for (AggregateDoubleMetricFieldMapper.Metric m : List.of(
+        for (AggregateDoubleMetricFieldMapper.Metric m : org.elasticsearch.common.collect.List.of(
             AggregateDoubleMetricFieldMapper.Metric.min,
             AggregateDoubleMetricFieldMapper.Metric.max
         )) {
@@ -82,14 +81,14 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
         final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.min);
         final double defaultValue = 45.8;
         final Map<String, Object> metric = Collections.singletonMap("min", defaultValue);
-        assertEquals(List.of(defaultValue), fetchSourceValue(fieldType, metric));
+        assertEquals(org.elasticsearch.common.collect.List.of(defaultValue), fetchSourceValue(fieldType, metric));
     }
 
     public void testFetchSourceValueWithMultipleMetrics() throws IOException {
         final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.max);
         final double defaultValue = 45.8;
-        final Map<String, Object> metric = Map.of("min", 14.2, "max", defaultValue);
-        assertEquals(List.of(defaultValue), fetchSourceValue(fieldType, metric));
+        final Map<String, Object> metric = org.elasticsearch.common.collect.Map.of("min", 14.2, "max", defaultValue);
+        assertEquals(org.elasticsearch.common.collect.List.of(defaultValue), fetchSourceValue(fieldType, metric));
     }
 
     /** Tests that aggregate_metric_double uses the default_metric subfield's doc-values as values in scripts */
@@ -97,19 +96,19 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
         final MappedFieldType mappedFieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.max);
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
-                List.of(
+                org.elasticsearch.common.collect.List.of(
                     new NumericDocValuesField(subfieldName("field", Metric.max), Double.doubleToLongBits(10)),
                     new NumericDocValuesField(subfieldName("field", Metric.min), Double.doubleToLongBits(2))
                 )
             );
             iw.addDocument(
-                List.of(
+                org.elasticsearch.common.collect.List.of(
                     new NumericDocValuesField(subfieldName("field", Metric.max), Double.doubleToLongBits(4)),
                     new NumericDocValuesField(subfieldName("field", Metric.min), Double.doubleToLongBits(1))
                 )
             );
             iw.addDocument(
-                List.of(
+                org.elasticsearch.common.collect.List.of(
                     new NumericDocValuesField(subfieldName("field", Metric.max), Double.doubleToLongBits(7)),
                     new NumericDocValuesField(subfieldName("field", Metric.min), Double.doubleToLongBits(4))
                 )
@@ -120,7 +119,8 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                 when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
                 SearchLookup lookup = new SearchLookup(
                     queryShardContext::getFieldType,
-                    (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
+                    (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null),
+                    new String[] { "_doc" }
                 );
                 when(queryShardContext.lookup()).thenReturn(lookup);
                 IndexSearcher searcher = newSearcher(reader);
@@ -132,7 +132,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(Map.of(), queryShardContext.lookup(), ctx) {
+                        return new ScoreScript(org.elasticsearch.common.collect.Map.of(), queryShardContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 Map<String, ScriptDocValues<?>> doc = getDoc();

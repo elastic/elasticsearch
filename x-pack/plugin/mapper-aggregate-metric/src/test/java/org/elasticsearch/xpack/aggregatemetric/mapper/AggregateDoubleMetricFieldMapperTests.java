@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
@@ -44,7 +43,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new AggregateMetricMapperPlugin());
+        return org.elasticsearch.common.collect.List.of(new AggregateMetricMapperPlugin());
     }
 
     @Override
@@ -90,7 +89,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        return Map.of("min", -10.1, "max", 50.0, "value_count", 14);
+        return org.elasticsearch.common.collect.Map.of("min", -10.1, "max", 50.0, "value_count", 14);
     }
 
     @Override

@@ -6,8 +6,7 @@
 
 package org.elasticsearch.xpack.aggregatemetric;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -16,11 +15,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.metrics.AggregateMetricsAggregatorsRegistrar;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
-import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
-import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -34,15 +29,7 @@ public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin,
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(
-            new ActionHandler<>(XPackUsageFeatureAction.AGGREGATE_METRIC, AggregateMetricUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.AGGREGATE_METRIC, AggregateMetricInfoTransportAction.class)
-        );
-    }
-
-    @Override
-    public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
+    public java.util.List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
         return List.of(
             AggregateMetricsAggregatorsRegistrar::registerSumAggregator,
             AggregateMetricsAggregatorsRegistrar::registerAvgAggregator,

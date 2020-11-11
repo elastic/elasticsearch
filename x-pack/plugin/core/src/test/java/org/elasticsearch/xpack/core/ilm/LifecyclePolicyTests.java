@@ -145,6 +145,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             Set<String> actionNames = validActions.apply(phase);
+            if (phase.equals(TimeseriesLifecycleType.HOT_PHASE) == false) {
+                // let's make sure the other phases don't configure actions that conflict with the `searchable_snapshot` action
+                // configured in the hot phase
+                actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
+
+            }
             for (String action : actionNames) {
                 actions.put(action, randomAction.apply(action));
             }
@@ -215,9 +221,11 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     hotPhaseContainsSearchableSnap = true;
                 }
             } else {
-                // let's make sure the other phases don't configure actions that conflict with a possible `searchable_snapshot` action
-                // configured in the hot phase
-                actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
+                if (hotPhaseContainsSearchableSnap) {
+                    // let's make sure the other phases don't configure actions that conflict with a possible `searchable_snapshot` action
+                    // configured in the hot phase
+                    actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
+                }
             }
 
             for (String action : actionNames) {

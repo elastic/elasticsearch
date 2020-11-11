@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
@@ -41,6 +40,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRu
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -666,6 +666,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             } else if (e instanceof Alias == false
                     && e.nullable() == Nullability.TRUE
                     && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+                // TODO: check if this is the correct behaviour for percentile(int, pct, NULL, NULL)
                     return Literal.of(e, null);
                 }
 
@@ -1008,37 +1009,34 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     static class ReplaceAggsWithPercentiles extends OptimizerBasicRule {
 
+        private List<Expression> keyOf(Percentile per) {
+            return Arrays.asList(per.field(), per.method(), per.methodParameter());
+        }
+
         @Override
         public LogicalPlan apply(LogicalPlan p) {
-            // percentile per field/expression
-            Map<Expression, Set<Expression>> percentsPerField = new LinkedHashMap<>();
+            // percentile per (field/expression, method, methodparameters)
+            Map<List<Expression>, Set<Expression>> percentsPerArgs = new LinkedHashMap<>();
 
             // count gather the percents for each field
             p.forEachExpressionsUp(e -> {
                 if (e instanceof Percentile) {
                     Percentile per = (Percentile) e;
-                    Expression field = per.field();
-                    Set<Expression> percentiles = percentsPerField.get(field);
-
-                    if (percentiles == null) {
-                        percentiles = new LinkedHashSet<>();
-                        percentsPerField.put(field, percentiles);
-                    }
-
-                    percentiles.add(per.percent());
+                    percentsPerArgs.computeIfAbsent(keyOf(per), k -> new LinkedHashSet<>()).add(per.percent());
                 }
             });
 
-            Map<Expression, Percentiles> percentilesPerField = new LinkedHashMap<>();
-            // create a Percentile agg for each field (and its associated percents)
-            percentsPerField.forEach((k, v) -> {
-                percentilesPerField.put(k, new Percentiles(v.iterator().next().source(), k, new ArrayList<>(v)));
-            });
+            // create a Percentile agg for each argument combination
+            Map<List<Expression>, Percentiles> percentilesPerArgs = new LinkedHashMap<>();
+            percentsPerArgs.forEach((arguments, percents) -> percentilesPerArgs.put(
+                    arguments,
+                    new Percentiles(percents.iterator().next().source(),
+                        arguments.get(0), arguments.get(1), arguments.get(2), new ArrayList<>(percents))));
 
             return p.transformExpressionsUp(e -> {
                 if (e instanceof Percentile) {
                     Percentile per = (Percentile) e;
-                    Percentiles percentiles = percentilesPerField.get(per.field());
+                    Percentiles percentiles = percentilesPerArgs.get(keyOf(per));
                     return new InnerAggregate(per, percentiles);
                 }
 
@@ -1049,37 +1047,33 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     static class ReplaceAggsWithPercentileRanks extends OptimizerBasicRule {
 
+        private List<Expression> keyOf(PercentileRank per) {
+            return Arrays.asList(per.field(), per.method(), per.methodParameter());
+        }
+
         @Override
         public LogicalPlan apply(LogicalPlan p) {
             // percentile per field/expression
-            final Map<Expression, Set<Expression>> percentPerField = new LinkedHashMap<>();
+            final Map<List<Expression>, Set<Expression>> valuesPerArgs = new LinkedHashMap<>();
 
             // count gather the percents for each field
             p.forEachExpressionsUp(e -> {
                 if (e instanceof PercentileRank) {
                     PercentileRank per = (PercentileRank) e;
-                    Expression field = per.field();
-                    Set<Expression> percentiles = percentPerField.get(field);
-
-                    if (percentiles == null) {
-                        percentiles = new LinkedHashSet<>();
-                        percentPerField.put(field, percentiles);
-                    }
-
-                    percentiles.add(per.value());
+                    valuesPerArgs.computeIfAbsent(keyOf(per), k -> new LinkedHashSet<>()).add(per.value());
                 }
             });
 
-            Map<Expression, PercentileRanks> ranksPerField = new LinkedHashMap<>();
-            // create a PercentileRanks agg for each field (and its associated values)
-            percentPerField.forEach((k, v) -> {
-                ranksPerField.put(k, new PercentileRanks(v.iterator().next().source(), k, new ArrayList<>(v)));
-            });
+            Map<List<Expression>, PercentileRanks> ranksPerArgs = new LinkedHashMap<>();
+            valuesPerArgs.forEach((arguments, values) -> ranksPerArgs.put(
+                arguments,
+                new PercentileRanks(values.iterator().next().source(),
+                    arguments.get(0), arguments.get(1), arguments.get(2), new ArrayList<>(values))));
 
             return p.transformExpressionsUp(e -> {
                 if (e instanceof PercentileRank) {
                     PercentileRank per = (PercentileRank) e;
-                    PercentileRanks ranks = ranksPerField.get(per.field());
+                    PercentileRanks ranks = ranksPerArgs.get(keyOf(per));
                     return new InnerAggregate(per, ranks);
                 }
 

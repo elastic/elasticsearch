@@ -18,4 +18,12 @@ public abstract class Functions {
     public static boolean isGrouping(Expression e) {
         return e instanceof GroupingFunction;
     }
+
+    public static int countOfNonNullOptionalArgs(Object... args) {
+        int shift = 0;
+        for (Object a : args) {
+            shift += a == null ? 0 : 1;
+        }
+        return shift;
+    }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.util.Locale;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Predicate;
 
@@ -43,6 +44,29 @@ public final class TypeResolutions {
 
     public static TypeResolution isIP(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, dt -> dt == IP, operationName, paramOrd, "ip");
+    }
+
+    public static TypeResolution isEnum(Expression e, String operationName, ParamOrdinal paramOrd, Set<String> acceptedValues) {
+        TypeResolution resolution = isFoldable(e, operationName, paramOrd);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        resolution = isString(e, operationName, paramOrd);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        String value = (String)e.fold();
+        if (acceptedValues.contains(value) == false) {
+            return new TypeResolution(format(null, "{}argument of [{}] must be a string, one of {}, received [{}]",
+                paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                operationName,
+                acceptedValues,
+                value));
+        }
+
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     public static TypeResolution isExact(Expression e, String message) {

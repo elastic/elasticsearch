@@ -12,6 +12,9 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
@@ -85,6 +88,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -101,6 +107,7 @@ import static org.elasticsearch.xpack.sql.planner.QueryTranslator.TIME_FORMAT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -2337,5 +2344,125 @@ public class QueryTranslatorTests extends ESTestCase {
         TestContext testContext = new TestContext("mapping-numeric.json");
         PhysicalPlan p = testContext.optimizeAndPlan("SELECT long FROM test WHERE long IN (1, 2, 3, " + Long.MAX_VALUE + ", 5, 6, 7)");
         assertEquals(EsQueryExec.class, p.getClass());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> List<T> metricAggsByField(Supplier<PhysicalPlan> physicalPlanSupplier, int fieldCount) {
+        PhysicalPlan p = physicalPlanSupplier.get();
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        AggregationBuilder aggregationBuilder = ee.queryContainer().aggs().asAggBuilder();
+        assertEquals(fieldCount, ee.output().size());
+        assertEquals(ReferenceAttribute.class, ee.output().get(0).getClass());
+        assertEquals(fieldCount, ee.queryContainer().fields().size());
+        assertThat(fieldCount, greaterThanOrEqualTo(ee.queryContainer().aggs().asAggBuilder().getSubAggregations().size()));
+        Map<String, AggregationBuilder> aggsByName =
+            aggregationBuilder.getSubAggregations().stream().collect(Collectors.toMap(AggregationBuilder::getName, ab -> ab));
+        return IntStream.range(0, fieldCount).mapToObj(i -> {
+            String percentileAggName = ((MetricAggRef) ee.queryContainer().fields().get(i).v1()).name();
+            return (T) aggsByName.get(percentileAggName);
+        }).collect(Collectors.toList());
+    }
+
+    public void testPercentileNullOrUnspecifiedMethodIsTheSame() {
+        List<PercentilesAggregationBuilder> aggs =
+            metricAggsByField(() -> optimizeAndPlan(
+                "SELECT " +
+                    "   PERCENTILE(int, 50, 'tdigest', null), " +
+                    "   PERCENTILE(int, 50, 'tdigest'), " +
+                    "   PERCENTILE(int, 50) " +
+                    "FROM test"), 3);
+        assertEquals(aggs.get(0), aggs.get(1));
+        assertEquals(aggs.get(0), aggs.get(2));
+        assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
+        assertArrayEquals(new double[]{50}, aggs.get(0).percentiles(), 0);
+    }
+
+    public void testPercentileDefaultsToTDigest() {
+        List<PercentilesAggregationBuilder> aggs =
+            metricAggsByField(() -> optimizeAndPlan("SELECT PERCENTILE(int, 50) FROM test"), 1);
+        assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
+        assertArrayEquals(new double[]{50}, aggs.get(0).percentiles(), 0);
+    }
+
+    public void testPercentileTDigestWithParams() {
+        List<PercentilesAggregationBuilder> aggs =
+            metricAggsByField(() -> optimizeAndPlan("SELECT PERCENTILE(int, 49 + 1, 'tdigest', 50 + 0.2) FROM test"), 1);
+        assertEquals(new PercentilesConfig.TDigest(50.2d), aggs.get(0).percentilesConfig());
+        assertArrayEquals(new double[]{50}, aggs.get(0).percentiles(), 0);
+    }
+
+    public void testPercentileOptimization() {
+        List<PercentilesAggregationBuilder> aggs = metricAggsByField(() -> optimizeAndPlan(
+            "SELECT " +
+                "   PERCENTILE(int, 50, 'tdigest'), " +
+                "   PERCENTILE(int, 60, 'tdigest'), " +
+                "   PERCENTILE(int, 50, 'hdr'), " +
+                "   PERCENTILE(int, 60, 'hdr', 4)" +
+                "FROM test"), 4);
+        // the first two fields should be collapsed into the same PercentilesAggregation
+        assertEquals(aggs.get(0), aggs.get(1));
+        // the rest of the fields should be handled by separate aggregations
+        assertNotEquals(aggs.get(0), aggs.get(2));
+        assertNotEquals(aggs.get(2), aggs.get(3));
+
+        assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
+        assertArrayEquals(new double[]{50, 60}, aggs.get(0).percentiles(), 0);
+
+        assertEquals(new PercentilesConfig.Hdr(), aggs.get(2).percentilesConfig());
+        assertArrayEquals(new double[]{50}, aggs.get(2).percentiles(), 0);
+        assertEquals(new PercentilesConfig.Hdr(4), aggs.get(3).percentilesConfig());
+        assertArrayEquals(new double[]{60}, aggs.get(3).percentiles(), 0);
+    }
+
+    public void testPercentileRankNullOrUnspecifiedMethodIsTheSame() {
+        List<PercentileRanksAggregationBuilder> aggs =
+            metricAggsByField(() -> optimizeAndPlan(
+                "SELECT " +
+                    "   PERCENTILE_RANK(int, 50, 'tdigest', null), " +
+                    "   PERCENTILE_RANK(int, 50, 'tdigest'), " +
+                    "   PERCENTILE_RANK(int, 50) " +
+                    "FROM test"), 3);
+        assertEquals(aggs.get(0), aggs.get(1));
+        assertEquals(aggs.get(0), aggs.get(2));
+        assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
+        assertArrayEquals(new double[]{50}, aggs.get(0).values(), 0);
+    }
+
+    public void testPercentileRankDefaultsToTDigest() {
+        List<PercentileRanksAggregationBuilder> aggs =
+            metricAggsByField(() -> optimizeAndPlan("SELECT PERCENTILE_RANK(int, 50) FROM test"), 1);
+        assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
+        assertArrayEquals(new double[]{50}, aggs.get(0).values(), 0);
+    }
+
+    public void testPercentileRankTDigestWithParams() {
+        List<PercentileRanksAggregationBuilder> aggs =
+            metricAggsByField(() -> optimizeAndPlan("SELECT PERCENTILE_RANK(int, 49 + 1, 'tdigest', 50 + 0.2) FROM test"), 1);
+        assertEquals(new PercentilesConfig.TDigest(50.2d), aggs.get(0).percentilesConfig());
+        assertArrayEquals(new double[]{50}, aggs.get(0).values(), 0);
+    }
+
+    public void testPercentileRankOptimization() {
+        List<PercentileRanksAggregationBuilder> aggs = metricAggsByField(() -> optimizeAndPlan(
+            "SELECT " +
+                "   PERCENTILE_RANK(int, 50, 'tdigest'), " +
+                "   PERCENTILE_RANK(int, 60, 'tdigest'), " +
+                "   PERCENTILE_RANK(int, 50, 'hdr'), " +
+                "   PERCENTILE_RANK(int, 60, 'hdr', 4)" +
+                "FROM test"), 4);
+        // the first two fields should be collapsed into the same PercentilesAggregation
+        assertEquals(aggs.get(0), aggs.get(1));
+        // the rest of the fields should be handled by separate aggregations
+        assertNotEquals(aggs.get(0), aggs.get(2));
+        assertNotEquals(aggs.get(2), aggs.get(3));
+
+        assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
+        assertArrayEquals(new double[]{50, 60}, aggs.get(0).values(), 0);
+
+        assertEquals(new PercentilesConfig.Hdr(), aggs.get(2).percentilesConfig());
+        assertArrayEquals(new double[]{50}, aggs.get(2).values(), 0);
+        assertEquals(new PercentilesConfig.Hdr(4), aggs.get(3).percentilesConfig());
+        assertArrayEquals(new double[]{60}, aggs.get(3).values(), 0);
     }
 }

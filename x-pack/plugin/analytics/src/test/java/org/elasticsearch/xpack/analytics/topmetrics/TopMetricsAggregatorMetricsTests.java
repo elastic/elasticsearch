@@ -26,7 +26,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics.MetricValue;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics.TopMetric;
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregator.MetricValues;
-import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregator.MetricValuesSupplier;
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregator.Metrics;
 
 import java.io.IOException;
@@ -39,7 +38,6 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.REGISTRY_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -255,8 +253,13 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
     private void withMetrics(List<ValuesSourceConfig> configs, CheckedConsumer<Metrics, IOException> consumer) throws IOException {
         MetricValues[] values = new MetricValues[configs.size()];
         for (int i = 0; i < configs.size(); i++) {
-            MetricValuesSupplier supplier = REGISTRY.getAggregator(REGISTRY_KEY, configs.get(i));
-            values[i] = supplier.build(1, BigArrays.NON_RECYCLING_INSTANCE, configs.get(i).fieldContext().field(), configs.get(i));
+            values[i] = TopMetricsAggregator.buildMetricValues(
+                REGISTRY,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                1,
+                configs.get(i).fieldContext().field(),
+                configs.get(i)
+            );
         }
         try (Metrics m = new Metrics(values)) {
             consumer.accept(m);

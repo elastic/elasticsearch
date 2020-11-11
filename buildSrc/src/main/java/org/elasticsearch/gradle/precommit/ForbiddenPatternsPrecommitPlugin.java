@@ -19,13 +19,34 @@
 
 package org.elasticsearch.gradle.precommit;
 
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskProvider;
 
+import javax.inject.Inject;
+import java.util.stream.Collectors;
+
 public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin {
+
+    private final ProviderFactory providerFactory;
+
+    @Inject
+    public ForbiddenPatternsPrecommitPlugin(ProviderFactory providerFactory) {
+        this.providerFactory = providerFactory;
+    }
+
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        return project.getTasks().register("forbiddenPatterns", ForbiddenPatternsTask.class);
+        return project.getTasks().register("forbiddenPatterns", ForbiddenPatternsTask.class, forbiddenPatternsTask -> {
+            forbiddenPatternsTask.getSourceFolders()
+                .addAll(
+                    providerFactory.provider(
+                        () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
+                    )
+                );
+            forbiddenPatternsTask.getRootDir().set(project.getRootDir());
+        });
     }
 }

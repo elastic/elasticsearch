@@ -289,6 +289,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -693,7 +694,14 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                     null, () -> {
                         throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
 
-                    }, null), dlsBitsetCache.get(), securityContext.get(), getLicenseState(), indexService.getScriptService()));
+                                },
+                                null,
+                                // Don't use runtime mappings in the security query
+                                emptyMap()),
+                                dlsBitsetCache.get(),
+                                securityContext.get(),
+                                getLicenseState(),
+                                indexService.getScriptService()));
                 /*
                  * We need to forcefully overwrite the query cache implementation to use security's opt-out query cache implementation. This
                  * implementation disables the query cache if field level security is used for a particular request. We have to forcefully

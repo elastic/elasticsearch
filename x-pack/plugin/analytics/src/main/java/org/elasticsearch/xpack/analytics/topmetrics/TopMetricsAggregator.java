@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -215,7 +214,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @FunctionalInterface
-    static interface MetricValuesSupplier {
+    interface MetricValuesSupplier {
         MetricValues build(int size, BigArrays bigArrays, ValuesSourceConfig config);
     }
 

@@ -578,12 +578,12 @@ public class AggregationProfilerIT extends ESIntegTestCase {
      */
     public void testFilterByFilter() throws InterruptedException, IOException {
         assertAcked(client().admin().indices().prepareCreate("dateidx")
-            .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
-            .setMapping("date", "type=date").get());
+            .setSettings(org.elasticsearch.common.collect.Map.of("number_of_shards", 1, "number_of_replicas", 0))
+            .addMapping("_doc", "date", "type=date").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2; i++) {
             String date = Instant.ofEpochSecond(i).toString();
-            builders.add(client().prepareIndex("dateidx").setSource(jsonBuilder().startObject().field("date", date).endObject()));
+            builders.add(client().prepareIndex("dateidx", "_doc").setSource(jsonBuilder().startObject().field("date", date).endObject()));
         }
         indexRandom(true, false, builders);
 
@@ -617,17 +617,20 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(breakdown.get(REDUCE), equalTo(0L));
             Map<String, Object> debug = histoAggResult.getDebugInfo();
             assertThat(debug, notNullValue());
-            assertThat(debug.keySet(), equalTo(Set.of("delegate", "delegate_debug")));
+            assertThat(debug.keySet(), equalTo(org.elasticsearch.common.collect.Set.of("delegate", "delegate_debug")));
             assertThat(debug.get("delegate"), equalTo("RangeAggregator.FromFilters"));
             Map<?, ?> delegate = (Map<?, ?>) debug.get("delegate_debug");
-            assertThat(delegate.keySet(), equalTo(Set.of("average_docs_per_range", "ranges", "delegate", "delegate_debug")));
+            assertThat(
+                delegate.keySet(),
+                equalTo(org.elasticsearch.common.collect.Set.of("average_docs_per_range", "ranges", "delegate", "delegate_debug"))
+            );
             assertThat(
                 ((Number) delegate.get("average_docs_per_range")).doubleValue(),
                 equalTo(RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2)
             );
             assertThat(((Number) delegate.get("ranges")).longValue(), equalTo(1L));
             assertThat(delegate.get("delegate"), equalTo("FiltersAggregator.FilterByFilter"));
-            assertThat(delegate.get("delegate_debug"), equalTo(Map.of("segments_with_deleted_docs", 0)));
+            assertThat(delegate.get("delegate_debug"), equalTo(org.elasticsearch.common.collect.Map.of("segments_with_deleted_docs", 0)));
         }
     }
 }

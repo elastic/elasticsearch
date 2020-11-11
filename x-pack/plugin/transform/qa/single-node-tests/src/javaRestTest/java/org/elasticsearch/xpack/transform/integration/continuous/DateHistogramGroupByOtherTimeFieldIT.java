@@ -221,7 +221,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
                     MAX_RUN_FIELD,
                     source
                 ),
-                is(lessThanOrEqualTo(1))
+                is(lessThanOrEqualTo(2))
             );
         }
         assertFalse(sourceIterator.hasNext());

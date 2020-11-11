@@ -224,6 +224,7 @@ public abstract class AggregatorBase extends Aggregator {
         return parent;
     }
 
+    @Override
     public Aggregator[] subAggregators() {
         return subAggregators;
     }

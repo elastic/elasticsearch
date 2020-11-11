@@ -12,8 +12,8 @@ If the managed index is part of a <<data-streams, data stream>>,
 the mounted index replaces the original index in the data stream.
 
 IMPORTANT: If the `searchable_snapshot` action is used in the `hot` phase the
-subsequent phases cannot define any of the `shrink`, `forcemerge` or `freeze`
-actions.
+subsequent phases cannot define any of the `shrink`, `forcemerge`, `freeze` or
+`searchable_snapshot` (also available in the cold phase) actions.
 
 [NOTE]
 This action cannot be performed on a data stream's write index. Attempts to do

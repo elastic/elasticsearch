@@ -10,6 +10,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 
+import java.util.Arrays;
+import java.util.List;
+
 public class MathOperationTests extends ESTestCase {
 
     public void testAbsLongMax() {
@@ -37,23 +40,26 @@ public class MathOperationTests extends ESTestCase {
     }
 
     public void testSignIntegerType() {
-        assertEquals(-1, MathOperation.SIGN.apply((byte) -42));
-        assertEquals( -1, MathOperation.SIGN.apply((short) -42));
-        assertEquals(-1, MathOperation.SIGN.apply(-42));
-        assertEquals( -1, MathOperation.SIGN.apply((long) -42));
-        assertEquals(-1, MathOperation.SIGN.apply(-42.0f));
-        assertEquals(-1, MathOperation.SIGN.apply(-42.0d));
-        assertEquals( 1, MathOperation.SIGN.apply((byte) 42));
-        assertEquals( 1, MathOperation.SIGN.apply((short) 42));
-        assertEquals(1, MathOperation.SIGN.apply(42));
-        assertEquals( 1, MathOperation.SIGN.apply((long) 42));
-        assertEquals(1, MathOperation.SIGN.apply(42.0f));
-        assertEquals(1, MathOperation.SIGN.apply(42.0d));
-        assertEquals(0, MathOperation.SIGN.apply((byte) 0));
-        assertEquals( 0, MathOperation.SIGN.apply((short) 0));
-        assertEquals(0, MathOperation.SIGN.apply(0));
-        assertEquals( 0, MathOperation.SIGN.apply((long) 0));
-        assertEquals(0, MathOperation.SIGN.apply(-0.0f));
-        assertEquals(0, MathOperation.SIGN.apply(-0.0d));
+        List<Number> negative = Arrays.asList((byte) -42, (short) -42, -42, Long.valueOf(-42), Float.valueOf(-42.0f), Double.valueOf(-42.0d));
+        List<Number> zero = Arrays.asList((byte) 0, (short) 0, 0, Long.valueOf(0), Float.valueOf(0.0f), Double.valueOf(0.0d));
+        List<Number> positive = Arrays.asList((byte) 42, (short)42, 42, Long.valueOf(42), Float.valueOf(42.0f), Double.valueOf(42.0d));
+
+        for (Number number : negative) {
+            Number result = MathOperation.SIGN.apply(number);
+            assertEquals(Integer.class, result.getClass());
+            assertEquals(-1, result);
+        }
+
+        for (Number number : zero) {
+            Number result = MathOperation.SIGN.apply(number);
+            assertEquals(Integer.class, result.getClass());
+            assertEquals(0, result);
+        }
+
+        for (Number number : positive) {
+            Number result = MathOperation.SIGN.apply(number);
+            assertEquals(Integer.class, result.getClass());
+            assertEquals(1, result);
+        }
     }
 }

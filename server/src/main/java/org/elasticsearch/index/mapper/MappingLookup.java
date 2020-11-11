@@ -27,14 +27,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-//TODO does this need to be iterable? It is not easy to track who's relying on that
-public final class MappingLookup implements Iterable<Mapper> {
-
+public final class MappingLookup {
     /** Full field name to mapper */
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
@@ -134,7 +131,7 @@ public final class MappingLookup implements Iterable<Mapper> {
         return fieldMappers.get(field);
     }
 
-    public FieldTypeLookup fieldTypes() {
+    FieldTypeLookup fieldTypes() {
         return fieldTypeLookup;
     }
 
@@ -146,9 +143,11 @@ public final class MappingLookup implements Iterable<Mapper> {
         return this.indexAnalyzer;
     }
 
-    @Override
-    public Iterator<Mapper> iterator() {
-        return fieldMappers.values().iterator();
+    /**
+     * Returns an iterable over all the registered field mappers (including alias mappers)
+     */
+    public Iterable<Mapper> fieldMappers() {
+        return fieldMappers.values();
     }
 
     public void checkLimits(IndexSettings settings) {

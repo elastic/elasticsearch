@@ -20,7 +20,9 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -35,6 +37,8 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Set;
 
 /**
  * Create index action.
@@ -72,20 +76,36 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
 
         String mappings = request.mappings();
         Settings settings = request.settings();
+        Set<Alias> aliases = request.aliases();
 
-//        if (systemIndices.isSystemIndex(indexName)) {
-//            // System indices define their own settings and mappings, which cannot be overridden.
-//            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-//            assert descriptor != null;
-//            mappings = descriptor.getMappings();
-//            settings = descriptor.getSettings();
-//        }
+        String concreteIndexName = indexName;
+
+        boolean isSystemIndex = systemIndices.isSystemIndex(indexName);
+
+        if (isSystemIndex) {
+            // System indices define their own settings and mappings, which cannot be overridden.
+            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+            assert descriptor != null;
+            mappings = descriptor.getMappings();
+            settings = descriptor.getSettings();
+
+            if (descriptor.getAliasName() == null) {
+                aliases = Set.of();
+            } else {
+                concreteIndexName = descriptor.getIndexPattern();
+                aliases = Set.of(new Alias(descriptor.getAliasName()));
+            }
+        }
 
         final CreateIndexClusterStateUpdateRequest updateRequest =
-            new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index())
+            new CreateIndexClusterStateUpdateRequest(cause, concreteIndexName, request.index())
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .aliases(request.aliases())
+                .aliases(aliases)
                 .waitForActiveShards(request.waitForActiveShards());
+
+        if (isSystemIndex) {
+            updateRequest.waitForActiveShards(ActiveShardCount.ALL);
+        }
 
         if (mappings != null) {
             updateRequest.mappings(mappings);

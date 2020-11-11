@@ -207,8 +207,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             )
         );
 
-        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [shrink, forcemerge, freeze] actions which are " +
-            "not allowed after a managed index is mounted as a searchable snapshot"));
+        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink]" +
+            " actions which are not allowed after a managed index is mounted as a searchable snapshot"));
     }
 
     public void testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped() throws Exception {

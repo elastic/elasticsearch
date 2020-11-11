@@ -69,7 +69,7 @@ ARG BASE_TAG=8.2
     sourceElasticsearch = """
 RUN curl --retry 8 -S -L \\
       --output /opt/elasticsearch.tar.gz \\
-      https://artifacts.elastic.co/downloads/elasticsearch/$elasticsearch
+      https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/$elasticsearch
 """.trim()
   }
 

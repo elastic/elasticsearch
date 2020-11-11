@@ -42,7 +42,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
 
-class MinAggregator extends NumericMetricsAggregator.SingleValue {
+public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     private static final int MAX_BKD_LOOKUPS = 1024;
 
     final ValuesSource.Numeric valuesSource;

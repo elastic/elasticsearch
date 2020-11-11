@@ -77,17 +77,8 @@ public class DataFrameDataExtractor {
     DataFrameDataExtractor(Client client, DataFrameDataExtractorContext context) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(context);
-        Set<String> processedFieldInputs = context.extractedFields.getProcessedFieldInputs();
-        this.organicFeatures = context.extractedFields.getAllFields()
-            .stream()
-            .map(ExtractedField::getName)
-            .filter(f -> processedFieldInputs.contains(f) == false)
-            .toArray(String[]::new);
-        this.processedFeatures = context.extractedFields.getProcessedFields()
-            .stream()
-            .map(ProcessedField::getOutputFieldNames)
-            .flatMap(List::stream)
-            .toArray(String[]::new);
+        this.organicFeatures = context.extractedFields.extractOrganicFeatureNames();
+        this.processedFeatures = context.extractedFields.extractProcessedFeatureNames();
         this.extractedFieldsByName = new LinkedHashMap<>();
         context.extractedFields.getAllFields().forEach(f -> this.extractedFieldsByName.put(f.getName(), f));
         hasNext = true;
@@ -360,7 +351,10 @@ public class DataFrameDataExtractor {
     }
 
     private static boolean isValidValue(Object value) {
-        return value instanceof Number || value instanceof String;
+        // We should allow a number, string or a boolean.
+        // It is possible for a field to be categorical and have a `keyword` mapping, but be any of these
+        // three types, in the same index.
+        return value instanceof Number || value instanceof String || value instanceof Boolean;
     }
 
     public static class DataSummary {

@@ -110,7 +110,7 @@ public class JobNodeSelector {
                 reasons.add(reason);
                 continue;
             }
-            NodeLoadDetector.NodeLoad currentLoad = nodeLoadDetector.detectNodeLoad(
+            NodeLoad currentLoad = nodeLoadDetector.detectNodeLoad(
                 clusterState,
                 true, // Remove in 8.0.0
                 node,

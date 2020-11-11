@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
@@ -33,7 +35,11 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -179,20 +185,84 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
 
     public void testScaleDown_WithDetectionError() {
         List<DiscoveryNode> nodes = withMlNodes("foo", "bar", "baz");
+        DiscoveryNode badNode = randomFrom(nodes);
+        NodeLoad badLoad = NodeLoad.builder(badNode.getId()).setError("bad node").build();
+        when(nodeLoadDetector.detectNodeLoad(any(), anyBoolean(), any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+            .thenReturn(NodeLoad.builder(badNode.getId()).setUseMemory(true).build());
+        when(nodeLoadDetector.detectNodeLoad(any(), anyBoolean(), eq(badNode), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+            .thenReturn(badLoad);
 
-
+        MlAutoscalingDeciderService service = buildService();
+        MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
+        assertThat(service.checkForScaleDown(nodes,
+            ClusterState.EMPTY_STATE,
+            Long.MAX_VALUE,
+            new NativeMemoryCapacity(ByteSizeValue.ofGb(3).getBytes(), ByteSizeValue.ofGb(1).getBytes()),
+            reasonBuilder).isEmpty(), is(true));
     }
 
     public void testScaleDown_WhenMemoryIsInaccurate() {
+        List<DiscoveryNode> nodes = withMlNodes("foo", "bar", "baz");
+        DiscoveryNode badNode = randomFrom(nodes);
+        NodeLoad badLoad = NodeLoad.builder(badNode.getId()).setUseMemory(false).build();
+        when(nodeLoadDetector.detectNodeLoad(any(), anyBoolean(), any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+            .thenReturn(NodeLoad.builder(badNode.getId()).setUseMemory(true).build());
+        when(nodeLoadDetector.detectNodeLoad(any(), anyBoolean(), eq(badNode), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+            .thenReturn(badLoad);
 
+        MlAutoscalingDeciderService service = buildService();
+        MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
+        assertThat(service.checkForScaleDown(nodes,
+            ClusterState.EMPTY_STATE,
+            Long.MAX_VALUE,
+            new NativeMemoryCapacity(ByteSizeValue.ofGb(3).getBytes(), ByteSizeValue.ofGb(1).getBytes()),
+            reasonBuilder).isEmpty(), is(true));
     }
 
-    public void testScaleDown_WithMoreTier() {
-
-    }
-
-    public void testScaleDown_WithLargerNode() {
-
+    public void testScaleDown() {
+        List<DiscoveryNode> nodes = withMlNodes("foo", "bar", "baz");
+        when(nodeLoadDetector.detectNodeLoad(any(), anyBoolean(), any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+            .thenReturn(NodeLoad.builder("any")
+                .setUseMemory(true)
+                .incAssignedJobMemory(ByteSizeValue.ofGb(1).getBytes())
+                .build());
+        MlAutoscalingDeciderService service = buildService();
+        service.setMaxMachineMemoryPercent(25);
+        MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder();
+        {//Current capacity allows for smaller node
+            Optional<AutoscalingDeciderResult> result = service.checkForScaleDown(nodes,
+                ClusterState.EMPTY_STATE,
+                ByteSizeValue.ofMb(100).getBytes(),
+                new NativeMemoryCapacity(ByteSizeValue.ofGb(3).getBytes(), ByteSizeValue.ofGb(1).getBytes()),
+                reasonBuilder);
+            assertThat(result.isEmpty(), is(false));
+            AutoscalingDeciderResult autoscalingDeciderResult = result.get();
+            assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(),
+                equalTo(ByteSizeValue.ofMb(400).getBytes()));
+            assertThat(autoscalingDeciderResult.requiredCapacity().tier().memory().getBytes(),
+                equalTo(ByteSizeValue.ofGb(12).getBytes()));
+        }
+        {// Current capacity allows for smaller tier
+            Optional<AutoscalingDeciderResult> result = service.checkForScaleDown(nodes,
+                ClusterState.EMPTY_STATE,
+                ByteSizeValue.ofMb(100).getBytes(),
+                new NativeMemoryCapacity(ByteSizeValue.ofGb(4).getBytes(), ByteSizeValue.ofMb(100).getBytes()),
+                reasonBuilder);
+            assertThat(result.isEmpty(), is(false));
+            AutoscalingDeciderResult autoscalingDeciderResult = result.get();
+            assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(),
+                equalTo(ByteSizeValue.ofMb(400).getBytes()));
+            assertThat(autoscalingDeciderResult.requiredCapacity().tier().memory().getBytes(),
+                equalTo(ByteSizeValue.ofGb(12).getBytes()));
+        }
+        {// Scale down is not really possible
+            Optional<AutoscalingDeciderResult> result = service.checkForScaleDown(nodes,
+                ClusterState.EMPTY_STATE,
+                ByteSizeValue.ofMb(100).getBytes(),
+                new NativeMemoryCapacity(ByteSizeValue.ofGb(3).getBytes(), ByteSizeValue.ofMb(100).getBytes()),
+                reasonBuilder);
+            assertThat(result.isEmpty(), is(true));
+        }
     }
 
     private MlAutoscalingDeciderService buildService() {

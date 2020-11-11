@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
@@ -504,17 +505,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
         return getAnomalyMemoryRequirement(MlTasks.jobId(task.getId()));
     }
 
-    // TODO, actually calculate scale down,
-    //  but only return it as a scale option IF cool down period has passed (AFTER it was previously calculated)
     Optional<AutoscalingDeciderResult> checkForScaleDown(List<DiscoveryNode> nodes,
                                                          ClusterState clusterState,
                                                          long largestJob,
                                                          NativeMemoryCapacity currentCapacity,
                                                          MlScalingReason.Builder reasonBuilder) {
-        List<NodeLoadDetector.NodeLoad> nodeLoads = new ArrayList<>();
+        List<NodeLoad> nodeLoads = new ArrayList<>();
         boolean isMemoryAccurateFlag = true;
         for (DiscoveryNode node : nodes) {
-            NodeLoadDetector.NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState,
+            NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState,
                 true,
                 node,
                 maxOpenJobs,
@@ -533,7 +532,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
         if (isMemoryAccurateFlag == false) {
             return Optional.empty();
         }
-        long currentlyNecessaryTier = nodeLoads.stream().mapToLong(NodeLoadDetector.NodeLoad::getAssignedJobMemory).sum();
+        long currentlyNecessaryTier = nodeLoads.stream().mapToLong(NodeLoad::getAssignedJobMemory).sum();
         // We consider a scale down if we are not fully utilizing the tier
         // Or our largest job could be on a smaller node (meaning the same size tier but smaller nodes are possible).
         if (currentlyNecessaryTier < currentCapacity.getTier() || largestJob < currentCapacity.getNode()) {

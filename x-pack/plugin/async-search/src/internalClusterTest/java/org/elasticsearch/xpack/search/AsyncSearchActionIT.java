@@ -463,6 +463,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskNotRunning(response.getId());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63948")
     public void testRetryVersionConflict() throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
         request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));

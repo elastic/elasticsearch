@@ -211,7 +211,7 @@ public class RootObjectMapper extends ObjectMapper {
                 return true;
             } else if (fieldName.equals("runtime")) {
                 if (fieldNode instanceof Map) {
-                    parseRuntime(builder, (Map<String, Object>) fieldNode, parserContext);
+                    RuntimeFieldType.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, builder::addRuntime);
                     return true;
                 } else {
                     throw new ElasticsearchParseException("runtime must be a map type");
@@ -500,40 +500,5 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         return false;
-    }
-
-    private static void parseRuntime(RootObjectMapper.Builder builder,
-                                     Map<String, Object> node,
-                                     Mapper.TypeParser.ParserContext parserContext) {
-        Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<String, Object> entry = iterator.next();
-            String fieldName = entry.getKey();
-            if (entry.getValue() instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
-                Object typeNode = propNode.get("type");
-                String type;
-                if (typeNode == null) {
-                    throw new MapperParsingException("No type specified for runtime field [" + fieldName + "]");
-                } else {
-                    type = typeNode.toString();
-                }
-                RuntimeFieldType.Parser typeParser = parserContext.runtimeTypeParsers().apply(type);
-                if (typeParser == null) {
-                    throw new MapperParsingException("No handler for type [" + type +
-                        "] declared on runtime field [" + fieldName + "]");
-                }
-                builder.addRuntime(typeParser.parse(fieldName, propNode, parserContext));
-                propNode.remove("type");
-                DocumentMapperParser.checkNoRemainingFields(fieldName, propNode, parserContext.indexVersionCreated());
-                iterator.remove();
-            } else {
-                throw new MapperParsingException("Expected map for runtime field [" + fieldName + "] definition but got a "
-                    + fieldName.getClass().getName());
-            }
-        }
-        DocumentMapperParser.checkNoRemainingFields(node, parserContext.indexVersionCreated(),
-            "DocType runtime definition has unsupported parameters: ");
     }
 }

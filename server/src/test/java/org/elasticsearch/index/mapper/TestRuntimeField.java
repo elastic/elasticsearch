@@ -26,8 +26,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 
-public final class TestRuntimeField extends RuntimeFieldType {
-    TestRuntimeField(String name) {
+public class TestRuntimeField extends RuntimeFieldType {
+    public TestRuntimeField(String name) {
         super(name, Collections.emptyMap());
     }
 

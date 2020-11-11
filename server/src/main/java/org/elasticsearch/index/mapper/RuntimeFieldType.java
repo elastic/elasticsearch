@@ -23,7 +23,10 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Base implementation for a runtime field that can be defined as part of the runtime section of the index mappings
@@ -56,5 +59,38 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
     public interface Parser {
         RuntimeFieldType parse(String name, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext)
             throws MapperParsingException;
+    }
+
+    public static void parseRuntimeFields(Map<String, Object> node,
+                                          Mapper.TypeParser.ParserContext parserContext,
+                                          Consumer<RuntimeFieldType> runtimeFieldTypeConsumer) {
+        Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, Object> entry = iterator.next();
+            String fieldName = entry.getKey();
+            if (entry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) entry.getValue()));
+                Object typeNode = propNode.get("type");
+                String type;
+                if (typeNode == null) {
+                    throw new MapperParsingException("No type specified for runtime field [" + fieldName + "]");
+                } else {
+                    type = typeNode.toString();
+                }
+                Parser typeParser = parserContext.runtimeTypeParsers().apply(type);
+                if (typeParser == null) {
+                    throw new MapperParsingException("No handler for type [" + type +
+                        "] declared on runtime field [" + fieldName + "]");
+                }
+                runtimeFieldTypeConsumer.accept(typeParser.parse(fieldName, propNode, parserContext));
+                propNode.remove("type");
+                DocumentMapperParser.checkNoRemainingFields(fieldName, propNode, parserContext.indexVersionCreated());
+                iterator.remove();
+            } else {
+                throw new MapperParsingException("Expected map for runtime field [" + fieldName + "] definition but got a "
+                    + fieldName.getClass().getName());
+            }
+        }
     }
 }

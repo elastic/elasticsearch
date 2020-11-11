@@ -206,8 +206,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase)));
-        assertThat(e.getMessage(), is("phases [warm,cold] define one or more of [shrink,forcemerge,freeze] actions which are not allowed" +
-            " after the managed index was mounted as searchable snapshot"));
+        assertThat(e.getMessage(), is("phases [warm,cold] define one or more of [shrink, forcemerge, freeze] actions which are not " +
+            "allowed after a managed index is mounted as a searchable snapshot"));
     }
 
     public void testGetOrderedPhases() {

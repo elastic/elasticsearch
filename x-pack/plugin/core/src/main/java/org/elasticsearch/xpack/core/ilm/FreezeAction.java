@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,9 +71,17 @@ public class FreezeAction implements LifecycleAction {
 
         BranchingStep conditionalSkipFreezeStep = new BranchingStep(preFreezeMergeBranchingKey, checkNotWriteIndex, nextStepKey,
             (index, clusterState) -> {
-                if (clusterState.getMetadata().index(index).getSettings().get("index.store.snapshot.index_name") != null) {
-                    logger.warn("[{}] action is configured for index [{}] which is mounted as searchable snapshot. Skipping this action",
-                        FreezeAction.NAME, index.getName());
+                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+                assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
+                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
+                    logger.warn("[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. " +
+                        "Skipping this action", FreezeAction.NAME, index.getName(), policyName);
+                    return true;
+                }
+                if (indexMetadata.getSettings().getAsBoolean("index.frozen", false)) {
+                    logger.debug("skipping [{}] action for index [{}] in policy [{}] as the index is already frozen", FreezeAction.NAME,
+                        index.getName(), policyName);
                     return true;
                 }
                 return false;

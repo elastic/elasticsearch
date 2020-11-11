@@ -113,9 +113,10 @@ public class ShrinkAction implements LifecycleAction {
                 if (indexMetadata.getNumberOfShards() == numberOfShards) {
                     return true;
                 }
-                if (indexMetadata.getSettings().get("index.store.snapshot.index_name") != null) {
-                    logger.warn("[{}] action is configured for index [{}] which is mounted as searchable snapshot. Skipping this action",
-                        ShrinkAction.NAME, indexMetadata.getIndex().getName());
+                if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
+                    logger.warn("[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. " +
+                            "Skipping this action", ShrinkAction.NAME, indexMetadata.getIndex().getName(),
+                        LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
                     return true;
                 }
                 return false;

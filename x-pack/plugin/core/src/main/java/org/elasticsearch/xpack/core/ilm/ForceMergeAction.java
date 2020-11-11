@@ -139,9 +139,12 @@ public class ForceMergeAction implements LifecycleAction {
 
         BranchingStep conditionalSkipShrinkStep = new BranchingStep(preForceMergeBranchingKey, checkNotWriteIndex, nextStepKey,
             (index, clusterState) -> {
-                if (clusterState.getMetadata().index(index).getSettings().get("index.store.snapshot.index_name") != null) {
-                    logger.warn("[{}] action is configured for index [{}] which is mounted as searchable snapshot. Skipping this action",
-                        ForceMergeAction.NAME, index.getName());
+                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
+                if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
+                    String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                    logger.warn("[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. " +
+                        "Skipping this action", ForceMergeAction.NAME, index.getName(), policyName);
                     return true;
                 }
                 return false;

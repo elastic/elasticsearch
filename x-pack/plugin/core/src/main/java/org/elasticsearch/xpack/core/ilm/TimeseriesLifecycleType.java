@@ -58,10 +58,10 @@ public class TimeseriesLifecycleType implements LifecycleType {
         DELETE_PHASE, VALID_DELETE_ACTIONS);
 
     static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Sets.newHashSet(ReadOnlyAction.NAME, ShrinkAction.NAME,
-        ForceMergeAction.NAME);
+        ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
     // a set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot
     static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Sets.newHashSet(ShrinkAction.NAME, ForceMergeAction.NAME,
-        FreezeAction.NAME);
+        FreezeAction.NAME, SearchableSnapshotAction.NAME);
 
     private TimeseriesLifecycleType() {
     }

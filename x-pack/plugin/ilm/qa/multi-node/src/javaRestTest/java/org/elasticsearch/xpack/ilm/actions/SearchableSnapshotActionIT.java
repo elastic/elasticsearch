@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -196,26 +197,26 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS));
     }
 
-    public void testCreateInvalidPolicy() throws Exception {
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
-        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+    public void testCreateInvalidPolicy() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
+            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L), SearchableSnapshotAction.NAME,
+                new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10)))),
             new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null))),
             new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction())),
             null
             )
         );
 
-        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [shrink,forcemerge,freeze] actions which are not " +
-            "allowed after the managed index was mounted as searchable snapshot"));
+        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [shrink, forcemerge, freeze] actions which are " +
+            "not allowed after a managed index is mounted as a searchable snapshot"));
     }
 
     public void testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped() throws Exception {
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
+            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L), SearchableSnapshotAction.NAME,
+                new SearchableSnapshotAction(snapshotRepo))),
             new Phase("warm", TimeValue.timeValueDays(30), Map.of(SetPriorityAction.NAME, new SetPriorityAction(999))),
             null, null
         );
@@ -227,11 +228,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 .build(), null, null)
         );
 
+        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             indexDocument(client(), dataStream, true);
         }
-        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
-        rolloverMaxOneDocCondition(client(), dataStream);
 
         String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + DataStream.getDefaultBackingIndexName(dataStream, 1L);
         assertTrue(waitUntil(() -> {
@@ -253,7 +253,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase("warm", TimeValue.ZERO,
                 Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME, new ForceMergeAction(1, null))
             ),
-            new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction())),
+            new Phase("cold", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
             null
         );
 
@@ -271,7 +271,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
+            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L),
+                SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
             new Phase("warm", TimeValue.timeValueDays(30), Map.of(SetPriorityAction.NAME, new SetPriorityAction(999))),
             null, null
         );
@@ -283,11 +284,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 .build(), null, null)
         );
 
+        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             indexDocument(client(), dataStream, true);
         }
-        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
-        rolloverMaxOneDocCondition(client(), dataStream);
 
         String searchableSnapMountedIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX +
             DataStream.getDefaultBackingIndexName(dataStream, 1L);

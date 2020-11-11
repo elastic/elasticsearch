@@ -27,6 +27,8 @@ public class LifecycleSettings {
     public static final String SLM_RETENTION_DURATION = "slm.retention_duration";
     public static final String SLM_MINIMUM_INTERVAL = "slm.minimum_interval";
 
+    public static final String SNAPSHOT_INDEX_NAME = "index.store.snapshot.index_name";
+
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.timeSetting(LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10), TimeValue.timeValueSeconds(1), Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> LIFECYCLE_NAME_SETTING = Setting.simpleString(LIFECYCLE_NAME,

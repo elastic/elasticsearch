@@ -199,15 +199,25 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 default:
                     throw new IllegalArgumentException("invalid action [" + action + "]");
             }};
+        boolean hotPhaseContainsSearchableSnap = false;
         for (String phase : phaseNames) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<String> actionNames = randomSubsetOf(validActions.apply(phase));
 
-            // If the hot phase has any actions that require a rollover, then ensure there is one so that the policy will validate
-            if (phase.equals(TimeseriesLifecycleType.HOT_PHASE)
-                && actionNames.stream().anyMatch(TimeseriesLifecycleType.HOT_ACTIONS_THAT_REQUIRE_ROLLOVER::contains)) {
-                actionNames.add(RolloverAction.NAME);
+            if (phase.equals(TimeseriesLifecycleType.HOT_PHASE)) {
+                // If the hot phase has any actions that require a rollover, then ensure there is one so that the policy will validate
+                if (actionNames.stream().anyMatch(TimeseriesLifecycleType.HOT_ACTIONS_THAT_REQUIRE_ROLLOVER::contains)) {
+                    actionNames.add(RolloverAction.NAME);
+                }
+
+                if (actionNames.contains(SearchableSnapshotAction.NAME)) {
+                    hotPhaseContainsSearchableSnap = true;
+                }
+            } else {
+                // let's make sure the other phases don't configure actions that conflict with a possible `searchable_snapshot` action
+                // configured in the hot phase
+                actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
             }
 
             for (String action : actionNames) {

@@ -27,7 +27,13 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.Objects;
 
 /**
- * Describes a system index. Provides the information required to create and maintain the system index.
+ * A system index descriptor perform one of two possible functions.
+ * <ul>
+ *    <li>It can describe a single system index, including all the required information to create
+ *    and maintain the system index</li>
+ *    <li>Or it can matches a number of indices, which are managed dynamically, or externally to Elasticsearch.
+ *    These are not automatically managed by the system index infrastructure.</li>
+ * </ul>
  */
 public class SystemIndexDescriptor {
     private final String indexPattern;
@@ -45,7 +51,7 @@ public class SystemIndexDescriptor {
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
-        this(indexPattern, description, null, null);
+        this(indexPattern, description, null, null, null, 0, null, null);
     }
 
     /**
@@ -53,18 +59,13 @@ public class SystemIndexDescriptor {
      * @param description The name of the plugin responsible for this system index.
      * @param mappings The mappings to apply to this index when auto-creating, if appropriate
      * @param settings The settings to apply to this index when auto-creating, if appropriate
+     * @param aliasName An alias for the index, or null
+     * @param indexFormat A value for the `index.format` setting. Pass 0 or higher.
+     * @param versionMetaKey a mapping key under <code>_meta</code> where a version can be found, which indicates the
+     *                       Elasticsearch version when the index was created.
+     * @param origin the client origin to use when creating this index.
      */
-    public SystemIndexDescriptor(String indexPattern, String description, String mappings, Settings settings) {
-        this(indexPattern, description, mappings, settings, null, 0, null, null);
-    }
-
-    /**
-     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
-     * @param description The name of the plugin responsible for this system index.
-     * @param mappings The mappings to apply to this index when auto-creating, if appropriate
-     * @param settings The settings to apply to this index when auto-creating, if appropriate
-     */
-    public SystemIndexDescriptor(String indexPattern, String description, String mappings, Settings settings, String aliasName,
+    private SystemIndexDescriptor(String indexPattern, String description, String mappings, Settings settings, String aliasName,
                                  int indexFormat, String versionMetaKey, String origin) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {

@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -57,7 +56,9 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(SystemIndexDescriptor.builder().setIndexPattern(XPackPlugin.ASYNC_RESULTS_INDEX)
+        return List.of(
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(XPackPlugin.ASYNC_RESULTS_INDEX)
                 .setDescription(this.getClass().getSimpleName())
                 .setMappings(getMappings())
                 .setSettings(getIndexSettings())
@@ -112,31 +113,43 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
 
     private String getMappings() {
         try {
-            XContentBuilder builder = jsonBuilder().startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                .startObject("_meta")
-                .field("version", Version.CURRENT)
-                .endObject()
-                .field("dynamic", "strict")
-                .startObject("properties")
-                .startObject(HEADERS_FIELD)
-                .field("type", "object")
-                .field("enabled", "false")
-                .endObject()
-                .startObject(RESPONSE_HEADERS_FIELD)
-                .field("type", "object")
-                .field("enabled", "false")
-                .endObject()
-                .startObject(RESULT_FIELD)
-                .field("type", "object")
-                .field("enabled", "false")
-                .endObject()
-                .startObject(EXPIRATION_TIME_FIELD)
-                .field("type", "long")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
+            XContentBuilder builder = jsonBuilder();
+            builder.startObject();
+            {
+                builder.startObject(SINGLE_MAPPING_NAME);
+                {
+                    builder.startObject("_meta");
+                    builder.field("version", Version.CURRENT);
+                    builder.endObject();
+
+                    builder.field("dynamic", "strict");
+
+                    builder.startObject("properties");
+                    {
+                        builder.startObject(HEADERS_FIELD);
+                        builder.field("type", "object");
+                        builder.field("enabled", "false");
+                        builder.endObject();
+
+                        builder.startObject(RESPONSE_HEADERS_FIELD);
+                        builder.field("type", "object");
+                        builder.field("enabled", "false");
+                        builder.endObject();
+
+                        builder.startObject(RESULT_FIELD);
+                        builder.field("type", "object");
+                        builder.field("enabled", "false");
+                        builder.endObject();
+
+                        builder.startObject(EXPIRATION_TIME_FIELD);
+                        builder.field("type", "long");
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build " + XPackPlugin.ASYNC_RESULTS_INDEX + " index mappings", e);

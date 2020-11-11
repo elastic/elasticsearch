@@ -1109,11 +1109,17 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(SystemIndexDescriptor.builder().setIndexPattern(MlMetaIndex.indexName())
+        return List.of(
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(MlMetaIndex.indexName())
                 .setDescription("Contains scheduling and anomaly tracking metadata")
-                .build(), SystemIndexDescriptor.builder().setIndexPattern(MlConfigIndex.indexName())
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(MlConfigIndex.indexName())
                 .setDescription("Contains ML configuration data")
-                .build(), SystemIndexDescriptor.builder().setIndexPattern(InferenceIndexConstants.INDEX_PATTERN)
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(InferenceIndexConstants.INDEX_PATTERN)
                 .setDescription("Contains ML model configuration and statistics")
                 .build()
         );

@@ -39,7 +39,6 @@ import java.net.SocketPermission;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.Permission;
 import java.security.Permissions;
 import java.security.Policy;

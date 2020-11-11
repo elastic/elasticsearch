@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -352,9 +353,9 @@ public abstract class AbstractScriptFieldTypeTestCase extends ESTestCase {
             .build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(meta, settings);
-
-        MapperRegistry mapperRegistry = new IndicesModule(Collections.singletonList(new RuntimeFields())).getMapperRegistry();
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, Collections.singletonList(new TestScriptPlugin()));
+        RuntimeFields runtimeFields = new RuntimeFields();
+        MapperRegistry mapperRegistry = new IndicesModule(Collections.singletonList(runtimeFields)).getMapperRegistry();
+        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(new TestScriptPlugin(), runtimeFields));
         ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Map.of());
         MapperService mapperService = new MapperService(

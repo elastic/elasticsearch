@@ -106,7 +106,8 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         StepKey waitForGreen = new StepKey(phase, ForceMergeAction.NAME, WaitForIndexColorStep.NAME);
         StepKey forceMerge = new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME);
         StepKey segmentCount = new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME);
-        assertThat(steps.get(0).getKey(), is(ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP));
+        assertThat(steps.get(0).getKey(), is(new StepKey(phase, ForceMergeAction.NAME,
+            ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP)));
         assertThat(stepKeys, contains(
             new Tuple<>(checkNotWriteIndex, readOnly),
             new Tuple<>(readOnly, closeIndex),

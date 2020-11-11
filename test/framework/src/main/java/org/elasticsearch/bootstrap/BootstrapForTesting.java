@@ -208,7 +208,6 @@ public class BootstrapForTesting {
                 }
             }
         } catch (ClassNotFoundException e) {
-            System.out.println(e);
             // no class, fall through to not add. this can happen for any tests that do not include
             // the given class. eg only core tests include plugin-classloader
         }

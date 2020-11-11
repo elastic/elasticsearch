@@ -33,11 +33,10 @@ public class RollupV2ConfigTests extends AbstractSerializingTestCase<RollupV2Con
 
     @Override
     protected RollupV2Config createTestInstance() {
-        return randomConfig(random());
+        return randomConfig(random(), sourceIndex);
     }
 
-    public static RollupV2Config randomConfig(Random random) {
-        final String sourceIndex = randomAlphaOfLength(10);
+    public static RollupV2Config randomConfig(Random random, String sourceIndex) {
         final String rollupIndex = "rollup-" + sourceIndex;
         final TimeValue timeout = random.nextBoolean() ? null : ConfigTestHelpers.randomTimeout(random);
         final GroupConfig groupConfig = ConfigTestHelpers.randomGroupConfig(random);

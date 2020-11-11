@@ -277,9 +277,9 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 .map(Phase::getName)
                 .collect(Collectors.joining(","));
             if (Strings.hasText(phasesDefiningIllegalActions)) {
-                throw new IllegalArgumentException("phases [" + phasesDefiningIllegalActions + "] define one or more of [" +
-                    String.join(",", ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT) + "] actions which are not allowed after the " +
-                    "managed index was mounted as searchable snapshot");
+                throw new IllegalArgumentException("phases [" + phasesDefiningIllegalActions + "] define one or more of " +
+                    ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT + " actions which are not allowed after a " +
+                    "managed index is mounted as a searchable snapshot");
             }
         }
     }

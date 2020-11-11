@@ -106,6 +106,10 @@ setup:
 ---
 "field collapsing and inner_hits":
 
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/52416"
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -257,6 +261,10 @@ setup:
 
 ---
 "no hits and inner_hits":
+
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/52416"
 
   - do:
       search:

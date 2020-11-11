@@ -111,7 +111,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         return mergeMappings(new String[] { "*" });
                     }
                     String[] patterns = Arrays.stream(index.split(",")).map(m -> m.equals("_all") ? "*" : m).toArray(String[]::new);
-                    //TODO this is always false?
+                    // TODO this is always false?
                     if (patterns.length == 0 && Regex.isSimpleMatchPattern(patterns[0])) {
                         return runtimeMappings.get(patterns[0]);
                     }
@@ -126,7 +126,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         }
                         for (Map.Entry<String, Object> field : indexEntry.getValue().entrySet()) {
                             @SuppressWarnings("unchecked")
-                            Map<String, Object> mergedConfig = (Map<String, Object>)merged.get(field.getKey());
+                            Map<String, Object> mergedConfig = (Map<String, Object>) merged.get(field.getKey());
                             if (mergedConfig == null) {
                                 merged.put(field.getKey(), field.getValue());
                             } else if (false == mergedConfig.equals(field.getValue())) {
@@ -161,10 +161,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         return false;
                     }
                     Map<String, Object> map = XContentHelper.convertToMap(index.source(), false, index.getContentType()).v2();
-                    Map<String, Object> indexRuntimeMappings = runtimeMappings.computeIfAbsent(
-                        index.index(),
-                        i -> new HashMap<>()
-                    );
+                    Map<String, Object> indexRuntimeMappings = runtimeMappings.computeIfAbsent(index.index(), i -> new HashMap<>());
                     Set<String> indexMappedfields = mappedFields.computeIfAbsent(index.index(), i -> Set.of());
                     for (Map.Entry<String, Object> e : map.entrySet()) {
                         String name = e.getKey();

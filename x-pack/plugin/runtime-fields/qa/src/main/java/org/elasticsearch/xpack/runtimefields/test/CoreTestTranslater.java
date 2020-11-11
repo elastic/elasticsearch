@@ -116,7 +116,7 @@ public abstract class CoreTestTranslater {
         return Map.of("type", type, "index", false, "doc_values", false);
     }
 
-    //TODO there isn't yet a way to create fields in the runtime section from a dynamic template
+    // TODO there isn't yet a way to create fields in the runtime section from a dynamic template
     protected static Map<String, Object> dynamicTemplateToAddRuntimeFields(String type) {
         return Map.ofEntries(
             Map.entry("type", "runtime"),
@@ -261,12 +261,12 @@ public abstract class CoreTestTranslater {
                     continue;
                 }
                 @SuppressWarnings("unchecked")
-                Map<String, Object> mapping = (Map<String, Object>)body.get("mappings");
+                Map<String, Object> mapping = (Map<String, Object>) body.get("mappings");
                 if (mapping == null) {
                     continue;
                 }
                 @SuppressWarnings("unchecked")
-                Map<String, Object> propertiesMap = (Map<String, Object>)((Map<?, ?>) mapping).get("properties");
+                Map<String, Object> propertiesMap = (Map<String, Object>) ((Map<?, ?>) mapping).get("properties");
                 if (propertiesMap == null) {
                     continue;
                 }
@@ -289,10 +289,7 @@ public abstract class CoreTestTranslater {
          * runtime fields that load from source.
          * @return true if this mapping supports runtime fields, false otherwise
          */
-        protected final boolean runtimeifyMappingProperties(
-            Map<String, Object> properties,
-            Map<String, Object> runtimeFields
-        ) {
+        protected final boolean runtimeifyMappingProperties(Map<String, Object> properties, Map<String, Object> runtimeFields) {
             for (Map.Entry<String, Object> property : properties.entrySet()) {
                 if (false == property.getValue() instanceof Map) {
                     continue;
@@ -337,7 +334,7 @@ public abstract class CoreTestTranslater {
                 runtimeConfig.remove("doc_values");
                 runtimeFields.put(name, runtimeConfig);
 
-                //we disable the mapped fields and shadow them with their corresponding runtime field
+                // we disable the mapped fields and shadow them with their corresponding runtime field
                 propertyMap.put("doc_values", false);
                 propertyMap.put("index", false);
             }

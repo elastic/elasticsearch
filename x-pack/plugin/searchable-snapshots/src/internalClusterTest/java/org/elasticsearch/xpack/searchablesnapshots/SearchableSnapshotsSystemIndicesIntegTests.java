@@ -89,9 +89,7 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(SystemIndexDescriptor.builder().setIndexPattern(INDEX_NAME)
-                    .setDescription("System index for [" + getTestClass().getName() + ']')
-                    .build());
+            return List.of(new SystemIndexDescriptor(INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
         }
     }
 }

@@ -164,10 +164,7 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             new SystemIndices(
-                Map.of(
-                    "system-plugin",
-                    List.of(SystemIndexDescriptor.builder().setIndexPattern(".system").setDescription("a system index").build())
-                ),
+                Map.of("system-plugin", List.of(new SystemIndexDescriptor(".system", "a system index"))),
                 mock(Client.class)
             ),
             null

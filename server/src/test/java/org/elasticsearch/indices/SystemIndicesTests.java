@@ -37,21 +37,11 @@ import static org.mockito.Mockito.mock;
 public class SystemIndicesTests extends ESTestCase {
 
     public void testBasicOverlappingPatterns() {
-        SystemIndexDescriptor broadPattern = SystemIndexDescriptor.builder().setIndexPattern(".a*c*")
-                .setDescription("test")
-                .build();
-        SystemIndexDescriptor notOverlapping = SystemIndexDescriptor.builder().setIndexPattern(".bbbddd*")
-                .setDescription("test")
-                .build();
-        SystemIndexDescriptor overlapping1 = SystemIndexDescriptor.builder().setIndexPattern(".ac*")
-                .setDescription("test")
-                .build();
-        SystemIndexDescriptor overlapping2 = SystemIndexDescriptor.builder().setIndexPattern(".aaaabbbccc")
-                .setDescription("test")
-                .build();
-        SystemIndexDescriptor overlapping3 = SystemIndexDescriptor.builder().setIndexPattern(".aaabb*cccddd*")
-                .setDescription("test")
-                .build();
+        SystemIndexDescriptor broadPattern = new SystemIndexDescriptor(".a*c*", "test");
+        SystemIndexDescriptor notOverlapping = new SystemIndexDescriptor(".bbbddd*", "test");
+        SystemIndexDescriptor overlapping1 = new SystemIndexDescriptor(".ac*", "test");
+        SystemIndexDescriptor overlapping2 = new SystemIndexDescriptor(".aaaabbbccc", "test");
+        SystemIndexDescriptor overlapping3 = new SystemIndexDescriptor(".aaabb*cccddd*", "test");
 
         // These sources have fixed prefixes to make sure they sort in the same order, so that the error message is consistent
         // across tests
@@ -80,12 +70,8 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testComplexOverlappingPatterns() {
         // These patterns are slightly more complex to detect because pattern1 does not match pattern2 and vice versa
-        SystemIndexDescriptor pattern1 = SystemIndexDescriptor.builder().setIndexPattern(".a*c")
-                .setDescription("test")
-                .build();
-        SystemIndexDescriptor pattern2 = SystemIndexDescriptor.builder().setIndexPattern(".ab*")
-                .setDescription("test")
-                .build();
+        SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".a*c", "test");
+        SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".ab*", "test");
 
         // These sources have fixed prefixes to make sure they sort in the same order, so that the error message is consistent
         // across tests
@@ -117,9 +103,7 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {
         Map<String, Collection<SystemIndexDescriptor>> pluginMap = Map.of(
-            TaskResultsService.class.getName(), List.of(SystemIndexDescriptor.builder().setIndexPattern(TASK_INDEX)
-                        .setDescription("Task Result Index")
-                        .build())
+            TaskResultsService.class.getName(), List.of(new SystemIndexDescriptor(TASK_INDEX, "Task Result Index"))
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap, mock(Client.class)));
         assertThat(e.getMessage(), containsString("plugin or module attempted to define the same source"));

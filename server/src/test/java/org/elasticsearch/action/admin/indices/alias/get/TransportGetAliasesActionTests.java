@@ -166,10 +166,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
     public void testDeprecationWarningEmittedWhenRequestingNonExistingAliasInSystemPattern() {
         ClusterState state = systemIndexTestClusterState();
         SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                this.getTestName(),
-                List.of(SystemIndexDescriptor.builder().setIndexPattern(".y").setDescription("an index that doesn't exist").build())
-            ),
+            Map.of(this.getTestName(), List.of(new SystemIndexDescriptor(".y", "an index that doesn't exist"))),
             mock(Client.class)
         );
 

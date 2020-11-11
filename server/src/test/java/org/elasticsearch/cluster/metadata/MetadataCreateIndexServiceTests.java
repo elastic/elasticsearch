@@ -518,15 +518,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
-        systemIndexDescriptors.add(SystemIndexDescriptor.builder().setIndexPattern(".test")
-                .setDescription("test")
-                .build());
-        systemIndexDescriptors.add(SystemIndexDescriptor.builder().setIndexPattern(".test3")
-                .setDescription("test")
-                .build());
-        systemIndexDescriptors.add(SystemIndexDescriptor.builder().setIndexPattern(".pattern-test*")
-                .setDescription("test-1")
-                .build());
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".test", "test"));
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".test3", "test"));
+        systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test*", "test-1"));
 
         withTemporaryClusterService(((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(

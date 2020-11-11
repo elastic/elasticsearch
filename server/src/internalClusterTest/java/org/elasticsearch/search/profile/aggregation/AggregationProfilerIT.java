@@ -568,6 +568,13 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         assertThat(profileResults.size(), equalTo(0));
     }
 
+    /**
+     * Makes sure that when the conditions are right we run {@code date_histogram}
+     * using {@code filters}. When the conditions are right, this is significantly
+     * faster than the traditional execution mechanism. This is in this test
+     * rather than a yaml integration test because it requires creating many many
+     * documents and that is hard to express in yaml.
+     */
     public void testFilterByFilter() throws InterruptedException, IOException {
         assertAcked(client().admin().indices().prepareCreate("dateidx")
             .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))

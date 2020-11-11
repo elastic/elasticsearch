@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopFieldDocs;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -49,6 +50,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     private final int trackTotalHitsUpTo;
     private volatile BottomSortValuesCollector bottomSortCollector;
 
+    private Version minVersion;
+
     SearchQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
                                     final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                                     final Map<String, AliasFilter> aliasFilter,
@@ -66,6 +69,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;
         this.progressListener = task.getProgressListener();
+        this.minVersion = request.minVersion();
 
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
@@ -74,13 +78,36 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         boolean hasFetchPhase = request.source() == null ? true : request.source().size() > 0;
         progressListener.notifyListShards(SearchProgressListener.buildSearchShards(this.shardsIts),
             SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, hasFetchPhase);
+        if (checkMinimumVersion(shardsIts) == false) {
+            throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]", minVersion);
+        }
     }
 
     protected void executePhaseOnShard(final SearchShardIterator shardIt,
                                        final SearchShardTarget shard,
                                        final SearchActionListener<SearchPhaseResult> listener) {
         ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt));
-        getSearchTransport().sendExecuteQuery(getConnection(shard.getClusterAlias(), shard.getNodeId()), request, getTask(), listener);
+        Transport.Connection conn = getConnection(shard.getClusterAlias(), shard.getNodeId());
+        if (minVersion != null && conn.getVersion().before(minVersion)) {
+            throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]", minVersion);
+        }
+        getSearchTransport().sendExecuteQuery(conn, request, getTask(), listener);
+    }
+
+    private boolean checkMinimumVersion(GroupShardsIterator<SearchShardIterator> shardsIts) {
+        if (minVersion == null) {
+            return true;
+        }
+        for (SearchShardIterator it : shardsIts) {
+            boolean isCompatible = it.getTargetNodeIds().stream().anyMatch(nodeId -> {
+                Transport.Connection conn = getConnection(it.getClusterAlias(), nodeId);
+                return conn == null ? true : conn.getVersion().onOrAfter(minVersion);
+            });
+            if (isCompatible == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

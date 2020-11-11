@@ -143,12 +143,13 @@ public class Querier {
 
     public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, 
             String... indices) {
-        return client.prepareSearch(indices)
+        SearchRequest request = client.prepareSearch(indices)
                 // always track total hits accurately
                 .setTrackTotalHits(true).setAllowPartialSearchResults(false).setSource(source).setTimeout(timeout)
                 .setIndicesOptions(
                         includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
                 .request();
+        return SearchRequest.withMinimumVersion(request, PlanExecutor.minimumCompatibilityVersion);
     }
     
     protected static void logSearchResponse(SearchResponse response, Logger logger) {

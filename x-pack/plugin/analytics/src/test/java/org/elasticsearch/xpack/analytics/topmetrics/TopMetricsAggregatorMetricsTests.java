@@ -256,7 +256,7 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
         MetricValues[] values = new MetricValues[configs.size()];
         for (int i = 0; i < configs.size(); i++) {
             MetricValuesSupplier supplier = REGISTRY.getAggregator(REGISTRY_KEY, configs.get(i));
-            values[i] = supplier.build(1, BigArrays.NON_RECYCLING_INSTANCE, configs.get(i));
+            values[i] = supplier.build(1, BigArrays.NON_RECYCLING_INSTANCE, configs.get(i).fieldContext().field(), configs.get(i));
         }
         try (Metrics m = new Metrics(values)) {
             consumer.accept(m);

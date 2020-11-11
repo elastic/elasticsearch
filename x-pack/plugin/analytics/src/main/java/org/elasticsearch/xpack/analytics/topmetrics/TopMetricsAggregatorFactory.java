@@ -72,7 +72,7 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
                 CoreValuesSourceType.NUMERIC
             );
             MetricValuesSupplier supplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, vsConfig);
-            metricValues[i] = supplier.build(size, context.bigArrays(), vsConfig);
+            metricValues[i] = supplier.build(size, context.bigArrays(), config.getFieldName(), vsConfig);
         }
         return new TopMetricsAggregator(name, searchContext, parent, metadata, size, sortBuilders.get(0), metricValues);
     }

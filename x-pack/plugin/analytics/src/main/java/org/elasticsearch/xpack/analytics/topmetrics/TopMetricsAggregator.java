@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.REGISTRY_KEY;
 
 /**
  * Collects the {@code top_metrics} aggregation, which functions like a memory
@@ -87,7 +89,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
             throw new IllegalArgumentException("[top_metrics] can only the be target if [size] is [1] but was [" + size + "]");
         }
         for (MetricValues values : metrics.values) {
-            if (values.name().equals(name)) {
+            if (values.name.equals(name)) {
                 return true;
             }
         }
@@ -166,7 +168,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         double metric(String name, long index) {
             for (MetricValues value : values) {
-                if (value.name().equals(name)) {
+                if (value.name.equals(name)) {
                     return value.doubleValue(index);
                 }
             }
@@ -184,7 +186,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         }
 
         List<String> names() {
-            return Arrays.stream(values).map(MetricValues::name).collect(toList());
+            return Arrays.stream(values).map(v -> v.name).collect(toList());
         }
 
         @Override
@@ -215,18 +217,14 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @FunctionalInterface
     interface MetricValuesSupplier {
-        MetricValues build(int size, BigArrays bigArrays, ValuesSourceConfig config);
+        MetricValues build(int size, BigArrays bigArrays, String name, ValuesSourceConfig config);
     }
 
     abstract static class MetricValues implements BucketedSort.ExtraData, Releasable {
-        protected final ValuesSourceConfig config;
+        protected final String name;
 
-        MetricValues(ValuesSourceConfig config) {
-            this.config = config;
-        }
-
-        final String name() {
-            return config.fieldContext().field();
+        MetricValues(String name) {
+            this.name = name;
         }
 
         abstract boolean needsScores();
@@ -236,10 +234,12 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     private abstract static class CollectingMetricValues extends MetricValues {
         protected final BigArrays bigArrays;
+        protected final ValuesSourceConfig config;
 
-        CollectingMetricValues(BigArrays bigArrays, ValuesSourceConfig config) {
-            super(config);
+        CollectingMetricValues(BigArrays bigArrays, String name, ValuesSourceConfig config) {
+            super(name);
             this.bigArrays = bigArrays;
+            this.config = config;
         }
 
         @Override
@@ -247,16 +247,28 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
             return config.getValuesSource().needsScores();
         }
     }
-
-    static MetricValues buildNumericMetricValues(int size, BigArrays bigArrays, ValuesSourceConfig config) {
+    
+    static MetricValues buildMetricValues(
+        ValuesSourceRegistry registry,
+        BigArrays bigArrays,
+        int size,
+        String name,
+        ValuesSourceConfig config
+    ) {
         if (false == config.hasValues()) {
-            return new AlwaysNullMetricValues(config);
+            // `config` doesn't have the name if the
+            return new AlwaysNullMetricValues(name);
         }
+        MetricValuesSupplier supplier = registry.getAggregator(REGISTRY_KEY, config);
+        return supplier.build(size, bigArrays, name, config);
+    }
+
+    static MetricValues buildNumericMetricValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
         ValuesSource.Numeric numeric = (ValuesSource.Numeric) config.getValuesSource();
         if (numeric.isFloatingPoint()) {
-            return new DoubleMetricValues(size, bigArrays, config, numeric);
+            return new DoubleMetricValues(size, bigArrays, name, config);
         }
-        return new LongMetricValues(size, bigArrays, config, numeric);
+        return new LongMetricValues(size, bigArrays, name, config);
     }
 
     /**
@@ -266,9 +278,9 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         private final ValuesSource.Numeric valuesSource;
         private DoubleArray values;
 
-        DoubleMetricValues(int size, BigArrays bigArrays, ValuesSourceConfig config, ValuesSource.Numeric valuesSource) {
-            super(bigArrays, config);
-            this.valuesSource = valuesSource;
+        DoubleMetricValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
+            super(bigArrays, name, config);
+            valuesSource = (ValuesSource.Numeric) config.getValuesSource();
             values = bigArrays.newDoubleArray(size, false);
         }
 
@@ -318,14 +330,6 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
      * Loads metrics for whole numbers.
      */
     static class LongMetricValues extends CollectingMetricValues {
-        static MetricValues build(int size, BigArrays bigArrays, ValuesSourceConfig config) {
-            if (false == config.hasValues()) {
-                return new AlwaysNullMetricValues(config);
-            }
-            ValuesSource.Numeric numeric = (ValuesSource.Numeric) config.getValuesSource(); 
-            return new LongMetricValues(size, bigArrays, config, numeric);
-        }
-
         private final ValuesSource.Numeric valuesSource;
         /**
          * Tracks "missing" values in a {@link BitArray}. Unlike
@@ -337,9 +341,9 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         private final MissingHelper empty;
         private LongArray values;
 
-        LongMetricValues(int size, BigArrays bigArrays, ValuesSourceConfig config, ValuesSource.Numeric valuesSource) {
-            super(bigArrays, config);
-            this.valuesSource = valuesSource;
+        LongMetricValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
+            super(bigArrays, name, config);
+            valuesSource = (ValuesSource.Numeric) config.getValuesSource();
             empty = new MissingHelper(bigArrays);
             values = bigArrays.newLongArray(size, false);
         }
@@ -395,24 +399,16 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
      * Loads metrics for whole numbers.
      */
     static class GlobalOrdsValues extends CollectingMetricValues {
-        static MetricValues build(int size, BigArrays bigArrays, ValuesSourceConfig config) {
-            if (false == config.hasValues()) {
-                return new AlwaysNullMetricValues(config);
-            }
-            if (false == config.hasGlobalOrdinals()) {
-                throw new IllegalArgumentException("top_metrics can only collect bytes that have global ordinals");
-            }
-            ValuesSource.Bytes.WithOrdinals valuesSource = (ValuesSource.Bytes.WithOrdinals) config.getValuesSource();
-            return new GlobalOrdsValues(size, bigArrays, config, valuesSource);
-        }
-
         private final ValuesSource.Bytes.WithOrdinals valuesSource;
         private SortedSetDocValues globalOrds;
         private LongArray values;
 
-        private GlobalOrdsValues(int size, BigArrays bigArrays, ValuesSourceConfig config, ValuesSource.Bytes.WithOrdinals valuesSource) {
-            super(bigArrays, config);
-            this.valuesSource = valuesSource;
+        GlobalOrdsValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
+            super(bigArrays, name, config);
+            if (false == config.hasGlobalOrdinals()) {
+                throw new IllegalArgumentException("top_metrics can only collect bytes that have global ordinals");
+            }
+            this.valuesSource = (ValuesSource.Bytes.WithOrdinals) config.getValuesSource();
             values = bigArrays.newLongArray(size, false);
         }
 
@@ -468,8 +464,8 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
      * that always returns {@code null} or {@code NaN}.
      */
     static class AlwaysNullMetricValues extends MetricValues {
-        AlwaysNullMetricValues(ValuesSourceConfig config) {
-            super(config);
+        AlwaysNullMetricValues(String name) {
+            super(name);
         }
 
         @Override

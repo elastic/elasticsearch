@@ -44,18 +44,18 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
 
     public static void registerAggregators(ValuesSourceRegistry.Builder registry) {
         registry.registerUsage(NAME);
-        registry.register(REGISTRY_KEY, List.of(CoreValuesSourceType.NUMERIC), TopMetricsAggregator::buildNumericMetricValues, true);
+        registry.register(REGISTRY_KEY, List.of(CoreValuesSourceType.NUMERIC), TopMetricsAggregator::buildNumericMetricValues, false);
         registry.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
-            TopMetricsAggregator.LongMetricValues::build,
-            true
+            TopMetricsAggregator.LongMetricValues::new,
+            false
         );
         registry.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            TopMetricsAggregator.GlobalOrdsValues::build,
-            true
+            TopMetricsAggregator.GlobalOrdsValues::new,
+            false
         );
     }
 

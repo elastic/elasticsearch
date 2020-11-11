@@ -142,7 +142,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 
     Task fixture = task("oldEs${version}Fixture", type: org.elasticsearch.gradle.test.AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy
-      dependsOn "unzip"
+      dependsOn unzip
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
       env 'JAVA_HOME', jdks.legacy.javaHomePath

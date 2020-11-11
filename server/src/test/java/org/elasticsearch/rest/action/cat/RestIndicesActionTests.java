@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,8 +36,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.junit.Before;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,19 +44,11 @@ import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RestIndicesActionTests extends ESTestCase {
-
-    private RestIndicesAction action;
-
-    @Before
-    public void setUpAction() {
-        action = new RestIndicesAction();
-    }
 
     public void testBuildTable() {
         final int numIndices = randomIntBetween(3, 20);
@@ -176,19 +165,5 @@ public class RestIndicesActionTests extends ESTestCase {
                 assertThat(row.get(5).value, nullValue());
             }
         }
-    }
-
-    public void testCatIndicesRejectsLocalParameter() {
-        assumeTrue("test is needed only in v8 and can be removed in v9", Version.CURRENT.major == Version.V_7_0_0.major + 1);
-        TestThreadPool threadPool = new TestThreadPool(RestIndicesActionTests.class.getName());
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        FakeRestRequest request = new FakeRestRequest();
-        request.params().put("local", randomFrom("", "true", "false", randomAlphaOfLength(10)));
-
-        assertThat(
-            expectThrows(IllegalArgumentException.class, () -> action.doCatRequest(request, client)).getMessage(),
-            is("parameter [local] is not supported"));
-
-        terminate(threadPool);
     }
 }

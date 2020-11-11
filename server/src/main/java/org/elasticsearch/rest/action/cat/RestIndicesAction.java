@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -97,10 +96,6 @@ public class RestIndicesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
-        // needed only in v8 to catch breaking usages and may be removed in v9
-        if (request.hasParam("local")  && Version.CURRENT.major == Version.V_7_0_0.major + 1) {
-            throw new IllegalArgumentException("parameter [local] is not supported");
-        }
         final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
 

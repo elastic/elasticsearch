@@ -38,9 +38,9 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TypeMissingException;
@@ -174,14 +174,14 @@ public class TransportGetFieldMappingsIndexAction
                                                                              DocumentMapper documentMapper,
                                                                              GetFieldMappingsIndexRequest request) {
         Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
-        final MappingLookup allFieldMappers = documentMapper.mappers();
+        final MappingLookup mappingLookup = documentMapper.mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
-                for (Mapper fieldMapper : allFieldMappers) {
+                for (Mapper fieldMapper : mappingLookup.fieldMappers()) {
                     addFieldMapper(fieldPredicate, fieldMapper.name(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
-                for (Mapper fieldMapper : allFieldMappers) {
+                for (Mapper fieldMapper : mappingLookup.fieldMappers()) {
                     if (Regex.simpleMatch(field, fieldMapper.name())) {
                         addFieldMapper(fieldPredicate,  fieldMapper.name(),
                                 fieldMapper, fieldMappings, request.includeDefaults());
@@ -189,7 +189,7 @@ public class TransportGetFieldMappingsIndexAction
                 }
             } else {
                 // not a pattern
-                Mapper fieldMapper = allFieldMappers.getMapper(field);
+                Mapper fieldMapper = mappingLookup.getMapper(field);
                 if (fieldMapper != null) {
                     addFieldMapper(fieldPredicate, field, fieldMapper, fieldMappings, request.includeDefaults());
                 } else if (request.probablySingleFieldRequest()) {

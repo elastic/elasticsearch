@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
@@ -22,18 +25,38 @@ import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldRangeQuery;
 import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldTermQuery;
 import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldTermsQuery;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleFieldScript.LeafFactory> {
-    DoubleScriptFieldType(String name, Script script, DoubleFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, script, scriptFactory::newFactory, meta);
+public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleFieldScript.LeafFactory> {
+
+    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
+        @Override
+        protected AbstractScriptFieldType<?> buildFieldType() {
+            DoubleFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), DoubleFieldScript.CONTEXT);
+            return new DoubleScriptFieldType(name, factory, this);
+        }
+    });
+
+    private DoubleScriptFieldType(String name, DoubleFieldScript.Factory scriptFactory, Builder builder) {
+        super(name, scriptFactory::newFactory, builder);
+    }
+
+    DoubleScriptFieldType(
+        String name,
+        DoubleFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+    ) {
+        super(name, scriptFactory::newFactory, script, meta, toXContent);
     }
 
     @Override
-    protected String runtimeType() {
+    public String typeName() {
         return NumberType.DOUBLE.typeName();
     }
 

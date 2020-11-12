@@ -173,6 +173,8 @@ public class TransportGetFieldMappingsIndexAction
     private static Map<String, FieldMappingMetadata> findFieldMappingsByType(Predicate<String> fieldPredicate,
                                                                              DocumentMapper documentMapper,
                                                                              GetFieldMappingsIndexRequest request) {
+        //TODO the logic here needs to be reworked to also include runtime fields. Though matching is against mappers rather
+        // than field types, and runtime fields are mixed with ordinary fields in FieldTypeLookup
         Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
         final MappingLookup mappingLookup = documentMapper.mappers();
         for (String field : request.fields()) {

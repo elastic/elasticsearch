@@ -45,8 +45,12 @@ GET /_ingest/pipeline/my-pipeline-id
 [[get-pipeline-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=path-pipeline]
-
+`<pipeline>`::
+(Optional, string)
+Comma-separated list of pipeline IDs to retrieve. Wildcard (`*`) expressions are
+supported.
++
+To get all ingest pipelines, omit this parameter or use `*`.
 
 
 [[get-pipeline-api-query-params]]

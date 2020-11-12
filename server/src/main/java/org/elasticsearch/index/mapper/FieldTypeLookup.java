@@ -35,7 +35,6 @@ import java.util.Set;
 final class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
-    private final Map<String, String> aliasToConcreteName = new HashMap<>();
 
     /**
      * A map from field name to all fields whose content has been copied into it
@@ -70,10 +69,12 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
 
+        final Map<String, String> aliasToConcreteName = new HashMap<>();
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
             String aliasName = fieldAliasMapper.name();
             String path = fieldAliasMapper.path();
             aliasToConcreteName.put(aliasName, path);
+            fullNameToFieldType.put(aliasName, fullNameToFieldType.get(path));
         }
 
         this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);
@@ -83,8 +84,7 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
      * Returns the mapped field type for the given field name.
      */
     MappedFieldType get(String field) {
-        String concreteField = aliasToConcreteName.getOrDefault(field, field);
-        MappedFieldType fieldType = fullNameToFieldType.get(concreteField);
+        MappedFieldType fieldType = fullNameToFieldType.get(field);
         if (fieldType != null) {
             return fieldType;
         }
@@ -99,14 +99,9 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
      */
     Set<String> simpleMatchToFullName(String pattern) {
         Set<String> fields = new HashSet<>();
-        for (MappedFieldType fieldType : this) {
-            if (Regex.simpleMatch(pattern, fieldType.name())) {
-                fields.add(fieldType.name());
-            }
-        }
-        for (String aliasName : aliasToConcreteName.keySet()) {
-            if (Regex.simpleMatch(pattern, aliasName)) {
-                fields.add(aliasName);
+        for (String field : fullNameToFieldType.keySet()) {
+            if (Regex.simpleMatch(pattern, field)) {
+                fields.add(field);
             }
         }
         return fields;

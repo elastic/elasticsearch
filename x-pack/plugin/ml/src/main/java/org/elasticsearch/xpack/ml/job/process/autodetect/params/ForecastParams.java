@@ -18,14 +18,17 @@ public class ForecastParams {
     private final long expiresIn;
     private final String tmpStorage;
     private final Long maxModelMemory;
+    private final Long minAvailableDiskSpace;
 
-    private ForecastParams(String forecastId, long createTime, long duration, long expiresIn, String tmpStorage, Long maxModelMemory) {
+    private ForecastParams(String forecastId, long createTime, long duration, long expiresIn, String tmpStorage, Long maxModelMemory,
+                           Long minAvailableDiskSpace) {
         this.forecastId = forecastId;
         this.createTime = createTime;
         this.duration = duration;
         this.expiresIn = expiresIn;
         this.tmpStorage = tmpStorage;
         this.maxModelMemory = maxModelMemory;
+        this.minAvailableDiskSpace = minAvailableDiskSpace;
     }
 
     public String getForecastId() {
@@ -69,9 +72,13 @@ public class ForecastParams {
         return maxModelMemory;
     }
 
+    public Long getMinAvailableDiskSpace() {
+        return minAvailableDiskSpace;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(forecastId, createTime, duration, expiresIn, tmpStorage, maxModelMemory);
+        return Objects.hash(forecastId, createTime, duration, expiresIn, tmpStorage, maxModelMemory, minAvailableDiskSpace);
     }
 
     @Override
@@ -88,7 +95,8 @@ public class ForecastParams {
                 && Objects.equals(duration, other.duration)
                 && Objects.equals(expiresIn, other.expiresIn)
                 && Objects.equals(tmpStorage, other.tmpStorage)
-                && Objects.equals(maxModelMemory, other.maxModelMemory);
+                && Objects.equals(maxModelMemory, other.maxModelMemory)
+                && Objects.equals(minAvailableDiskSpace, other.minAvailableDiskSpace);
     }
 
     public static Builder builder() {
@@ -101,6 +109,7 @@ public class ForecastParams {
         private long durationSecs;
         private long expiresInSecs;
         private Long maxModelMemory;
+        private Long minAvailableDiskSpace;
         private String tmpStorage;
 
         private Builder() {
@@ -132,8 +141,14 @@ public class ForecastParams {
             return this;
         }
 
+        public Builder minAvailableDiskSpace(long minAvailableDiskSpace) {
+            this.minAvailableDiskSpace = minAvailableDiskSpace;
+            return this;
+        }
+
         public ForecastParams build() {
-            return new ForecastParams(forecastId, createTimeEpochSecs, durationSecs, expiresInSecs, tmpStorage, maxModelMemory);
+            return new ForecastParams(forecastId, createTimeEpochSecs, durationSecs, expiresInSecs, tmpStorage, maxModelMemory,
+                minAvailableDiskSpace);
         }
     }
 }

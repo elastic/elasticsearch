@@ -570,7 +570,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
-        waitUntilAnalyticsIsStopped(jobId);
+
+        // This seems to some times take a bit longer than 30 seconds on CI
+        // so we give it a minute.
+        waitUntilAnalyticsIsStopped(jobId, TimeValue.timeValueMinutes(1));
 
         double predictionErrorSum = 0.0;
 

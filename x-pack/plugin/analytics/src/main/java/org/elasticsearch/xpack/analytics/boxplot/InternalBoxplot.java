@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
+import com.tdunning.math.stats.Centroid;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,9 +26,91 @@ import java.util.stream.Stream;
 
 public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValue implements Boxplot {
 
-    enum Metrics {
+    /**
+     * This value is used in determining the width of the whiskers of the boxplot.  After the IQR value is calculated, it gets multiplied
+     * by this multiplier to decide how far out from the q1 and q3 points to extend the whiskers.  The value of 1.5 is traditional.
+     * See https://en.wikipedia.org/wiki/Box_plot
+     */
+    public static final double IQR_MULTIPLIER = 1.5;
 
-        MIN, MAX, Q1, Q2, Q3;
+    enum Metrics {
+        MIN {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return boxplot.getMin();
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return state == null ? Double.NEGATIVE_INFINITY : state.getMin();
+            }
+        },
+        MAX {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return boxplot.getMax();
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return state == null ? Double.POSITIVE_INFINITY : state.getMax();
+            }
+        },
+        Q1 {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return boxplot.getQ1();
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return state == null ? Double.NaN : state.quantile(0.25);
+            }
+        },
+        Q2 {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return boxplot.getQ2();
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return state == null ? Double.NaN : state.quantile(0.5);
+            }
+        },
+        Q3 {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return boxplot.getQ3();
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return state == null ? Double.NaN : state.quantile(0.75);
+            }
+        },
+        LOWER {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return whiskers(boxplot.state)[0];
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return whiskers(state)[0];
+            }
+        },
+        UPPER {
+            @Override
+            double value(InternalBoxplot boxplot) {
+                return whiskers(boxplot.state)[1];
+            }
+
+            @Override
+            double value(TDigestState state) {
+                return whiskers(state)[1];
+            }
+        };
 
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name.toUpperCase(Locale.ROOT));
@@ -36,39 +120,48 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             return name().toLowerCase(Locale.ROOT);
         }
 
-        double value(InternalBoxplot boxplot) {
-            switch (this) {
-                case MIN:
-                    return boxplot.getMin();
-                case MAX:
-                    return boxplot.getMax();
-                case Q1:
-                    return boxplot.getQ1();
-                case Q2:
-                    return boxplot.getQ2();
-                case Q3:
-                    return boxplot.getQ3();
-                default:
-                    throw new IllegalArgumentException("Unknown value [" + this.value() + "] in the boxplot aggregation");
-            }
+        abstract double value(InternalBoxplot boxplot);
+
+        abstract double value(TDigestState state);
+    }
+
+    /**
+     * For a given TDigest, find the "whisker" valeus, such that the upper whisker is (close to) the highest observed value less than
+     * q3 + 1.5 * IQR and the lower whisker is (close to) the lowest observed value greater than q1 - 1.5 * IQR.  Since we don't track
+     * observed values directly, this function returns the centroid according to the above logic.
+     *
+     * @param state - an initialized TDigestState representing the observed data.
+     * @return - two doubles in an array, where whiskers[0] is the lower whisker and whiskers[1] is the upper whisker.
+     */
+    public static double[] whiskers(TDigestState state) {
+        double[] results = new double[2];
+        results[0] = Double.NaN;
+        results[1] = Double.NaN;
+        if (state == null) {
+            return results;
         }
 
-        double value(TDigestState state) {
-            switch (this) {
-                case MIN:
-                    return state == null ? Double.NEGATIVE_INFINITY : state.getMin();
-                case MAX:
-                    return state == null ? Double.POSITIVE_INFINITY : state.getMax();
-                case Q1:
-                    return state == null ? Double.NaN : state.quantile(0.25);
-                case Q2:
-                    return state == null ? Double.NaN : state.quantile(0.5);
-                case Q3:
-                    return state == null ? Double.NaN : state.quantile(0.75);
-                default:
-                    throw new IllegalArgumentException("Unknown value [" + this.value() + "] in the boxplot aggregation");
+        double q3 = state.quantile(0.75);
+        double q1 = state.quantile(0.25);
+        double iqr = q3 - q1;
+        double upper = q3 + (IQR_MULTIPLIER * iqr);
+        double lower = q1 - (IQR_MULTIPLIER * iqr);
+        Centroid prev = null;
+        // Does this iterate in ascending order? if not, we might need to sort...
+        for (Centroid c : state.centroids()) {
+            if (Double.isNaN(results[0]) && c.mean() > lower) {
+                results[0] = c.mean();
             }
+            if (c.mean() > upper) {
+                results[1] = prev.mean();
+                break;
+            }
+            prev = c;
         }
+        if (Double.isNaN(results[1])) {
+            results[1] = state.getMax();
+        }
+        return results;
     }
 
     public static List<String> metricNames = Stream.of(Metrics.values())
@@ -188,17 +281,22 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        double[] whiskers = whiskers(state);
         builder.field("min", getMin());
         builder.field("max", getMax());
         builder.field("q1", getQ1());
         builder.field("q2", getQ2());
         builder.field("q3", getQ3());
+        builder.field("lower", whiskers[0]);
+        builder.field("upper", whiskers[1]);
         if (format != DocValueFormat.RAW) {
             builder.field("min_as_string", format.format(getMin()));
             builder.field("max_as_string", format.format(getMax()));
             builder.field("q1_as_string", format.format(getQ1()));
             builder.field("q2_as_string", format.format(getQ2()));
             builder.field("q3_as_string", format.format(getQ3()));
+            builder.field("lower_as_string", format.format(whiskers[0]));
+            builder.field("upper_as_string", format.format(whiskers[1]));
         }
         return builder;
     }

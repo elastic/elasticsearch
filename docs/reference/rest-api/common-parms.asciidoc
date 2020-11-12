@@ -214,7 +214,7 @@ expand to. Multiple values are accepted when separated by a comma, as in
 `open,hidden`. Valid values are:
 
 `all`::
-Expand to open and closed indices, including <<index-hidden,hidden indices>>.
+Expand to open and closed indices, including <<hidden-indices,hidden indices>>.
 
 `open`::
 Expand only to open indices.
@@ -223,7 +223,7 @@ Expand only to open indices.
 Expand only to closed indices.
 
 `hidden`::
-Expansion of wildcards will include <<index-hidden,hidden indices>>.
+Expansion of wildcards will include hidden indices.
 Must be combined with `open`, `closed`, or both.
 
 `none`::
@@ -642,12 +642,6 @@ The number of search or bulk index operations processed. Documents are
 processed in batches instead of individually.
 end::pages-processed[]
 
-tag::path-pipeline[]
-`<pipeline>`::
-(Optional, string) Comma-separated list or wildcard expression of pipeline IDs
-used to limit the request.
-end::path-pipeline[]
-
 tag::pivot[]
 The method for transforming the data. These objects define the pivot function
 `group by` fields and the aggregation to reduce the data.
@@ -666,6 +660,7 @@ supported:
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
+* <<search-aggregations-metrics-median-absolute-deviation-aggregation,Median absolute deviation>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
 * <<search-aggregations-bucket-missing-aggregation,Missing>>
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>

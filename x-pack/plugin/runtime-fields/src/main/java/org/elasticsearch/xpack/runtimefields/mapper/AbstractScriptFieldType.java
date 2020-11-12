@@ -234,7 +234,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
 
         @Override
         protected List<FieldMapper.Parameter<?>> getParameters() {
-            return List.of(meta, script);
+            return org.elasticsearch.common.collect.List.of(meta, script);
         }
 
         protected abstract AbstractScriptFieldType<?> buildFieldType();

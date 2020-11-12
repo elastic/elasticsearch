@@ -540,11 +540,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                                 fetchedSnapshotShardSizes.put(shardRouting.getId(), snapshotShardSize);
                             }, 30L, TimeUnit.SECONDS);
                         } catch (Exception e) {
-                            throw new AssertionError("Failed to retrieve snapshot shard size for shard " + shardRouting);
+                            throw new AssertionError("Failed to retrieve snapshot shard size for shard " + shardRouting, e);
                         }
                     }
                 }
-                logger.info("[{}/{}] snapshot shard sizes fetched", fetchedSnapshotShardSizes.size(), numberOfShards);
+                logger.info("--> [{}/{}] snapshot shard sizes fetched", fetchedSnapshotShardSizes.size(), numberOfShards);
                 if (fetchedSnapshotShardSizes.size() == numberOfShards) {
                     waitForRestoreInProgress.onResponse(null);
                 }

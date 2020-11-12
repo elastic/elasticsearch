@@ -561,7 +561,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 }
             };
             MappingLookup mappingLookup =
-                new MappingLookup(List.of(mockedTimestampField, dateFieldMapper), List.of(), List.of(), 0);
+                new MappingLookup(List.of(mockedTimestampField, dateFieldMapper), List.of(), List.of(), List.of(), 0);
 
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);

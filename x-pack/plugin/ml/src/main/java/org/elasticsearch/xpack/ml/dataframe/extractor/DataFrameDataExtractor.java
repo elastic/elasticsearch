@@ -352,7 +352,7 @@ public class DataFrameDataExtractor {
         return ExtractedFieldsDetector.getCategoricalOutputFields(context.extractedFields, analysis);
     }
 
-    private static boolean isValidValue(Object value) {
+    public static boolean isValidValue(Object value) {
         // We should allow a number, string or a boolean.
         // It is possible for a field to be categorical and have a `keyword` mapping, but be any of these
         // three types, in the same index.

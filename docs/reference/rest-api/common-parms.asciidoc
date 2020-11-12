@@ -214,7 +214,7 @@ expand to. Multiple values are accepted when separated by a comma, as in
 `open,hidden`. Valid values are:
 
 `all`::
-Expand to open and closed indices, including <<index-hidden,hidden indices>>.
+Expand to open and closed indices, including <<hidden-indices,hidden indices>>.
 
 `open`::
 Expand only to open indices.
@@ -223,7 +223,7 @@ Expand only to open indices.
 Expand only to closed indices.
 
 `hidden`::
-Expansion of wildcards will include <<index-hidden,hidden indices>>.
+Expansion of wildcards will include hidden indices.
 Must be combined with `open`, `closed`, or both.
 
 `none`::

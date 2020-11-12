@@ -106,25 +106,10 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(long[])}  to merge the actual
-     * ordinals and doc ID deltas.
-     *
-     * Refer to that method for documentation about the merge map.
-     *
-     * @deprecated use {@link rewriteBuckets(long, LongUnaryOperator)}
-     */
-    @Deprecated
-    public final void mergeBuckets(long[] mergeMap, long newNumBuckets) {
-        rewriteBuckets(newNumBuckets, bucket -> mergeMap[Math.toIntExact(bucket)]);
-    }
-
-    /**
-     *
-     *  @param mergeMap a unary operator which maps a bucket's ordinal to the ordinal it should be merged with.
+     * Merge doc counts. If the {@linkplain Aggregator} is delayed then you must also call
+     * {@link BestBucketsDeferringCollector#rewriteBuckets(LongUnaryOperator)} to merge the delayed buckets.
+     * @param mergeMap a unary operator which maps a bucket's ordinal to the ordinal it should be merged with.
      *  If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
-     *
-     * This only tidies up doc counts. Call {@link BestBucketsDeferringCollector#rewriteBuckets(LongUnaryOperator)} to
-     * merge the actual ordinals and doc ID deltas.
      */
     public final void rewriteBuckets(long newNumBuckets, LongUnaryOperator mergeMap){
         try (LongArray oldDocCounts = docCounts) {

@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -117,7 +118,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 "\"bar\":  { \"type\": " + fieldType + "}}, \"_source\": { " + sourceOptions + "}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
-        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
         recoverShardFromStore(primary);
         Engine.IndexResult test = indexDoc(primary, "test", "0", docToIndex);
         assertTrue(primary.getEngine().refreshNeeded());

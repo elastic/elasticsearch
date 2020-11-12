@@ -19,15 +19,30 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class IndexSortSettingsTests extends ESTestCase {
     private static IndexSettings indexSettings(Settings settings) {
@@ -128,5 +143,51 @@ public class IndexSortSettingsTests extends ESTestCase {
             expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
         assertThat(exc.getMessage(), containsString("Illegal missing value:[default]," +
             " must be one of [_last, _first]"));
+    }
+
+    public void testIndexSorting() {
+        IndexSettings indexSettings = indexSettings(Settings.builder().put("index.sort.field", "field").build());
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
+        NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
+        MappedFieldType fieldType = new RuntimeFieldType("field", Collections.emptyMap()) {
+            @Override
+            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String typeName() {
+                return null;
+            }
+
+            @Override
+            public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+                searchLookup.get();
+                return null;
+            }
+
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            protected void doXContentBody(XContentBuilder builder, boolean includeDefaults) {
+                throw new UnsupportedOperationException();
+            }
+        };
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> config.buildIndexSort(
+                field -> fieldType,
+                (ft, searchLookupSupplier) -> indexFieldDataService.getForField(ft, "index", searchLookupSupplier)
+            )
+        );
+        assertEquals("docvalues not found for index sort field:[field]", iae.getMessage());
+        assertThat(iae.getCause(), instanceOf(UnsupportedOperationException.class));
+        assertEquals("index sorting not supported on runtime field [field]", iae.getCause().getMessage());
     }
 }

@@ -96,7 +96,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.named("integTest").configure {
-  it.dependsOn(project.tasks.named("bundlePlugin"))
+  dependsOn(project.tasks.named("bundlePlugin"))
 }
 
 testClusters.integTest {
@@ -155,7 +155,7 @@ Set disabledIntegTestTaskNames = []
 for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
   task "${integTestTaskName}"(type: RestIntegTestTask) {
     description = "Runs rest tests against an elasticsearch cluster with HDFS."
-    dependsOn(project.bundlePlugin)
+    dependsOn("bundlePlugin")
 
     if (disabledIntegTestTaskNames.contains(integTestTaskName)) {
       enabled = false;

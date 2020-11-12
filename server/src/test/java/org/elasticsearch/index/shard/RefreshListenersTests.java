@@ -47,6 +47,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -344,7 +345,8 @@ public class RefreshListenersTests extends ESTestCase {
                         listener.assertNoError();
 
                         Engine.Get get = new Engine.Get(false, false, threadId);
-                        try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher)) {
+                        final DocumentMapper mapper = EngineTestCase.docMapper();
+                        try (Engine.GetResult getResult = engine.get(get, mapper, EngineTestCase.randomSearcherWrapper())) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
                             org.apache.lucene.document.Document document =

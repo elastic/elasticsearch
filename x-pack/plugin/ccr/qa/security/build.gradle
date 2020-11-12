@@ -18,7 +18,7 @@ tasks.register("resolve") {
   }
 }
 task 'leader-cluster'(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
+  mustRunAfter("precommit")
   systemProperty 'tests.target_cluster', 'leader'
 }
 
@@ -51,5 +51,6 @@ testClusters.'follow-cluster' {
   user username: "test_ccr", role: "ccruser"
 }
 
-check.dependsOn 'follow-cluster'
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+tasks.named("check").configure { dependsOn('follow-cluster') }
+// no unit tests for multi-cluster-search, only the rest integration test
+tasks.named("test").configure { enabled = false }

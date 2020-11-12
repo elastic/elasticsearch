@@ -39,9 +39,11 @@ import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneOffsetTransitionRule;
 import java.time.zone.ZoneRules;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1015,6 +1017,35 @@ public class RoundingTests extends ESTestCase {
         long thirdQuarter = prepared.round(time("2015-07-01T00:00:00.000Z"));
         assertThat(prepared.roundingSize(thirdQuarter, Rounding.DateTimeUnit.DAY_OF_MONTH), closeTo(92.0, 0.000001));
         assertThat(prepared.roundingSize(thirdQuarter, Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(2208.0, 0.000001));
+    }
+
+    public void testFixedRoundingPoints() {
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).build();
+        assertFixedRoundingPoints(
+            rounding.prepare(time("2020-01-01T00:00:00"), time("2021-01-01T00:00:00")),
+            "2020-01-01T00:00:00",
+            "2020-04-01T00:00:00",
+            "2020-07-01T00:00:00",
+            "2020-10-01T00:00:00",
+            "2021-01-01T00:00:00"
+        );
+        rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build();
+        assertFixedRoundingPoints(
+            rounding.prepare(time("2020-01-01T00:00:00"), time("2020-01-06T00:00:00")),
+            "2020-01-01T00:00:00",
+            "2020-01-02T00:00:00",
+            "2020-01-03T00:00:00",
+            "2020-01-04T00:00:00",
+            "2020-01-05T00:00:00",
+            "2020-01-06T00:00:00"
+        );
+    }
+
+    private void assertFixedRoundingPoints(Rounding.Prepared prepared, String... expected) {
+        assertThat(
+            Arrays.stream(prepared.fixedRoundingPoints()).mapToObj(Instant::ofEpochMilli).collect(toList()),
+            equalTo(Arrays.stream(expected).map(RoundingTests::time).map(Instant::ofEpochMilli).collect(toList()))
+        );
     }
 
     private void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes,

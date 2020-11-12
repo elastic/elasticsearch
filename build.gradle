@@ -389,7 +389,7 @@ allprojects {
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
 }
 
-wrapper {
+tasks.named("wrapper").configure {
   distributionType = 'ALL'
   doLast {
     final DistributionLocator locator = new DistributionLocator()

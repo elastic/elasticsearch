@@ -24,6 +24,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -215,8 +217,10 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
     public void testResolveDataStreams() {
         String dataStreamName = "foo_logs";
-        IndexMetadata firstBackingIndexMetadata = createBackingIndex(dataStreamName, 1).build();
-        IndexMetadata secondBackingIndexMetadata = createBackingIndex(dataStreamName, 2).build();
+        long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
+        String dateString = DateFormatter.forPattern(FormatNames.STRICT_YEAR_MONTH_DAY.getName()).formatMillis(epochMillis);
+        IndexMetadata firstBackingIndexMetadata = createBackingIndex(dataStreamName, 1, epochMillis).build();
+        IndexMetadata secondBackingIndexMetadata = createBackingIndex(dataStreamName, 2, epochMillis).build();
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(indexBuilder("foo_foo").state(State.OPEN))
@@ -255,13 +259,13 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
             // data stream's corresponding backing indices are resolved
             List<String> indices = resolver.resolve(indicesAliasesAndDataStreamsContext, Collections.singletonList("foo_*"));
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", ".ds-foo_logs-000001",
-                ".ds-foo_logs-000002"));
+            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", ".ds-foo_logs-" + dateString + "-000001",
+                ".ds-foo_logs-" + dateString + "-000002"));
 
             // include all wildcard adds the data stream's backing indices
             indices = resolver.resolve(indicesAliasesAndDataStreamsContext, Collections.singletonList("*"));
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar", ".ds-foo_logs-000001",
-                ".ds-foo_logs-000002"));
+            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar",
+                ".ds-foo_logs-" + dateString + "-000001", ".ds-foo_logs-" + dateString + "-000002"));
         }
 
         {
@@ -272,13 +276,13 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
             // data stream's corresponding backing indices are resolved
             List<String> indices = resolver.resolve(indicesAliasesDataStreamsAndHiddenIndices, Collections.singletonList("foo_*"));
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", ".ds-foo_logs-000001",
-                ".ds-foo_logs-000002"));
+            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", ".ds-foo_logs-" + dateString + "-000001",
+                ".ds-foo_logs-" + dateString + "-000002"));
 
             // include all wildcard adds the data stream's backing indices
             indices = resolver.resolve(indicesAliasesDataStreamsAndHiddenIndices, Collections.singletonList("*"));
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar", ".ds-foo_logs-000001",
-                ".ds-foo_logs-000002"));
+            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar",
+                ".ds-foo_logs-" + dateString + "-000001", ".ds-foo_logs-" + dateString + "-000002"));
         }
     }
 

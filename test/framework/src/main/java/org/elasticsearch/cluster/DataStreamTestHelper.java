@@ -47,11 +47,19 @@ public final class DataStreamTestHelper {
     private static final int NUMBER_OF_REPLICAS = 1;
 
     public static IndexMetadata.Builder createFirstBackingIndex(String dataStreamName) {
-        return createBackingIndex(dataStreamName, 1);
+        return createBackingIndex(dataStreamName, 1, System.currentTimeMillis());
+    }
+
+    public static IndexMetadata.Builder createFirstBackingIndex(String dataStreamName, long epochMillis) {
+        return createBackingIndex(dataStreamName, 1, epochMillis);
     }
 
     public static IndexMetadata.Builder createBackingIndex(String dataStreamName, int generation) {
-        return IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, generation))
+        return createBackingIndex(dataStreamName, 1, System.currentTimeMillis());
+    }
+
+    public static IndexMetadata.Builder createBackingIndex(String dataStreamName, int generation, long epochMillis) {
+        return IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, generation, epochMillis))
             .settings(SETTINGS)
             .numberOfShards(NUMBER_OF_SHARDS)
             .numberOfReplicas(NUMBER_OF_REPLICAS);

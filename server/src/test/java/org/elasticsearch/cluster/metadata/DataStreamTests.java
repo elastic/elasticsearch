@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -89,8 +91,10 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         // will also require changing a lot of hard-coded values in REST tests and docs
         long backingIndexNum = randomLongBetween(1, 1000001);
         String dataStreamName = randomAlphaOfLength(6);
-        String defaultBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNum);
-        String expectedBackingIndexName = String.format(Locale.ROOT, ".ds-%s-%06d", dataStreamName, backingIndexNum);
+        long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
+        String dateString = DateFormatter.forPattern(FormatNames.STRICT_YEAR_MONTH_DAY.getName()).formatMillis(epochMillis);
+        String defaultBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNum, epochMillis);
+        String expectedBackingIndexName = String.format(Locale.ROOT, ".ds-%s-%s-%06d", dataStreamName, dateString, backingIndexNum);
         assertThat(defaultBackingIndexName, equalTo(expectedBackingIndexName));
     }
 

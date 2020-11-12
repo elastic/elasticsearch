@@ -26,6 +26,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,6 +46,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final Version HIDDEN_VERSION = Version.V_7_11_0;
+    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern(FormatNames.STRICT_YEAR_MONTH_DAY.getName());
 
     private final String name;
     private final TimestampField timeStampField;
@@ -156,14 +159,28 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     /**
      * Generates the name of the index that conforms to the default naming convention for backing indices
-     * on data streams given the specified data stream name and generation.
+     * on data streams given the specified data stream name and generation and the current system time.
      *
      * @param dataStreamName name of the data stream
      * @param generation generation of the data stream
      * @return backing index name
      */
     public static String getDefaultBackingIndexName(String dataStreamName, long generation) {
-        return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%06d", dataStreamName, generation);
+        return getDefaultBackingIndexName(dataStreamName, generation, System.currentTimeMillis());
+    }
+
+    /**
+     * Generates the name of the index that conforms to the default naming convention for backing indices
+     * on data streams given the specified data stream name, generation, and time.
+     *
+     * @param dataStreamName name of the data stream
+     * @param generation generation of the data stream
+     * @param epochMillis creation time for the backing index
+     * @return backing index name
+     */
+    public static String getDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis) {
+        return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%s-%06d", dataStreamName, DATE_FORMATTER.formatMillis(epochMillis),
+            generation);
     }
 
     public DataStream(StreamInput in) throws IOException {

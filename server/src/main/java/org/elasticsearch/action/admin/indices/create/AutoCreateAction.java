@@ -165,20 +165,17 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     String aliasName = null;
                     String concreteIndexName = indexName;
 
-                    if (indexName.charAt(0) == '.') {
-                        final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+                    final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
 
-                        if (descriptor != null) {
-                            logger.warn("Matched a system index descriptor");
-                            isSystemIndex = true;
+                    if (descriptor != null && descriptor.isAutomaticallyManaged()) {
+                        isSystemIndex = true;
 
-                            mappings = descriptor.getMappings();
-                            settings = descriptor.getSettings();
-                            aliasName = descriptor.getAliasName();
+                        mappings = descriptor.getMappings();
+                        settings = descriptor.getSettings();
+                        aliasName = descriptor.getAliasName();
 
-                            if (aliasName != null) {
-                                concreteIndexName = descriptor.getIndexPattern();
-                            }
+                        if (aliasName != null) {
+                            concreteIndexName = descriptor.getIndexPattern();
                         }
                     }
 

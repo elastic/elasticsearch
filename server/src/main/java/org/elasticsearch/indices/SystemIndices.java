@@ -61,7 +61,6 @@ import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
-import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 
 /**
  * This class holds the {@link SystemIndexDescriptor} objects that represent system indices the
@@ -73,9 +72,7 @@ public class SystemIndices implements ClusterStateListener {
 
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = Map.of(
         TaskResultsService.class.getName(),
-        List.of(SystemIndexDescriptor.builder().setIndexPattern(TASK_INDEX + "*")
-            .setDescription("Task Result Index")
-            .build())
+        List.of(TaskResultsService.TASKS_DESCRIPTOR)
     );
 
     private final CharacterRunAutomaton runAutomaton;
@@ -253,7 +250,7 @@ public class SystemIndices implements ClusterStateListener {
         }
 
         for (SystemIndexDescriptor descriptor : this.systemIndexDescriptors) {
-            if (descriptor.shouldAutoCreate() == false) {
+            if (descriptor.isAutomaticallyManaged() == false) {
                 continue;
             }
             upgradeIndexMetadataIfNecessary(state, descriptor);

@@ -79,13 +79,13 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         Set<Alias> aliases = request.aliases();
 
         String concreteIndexName = indexName;
+        boolean isSystemIndex = false;
 
-        boolean isSystemIndex = systemIndices.isSystemIndex(indexName);
+        SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
 
-        if (isSystemIndex) {
+        if (descriptor != null && descriptor.isAutomaticallyManaged()) {
+            isSystemIndex = true;
             // System indices define their own settings and mappings, which cannot be overridden.
-            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-            assert descriptor != null;
             mappings = descriptor.getMappings();
             settings = descriptor.getSettings();
 

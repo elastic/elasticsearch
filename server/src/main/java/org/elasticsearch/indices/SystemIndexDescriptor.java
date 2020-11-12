@@ -147,7 +147,7 @@ public class SystemIndexDescriptor {
         return this.versionMetaKey;
     }
 
-    public boolean shouldAutoCreate() {
+    public boolean isAutomaticallyManaged() {
         return this.mappings != null || this.settings != null;
     }
 

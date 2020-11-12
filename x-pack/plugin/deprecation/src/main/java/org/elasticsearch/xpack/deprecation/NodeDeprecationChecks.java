@@ -260,8 +260,7 @@ class NodeDeprecationChecks {
         if (JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Java 11 is required",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
-                    "#_java_11_is_required",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#_java_11_is_required",
                 "Java 11 will be required for future versions of Elasticsearch, this node is running version "
                     + JavaVersion.current().toString());
         }

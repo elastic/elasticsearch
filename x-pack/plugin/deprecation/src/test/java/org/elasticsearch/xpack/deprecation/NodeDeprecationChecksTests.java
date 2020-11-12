@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -25,11 +26,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -39,23 +41,42 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testCheckDefaults() {
         final Settings settings = Settings.EMPTY;
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
         assertThat(issues, empty());
+    }
+
+    public void testJavaVersion() {
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            DeprecationChecks.NODE_SETTINGS_CHECKS,
+            c -> c.apply(Settings.EMPTY, pluginsAndModules)
+        );
+
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Java 11 is required",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#_java_11_is_required",
+            "Java 11 will be required for future versions of Elasticsearch, this node is running version "
+                + JavaVersion.current().toString());
+
+        if (isJvmEarlierThan11()) {
+            assertThat(issues, hasItem(expected));
+        } else {
+            assertThat(issues, not(hasItem(expected)));
+        }
     }
 
     public void testCheckPidfile() {
         final String pidfile = randomAlphaOfLength(16);
         final Settings settings = Settings.builder().put(Environment.PIDFILE_SETTING.getKey(), pidfile).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [pidfile] is deprecated in favor of setting [node.pidfile]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking-changes-7.4.html#deprecate-pidfile",
             "the setting [pidfile] is currently set to [" + pidfile + "], instead set [node.pidfile] to [" + pidfile + "]");
-        assertThat(issues, contains(expected));
+        assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{Environment.PIDFILE_SETTING});
     }
 
@@ -63,14 +84,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final int processors = randomIntBetween(1, 4);
         final Settings settings = Settings.builder().put(EsExecutors.PROCESSORS_SETTING.getKey(), processors).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [processors] is deprecated in favor of setting [node.processors]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking-changes-7.4.html#deprecate-processors",
             "the setting [processors] is currently set to [" + processors + "], instead set [node.processors] to [" + processors + "]");
-        assertThat(issues, contains(expected));
+        assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{EsExecutors.PROCESSORS_SETTING});
     }
 
@@ -86,8 +106,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 .build();
 
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> deprecationIssues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
 
         assertEquals(1, deprecationIssues.size());
         assertEquals(new DeprecationIssue(
@@ -121,8 +140,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> deprecationIssues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
 
         assertEquals(1, deprecationIssues.size());
         assertEquals(DeprecationIssue.Level.CRITICAL, deprecationIssues.get(0).getLevel());
@@ -146,8 +164,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> deprecationIssues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
 
         assertEquals(0, deprecationIssues.size());
     }
@@ -156,14 +173,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final int size = randomIntBetween(1, 4);
         final Settings settings = Settings.builder().put("thread_pool.listener.queue_size", size).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [thread_pool.listener.queue_size] is deprecated and will be removed in the next major version",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool",
             "the setting [thread_pool.listener.queue_size] is currently set to [" + size + "], remove this setting");
-        assertThat(issues, contains(expected));
+        assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size"});
     }
 
@@ -171,14 +187,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final int size = randomIntBetween(1, 4);
         final Settings settings = Settings.builder().put("thread_pool.listener.size", size).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [thread_pool.listener.size] is deprecated and will be removed in the next major version",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool",
             "the setting [thread_pool.listener.size] is currently set to [" + size + "], remove this setting");
-        assertThat(issues, contains(expected));
+        assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
     }
 
@@ -186,15 +201,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final int size = randomIntBetween(1, 4);
         final Settings settings = Settings.builder().put("script.cache.max_size", size).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [script.cache.max_size] is deprecated in favor of grouped setting [script.context.*.cache_max_size]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_cache_size",
             "the setting [script.cache.max_size] is currently set to [" + size + "], instead set [script.context.*.cache_max_size] " +
                 "to [" + size + "] where * is a script context");
-        assertThat(issues, contains(expected));
+        assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING});
     }
 
@@ -202,15 +216,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final String expire = randomIntBetween(1, 4) + "m";
         final Settings settings = Settings.builder().put("script.cache.expire", expire).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [script.cache.expire] is deprecated in favor of grouped setting [script.context.*.cache_expire]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_expire",
             "the setting [script.cache.expire] is currently set to [" + expire + "], instead set [script.context.*.cache_expire] to " +
                 "[" + expire + "] where * is a script context");
-        assertThat(issues, contains(expected));
+        assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING});
     }
 
@@ -218,15 +231,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final String rate = randomIntBetween(1, 100) + "/" + randomIntBetween(1, 200) + "m";
         final Settings settings = Settings.builder().put("script.max_compilations_rate", rate).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [script.max_compilations_rate] is deprecated in favor of grouped setting [script.context.*.max_compilations_rate]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_compile_rate",
             "the setting [script.max_compilations_rate] is currently set to [" + rate +
                 "], instead set [script.context.*.max_compilations_rate] to [" + rate + "] where * is a script context");
-        assertThat(issues, contains(expected));
+        assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
 
@@ -234,8 +246,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final boolean value = randomBoolean();
         final Settings settings = Settings.builder().put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), value).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [cluster.remote.connect] is deprecated in favor of setting [node.remote_cluster_client]",
@@ -247,7 +258,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 value,
                 "node.remote_cluster_client"
             ));
-        assertThat(issues, contains(expected));
+        assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{RemoteClusterService.ENABLE_REMOTE_CLUSTERS});
     }
 
@@ -255,15 +266,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final boolean value = randomBoolean();
         final Settings settings = Settings.builder().put(Node.NODE_LOCAL_STORAGE_SETTING.getKey(), value).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [node.local_storage] is deprecated and will be removed in the next major version",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-node-local-storage",
             "the setting [node.local_storage] is currently set to [" + value + "], remove this setting"
         );
-        assertThat(issues, contains(expected));
+        assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{Node.NODE_LOCAL_STORAGE_SETTING});
     }
 
@@ -284,8 +294,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             final boolean value = randomBoolean();
             final Settings settings = Settings.builder().put(deprecatedSetting.getKey(), value).build();
             final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-            final List<DeprecationIssue> issues =
-                DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+            final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
             final DeprecationIssue expected = new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "setting [" + deprecatedSetting.getKey() + "] is deprecated and will be removed in the next major version",
@@ -293,7 +302,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     "#deprecate-basic-license-feature-enabled",
                 "the setting [" + deprecatedSetting.getKey() + "] is currently set to [" + value + "], remove this setting"
             );
-            assertThat(issues, contains(expected));
+            assertThat(issues, hasItem(expected));
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{deprecatedSetting});
         }
     }
@@ -320,5 +329,22 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issue.getDetails(),
             equalTo("the setting [node.removed_setting] is currently set to [value], remove this setting"));
         assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
+    private static boolean isJvmEarlierThan11() {
+        return JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0;
+    }
+
+    private List<DeprecationIssue> getDeprecationIssues(Settings settings, PluginsAndModules pluginsAndModules) {
+        final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            DeprecationChecks.NODE_SETTINGS_CHECKS,
+            c -> c.apply(settings, pluginsAndModules)
+        );
+
+        if (isJvmEarlierThan11()) {
+            return issues.stream().filter(i -> i.getMessage().equals("Java 11 is required") == false).collect(Collectors.toList());
+        }
+
+        return issues;
     }
 }

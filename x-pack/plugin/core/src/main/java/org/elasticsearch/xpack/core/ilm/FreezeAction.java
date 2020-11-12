@@ -25,7 +25,7 @@ import java.util.List;
  * A {@link LifecycleAction} which freezes the index.
  */
 public class FreezeAction implements LifecycleAction {
-    private final Logger logger = LogManager.getLogger(FreezeAction.class);
+    private static final Logger logger = LogManager.getLogger(FreezeAction.class);
 
     public static final String NAME = "freeze";
     public static final String CONDITIONAL_SKIP_FREEZE_STEP = BranchingStep.NAME + "-freeze-check-prerequisites";

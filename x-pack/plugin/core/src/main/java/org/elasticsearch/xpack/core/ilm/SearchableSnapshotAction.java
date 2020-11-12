@@ -32,7 +32,7 @@ import java.util.Objects;
  * newly created searchable snapshot backed index.
  */
 public class SearchableSnapshotAction implements LifecycleAction {
-    private final Logger logger = LogManager.getLogger(SearchableSnapshotAction.class);
+    private static final Logger logger = LogManager.getLogger(SearchableSnapshotAction.class);
 
     public static final String NAME = "searchable_snapshot";
 

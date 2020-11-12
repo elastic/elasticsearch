@@ -33,7 +33,7 @@ import java.util.Objects;
  * A {@link LifecycleAction} which force-merges the index.
  */
 public class ForceMergeAction implements LifecycleAction {
-    private final Logger logger = LogManager.getLogger(ForceMergeAction.class);
+    private static final Logger logger = LogManager.getLogger(ForceMergeAction.class);
 
     public static final String NAME = "forcemerge";
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");

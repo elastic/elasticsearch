@@ -29,7 +29,7 @@ import java.util.Objects;
  * A {@link LifecycleAction} which shrinks the index.
  */
 public class ShrinkAction implements LifecycleAction {
-    private final Logger logger = LogManager.getLogger(ShrinkAction.class);
+    private static final Logger logger = LogManager.getLogger(ShrinkAction.class);
 
     public static final String NAME = "shrink";
     public static final String SHRUNKEN_INDEX_PREFIX = "shrink-";

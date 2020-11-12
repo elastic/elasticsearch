@@ -13,8 +13,9 @@ archivesBaseName = 'x-pack-watcher'
 
 ext.compactProfile = 'full'
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
@@ -45,7 +46,7 @@ dependencies {
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
-thirdPartyAudit {
+tasks.named("thirdPartyAudit").configure {
   ignoreViolations(
     // uses internal java api: sun.misc.Unsafe
     'com.google.common.cache.Striped64',
@@ -76,7 +77,7 @@ thirdPartyAudit {
   )
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.p12'
 }
 
@@ -88,11 +89,4 @@ internalClusterTest {
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
-}
+addQaCheckDependencies()

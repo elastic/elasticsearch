@@ -259,7 +259,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
       licensesDir licenses
       source module.file('src/main/java')
     }
-    buildOssNotice.configure {
+    buildOssNoticeTaskProvider.configure {
       licensesDir licenses
       source module.file('src/main/java')
     }

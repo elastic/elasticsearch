@@ -310,8 +310,8 @@ for (final Architecture architecture : Architecture.values()) {
 // We build the images used in compose locally, but the pull command insists on using a repository
 // thus we must disable it to prevent it from doing so.
 // Everything will still be pulled since we will build the local images on a pull
-if (tasks.findByName("composePull")) {
-  tasks.composePull.enabled = false
+tasks.named("composePull").configure {
+  enabled = false
 }
 
 /*

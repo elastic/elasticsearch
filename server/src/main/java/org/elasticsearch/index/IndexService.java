@@ -149,6 +149,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final CircuitBreakerService circuitBreakerService;
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
+    private final Supplier<Map<Path, Integer>> dataPathToShardsCountSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
 
     public IndexService(
@@ -178,7 +179,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             BooleanSupplier allowExpensiveQueries,
             IndexNameExpressionResolver expressionResolver,
             ValuesSourceRegistry valuesSourceRegistry,
-            IndexStorePlugin.RecoveryStateFactory recoveryStateFactory) {
+            IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
+            Supplier<Map<Path, Integer>> dataPathToShardsCountSupplier) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -188,6 +190,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.circuitBreakerService = circuitBreakerService;
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry =  valuesSourceRegistry;
+        this.dataPathToShardsCountSupplier =  dataPathToShardsCountSupplier;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
@@ -426,15 +429,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
                 // that's being relocated/replicated we know how large it will become once it's done copying:
                 // Count up how many shards are currently on each data path:
-                Map<Path, Integer> dataPathToShardCount = new HashMap<>();
-                for (IndexShard shard : this) {
-                    Path dataPath = shard.shardPath().getRootStatePath();
-                    Integer curCount = dataPathToShardCount.get(dataPath);
-                    if (curCount == null) {
-                        curCount = 0;
-                    }
-                    dataPathToShardCount.put(dataPath, curCount + 1);
+                Map<Path, Integer> dataPathToShardCount = Collections.EMPTY_MAP;
+                if (nodeEnv.nodeDataPaths().length != 1) { // ignore when node has a single data path
+                    dataPathToShardCount = dataPathToShardsCountSupplier.get();
                 }
+
                 path = ShardPath.selectNewPathForShard(nodeEnv, shardId, this.indexSettings,
                     routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
                         ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(),

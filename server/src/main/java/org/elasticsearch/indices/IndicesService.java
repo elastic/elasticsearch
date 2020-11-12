@@ -141,6 +141,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -674,6 +675,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesFieldDataCache,
                 namedWriteableRegistry,
                 this::isIdFieldDataEnabled,
+                this::dataPathToShardCount,
                 valuesSourceRegistry
         );
     }
@@ -1615,6 +1617,17 @@ public class IndicesService extends AbstractLifecycleComponent
     @Nullable
     public DateFieldMapper.DateFieldType getTimestampFieldType(Index index) {
         return timestampFieldMapperService.getTimestampFieldType(index);
+    }
+
+    public Map<Path, Integer> dataPathToShardCount() {
+        Map<Path, Integer> dataPathToShardCount = new HashMap<>(nodeEnv.nodeDataPaths().length);
+        for(IndexService indexService : this) {
+            for(IndexShard shard : indexService) {
+                dataPathToShardCount.put(shard.shardPath().getRootStatePath(),
+                    dataPathToShardCount.getOrDefault(shard.shardPath().getRootStatePath(), 0) + 1);
+            }
+        }
+        return dataPathToShardCount;
     }
 
 }

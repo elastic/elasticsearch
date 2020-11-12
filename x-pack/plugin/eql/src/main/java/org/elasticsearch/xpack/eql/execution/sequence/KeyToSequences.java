@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.function.Consumer;
 
 /** Dedicated collection for mapping a key to a list of sequences */
 /** The list represents the sequence for each stage (based on its index) and is fixed in size */
@@ -51,24 +50,6 @@ class KeyToSequences {
             groups[stage] = new SequenceGroup(key);
         }
         groups[stage].add(sequence);
-    }
-
-    void resetGroupInsertPosition() {
-        for (SequenceGroup[] groups : keyToSequences.values()) {
-            for (SequenceGroup group : groups) {
-                if (group != null) {
-                    group.resetInsertPosition();
-                }
-            }
-        }
-    }
-
-    void resetUntilInsertPosition() {
-        for (UntilGroup until : keyToUntil.values()) {
-            if (until != null) {
-                until.resetInsertPosition();
-            }
-        }
     }
 
     void until(Iterable<KeyAndOrdinal> until) {
@@ -121,14 +102,10 @@ class KeyToSequences {
      * Remove all matches expect the latest.
      */
     void trimToTail() {
-        trim(SequenceGroup::trimToLast);
-    }
-
-    private void trim(Consumer<SequenceGroup> trimmer) {
         for (SequenceGroup[] groups : keyToSequences.values()) {
             for (SequenceGroup group : groups) {
                 if (group != null) {
-                    trimmer.accept(group);
+                    group.trimToLast();
                 }
             }
         }

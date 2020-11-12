@@ -17,6 +17,7 @@ import java.util.function.Function;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /** List of in-flight ordinals for a given key. For fast lookup, typically associated with a stage. */
+/** this class expects the insertion to be ordered */
 abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
     private final SequenceKey key;
@@ -34,14 +35,10 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
      */
     private int insertPosition = 0;
 
-    private int hashCode = 0;
-
     private Ordinal start, stop;
 
     protected OrdinalGroup(SequenceKey key, Function<E, Ordinal> extractor) {
         this.key = key;
-        hashCode = key.hashCode();
-
         this.extractor = extractor;
     }
 
@@ -50,8 +47,6 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     }
 
     void add(E element) {
-        hashCode = 31 * hashCode + Objects.hashCode(element);
-
         Ordinal ordinal = extractor.apply(element);
         if (start == null) {
             start = ordinal;
@@ -65,10 +60,6 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
         }
         // add element at the current position
         elements.add(insertPosition++, element);
-    }
-
-    void resetInsertPosition() {
-        insertPosition = 0;
     }
 
     /**
@@ -108,14 +99,13 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     }
 
     void trimToLast() {
-        keepOnly(elements.peekLast());
-    }
-
-    private void keepOnly(E element) {
-        elements.clear();
-        insertPosition = 0;
-        if (element != null) {
-            add(element);
+        E last = elements.peekLast();
+        if (last != null) {
+            elements.clear();
+            insertPosition = 0;
+            start = null;
+            stop = null;
+            add(last);
         }
     }
 
@@ -174,7 +164,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
         OrdinalGroup<?> other = (OrdinalGroup<?>) obj;
         return Objects.equals(key, other.key)
-                && Objects.equals(hashCode, other.hashCode);
+                && Objects.equals(elements, other.elements);
     }
 
     @Override

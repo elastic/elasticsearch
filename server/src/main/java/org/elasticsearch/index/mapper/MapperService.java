@@ -434,7 +434,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Returns all mapped field types.
      */
     public Iterable<MappedFieldType> fieldTypes(Predicate<MappedFieldType> predicate) {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().fieldTypes(predicate);
+        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().filter(predicate);
     }
 
     public ObjectMapper getObjectMapper(String name) {

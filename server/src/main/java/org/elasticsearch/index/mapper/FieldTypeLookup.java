@@ -134,7 +134,14 @@ final class FieldTypeLookup {
             : Set.of(resolvedField);
     }
 
-    Iterable<MappedFieldType> fieldTypes(Predicate<MappedFieldType> predicate) {
-        return () -> Stream.concat(fullNameToFieldType.values().stream(), dynamicKeyLookup.fieldTypes()).filter(predicate).iterator();
+    /**
+     * Returns an {@link Iterable} over all the distinct field types matching the provided predicate.
+     * When a field alias is present, {@link #get(String)} returns the same {@link MappedFieldType} no matter if it's  looked up
+     * providing the field name or the alias name. In this case the {@link Iterable} returned by this method will contain only one
+     * instance of the field type. Note that filtering by name is not reliable as it does not take into account field aliases.
+     */
+    Iterable<MappedFieldType> filter(Predicate<MappedFieldType> predicate) {
+        return () -> Stream.concat(fullNameToFieldType.values().stream(), dynamicKeyLookup.fieldTypes())
+            .distinct().filter(predicate).iterator();
     }
 }

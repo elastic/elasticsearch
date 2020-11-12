@@ -53,11 +53,23 @@ In the cold phase, an index is no longer updated and seldom queried.
 The information still needs to be searchable, but it’s okay if those queries are slower.
 // end::cold-phase-def[]
 
+[[glossary-cold-tier]] cold tier::
+// tag::cold-tier-def[]
+A <<glossary-data-tier, data tier>> that contains nodes that hold time series data 
+that is accessed occasionally and not normally updated.
+// end::cold-tier-def[]
+
 [[glossary-component-template]] component template ::
 // tag::component-template-def[]
 A building block for constructing <<indices-templates,index templates>> that specifies index
 <<mapping,mappings>>, <<index-modules-settings,settings>>, and <<indices-aliases,aliases>>.
 // end::component-template-def[]
+
+[[glossary-content-tier]] content tier::
+// tag::content-tier-def[]
+A <<glossary-data-tier, data tier>> that contains nodes that handle the indexing and query load for 
+content such as a product catalog.
+// end::content-tier-def[]
 
 [[glossary-ccr]] {ccr} (CCR)::
 // tag::ccr-def[]
@@ -85,6 +97,13 @@ efficiently store large data volumes.
 See {ref}/data-streams.html[Data streams].
 // end::data-stream-def[]
 --
+
+[[glossary-data-tier]] data tier::
+// tag::data-tier-def[]
+A collection of nodes with the same data role that typically share the same hardware profile.
+See <<glossary-content-tier, content tier>>, <<glossary-hot-tier, hot tier>>, <<glossary-warm-tier, warm tier>>,
+<<glossary-cold-tier, cold tier>>.
+// end::data-tier-def[]
 
 [[glossary-delete-phase]] delete phase ::
 // tag::delete-phase-def[]
@@ -188,11 +207,25 @@ Frozen indices use a memory-efficient shard implementation and throttle searches
 Searching a frozen index is lower overhead than re-opening a closed index to enable searching.
 // end::frozen-index-def[]
 
+[[glossary-hidden-index]] hidden index ::
+// tag::hidden-index-def[]
+An index that is excluded by default when you access indices using a wildcard expression. 
+You can specify the `expand_wildcards` parameter to include hidden indices.
+Note that hidden indices _are_ included if the wildcard expression starts with a dot, for example `.watcher-history*`.
+// end::hidden-index-def[]
+
 [[glossary-hot-phase]] hot phase ::
 // tag::hot-phase-def[]
 The first possible phase in the <<glossary-index-lifecycle,index lifecycle>>.
 In the hot phase, an index is actively updated and queried.
 // end::hot-phase-def[]
+
+[[glossary-hot-tier]] hot tier::
+// tag::hot-tier-def[]
+A <<glossary-data-tier, data tier>> that contains nodes that handle the indexing load 
+for time series data such as logs or metrics and hold your most recent, 
+most-frequently-accessed data.
+// end::hot-tier-def[]
 
 [[glossary-id]] id ::
 // tag::id-def[]
@@ -536,6 +569,14 @@ To grow the amount of shards in an index.
 See the {ref}/indices-split-index.html[split index API].
 // end::split-def[]
 
+[[glossary-system-index]] system index ::
+// tag::system-index-def[]
+An index that contains configuration information or other data used internally by the system, 
+such as the `.security` index. 
+The name of a system index is always prefixed with a dot.
+You should not directly access or modify system indices.
+// end::system-index-def[]
+
 [[glossary-term]] term ::
 +
 --
@@ -577,3 +618,9 @@ See {ref}/removal-of-types.html[Removal of mapping types].
 The second possible phase in the <<glossary-index-lifecycle,index lifecycle>>.
 In the warm phase, an index is generally optimized for search and no longer updated.
 // end::warm-phase-def[]
+
+[[glossary-warm-tier]] warm tier::
+// tag::warm-tier-def[]
+A <<glossary-data-tier, data tier>> that contains nodes that hold time series data 
+that is accessed less frequently and rarely needs to be updated.
+// end::warm-tier-def[]

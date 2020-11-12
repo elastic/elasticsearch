@@ -28,12 +28,16 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
@@ -63,8 +67,43 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
+
+    public void testDateWithFormat() throws IOException {
+        CheckedSupplier<XContentBuilder, IOException> mapping = () -> runtimeFieldMapping(b -> {
+            minimalMapping(b);
+            b.field("format", "yyyy-MM-dd");
+        });
+        MapperService mapperService = createMapperService(mapping.get());
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertThat(fieldType, instanceOf(DateScriptFieldType.class));
+        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
+    }
+
+    public void testDateWithLocale() throws IOException {
+        CheckedSupplier<XContentBuilder, IOException> mapping = () -> runtimeFieldMapping(b -> {
+            minimalMapping(b);
+            b.field("locale", "en_GB");
+        });
+        MapperService mapperService = createMapperService(mapping.get());
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertThat(fieldType, instanceOf(DateScriptFieldType.class));
+        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
+    }
+
+    public void testDateWithLocaleAndFormat() throws IOException {
+        CheckedSupplier<XContentBuilder, IOException> mapping = () -> runtimeFieldMapping(b -> {
+            minimalMapping(b);
+            b.field("format", "yyyy-MM-dd").field("locale", "en_GB");
+        });
+        MapperService mapperService = createMapperService(mapping.get());
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertThat(fieldType, instanceOf(DateScriptFieldType.class));
+        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
+    }
+
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat("date", null).format(1595432181354L), equalTo("2020-07-22"));
         assertThat(
@@ -407,7 +446,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     @Override
-    protected String runtimeType() {
+    protected String typeName() {
         return "date";
     }
 
@@ -498,7 +537,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             DateFieldScript.Factory factory = scriptService.compile(script, DateFieldScript.CONTEXT);
-            return new DateScriptFieldType("test", script, factory, dateTimeFormatter, emptyMap());
+            return new DateScriptFieldType("test", factory, dateTimeFormatter, script, emptyMap(), (b, d) -> {});
         }
     }
 

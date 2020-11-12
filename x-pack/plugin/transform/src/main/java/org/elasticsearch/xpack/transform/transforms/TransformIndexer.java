@@ -118,6 +118,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private volatile long lastCheckpointCleanup = 0L;
 
+    protected volatile boolean indexerThreadShuttingDown = false;
+    protected volatile boolean stopCalledDuringIndexerThreadShutdown = false;
+
     public TransformIndexer(
         ThreadPool threadPool,
         String executorName,
@@ -387,6 +390,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     protected void onFinish(ActionListener<Void> listener) {
+        startIndexerThreadShutdown();
         try {
             // This indicates an early exit since no changes were found.
             // So, don't treat this like a checkpoint being completed, as no work was done.
@@ -454,6 +458,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     @Override
+    protected void afterFinishOrFailure() {
+        finishIndexerThreadShutdown();
+    }
+
+    @Override
     protected IterationResult<TransformIndexerPosition> doProcess(SearchResponse searchResponse) {
         switch (runState) {
             case APPLY_RESULTS:
@@ -503,6 +512,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     protected void onFailure(Exception exc) {
+        startIndexerThreadShutdown();
         // the failure handler must not throw an exception due to internal problems
         try {
             handleFailure(exc);
@@ -613,9 +623,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return true;
     }
 
-    void stopAndSaveState() {
+    synchronized void stopAndSaveState() {
         onStop();
-        doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
+        if (indexerThreadShuttingDown) {
+            stopCalledDuringIndexerThreadShutdown = true;
+        } else {
+            doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
+        }
     }
 
     synchronized void handleFailure(Exception e) {
@@ -998,6 +1012,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             pageSize = initialConfiguredPageSize;
         } else {
             pageSize = function.getInitialPageSize();
+        }
+    }
+
+    private synchronized void startIndexerThreadShutdown() {
+        indexerThreadShuttingDown  = true;
+        stopCalledDuringIndexerThreadShutdown = false;
+    }
+
+    private synchronized void finishIndexerThreadShutdown() {
+        indexerThreadShuttingDown  = false;
+        if (stopCalledDuringIndexerThreadShutdown) {
+            doSaveState(IndexerState.STOPPED,  getPosition(), () -> {});
         }
     }
 

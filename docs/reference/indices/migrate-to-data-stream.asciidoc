@@ -14,6 +14,37 @@ See <<set-up-a-data-stream>>.
 ////
 [source,console]
 ----
+POST idx1/_doc/
+{
+    "message" : "testing",
+    "@timestamp" : "2020-01-01"
+}
+
+POST idx2/_doc/
+{
+    "message" : "testing2",
+    "@timestamp" : "2020-01-01"
+}
+
+POST /_aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "idx1",
+        "alias": "my-logs",
+        "is_write_index": true
+      }
+    },
+    {
+      "add": {
+        "index": "idx2",
+        "alias": "my-logs"
+      }
+    }
+  ]
+}
+
 PUT /_index_template/template
 {
   "index_patterns": ["my-logs*"],

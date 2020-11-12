@@ -112,7 +112,7 @@ public class MlAutoscalingDeciderConfiguration implements AutoscalingDeciderConf
         builder.startObject();
         builder.field(NUM_ANOMALY_JOBS_IN_QUEUE .getPreferredName(), numAnomalyJobsInQueue);
         builder.field(NUM_ANALYTICS_JOBS_IN_QUEUE.getPreferredName(), numAnalyticsJobsInQueue);
-        builder.field(DOWN_SCALE_DELAY.getPreferredName(), downScaleDelay);
+        builder.field(DOWN_SCALE_DELAY.getPreferredName(), downScaleDelay.getStringRep());
         builder.endObject();
         return builder;
     }
@@ -137,8 +137,12 @@ public class MlAutoscalingDeciderConfiguration implements AutoscalingDeciderConf
             return this;
         }
 
-        private Builder setDownScaleDelay(String unparsedTimeValue) {
-            this.downScaleDelay = TimeValue.parseTimeValue(unparsedTimeValue, DOWN_SCALE_DELAY.getPreferredName());
+        Builder setDownScaleDelay(String unparsedTimeValue) {
+            return setDownScaleDelay(TimeValue.parseTimeValue(unparsedTimeValue, DOWN_SCALE_DELAY.getPreferredName()));
+        }
+
+        public Builder setDownScaleDelay(TimeValue downScaleDelay) {
+            this.downScaleDelay = downScaleDelay;
             return this;
         }
 

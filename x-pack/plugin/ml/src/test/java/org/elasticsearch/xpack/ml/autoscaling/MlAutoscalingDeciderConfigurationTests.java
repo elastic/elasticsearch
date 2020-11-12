@@ -12,6 +12,21 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 
 public class MlAutoscalingDeciderConfigurationTests extends AbstractSerializingTestCase<MlAutoscalingDeciderConfiguration> {
+
+    public static MlAutoscalingDeciderConfiguration randomInstance() {
+        MlAutoscalingDeciderConfiguration.Builder builder = MlAutoscalingDeciderConfiguration.builder();
+        if (randomBoolean()) {
+            builder.setNumAnalyticsJobsInQueue(randomIntBetween(0, 10));
+        }
+        if (randomBoolean()) {
+            builder.setNumAnomalyJobsInQueue(randomIntBetween(0, 10));
+        }
+        if (randomBoolean()) {
+            builder.setDownScaleDelay(randomTimeValue());
+        }
+        return builder.build();
+    }
+
     @Override
     protected MlAutoscalingDeciderConfiguration doParseInstance(XContentParser parser) {
         return MlAutoscalingDeciderConfiguration.parse(parser);
@@ -24,13 +39,6 @@ public class MlAutoscalingDeciderConfigurationTests extends AbstractSerializingT
 
     @Override
     protected MlAutoscalingDeciderConfiguration createTestInstance() {
-        MlAutoscalingDeciderConfiguration.Builder builder = MlAutoscalingDeciderConfiguration.builder();
-        if (randomBoolean()) {
-            builder.setNumAnalyticsJobsInQueue(randomIntBetween(0, 10));
-        }
-        if (randomBoolean()) {
-            builder.setNumAnomalyJobsInQueue(randomIntBetween(0, 10));
-        }
-        return builder.build();
+        return randomInstance();
     }
 }

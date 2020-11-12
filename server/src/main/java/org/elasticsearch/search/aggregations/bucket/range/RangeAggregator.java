@@ -383,6 +383,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
                     context.getQueryShardContext()
                 );
         }
+        long maxCost = context.searcher().getIndexReader().maxDoc();
         FiltersAggregator delegate = FiltersAggregator.buildFilterOrderOrNull(
             name,
             factories,
@@ -393,7 +394,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
             context,
             parent,
             cardinality,
-            metadata
+            metadata,
+            maxCost
         );
         if (delegate == null) {
             return null;

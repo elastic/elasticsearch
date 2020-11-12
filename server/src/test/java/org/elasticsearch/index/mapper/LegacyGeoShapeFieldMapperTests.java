@@ -70,6 +70,11 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
     }
 
     @Override
+    protected boolean supportsOrIgnoresBoost() {
+        return false;
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "geo_shape").field("strategy", "recursive");
     }

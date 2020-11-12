@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -156,6 +157,8 @@ public class RestoreService implements ClusterStateApplier {
 
     private final MetadataIndexUpgradeService metadataIndexUpgradeService;
 
+    private final MetadataDeleteIndexService metadataDeleteIndexService;
+
     private final ShardLimitValidator shardLimitValidator;
 
     private final ClusterSettings clusterSettings;
@@ -164,13 +167,14 @@ public class RestoreService implements ClusterStateApplier {
 
     public RestoreService(ClusterService clusterService, RepositoriesService repositoriesService,
                           AllocationService allocationService, MetadataCreateIndexService createIndexService,
-                          MetadataIndexUpgradeService metadataIndexUpgradeService, ClusterSettings clusterSettings,
-                          ShardLimitValidator shardLimitValidator) {
+                          MetadataDeleteIndexService metadataDeleteIndexService, MetadataIndexUpgradeService metadataIndexUpgradeService,
+                          ClusterSettings clusterSettings, ShardLimitValidator shardLimitValidator) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.metadataIndexUpgradeService = metadataIndexUpgradeService;
+        this.metadataDeleteIndexService = metadataDeleteIndexService;
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
             clusterService.addStateApplier(this);
         }
@@ -264,15 +268,23 @@ public class RestoreService implements ClusterStateApplier {
                     metadataBuilder = Metadata.builder();
                 }
 
+                List<Index> systemIndices = new ArrayList<>();
+                // is this filtered by what's in the request?
                 final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(indicesInSnapshot);
                 for (IndexId indexId : indexIdsInSnapshot) {
-                    metadataBuilder.put(repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId), false);
+                    IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
+                    if (snapshotIndexMetaData.isSystem()) {
+                        // add to system indices list
+                        systemIndices.add(snapshotIndexMetaData.getIndex());
+                    }
+                    metadataBuilder.put(snapshotIndexMetaData, false);
                 }
 
                 final Metadata metadata = metadataBuilder.build();
 
                 // Apply renaming on index names, returning a map of names where
                 // the key is the renamed index and the value is the original name
+                // TODO: don't apply to system indices
                 final Map<String, String> indices = renamedIndices(request, indicesInSnapshot, dataStreamIndices);
 
                 // Now we can start the actual restore process by adding shards to be recovered in the cluster state
@@ -292,6 +304,8 @@ public class RestoreService implements ClusterStateApplier {
                                 "cannot restore a snapshot while a snapshot deletion is in-progress [" +
                                     deletionsInProgress.getEntries().get(0) + "]");
                         }
+
+                        currentState = metadataDeleteIndexService.deleteIndices(currentState, new HashSet<>(systemIndices));
 
                         // Updating cluster state
                         ClusterState.Builder builder = ClusterState.builder(currentState);

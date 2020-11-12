@@ -187,6 +187,8 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     public void testRuntimeFieldsSourcePaths() {
+        //we test that runtime fields are treated like any other field by sourcePaths, although sourcePaths
+        // should never be called for runtime fields as they are not in _source
         MockFieldMapper field1 = new MockFieldMapper("field1");
         MockFieldMapper concrete = new MockFieldMapper("concrete");
         TestRuntimeField field2 = new TestRuntimeField("field2");

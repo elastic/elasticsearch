@@ -9,6 +9,20 @@
               "type": "keyword"
             },
             "match_mapping_type": "string"
+          },
+          "match_ip": {
+            "match_mapping_type": "string",
+            "path_match":   "*.ip",
+            "mapping": {
+              "type": "ip"
+            }
+          },
+          "match_message": {
+            "match_mapping_type": "string",
+            "path_match":   "*.message",
+            "mapping": {
+              "type": "text"
+            }
           }
         }
       ],

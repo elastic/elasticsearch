@@ -17,3 +17,7 @@ static_import {
     void emit(org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript, boolean) bound_to org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript$Emit
 }
 
+class org.elasticsearch.common.Booleans {
+    boolean parseBoolean(String)
+}
+

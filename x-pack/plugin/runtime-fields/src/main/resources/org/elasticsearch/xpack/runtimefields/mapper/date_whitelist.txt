@@ -19,5 +19,10 @@ static_import {
     long parse(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript, def) bound_to org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript$Parse
 }
 
+class org.elasticsearch.common.time.DateFormatter {
+    DateFormatter forPattern(String)
+    long parseMillis(String)
+}
+
 
 

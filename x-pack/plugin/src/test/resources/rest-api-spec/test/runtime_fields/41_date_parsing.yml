@@ -1,0 +1,86 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
+              installed:
+                type: runtime
+                runtime_type: date
+                script:
+                  source: |
+
+                    long parseDate(Object obj) {
+                      if (obj instanceof String) {
+                        DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd");
+                        return formatter.parseMillis((String)obj);
+                      }
+                      throw new IllegalArgumentException();
+                    }
+
+                    def vs = params._source.installed;
+                    if (vs instanceof List) {
+                      for (def v : vs) {
+                        try {
+                          emit(parseDate(v));
+                        }
+                        catch (Exception e) {
+                           // do nothing
+                        }
+                      }
+                    }
+                    else {
+                      try {
+                        emit(parseDate(vs));
+                      }
+                      catch (Exception e) {
+                        // do nothing
+                      }
+                    }
+
+
+
+  - do:
+      bulk:
+        index: sensor
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a", "installed" : "2020-11-10" }
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b", "installed" : "2020-14-10" }
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a", "installed" : [ "2020-11-10", 2020 ] }
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b", "installed" : "2020-10-10" }
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c", "installed" : "foo" }
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c", "installed" : "2020-11-10" }
+
+---
+"test matching":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              installed:
+                gte: "2020-11-01"
+                lte: "2020-11-30"
+                format: "yyyy-MM-dd"
+  - match: { hits.total.value: 3 }

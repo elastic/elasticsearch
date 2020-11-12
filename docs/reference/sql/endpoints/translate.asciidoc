@@ -25,7 +25,8 @@ Which returns:
   "docvalue_fields": [
     {
       "field": "release_date",
-      "format": "epoch_millis"
+      "format": "epoch_millis",
+      "include_unmapped" : false
     }
   ],
   "_source": {

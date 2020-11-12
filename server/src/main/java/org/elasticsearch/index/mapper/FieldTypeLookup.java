@@ -19,20 +19,20 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
-final class FieldTypeLookup implements Iterable<MappedFieldType> {
+final class FieldTypeLookup {
 
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
 
@@ -134,10 +134,7 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
             : Set.of(resolvedField);
     }
 
-    @Override
-    public Iterator<MappedFieldType> iterator() {
-        Iterator<MappedFieldType> concreteFieldTypes = fullNameToFieldType.values().iterator();
-        Iterator<MappedFieldType> keyedFieldTypes = dynamicKeyLookup.fieldTypes();
-        return Iterators.concat(concreteFieldTypes, keyedFieldTypes);
+    Iterable<MappedFieldType> fieldTypes(Predicate<MappedFieldType> predicate) {
+        return () -> Stream.concat(fullNameToFieldType.values().stream(), dynamicKeyLookup.fieldTypes()).filter(predicate).iterator();
     }
 }

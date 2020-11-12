@@ -47,6 +47,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
@@ -408,7 +409,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         if (fetchFields == null || fetchFields.isEmpty()) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(new FieldAndFormat(name, format, includeUnmapped));
+        fetchFields.add(new FieldAndFormat(name, format, Optional.of(includeUnmapped)));
         return this;
     }
 

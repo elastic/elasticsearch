@@ -55,7 +55,7 @@ public class FieldFetcher {
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             String fieldPattern = fieldAndFormat.field;
-            if (fieldAndFormat.includeUnmapped) {
+            if (fieldAndFormat.includeUnmapped.orElse(false)) {
                 unmappedFetchPattern.add(fieldAndFormat.field);
             }
             i++;

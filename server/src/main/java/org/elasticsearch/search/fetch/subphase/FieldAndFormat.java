@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Wrapper around a field name and the format that should be used to
@@ -45,7 +46,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
 
     private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER =
         new ConstructingObjectParser<>("fetch_field_and_format",
-        a -> new FieldAndFormat((String) a[0], (String) a[1], a[2] != null ? (Boolean) a[2] : false));
+        a -> new FieldAndFormat((String) a[0], (String) a[1], Optional.ofNullable((Boolean) a[2])));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
@@ -59,7 +60,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     public static FieldAndFormat fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token.isValue()) {
-            return new FieldAndFormat(parser.text(), null, false);
+            return new FieldAndFormat(parser.text(), null);
         } else {
             return PARSER.apply(parser, null);
         }
@@ -72,7 +73,9 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         if (format != null) {
             builder.field(FORMAT_FIELD.getPreferredName(), format);
         }
-        builder.field(INCLUDE_UNMAPPED_FIELD.getPreferredName(), includeUnmapped);
+        if (this.includeUnmapped.isPresent()) {
+            builder.field(INCLUDE_UNMAPPED_FIELD.getPreferredName(), includeUnmapped);
+        }
         builder.endObject();
         return builder;
     }
@@ -84,13 +87,13 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     public final String format;
 
     /** Whether to include unmapped fields or not. */
-    public final boolean includeUnmapped;
+    public final Optional<Boolean> includeUnmapped;
 
     public FieldAndFormat(String field, @Nullable String format) {
-        this(field, format, false);
+        this(field, format, Optional.empty());
     }
 
-    public FieldAndFormat(String field, @Nullable String format, boolean includeUnmapped) {
+    public FieldAndFormat(String field, @Nullable String format, Optional<Boolean> includeUnmapped) {
         this.field = Objects.requireNonNull(field);
         this.format = format;
         this.includeUnmapped = includeUnmapped;
@@ -101,9 +104,9 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         this.field = in.readString();
         format = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            this.includeUnmapped = in.readBoolean();
+            this.includeUnmapped = Optional.ofNullable(in.readOptionalBoolean());
         } else {
-            this.includeUnmapped = false;
+            this.includeUnmapped = Optional.empty();
         }
     }
 
@@ -112,7 +115,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         out.writeString(field);
         out.writeOptionalString(format);
         if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            out.writeBoolean(this.includeUnmapped);
+            out.writeOptionalBoolean(this.includeUnmapped.orElse(null));
         }
     }
 
@@ -120,7 +123,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     public int hashCode() {
         int h = field.hashCode();
         h = 31 * h + Objects.hashCode(format);
-        h = 31 * h + Boolean.hashCode(this.includeUnmapped);
+        h = 31 * h + Boolean.hashCode(this.includeUnmapped.orElse(false));
         return h;
     }
 
@@ -130,6 +133,6 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
             return false;
         }
         FieldAndFormat other = (FieldAndFormat) obj;
-        return field.equals(other.field) && Objects.equals(format, other.format) && includeUnmapped == other.includeUnmapped;
+        return field.equals(other.field) && Objects.equals(format, other.format) && Objects.equals(includeUnmapped,other.includeUnmapped);
     }
 }

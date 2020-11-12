@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -590,14 +591,19 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
             .endObject();
 
         // this should not return a field bc. f1 is in the ignored fields
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)), Set.of("f1"));
+        Map<String, DocumentField> fields = fetchFields(
+            mapperService,
+            source,
+            List.of(new FieldAndFormat("*", null, Optional.of(true))),
+            Set.of("f1")
+        );
         assertThat(fields.size(), equalTo(0));
 
         // and this should neither
-        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)), Set.of("f1"));
+        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, Optional.of(true))), Set.of("f1"));
         assertThat(fields.size(), equalTo(0));
 
-        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, true)), Set.of("f1"));
+        fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, Optional.of(true))), Set.of("f1"));
         assertThat(fields.size(), equalTo(0));
     }
 
@@ -639,7 +645,7 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         String fieldPattern,
         boolean includeUnmapped
     ) throws IOException {
-        List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null, includeUnmapped));
+        List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null, Optional.of(includeUnmapped)));
         return fetchFields(mapperService, source, fields, Collections.emptySet());
     }
 
@@ -648,7 +654,7 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         XContentBuilder source,
         String fieldPattern
     ) throws IOException {
-        List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null, false));
+        List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null));
         return fetchFields(mapperService, source, fields);
     }
 

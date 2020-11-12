@@ -65,6 +65,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -880,7 +881,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(new FieldAndFormat(name, format, includeUnmapped));
+        fetchFields.add(new FieldAndFormat(name, format, Optional.ofNullable(includeUnmapped)));
         return this;
     }
 

@@ -453,7 +453,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(new FieldAndFormat(field, format, includeUnmapped));
+        fetchFields.add(new FieldAndFormat(field, format, Optional.of(includeUnmapped)));
         return this;
     }
 

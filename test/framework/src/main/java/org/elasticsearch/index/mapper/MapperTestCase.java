@@ -255,7 +255,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return true;
     }
 
-    public final void testDeprecatedBoost() throws IOException {
+    public void testDeprecatedBoost() throws IOException {
         assumeTrue("Does not support [boost] parameter", supportsOrIgnoresBoost());
         createMapperService(fieldMapping(b -> {
             minimalMapping(b);

@@ -16,8 +16,10 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
-/** List of in-flight ordinals for a given key. For fast lookup, typically associated with a stage. */
-/** this class expects the insertion to be ordered */
+/**
+ * List of in-flight ordinals for a given key. For fast lookup, typically associated with a stage.
+ * this class expects the insertion to be ordered
+ */
 abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
     private final SequenceKey key;
@@ -27,13 +29,6 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     // Considering the order it might make sense to use a B-Tree+ for faster lookups which should work well with
     // timestamp compression (whose range is known for the current frame).
     private final LinkedList<E> elements = new LinkedList<>();
-
-    /**
-     * index in the list used for resetting the insertion point
-     * it gets reset when dealing with descending queries since the data inserted is ascending in a page
-     * but descending compared to the previous stages.
-     */
-    private int insertPosition = 0;
 
     private Ordinal start, stop;
 
@@ -58,8 +53,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
         } else if (stop.compareTo(ordinal) < 0) {
             stop = ordinal;
         }
-        // add element at the current position
-        elements.add(insertPosition++, element);
+        elements.add(element);
     }
 
     /**
@@ -74,12 +68,6 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
         if (match != null) {
             int pos = match.v2() + 1;
             elements.subList(0, pos).clear();
-
-            // update insert position
-            insertPosition = insertPosition - pos;
-            if (insertPosition < 0) {
-                insertPosition = 0;
-            }
 
             // update min time
             if (elements.isEmpty() == false) {
@@ -102,7 +90,6 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
         E last = elements.peekLast();
         if (last != null) {
             elements.clear();
-            insertPosition = 0;
             start = null;
             stop = null;
             add(last);

@@ -40,14 +40,13 @@ public class Sequence implements Comparable<Sequence> {
         this.matches[0] = new Match(ordinal, firstHit);
     }
 
-    public int putMatch(int stage, Ordinal ordinal, HitReference hit) {
+    public void putMatch(int stage, Ordinal ordinal, HitReference hit) {
         if (stage == currentStage + 1) {
-            int previousStage = currentStage;
             currentStage = stage;
             matches[currentStage] = new Match(ordinal, hit);
-            return previousStage;
+        } else {
+            throw new EqlIllegalArgumentException("Invalid stage [{}] specified for sequence[key={}, stage={}]", stage, key, currentStage);
         }
-        throw new EqlIllegalArgumentException("Incorrect stage [{}] specified for Sequence[key={}, stage={}]", stage, key, currentStage);
     }
 
     public SequenceKey key() {

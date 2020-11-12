@@ -53,23 +53,23 @@ public class SequenceMatcher {
         }
     }
 
-    /** Current sequences for each key */
-    /** Note will be multiple sequences for the same key and the same stage with different timestamps */
+    // Current sequences for each key
+    // Note will be multiple sequences for the same key and the same stage with different timestamps
     private final KeyToSequences keyToSequences;
-    /** Current keys on each stage */
+    // Current keys on each stage
     private final StageToKeys stageToKeys;
 
     private final int numberOfStages;
     private final int completionStage;
 
-    /** Set of completed sequences - separate to avoid polluting the other stages */
-    /** It is a set since matches are ordered at insertion time based on the ordinal of the first entry */
+    // Set of completed sequences - separate to avoid polluting the other stages
+    // It is a set since matches are ordered at insertion time based on the ordinal of the first entry
     private final Set<Sequence> completed;
     private final long maxSpanInMillis;
 
     private final boolean descending;
 
-    private Limit limit;
+    private final Limit limit;
     private boolean headLimit = false;
 
     private final Stats stats = new Stats();
@@ -240,10 +240,6 @@ public class SequenceMatcher {
             }
         }
         return false;
-    }
-
-    Set<SequenceKey> keysFor(int stage) {
-        return stageToKeys.keys(stage);
     }
 
     List<Sequence> completed() {

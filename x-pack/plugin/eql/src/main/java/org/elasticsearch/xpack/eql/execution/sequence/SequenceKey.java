@@ -46,7 +46,7 @@ public class SequenceKey {
         }
 
         SequenceKey other = (SequenceKey) obj;
-        return Arrays.deepEquals(keys, other.keys);
+        return Arrays.equals(keys, other.keys);
     }
 
     @Override

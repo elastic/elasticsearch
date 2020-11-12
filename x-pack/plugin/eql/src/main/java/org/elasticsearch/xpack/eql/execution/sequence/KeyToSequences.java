@@ -13,9 +13,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
-/** Dedicated collection for mapping a key to a list of sequences */
-/** The list represents the sequence for each stage (based on its index) and is fixed in size */
-
+/**
+ * Dedicated collection for mapping a key to a list of sequences
+ * The list represents the sequence for each stage (based on its index) and is fixed in size
+ */
 class KeyToSequences {
 
     private final int listSize;
@@ -114,10 +115,6 @@ class KeyToSequences {
     public void clear() {
         keyToSequences.clear();
         keyToUntil.clear();
-    }
-
-    int numberOfKeys() {
-        return keyToSequences.size();
     }
 
     @Override

@@ -122,7 +122,32 @@ public class TumblingWindow implements Executable {
 
         log.trace("Tumbling window...");
         // finished all queries in this window, run a trim
-        matcher.trim(restartWindowFromTailQuery && currentStage == 0);
+        // for descending queries clean everything
+        if (restartWindowFromTailQuery) {
+            if (currentStage == 0) {
+                matcher.trim(true);
+            }
+        }
+        // trim to last
+        else {
+           // check case when a rebase occurred and the current query
+           // has a lot more results than the first once and hasn't
+           // covered the whole window. Running a trim early data before
+           // the whole window is matched
+           boolean trimToLast = false;
+           if (currentStage == 0) {
+               trimToLast = true;
+           }
+           else {
+               Ordinal current = criteria.get(currentStage).queryRequest().after();
+               Ordinal previous = criteria.get(currentStage - 1).queryRequest().after();
+               trimToLast = current.after(previous);
+           }
+           if (trimToLast) {
+               matcher.trim(false);
+           }
+        }
+
         advance(currentStage, listener);
     }
 
@@ -393,7 +418,7 @@ public class TumblingWindow implements Executable {
             // looks like this stage is done, move on
             else {
                 // but first check is there are still candidates within the current window
-                if (matcher.hasFollowingCandidates(criterion.stage()) && currentStage + 1 < maxStages) {
+                if (currentStage + 1 < maxStages && matcher.hasFollowingCandidates(criterion.stage())) {
                     secondaryCriterion(window, currentStage + 1, listener);
                 } else {
                     // otherwise, advance it

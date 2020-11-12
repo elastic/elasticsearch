@@ -78,7 +78,8 @@ public class JobSnapshotUpgraderResultProcessor {
                     bulkResultsPersister.executeRequest();
                 }
             } catch (Exception e) {
-                LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
+                LOGGER.warn(new ParameterizedMessage(
+                    "[{}] [{}] Error persisting model snapshot upgrade results", jobId, snapshotId), e);
             }
         } catch (Exception e) {
             failed = true;
@@ -88,14 +89,21 @@ public class JobSnapshotUpgraderResultProcessor {
                 // that it would have been better to close jobs before shutting down,
                 // but we now fully expect jobs to move between nodes without doing
                 // all their graceful close activities.
-                LOGGER.warn("[{}] some results not processed due to the process being killed", jobId);
+                LOGGER.warn(
+                    "[{}] [{}] some model snapshot upgrade results not processed due to the process being killed",
+                    jobId,
+                    snapshotId);
             } else if (process.isProcessAliveAfterWaiting() == false) {
                 // Don't log the stack trace to not shadow the root cause.
-                LOGGER.warn("[{}] some results not processed due to the termination of autodetect", jobId);
+                LOGGER.warn(
+                    "[{}] [{}] some model snapshot upgrade results not processed due to the termination of autodetect",
+                    jobId,
+                    snapshotId);
             } else {
                 // We should only get here if the iterator throws in which
                 // case parsing the autodetect output has failed.
-                LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", jobId), e);
+                LOGGER.error(new ParameterizedMessage(
+                    "[{}] [{}] error parsing model snapshot upgrade output", jobId, snapshotId), e);
             }
         } finally {
             completionLatch.countDown();
@@ -113,7 +121,9 @@ public class JobSnapshotUpgraderResultProcessor {
                     if (isAlive() == false) {
                         throw e;
                     }
-                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
+                    LOGGER.warn(
+                        new ParameterizedMessage("[{}] [{}] Error processing model snapshot upgrade result", jobId, snapshotId),
+                        e);
                 }
             }
         } finally {
@@ -126,7 +136,16 @@ public class JobSnapshotUpgraderResultProcessor {
     }
 
     private void logUnexpectedResult(String resultType) {
-        LOGGER.info("[{}] [{}] unexpected result read [{}]", jobId, snapshotId, resultType);
+        String msg = "["
+            + jobId
+            + "] ["
+            + snapshotId
+            + "] unexpected result read ["
+            + resultType
+            + "]";
+        // This should never happen, but we definitely want to fail if -ea is provided (e.g. during tests)
+        assert true : msg;
+        LOGGER.info(msg);
     }
 
     void processResult(AutodetectResult result) {
@@ -195,7 +214,11 @@ public class JobSnapshotUpgraderResultProcessor {
             // until the state is persisted, and that can take a while
             if (completionLatch.await(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(),
                 TimeUnit.MINUTES) == false) {
-                throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
+                throw new TimeoutException(
+                    "Timed out waiting for model snapshot upgrader results processor to complete for job "
+                        + jobId
+                        + " and snapshot "
+                        + snapshotId);
             }
 
             // These lines ensure that the "completion" we're awaiting includes making the results searchable
@@ -203,7 +226,7 @@ public class JobSnapshotUpgraderResultProcessor {
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.info("[{}] Interrupted waiting for results processor to complete", jobId);
+            LOGGER.info("[{}] [{}] Interrupted waiting for model snapshot upgrade results processor to complete", jobId, snapshotId);
         }
     }
 

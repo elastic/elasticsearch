@@ -220,8 +220,7 @@ public final class JobModelSnapshotUpgrader {
                         submitOperation(() -> {
                             writeHeader();
                             process.persistState(
-                                // C++ is expecting the timestamp to be in seconds, not Milliseconds
-                                params.modelSnapshot().getTimestamp().getTime()/1000,
+                                params.modelSnapshot().getTimestamp().getTime(),
                                 params.modelSnapshot().getSnapshotId(),
                                 params.modelSnapshot().getDescription());
                             return null;

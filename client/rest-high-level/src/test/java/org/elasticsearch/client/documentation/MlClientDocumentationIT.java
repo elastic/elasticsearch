@@ -2374,7 +2374,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 UpgradeJobModelSnapshotResponse response = client.machineLearning().upgradeJobSnapshot(request, RequestOptions.DEFAULT);
                 // end::upgrade-job-model-snapshot-execute
             } catch (ElasticsearchException ex) {
-                // TODO have a true snapshot in the past to upgrade?
                 assertThat(ex.getMessage(), containsString("Expected persisted state but no state exists"));
             }
             UpgradeJobModelSnapshotResponse response = new UpgradeJobModelSnapshotResponse(true, "");

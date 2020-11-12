@@ -311,7 +311,8 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"type\":\"string\""));
         assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"type\":" +
-            "\"string\"}}], caused by [No mapper found for type [string]]");
+            "\"string\"}}], attempted to validate it with the following match_mapping_type: [[string]], " +
+            "caused by [No mapper found for type [string]]");
     }
 
     public void testIllegalDynamicTemplateUnknownAttribute() throws Exception {
@@ -340,6 +341,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"foo\":\"bar\""));
         assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{" +
             "\"foo\":\"bar\",\"type\":\"keyword\"}}], " +
+            "attempted to validate it with the following match_mapping_type: [[string]], " +
             "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [keyword]]");
     }
 
@@ -368,7 +370,8 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"analyzer\":\"foobar\""));
         assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{" +
-            "\"analyzer\":\"foobar\",\"type\":\"text\"}}], caused by [analyzer [foobar] has not been configured in mappings]");
+            "\"analyzer\":\"foobar\",\"type\":\"text\"}}], attempted to validate it with the following match_mapping_type: [[string]], " +
+            "caused by [analyzer [foobar] has not been configured in mappings]");
     }
 
     public void testIllegalDynamicTemplateNoMappingType() throws Exception {
@@ -433,10 +436,14 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             if (useMatchMappingType) {
                 assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"*\",\"mapping\":{" +
                     "\"foo\":\"bar\",\"type\":\"{dynamic_type}\"}}], " +
+                    "attempted to validate it with the following match_mapping_type: " +
+                    "[[object, string, long, double, boolean, date, binary]], " +
                     "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [binary]]");
             } else {
                 assertWarnings("dynamic template [my_template] has invalid content [{\"match\":\"string_*\",\"mapping\":{" +
                     "\"foo\":\"bar\",\"type\":\"{dynamic_type}\"}}], " +
+                    "attempted to validate it with the following match_mapping_type: " +
+                    "[[object, string, long, double, boolean, date, binary]], " +
                     "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [binary]]");
             }
         }

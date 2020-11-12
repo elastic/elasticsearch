@@ -33,6 +33,9 @@ grant {
   // org.apache.hadoop.util.StringUtils clinit
   permission java.util.PropertyPermission "*", "read,write";
 
+  // org.apache.hadoop.util.ShutdownHookManager clinit
+  permission java.lang.RuntimePermission "shutdownHooks";
+  
   // JAAS is used by Hadoop for authentication purposes
   // The Hadoop Login JAAS module modifies a Subject's private credentials and principals
   // The Hadoop RPC Layer must be able to read these credentials, and initiate Kerberos connections

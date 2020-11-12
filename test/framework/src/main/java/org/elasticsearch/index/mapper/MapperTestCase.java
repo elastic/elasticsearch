@@ -271,21 +271,21 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         );
     }
 
+    protected String typeName() throws IOException {
+        MapperService ms = createMapperService(fieldMapping(this::minimalMapping));
+        return ms.fieldType("field").typeName();
+    }
+
     public final void testDeprecatedBoost() throws IOException {
-        try {
-            createMapperService(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("boost", 2.0);
-            }));
-            String[] warnings = Strings.concatStringArrays(getParseMinimalWarnings(),
-                new String[]{"Parameter [boost] on field [field] is deprecated and will be removed in 8.0"});
-            assertWarnings(warnings);
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), anyOf(
-                containsString("unknown parameter [boost]"),
-                containsString("[boost : 2.0]")));
-        }
-        assertParseMinimalWarnings();
+        MapperService ms = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("boost", 2.0);
+        }));
+        String type = typeName();
+        String[] warnings = Strings.concatStringArrays(getParseMinimalWarnings(),
+            new String[]{"Parameter [boost] on field [field] is deprecated and will be removed in 8.0",
+                         "Parameter [boost] has no effect on type [" + type + "] and will be removed in future"});
+        allowedWarnings(warnings);
     }
 
     /**

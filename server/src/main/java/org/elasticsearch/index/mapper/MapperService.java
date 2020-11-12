@@ -63,7 +63,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
@@ -433,8 +432,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Returns all mapped field types.
      */
-    public Iterable<MappedFieldType> fieldTypes(Predicate<MappedFieldType> predicate) {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().filter(predicate);
+    public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
+        return this.mapper == null ? Collections.emptySet() :
+            this.mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
     }
 
     public ObjectMapper getObjectMapper(String name) {

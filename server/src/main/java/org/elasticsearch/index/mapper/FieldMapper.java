@@ -1014,7 +1014,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         // made no sense; if we've got here, that means that they're not declared on a current mapper,
         // and so we emit a deprecation warning rather than failing a previously working mapping.
         private static final Set<String> DEPRECATED_PARAMS
-            = new HashSet<>(Arrays.asList("store", "meta", "index", "doc_values", "index_options", "similarity"));
+            = new HashSet<>(Arrays.asList("store", "meta", "index", "doc_values", "index_options", "similarity", "boost"));
 
         private static boolean isDeprecatedParameter(String propName, Version indexCreatedVersion) {
             return DEPRECATED_PARAMS.contains(propName);

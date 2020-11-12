@@ -30,15 +30,15 @@ testClusters.matching { it.name.equals('leader-cluster') }.configureEach {
 }
 
 tasks.register('follow-cluster', RestIntegTestTask) {
-  dependsOn 'leader-cluster'
-    useCluster testClusters.'leader-cluster'
-    systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'tests.leader_host',
-      "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
-    nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed',
-      "${-> testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}"
-    /* To support taking index snapshots, we have to set path.repo setting */
-    systemProperty 'tests.path.repo', repoDir.absolutePath
+  dependsOn tasks.findByName('leader-cluster')
+  useCluster testClusters.'leader-cluster'
+  systemProperty 'tests.target_cluster', 'follow'
+  nonInputProperties.systemProperty 'tests.leader_host',
+    "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
+  nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed',
+    "${-> testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}"
+  /* To support taking index snapshots, we have to set path.repo setting */
+  systemProperty 'tests.path.repo', repoDir.absolutePath
 }
 
 testClusters.matching{ it.equals('follow-cluster') }.configureEach {

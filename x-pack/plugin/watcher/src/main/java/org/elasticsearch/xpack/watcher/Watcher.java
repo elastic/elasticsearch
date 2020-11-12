@@ -601,7 +601,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
-                "[{},{},{}*]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME);
+                "[{},{}]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME);
         if (Booleans.isFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
@@ -614,7 +614,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         List<String> indices = new ArrayList<>();
         indices.add(".watches");
         indices.add(".triggered_watches");
-        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         for (String index : indices) {
             boolean matched = false;
             for (String match : matches) {

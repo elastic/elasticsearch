@@ -31,7 +31,7 @@ esplugin {
 }
 
 // No unit tests in this example
-test.enabled = false
+tasks.named("test").configure { enabled = false }
 
 tasks.register("exampleFixture", org.elasticsearch.gradle.test.AntFixture) {
   dependsOn sourceSets.javaRestTest.runtimeClasspath

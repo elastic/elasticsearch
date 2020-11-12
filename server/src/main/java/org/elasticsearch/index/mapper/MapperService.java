@@ -125,8 +125,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.mapperRegistry = mapperRegistry;
         Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
             dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
-                indexVersionCreated, queryShardContextSupplier, dateFormatter, scriptService, indexAnalyzers, indexSettings,
-                idFieldDataEnabled);
+                mapperRegistry.getRuntimeFieldTypeParsers()::get, indexVersionCreated, queryShardContextSupplier, dateFormatter,
+                scriptService, indexAnalyzers, indexSettings, idFieldDataEnabled);
         this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
@@ -432,8 +432,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Returns all mapped field types.
      */
-    public Iterable<MappedFieldType> fieldTypes() {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes();
+    public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
+        return this.mapper == null ? Collections.emptySet() :
+            this.mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
     }
 
     public ObjectMapper getObjectMapper(String name) {

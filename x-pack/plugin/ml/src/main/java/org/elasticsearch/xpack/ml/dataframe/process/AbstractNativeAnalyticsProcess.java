@@ -44,6 +44,11 @@ abstract class AbstractNativeAnalyticsProcess<Result> extends AbstractNativeProc
     }
 
     @Override
+    public void persistState(long timestamp, String id, String description) {
+        // Nothing to persist
+    }
+
+    @Override
     public void writeEndOfDataMessage() throws IOException {
         new AnalyticsControlMessageWriter(recordWriter(), numberOfFields()).writeEndOfData();
     }

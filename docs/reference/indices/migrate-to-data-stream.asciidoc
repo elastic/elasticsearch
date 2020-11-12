@@ -87,6 +87,8 @@ be named `<alias>`.
 Aliases must meet the following criteria to be migrated to a data stream:
 
 - Must have an index defined as the <<aliases-write-index,write index>>
+- All indices associated with the alias must have a mapping for the
+`@timestamp` field of type `date` or `date_nanos`
 - Must not have any <<filtered,filters>>
 - Must not have any <<aliases-routing,custom routing>>
 --

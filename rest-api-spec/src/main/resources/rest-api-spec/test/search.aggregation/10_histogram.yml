@@ -501,9 +501,9 @@ setup:
         refresh: true
         body:
             - '{"index": {}}'
-            - '{"date": "2016-01-01"}'
+            - '{"date": "2000-01-01"}' # This date is intenationally very far in the past so we end up not being able to use the date_histo -> range -> filters optimization
             - '{"index": {}}'
-            - '{"date": "2016-01-02"}'
+            - '{"date": "2000-01-02"}'
             - '{"index": {}}'
             - '{"date": "2016-02-01"}'
             - '{"index": {}}'
@@ -521,8 +521,8 @@ setup:
                 field: date
                 calendar_interval: month
   - match: { hits.total.value: 4 }
-  - length: { aggregations.histo.buckets: 3 }
-  - match: { aggregations.histo.buckets.0.key_as_string: "2016-01-01T00:00:00.000Z" }
+  - length: { aggregations.histo.buckets: 195 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2000-01-01T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.0.doc_count: 2 }
   - match: { profile.shards.0.aggregations.0.type: DateHistogramAggregator }
   - match: { profile.shards.0.aggregations.0.description: histo }

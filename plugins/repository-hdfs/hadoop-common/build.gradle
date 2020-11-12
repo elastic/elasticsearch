@@ -1,0 +1,18 @@
+
+apply plugin: 'elasticsearch.java'
+
+configurations {
+  hadoop {
+    transitive = false
+  }
+}
+
+dependencies {
+  hadoop "org.apache.hadoop:hadoop-common:${project.parent.versions.hadoop2}"
+}
+
+tasks.named('jar') {
+  from(zipTree(configurations.hadoop.singleFile)) {
+    exclude 'org/apache/hadoop/util/ShutdownHookManager*'
+  }
+}

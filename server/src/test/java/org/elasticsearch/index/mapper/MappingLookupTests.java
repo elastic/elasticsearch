@@ -24,7 +24,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
-import java.util.Iterator;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -33,7 +32,7 @@ public class MappingLookupTests extends ESTestCase {
     public void testOnlyRuntimeField() {
         MappingLookup mappingLookup = new MappingLookup(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
             Collections.singletonList(new TestRuntimeField("test")), 0);
-        assertEquals(0, size(mappingLookup.iterator()));
+        assertEquals(0, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
         assertNull(mappingLookup.getMapper("test"));
         assertThat(mappingLookup.fieldTypes().get("test"), instanceOf(TestRuntimeField.class));
@@ -44,10 +43,10 @@ public class MappingLookupTests extends ESTestCase {
         MappingLookup mappingLookup = new MappingLookup(Collections.singletonList(fieldMapper), Collections.emptyList(),
             Collections.emptyList(), Collections.singletonList(new TestRuntimeField("test")), 0);
         assertThat(mappingLookup.getMapper("test"), instanceOf(MockFieldMapper.class));
-        assertEquals(1, size(mappingLookup.iterator()));
+        assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
         assertThat(mappingLookup.fieldTypes().get("test"), instanceOf(TestRuntimeField.class));
-        assertEquals(1, size(mappingLookup.fieldTypes().iterator()));
+        assertEquals(1, size(mappingLookup.fieldTypes()));
     }
 
     public void testSubfieldOverride() {
@@ -57,16 +56,15 @@ public class MappingLookupTests extends ESTestCase {
         MappingLookup mappingLookup = new MappingLookup(Collections.singletonList(fieldMapper), Collections.singletonList(objectMapper),
             Collections.emptyList(), Collections.singletonList(new TestRuntimeField("object.subfield")), 0);
         assertThat(mappingLookup.getMapper("object.subfield"), instanceOf(MockFieldMapper.class));
-        assertEquals(1, size(mappingLookup.iterator()));
+        assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(1, mappingLookup.objectMappers().size());
         assertThat(mappingLookup.fieldTypes().get("object.subfield"), instanceOf(TestRuntimeField.class));
-        assertEquals(1, size(mappingLookup.fieldTypes().iterator()));
+        assertEquals(1, size(mappingLookup.fieldTypes()));
     }
 
-    private static int size(Iterator<?> iterator) {
+    private static int size(Iterable<?> iterable) {
         int count = 0;
-        while (iterator.hasNext()) {
-            iterator.next();
+        for (Object obj : iterable) {
             count++;
         }
         return count;

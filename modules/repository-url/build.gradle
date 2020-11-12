@@ -49,13 +49,14 @@ task urlFixture(type: AntFixture) {
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.elasticsearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
 }
-yamlRestTest {
+tasks.named("yamlRestTest").configure {
   dependsOn urlFixture
 }
 
-internalClusterTest {
+tasks.named("internalClusterTest").configure {
   dependsOn urlFixture
 }
+
 testClusters.all {
   // repositoryDir is used by a FS repository to create snapshots
   setting 'path.repo', "${repositoryDir.absolutePath}", PropertyNormalization.IGNORE_VALUE

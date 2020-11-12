@@ -360,3 +360,110 @@ setup:
   - match: { aggregations.to-users.users.hits.hits.2._index: test }
   - match: { aggregations.to-users.users.hits.hits.2._nested.field: users }
   - match: { aggregations.to-users.users.hits.hits.2._nested.offset: 1 }
+
+---
+"fetch defined on search request":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage_rating:
+              type: keyword
+              script: |
+                double v = doc['voltage'].value;
+                if (v < 4.8) {
+                  emit('low');
+                } else if (v > 5.2) {
+                  emit('high');
+                } else {
+                  emit('ok');
+                }
+          fields: [voltage_rating]
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0._source.voltage: 4.0}
+  - match: {hits.hits.0.fields.voltage_rating: [low]}
+
+---
+"match defined on search request":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.rating:
+              type: keyword
+              script: |
+                double v = doc['voltage'].value;
+                if (v < 4.8) {
+                  emit('low');
+                } else if (v > 5.2) {
+                  emit('high');
+                } else {
+                  emit('ok');
+                }
+          query:
+            match:
+              voltage.rating: ok
+          sort: timestamp
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 5.1}
+
+---
+"search glob defined on search request":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.rating:
+              type: keyword
+              script: |
+                double v = doc['voltage'].value;
+                if (v < 4.8) {
+                  emit('low');
+                } else if (v > 5.2) {
+                  emit('high');
+                } else {
+                  emit('ok');
+                }
+          query:
+            simple_query_string:
+              fields: [voltage.*]
+              query: ok
+          sort: timestamp
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 5.1}
+
+
+---
+"replace object field on search request":
+  - do:
+      bulk:
+        index: student
+        refresh: true
+        body: |
+          {"index":{}}
+          {"name": {"first": "Andrew", "last": "Wiggin"}}
+          {"index":{}}
+          {"name": {"first": "Julian", "last": "Delphiki", "suffix": "II"}}
+
+  - do:
+      search:
+        index: student
+        body:
+          runtime_mappings:
+            name.first:
+              type: keyword
+              script: |
+                if ('Wiggin'.equals(doc['name.last.keyword'].value)) {
+                  emit('Ender');
+                } else if ('Delphiki'.equals(doc['name.last.keyword'].value)) {
+                  emit('Bean');
+                }
+          query:
+            match:
+              name.first: Bean
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.name.first: Julian}

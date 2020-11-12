@@ -39,14 +39,14 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
 
     @Override
     public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
-        return Map.ofEntries(
-            Map.entry(BooleanFieldMapper.CONTENT_TYPE, BooleanScriptFieldType.PARSER),
-            Map.entry(NumberFieldMapper.NumberType.LONG.typeName(), LongScriptFieldType.PARSER),
-            Map.entry(NumberFieldMapper.NumberType.DOUBLE.typeName(), DoubleScriptFieldType.PARSER),
-            Map.entry(IpFieldMapper.CONTENT_TYPE, IpScriptFieldType.PARSER),
-            Map.entry(DateFieldMapper.CONTENT_TYPE, DateScriptFieldType.PARSER),
-            Map.entry(KeywordFieldMapper.CONTENT_TYPE, KeywordScriptFieldType.PARSER),
-            Map.entry(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER)
+        return org.elasticsearch.common.collect.Map.ofEntries(
+            org.elasticsearch.common.collect.Map.entry(BooleanFieldMapper.CONTENT_TYPE, BooleanScriptFieldType.PARSER),
+            org.elasticsearch.common.collect.Map.entry(NumberFieldMapper.NumberType.LONG.typeName(), LongScriptFieldType.PARSER),
+            org.elasticsearch.common.collect.Map.entry(NumberFieldMapper.NumberType.DOUBLE.typeName(), DoubleScriptFieldType.PARSER),
+            org.elasticsearch.common.collect.Map.entry(IpFieldMapper.CONTENT_TYPE, IpScriptFieldType.PARSER),
+            org.elasticsearch.common.collect.Map.entry(DateFieldMapper.CONTENT_TYPE, DateScriptFieldType.PARSER),
+            org.elasticsearch.common.collect.Map.entry(KeywordFieldMapper.CONTENT_TYPE, KeywordScriptFieldType.PARSER),
+            org.elasticsearch.common.collect.Map.entry(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER)
         );
     }
 

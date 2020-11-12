@@ -47,9 +47,8 @@ public class FieldTypeLookupTests extends ESTestCase {
         Collection<FieldAliasMapper> fieldAliases = singletonList(new FieldAliasMapper("alias", "alias", "test"));
         Collection<RuntimeFieldType> runtimeFields = List.of(new TestRuntimeField("runtime"), new TestRuntimeField("field"));
         FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(fieldMappers, fieldAliases, runtimeFields);
-        Iterable<MappedFieldType> allFieldTypes = fieldTypeLookup.filter(ft -> true);
-        assertEquals(3, size(allFieldTypes));
-        for (MappedFieldType fieldType : allFieldTypes) {
+        assertEquals(3, size(fieldTypeLookup.filter(ft -> true)));
+        for (MappedFieldType fieldType : fieldTypeLookup.filter(ft -> true)) {
             if (fieldType.name().equals("test")) {
                 assertThat(fieldType, instanceOf(MockFieldMapper.FakeFieldType.class));
             }

@@ -333,7 +333,7 @@ Test unmapped field:
            body:
               fields:
               - f1
-              - f4
+              - { "field" : "f4", "include_unmapped" : true }
   -  match:
         hits.hits.0.fields.f1: 
         - some text
@@ -345,7 +345,7 @@ Test unmapped field:
            index: test
            body:
               fields:
-              - f*
+              - { "field" : "f*", "include_unmapped" : true }
   -  match:
         hits.hits.0.fields.f1: 
         - some text
@@ -392,7 +392,7 @@ Test unmapped fields inside disabled objects:
         search:
            index: test
            body:
-              fields: ["*"]
+              fields: [ { "field" : "*", "include_unmapped" : true } ]
   -  match:
         hits.hits.0.fields.f1: 
         - some text

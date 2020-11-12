@@ -157,9 +157,9 @@ public class InnerHitBuilderTests extends ESTestCase {
             innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
         }
         innerHits.setDocValueFields(randomListStuff(16,
-                () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null, null)));
+                () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null)));
         innerHits.setFetchFields(randomListStuff(16,
-            () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null, null)));
+            () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null)));
         // Random script fields deduped on their field name.
         Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
         for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
@@ -201,7 +201,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         modifiers.add(() -> {
             if (randomBoolean()) {
                 copy.setDocValueFields(randomValueOtherThan(copy.getDocValueFields(),
-                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null, null))));
+                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null))));
             } else {
                 copy.addDocValueField(randomAlphaOfLengthBetween(1, 16));
             }
@@ -209,7 +209,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         modifiers.add(() -> {
             if (randomBoolean()) {
                 copy.setFetchFields(randomValueOtherThan(copy.getFetchFields(),
-                    () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null, null))));
+                    () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null))));
             } else {
                 copy.addFetchField(randomAlphaOfLengthBetween(1, 16));
             }
@@ -299,7 +299,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHit.addDocValueField("foo");
         innerHit.addDocValueField("@timestamp", "epoch_millis");
         assertEquals(
-                Arrays.asList(new FieldAndFormat("foo", null, null), new FieldAndFormat("@timestamp", "epoch_millis", false)),
+                Arrays.asList(new FieldAndFormat("foo", null), new FieldAndFormat("@timestamp", "epoch_millis")),
                 innerHit.getDocValueFields());
     }
 
@@ -308,7 +308,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHit.addFetchField("foo");
         innerHit.addFetchField("@timestamp", "epoch_millis");
         assertEquals(
-            Arrays.asList(new FieldAndFormat("foo", null, null), new FieldAndFormat("@timestamp", "epoch_millis", false)),
+            Arrays.asList(new FieldAndFormat("foo", null), new FieldAndFormat("@timestamp", "epoch_millis")),
             innerHit.getFetchFields());
     }
 }

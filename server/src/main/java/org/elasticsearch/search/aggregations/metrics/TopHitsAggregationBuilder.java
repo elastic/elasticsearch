@@ -424,7 +424,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (docValueFields == null) {
             docValueFields = new ArrayList<>();
         }
-        docValueFields.add(new FieldAndFormat(docValueField, format, null));
+        docValueFields.add(new FieldAndFormat(docValueField, format));
         return this;
     }
 

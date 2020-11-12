@@ -845,7 +845,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (docValueFields == null) {
             docValueFields = new ArrayList<>();
         }
-        docValueFields.add(new FieldAndFormat(name, format, null));
+        docValueFields.add(new FieldAndFormat(name, format));
         return this;
     }
 

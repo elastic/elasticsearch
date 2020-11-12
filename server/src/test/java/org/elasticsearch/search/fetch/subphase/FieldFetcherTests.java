@@ -56,8 +56,8 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         .endObject();
 
         List<FieldAndFormat> fieldAndFormats = List.of(
-            new FieldAndFormat("field", null, null),
-            new FieldAndFormat("object.field", null, null));
+            new FieldAndFormat("field", null),
+            new FieldAndFormat("object.field", null));
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormats);
         assertThat(fields.size(), equalTo(2));
 
@@ -219,8 +219,8 @@ public class FieldFetcherTests extends ESSingleNodeTestCase {
         .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(
-            new FieldAndFormat("field", null, null),
-            new FieldAndFormat("date_field", "yyyy/MM/dd", null)));
+            new FieldAndFormat("field", null),
+            new FieldAndFormat("date_field", "yyyy/MM/dd")));
         assertThat(fields.size(), equalTo(2));
 
         DocumentField field = fields.get("field");

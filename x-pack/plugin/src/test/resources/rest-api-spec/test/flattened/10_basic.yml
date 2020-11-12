@@ -150,7 +150,7 @@
       search:
         index: test
         body:
-          fields: ["flat*"]
+          fields: [ { "field" : "flat*", "include_unmapped" : true } ]
 
   - match:  { hits.total.value: 1 }
   - length: { hits.hits: 1 }

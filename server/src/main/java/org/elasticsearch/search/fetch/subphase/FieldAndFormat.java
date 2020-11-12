@@ -45,7 +45,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
 
     private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER =
         new ConstructingObjectParser<>("fetch_field_and_format",
-        a -> new FieldAndFormat((String) a[0], (String) a[1], (Boolean) a[2]));
+        a -> new FieldAndFormat((String) a[0], (String) a[1], a[2] != null ? (Boolean) a[2] : false));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
@@ -59,7 +59,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     public static FieldAndFormat fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token.isValue()) {
-            return new FieldAndFormat(parser.text(), null, null);
+            return new FieldAndFormat(parser.text(), null, false);
         } else {
             return PARSER.apply(parser, null);
         }
@@ -86,15 +86,14 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     /** Whether to include unmapped fields or not. */
     public final boolean includeUnmapped;
 
-    /** Sole constructor. */
-    public FieldAndFormat(String field, @Nullable String format, Boolean includeUnmapped) {
+    public FieldAndFormat(String field, @Nullable String format) {
+        this(field, format, false);
+    }
+
+    public FieldAndFormat(String field, @Nullable String format, boolean includeUnmapped) {
         this.field = Objects.requireNonNull(field);
         this.format = format;
-        if (includeUnmapped != null) {
-            this.includeUnmapped = includeUnmapped;
-        } else {
-            this.includeUnmapped = false;
-        }
+        this.includeUnmapped = includeUnmapped;
     }
 
     /** Serialization constructor. */

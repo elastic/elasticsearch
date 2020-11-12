@@ -113,7 +113,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         for (ElasticsearchDistribution distribution : testDistributions) {
             String taskname = destructiveDistroTestTaskName(distribution);
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
-            depsTask.configure(t -> t.dependsOn(distribution, examplePlugin, quotaAwareFsPlugin));
+            // explicitly depend on the archive not on the implicit extracted distribution
+            depsTask.configure(t -> t.dependsOn(distribution.getArchive(), examplePlugin, quotaAwareFsPlugin));
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);

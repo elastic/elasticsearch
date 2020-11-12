@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -43,6 +44,7 @@ import java.util.HashMap;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests source and target index validation of reindex. Mostly that means testing that indexing from an index back into itself fails the
@@ -66,7 +68,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
         new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
     private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER,
-            new SystemIndices(new HashMap<>()));
+            new SystemIndices(new HashMap<>(), mock(Client.class)));
 
     private final BytesReference query = new BytesArray("{ \"foo\" : \"bar\" }");
 

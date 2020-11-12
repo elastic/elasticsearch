@@ -202,12 +202,17 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     }
 
     public void testValidateActionsFollowingSearchableSnapshot() {
-        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
-        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1)));
-        Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(
+            SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+        Phase warmPhase = new Phase("warm", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(
+            ShrinkAction.NAME, new ShrinkAction(1)));
+        Phase coldPhase = new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(
+            FreezeAction.NAME, new FreezeAction()));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase)));
+            () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(org.elasticsearch.common.collect.List.of(
+                hotPhase, warmPhase, coldPhase))
+        );
         assertThat(e.getMessage(), is("phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink] actions" +
             " which are not allowed after a managed index is mounted as a searchable snapshot"));
     }

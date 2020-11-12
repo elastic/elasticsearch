@@ -199,10 +199,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     public void testCreateInvalidPolicy() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L), SearchableSnapshotAction.NAME,
+            new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(RolloverAction.NAME,
+                new RolloverAction(null, null, 1L), SearchableSnapshotAction.NAME,
                 new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10)))),
-            new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null))),
-            new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction())),
+            new Phase("warm", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(ForceMergeAction.NAME,
+                new ForceMergeAction(1, null))),
+            new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(FreezeAction.NAME, new FreezeAction())),
             null
             )
         );
@@ -215,9 +217,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L), SearchableSnapshotAction.NAME,
-                new SearchableSnapshotAction(snapshotRepo))),
-            new Phase("warm", TimeValue.timeValueDays(30), Map.of(SetPriorityAction.NAME, new SetPriorityAction(999))),
+            new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(RolloverAction.NAME,
+                new RolloverAction(null, null, 1L), SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
+            new Phase("warm", TimeValue.timeValueDays(30), org.elasticsearch.common.collect.Map.of(SetPriorityAction.NAME,
+                new SetPriorityAction(999))),
             null, null
         );
 
@@ -249,11 +252,13 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of(SetPriorityAction.NAME, new SetPriorityAction(10))),
+            new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(SetPriorityAction.NAME, new SetPriorityAction(10))),
             new Phase("warm", TimeValue.ZERO,
-                Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME, new ForceMergeAction(1, null))
+                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME,
+                    new ForceMergeAction(1, null))
             ),
-            new Phase("cold", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
+            new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(SearchableSnapshotAction.NAME,
+                new SearchableSnapshotAction(snapshotRepo))),
             null
         );
 
@@ -271,9 +276,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L),
-                SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
-            new Phase("warm", TimeValue.timeValueDays(30), Map.of(SetPriorityAction.NAME, new SetPriorityAction(999))),
+            new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(RolloverAction.NAME,
+                new RolloverAction(null, null, 1L), SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
+            new Phase("warm", TimeValue.timeValueDays(30), org.elasticsearch.common.collect.Map.of(SetPriorityAction.NAME,
+                new SetPriorityAction(999))),
             null, null
         );
 
@@ -318,11 +324,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream)));
 
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of()),
+            new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of()),
             new Phase("warm", TimeValue.ZERO,
-                Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME, new ForceMergeAction(1, null))
+                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME,
+                    new ForceMergeAction(1, null))
             ),
-            new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction())),
+            new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(FreezeAction.NAME, new FreezeAction())),
             null
         );
 

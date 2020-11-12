@@ -27,6 +27,9 @@ public class LifecycleSettings {
     public static final String SLM_RETENTION_DURATION = "slm.retention_duration";
     public static final String SLM_MINIMUM_INTERVAL = "slm.minimum_interval";
 
+    // This is not a setting configuring ILM per se, but certain ILM actions need to validate the managed index is not
+    // already mounted as a searchable snapshot. Those ILM actions will check if the index has this setting name configured.
+    public static final String SNAPSHOT_INDEX_NAME = "index.store.snapshot.index_name";
 
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.positiveTimeSetting(LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10), Setting.Property.Dynamic, Setting.Property.NodeScope);

@@ -22,10 +22,12 @@ import java.io.File;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPlugin;
@@ -40,7 +42,6 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         Project project = createProject();
 
         FilePermissionsTask filePermissionsTask = createTask(project);
-
         File file = new File(project.getProjectDir(), "src/main/java/Code.java");
         file.getParentFile().mkdirs();
         file.createNewFile();
@@ -96,7 +97,17 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
     }
 
     private FilePermissionsTask createTask(Project project) {
-        return project.getTasks().create("filePermissionsTask", FilePermissionsTask.class);
+        return project.getTasks()
+            .create(
+                "filePermissionsTask",
+                FilePermissionsTask.class,
+                filePermissionsTask -> filePermissionsTask.getSources()
+                    .addAll(
+                        project.provider(
+                            () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
+                        )
+                    )
+            );
     }
 
 }

@@ -150,7 +150,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
     private static String setupDistroTask() {
         return """
             tasks.register("setupDistro", Sync) {
-                from(elasticsearch_distributions.test_distro.extracted)
+                from(elasticsearch_distributions.test_distro)
                 into("build/distro")
             }
             """

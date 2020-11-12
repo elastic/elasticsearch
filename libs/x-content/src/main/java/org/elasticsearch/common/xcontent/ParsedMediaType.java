@@ -76,7 +76,7 @@ public class ParsedMediaType {
             final String[] splitMediaType = elements[0].split("/");
             if ((splitMediaType.length == 2 && TCHAR_PATTERN.matcher(splitMediaType[0].trim()).matches()
                 && TCHAR_PATTERN.matcher(splitMediaType[1].trim()).matches()) == false) {
-                throw new IllegalArgumentException("invalid media type [" + headerValue + "]");
+                throw new IllegalArgumentException("invalid media-type [" + headerValue + "]");
             }
             if (elements.length == 1) {
                 return new ParsedMediaType(splitMediaType[0].trim(), splitMediaType[1].trim(), Collections.emptyMap());

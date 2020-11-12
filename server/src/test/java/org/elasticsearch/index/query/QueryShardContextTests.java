@@ -50,14 +50,21 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.Mapper.TypeParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -68,6 +75,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -183,9 +191,24 @@ public class QueryShardContextTests extends ESTestCase {
 
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         QueryShardContext context = new QueryShardContext(
-            0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null,
-            null, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> 0L, null, null, () -> true, null);
+            0,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            null,
+            null,
+            null,
+            NamedXContentRegistry.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null
+        );
 
         assertTrue(context.indexSortedOnField("sort_field"));
         assertFalse(context.indexSortedOnField("second_sort_field"));
@@ -289,35 +312,71 @@ public class QueryShardContextTests extends ESTestCase {
         assertEquals(List.of(expectedFirstDoc.toString(), expectedSecondDoc.toString()), collect("field", queryShardContext));
     }
 
+    public void testRuntimeFields() throws IOException {
+        MapperService mapperService = mockMapperService("test", List.of(new MapperPlugin() {
+            @Override
+            public Map<String, TypeParser> getMappers() {
+                return Map.of("runtime", (name, node, parserContext) -> new Mapper.Builder(name) {
+                    @Override
+                    public Mapper build(ContentPath path) {
+                        return new DummyMapper(name, new DummyMappedFieldType(name));
+                    }
+                });
+            }
+        }));
+        when(mapperService.fieldType("pig")).thenReturn(new DummyMappedFieldType("pig"));
+        when(mapperService.simpleMatchToFullName("*")).thenReturn(Set.of("pig"));
+        /*
+         * Making these immutable here test that we don't modify them.
+         * Modifying them would cause all kinds of problems if two
+         * shards are parsed on the same node.
+         */
+        Map<String, Object> runtimeMappings = Map.ofEntries(
+            Map.entry("cat", Map.of("type", "keyword")),
+            Map.entry("dog", Map.of("type", "keyword"))
+        );
+        QueryShardContext qsc = new QueryShardContext(
+            0,
+            mapperService.getIndexSettings(),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
+            mapperService,
+            null,
+            null,
+            NamedXContentRegistry.EMPTY,
+            new NamedWriteableRegistry(List.of()),
+            null,
+            null,
+            () -> 0,
+            "test",
+            null,
+            () -> true,
+            null,
+            runtimeMappings
+        );
+        assertTrue(qsc.isFieldMapped("cat"));
+        assertThat(qsc.getFieldType("cat"), instanceOf(DummyMappedFieldType.class));
+        assertThat(qsc.simpleMatchToIndexNames("cat"), equalTo(Set.of("cat")));
+        assertTrue(qsc.isFieldMapped("dog"));
+        assertThat(qsc.getFieldType("dog"), instanceOf(DummyMappedFieldType.class));
+        assertThat(qsc.simpleMatchToIndexNames("dog"), equalTo(Set.of("dog")));
+        assertTrue(qsc.isFieldMapped("pig"));
+        assertThat(qsc.getFieldType("pig"), instanceOf(DummyMappedFieldType.class));
+        assertThat(qsc.simpleMatchToIndexNames("pig"), equalTo(Set.of("pig")));
+        assertThat(qsc.simpleMatchToIndexNames("*"), equalTo(Set.of("cat", "dog", "pig")));
+    }
+
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
         return createQueryShardContext(indexUuid, clusterAlias, null);
     }
 
-    private static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias,
-        TriFunction<String, LeafSearchLookup, Integer, String> runtimeDocValues) {
-        IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
-        indexMetadataBuilder.settings(Settings.builder().put("index.version.created", Version.CURRENT)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 1)
-            .put(IndexMetadata.SETTING_INDEX_UUID, indexUuid)
-        );
-        IndexMetadata indexMetadata = indexMetadataBuilder.build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
-            Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
-            Collections.emptyMap(), Collections.emptyMap()
-        );
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-        when(mapperService.index()).thenReturn(indexMetadata.getIndex());
-        when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        Map<String, Mapper.TypeParser> typeParserMap = IndicesModule.getMappers(Collections.emptyList());
-        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(name -> null, typeParserMap::get,
-            Version.CURRENT, () -> null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
-            () -> {
-                throw new UnsupportedOperationException();
-            });
-        when(mapperService.parserContext()).thenReturn(parserContext);
+    private static QueryShardContext createQueryShardContext(
+        String indexUuid,
+        String clusterAlias,
+        TriFunction<String, LeafSearchLookup, Integer, String> runtimeDocValues
+    ) {
+        MapperService mapperService = mockMapperService(indexUuid, List.of());
         if (runtimeDocValues != null) {
             when(mapperService.fieldType(any())).thenAnswer(fieldTypeInv -> {
                 String fieldName = (String)fieldTypeInv.getArguments()[0];
@@ -326,10 +385,38 @@ public class QueryShardContextTests extends ESTestCase {
         }
         final long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(
-            0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+            0, mapperService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE, null,
                 (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
                 mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
             null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
+    }
+
+    private static MapperService mockMapperService(String indexUuid, List<MapperPlugin> mapperPlugins) {
+        IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
+        indexMetadataBuilder.settings(Settings.builder().put("index.version.created", Version.CURRENT)
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 1)
+            .put(IndexMetadata.SETTING_INDEX_UUID, indexUuid)
+        );
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
+            Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
+            Collections.emptyMap(), Collections.emptyMap()
+        );
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        when(mapperService.index()).thenReturn(indexMetadata.getIndex());
+        when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+        Map<String, Mapper.TypeParser> typeParserMap = IndicesModule.getMappers(mapperPlugins);
+        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(name -> null, typeParserMap::get,
+            Version.CURRENT, () -> null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
+            () -> {
+                throw new UnsupportedOperationException();
+            });
+        when(mapperService.parserContext()).thenReturn(parserContext);
+        return mapperService;
     }
 
     private static MappedFieldType mockFieldType(String fieldName, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
@@ -427,4 +514,45 @@ public class QueryShardContextTests extends ESTestCase {
         }
     }
 
+    private static class DummyMapper extends FieldMapper {
+        protected DummyMapper(String simpleName, MappedFieldType mappedFieldType) {
+            super(simpleName, mappedFieldType, Map.of(), MultiFields.empty(), CopyTo.empty());
+        }
+
+        @Override
+        protected void parseCreateField(ParseContext context) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Builder getMergeBuilder() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected String contentType() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static class DummyMappedFieldType extends MappedFieldType {
+        DummyMappedFieldType(String name) {
+            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, null);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String typeName() {
+            return "runtime";
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new UnsupportedOperationException();
+        }
+    }
 }

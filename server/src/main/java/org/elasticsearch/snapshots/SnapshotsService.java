@@ -3039,6 +3039,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         public int hashCode() {
             return Objects.hash(snapshot, shardId, updatedState, repoShardId);
         }
+
+        @Override
+        public String toString() {
+            return "ShardSnapshotUpdate{" +
+                    "snapshot=" + snapshot +
+                    ", shardId=" + shardId +
+                    ", repoShardId=" + repoShardId +
+                    ", updatedState=" + updatedState +
+                    '}';
+        }
     }
 
     /**

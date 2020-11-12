@@ -290,7 +290,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         });
     }
 
-    private AggregationContext aggregationContext(MapperService mapperService, IndexSearcher searcher, Query query) {
+    private AggregationContext aggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
+        MapperService mapperService,
+        IndexSearcher searcher,
+        Query query
+    ) {
         return new AggregationContext() {
             @Override
             public IndexSearcher searcher() {
@@ -319,7 +324,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public ValuesSourceRegistry getValuesSourceRegistry() {
-                throw new UnsupportedOperationException();
+                return valuesSourceRegistry;
             }
 
             @Override
@@ -374,10 +379,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         List<SourceToParse> docs,
         CheckedConsumer<AggregationContext, IOException> test
     ) throws IOException {
-        withAggregationContext(mapperService, docs, null, test);
+        withAggregationContext(null, mapperService, docs, null, test);
     }
 
     protected final void withAggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
         MapperService mapperService,
         List<SourceToParse> docs,
         Query query,
@@ -390,7 +396,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                     writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
                 }
             },
-            reader -> test.accept(aggregationContext(mapperService, new IndexSearcher(reader), query))
+            reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query))
         );
     }
 

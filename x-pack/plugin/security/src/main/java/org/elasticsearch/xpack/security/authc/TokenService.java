@@ -34,6 +34,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -42,7 +43,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -144,6 +144,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -658,9 +660,16 @@ public final class TokenService {
                     } else if (searchHits.getHits().length > 1) {
                         listener.onFailure(new IllegalStateException("multiple tokens share the same refresh token"));
                     } else {
-                        final Tuple<UserToken, String> parsedTokens =
-                            parseTokensFromDocument(searchHits.getAt(0).getSourceAsMap(), null);
-                        indexInvalidation(Collections.singletonList(parsedTokens.v1()), backoff, "refresh_token", null, listener);
+                        final Tuple<UserToken, RefreshTokenStatus> parsedTokens =
+                            parseTokenAndRefreshStatus(searchHits.getAt(0).getSourceAsMap());
+                        final UserToken userToken = parsedTokens.v1();
+                        final RefreshTokenStatus refresh = parsedTokens.v2();
+                        if (refresh.isInvalidated()) {
+                            listener.onResponse(
+                                new TokensInvalidationResult(emptyList(), singletonList(userToken.getId()), null, RestStatus.OK));
+                        } else {
+                            indexInvalidation(singletonList(userToken), backoff, "refresh_token", null, listener);
+                        }
                     }
                 }, e -> {
                     if (e instanceof IndexNotFoundException || e instanceof IndexClosedException) {
@@ -1259,9 +1268,7 @@ public final class TokenService {
      */
     private static Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkTokenDocumentForRefresh(
         Instant refreshRequested, Authentication clientAuth, Map<String, Object> source) throws IllegalStateException, DateTimeException {
-        final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
-        final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
-        refreshTokenStatus.setVersion(userToken.getVersion());
+        final RefreshTokenStatus refreshTokenStatus = parseTokenAndRefreshStatus(source).v2();
         final ElasticsearchSecurityException validationException = checkTokenDocumentExpired(refreshRequested, source).orElseGet(() -> {
             if (refreshTokenStatus.isInvalidated()) {
                 return invalidGrantException("token has been invalidated");
@@ -1271,6 +1278,13 @@ public final class TokenService {
             }
         });
         return new Tuple<>(refreshTokenStatus, Optional.ofNullable(validationException));
+    }
+
+    private static Tuple<UserToken, RefreshTokenStatus> parseTokenAndRefreshStatus(Map<String, Object> source) {
+        final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
+        final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
+        refreshTokenStatus.setVersion(userToken.getVersion());
+        return new Tuple<>(userToken, refreshTokenStatus);
     }
 
     /**
@@ -1355,7 +1369,7 @@ public final class TokenService {
         }
         sourceIndicesWithTokensAndRun(ActionListener.wrap(indicesWithTokens -> {
             if (indicesWithTokens.isEmpty()) {
-                listener.onResponse(Collections.emptyList());
+                listener.onResponse(emptyList());
             } else {
                 final Instant now = clock.instant();
                 final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
@@ -1403,7 +1417,7 @@ public final class TokenService {
         }
         sourceIndicesWithTokensAndRun(ActionListener.wrap(indicesWithTokens -> {
             if (indicesWithTokens.isEmpty()) {
-                listener.onResponse(Collections.emptyList());
+                listener.onResponse(emptyList());
             } else {
                 final Instant now = clock.instant();
                 final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
@@ -1485,12 +1499,18 @@ public final class TokenService {
 
     private BytesReference createTokenDocument(UserToken userToken, @Nullable String refreshToken,
                                                @Nullable Authentication originatingClientAuth) {
+            final Instant creationTime = getCreationTime(userToken.getExpirationTime());
+        return createTokenDocument(userToken, refreshToken, originatingClientAuth, creationTime);
+    }
+
+    static BytesReference createTokenDocument(UserToken userToken, String refreshToken, Authentication originatingClientAuth,
+                                              Instant creationTime) {
         assert refreshToken == null || originatingClientAuth != null : "non-null refresh token " + refreshToken
             + " requires non-null client authn " + originatingClientAuth;
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             builder.field("doc_type", TOKEN_DOC_TYPE);
-            builder.field("creation_time", getCreationTime(userToken.getExpirationTime()).toEpochMilli());
+            builder.field("creation_time", creationTime.toEpochMilli());
             if (refreshToken != null) {
                 builder.startObject("refresh_token")
                     .field("token", refreshToken)
@@ -1999,7 +2019,7 @@ public final class TokenService {
                     continue; // collision -- generate a new key
                 }
                 return newTokenMetadata(keyCache.currentTokenKeyHash, Iterables.concat(keyCache.cache.values(),
-                    Collections.singletonList(keyAndCache)));
+                    singletonList(keyAndCache)));
             }
         }
         return newTokenMetadata(keyCache.currentTokenKeyHash, keyCache.cache.values());
@@ -2107,7 +2127,7 @@ public final class TokenService {
         return new BytesRef(Base64.getUrlEncoder().withoutPadding().encode(this.keyCache.currentTokenKeyHash.bytes)).utf8ToString();
     }
 
-    void rotateKeysOnMaster(ActionListener<ClusterStateUpdateResponse> listener) {
+    void rotateKeysOnMaster(ActionListener<AcknowledgedResponse> listener) {
         logger.info("rotate keys on master");
         TokenMetadata tokenMetadata = generateSpareKey();
         clusterService.submitStateUpdateTask("publish next key to prepare key rotation",
@@ -2123,11 +2143,11 @@ public final class TokenService {
                 }, listener::onFailure)));
     }
 
-    private final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask<ClusterStateUpdateResponse> {
+    private static final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask {
 
         private final TokenMetadata tokenMetadata;
 
-        protected TokenMetadataPublishAction(TokenMetadata tokenMetadata, ActionListener<ClusterStateUpdateResponse> listener) {
+        protected TokenMetadataPublishAction(TokenMetadata tokenMetadata, ActionListener<AcknowledgedResponse> listener) {
             super(new AckedRequest() {
                 @Override
                 public TimeValue ackTimeout() {
@@ -2151,12 +2171,6 @@ public final class TokenService {
             }
             return ClusterState.builder(currentState).putCustom(TokenMetadata.TYPE, tokenMetadata).build();
         }
-
-        @Override
-        protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-            return new ClusterStateUpdateResponse(acknowledged);
-        }
-
     }
 
     private void initialize(ClusterService clusterService) {

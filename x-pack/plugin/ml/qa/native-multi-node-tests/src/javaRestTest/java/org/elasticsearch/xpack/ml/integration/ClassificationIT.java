@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -127,6 +128,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         return new NamedXContentRegistry(entries);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64926")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("classification_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
@@ -239,6 +241,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64926")
     public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
         initialize("classification_only_training_data_and_training_percent_is_100");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
@@ -292,20 +295,31 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     public void testWithCustomFeatureProcessors() throws Exception {
         initialize("classification_with_custom_feature_processors");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
-        indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
+        indexData(sourceIndex, 100, 0, KEYWORD_FIELD);
 
         DataFrameAnalyticsConfig config =
             buildAnalytics(jobId, sourceIndex, destIndex, null,
             new Classification(
                 KEYWORD_FIELD,
-                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(0).build(),
                 null,
                 null,
-                null,
-                null,
-                null,
+                2,
+                10.0,
+                42L,
                 Arrays.asList(
-                    new OneHotEncoding(TEXT_FIELD, Collections.singletonMap(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom"), true)
+                    new OneHotEncoding(ALIAS_TO_KEYWORD_FIELD, MapBuilder.<String, String>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom")
+                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom").map(), true),
+                    new OneHotEncoding(ALIAS_TO_NESTED_FIELD, MapBuilder.<String, String>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_1")
+                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_1").map(), true),
+                    new OneHotEncoding(NESTED_FIELD, MapBuilder.<String, String>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2")
+                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2").map(), true),
+                    new OneHotEncoding(TEXT_FIELD, MapBuilder.<String, String>newMapBuilder()
+                        .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3")
+                        .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3").map(), true)
                 )));
         putAnalytics(config);
 
@@ -321,11 +335,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
             assertThat(getFieldValue(resultsObject, predictedClassField), is(in(KEYWORD_FIELD_VALUES)));
-            assertThat(getFieldValue(resultsObject, "is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
-            assertThat(importanceArray, hasSize(greaterThan(0)));
         }
 
         assertProgressComplete(jobId);
@@ -353,9 +363,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         TrainedModelConfig modelConfig = response.getResources().results().get(0);
         modelConfig.ensureParsedDefinition(xContentRegistry());
         assertThat(modelConfig.getModelDefinition().getPreProcessors().size(), greaterThan(0));
-        for (int i = 0; i < modelConfig.getModelDefinition().getPreProcessors().size(); i++) {
+        for (int i = 0; i < 4; i++) {
             PreProcessor preProcessor = modelConfig.getModelDefinition().getPreProcessors().get(i);
-            assertThat(preProcessor.isCustom(), equalTo(i == 0));
+            assertThat(preProcessor.isCustom(), is(true));
+        }
+        for (int i = 4; i < modelConfig.getModelDefinition().getPreProcessors().size(); i++) {
+            PreProcessor preProcessor = modelConfig.getModelDefinition().getPreProcessors().get(i);
+            assertThat(preProcessor.isCustom(), is(false));
         }
     }
 
@@ -465,6 +479,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "classification_training_percent_is_50_text_and_keyword", TEXT_FIELD + ".keyword", KEYWORD_FIELD_VALUES, "keyword");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64926")
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsBoolean() throws Exception {
         testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
             "classification_training_percent_is_50_boolean", BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES, "boolean");
@@ -551,6 +566,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [30] distinct values but there were at least [31]"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64926")
     public void testDependentVariableCardinalityTooHighButWithQueryMakesItWithinRange() throws Exception {
         initialize("cardinality_too_high_with_query");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
@@ -607,6 +623,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(ALIAS_TO_KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64926")
     public void testDependentVariableIsAliasToNested() throws Exception {
         initialize("dependent_variable_is_alias_to_nested");
         String predictedClassField = ALIAS_TO_NESTED_FIELD + "_prediction";
@@ -625,6 +642,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(ALIAS_TO_NESTED_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64926")
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "classification_two_jobs_with_same_randomize_seed_source";
         String dependentVariable = KEYWORD_FIELD;
@@ -669,6 +687,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(secondRunTrainingRowsIds, equalTo(firstRunTrainingRowsIds));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64926")
     public void testSetUpgradeMode_ExistingTaskGetsUnassigned() throws Exception {
         initialize("classification_set_upgrade_mode");
         indexData(sourceIndex, 300, 0, KEYWORD_FIELD);
@@ -766,6 +785,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(stateIndexSearchResponse.getHits().getTotalHits().value, equalTo(0L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64926")
     public void testUpdateAnalytics() throws Exception {
         initialize("update_analytics_description");
 

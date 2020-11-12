@@ -48,53 +48,57 @@ restResources {
   }
 }
 
-testClusters.integTest {
-  if (singleNode().testDistribution == DEFAULT) {
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'indices.lifecycle.history_index_enabled', 'false'
-    if (BuildParams.isSnapshotBuild() == false) {
-      systemProperty 'es.autoscaling_feature_flag_registered', 'true'
+tasks.named("integTest").configure {
+  testClusters.integTest {
+    if (singleNode().testDistribution == DEFAULT) {
+      setting 'xpack.license.self_generated.type', 'trial'
+      setting 'indices.lifecycle.history_index_enabled', 'false'
+      if (BuildParams.isSnapshotBuild() == false) {
+        systemProperty 'es.autoscaling_feature_flag_registered', 'true'
+      }
+      setting 'xpack.autoscaling.enabled', 'true'
+      keystorePassword 's3cr3t'
     }
-    setting 'xpack.autoscaling.enabled', 'true'
-    keystorePassword 's3cr3t'
+
+    // enable regexes in painless so our tests don't complain about example snippets that use them
+    setting 'script.painless.regex.enabled', 'true'
+    setting 'path.repo', "${buildDir}/cluster/shared/repo"
+    Closure configFile = {
+      extraConfigFile it, file("src/test/cluster/config/$it")
+    }
+    configFile 'analysis/example_word_list.txt'
+    configFile 'analysis/hyphenation_patterns.xml'
+    configFile 'analysis/synonym.txt'
+    configFile 'analysis/stemmer_override.txt'
+    configFile 'userdict_ja.txt'
+    configFile 'userdict_ko.txt'
+    configFile 'KeywordTokenizer.rbbi'
+    extraConfigFile 'hunspell/en_US/en_US.aff', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
+    extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
+    // Whitelist reindexing from the local node so we can test it.
+    setting 'reindex.remote.whitelist', '127.0.0.1:*'
+
+    // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
+    systemProperty 'es.transport.cname_in_publish_address', 'true'
   }
 
-  // enable regexes in painless so our tests don't complain about example snippets that use them
-  setting 'script.painless.regex.enabled', 'true'
-  setting 'path.repo', "${buildDir}/cluster/shared/repo"
-  Closure configFile = {
-    extraConfigFile it, file("src/test/cluster/config/$it")
+  // build the cluster with all plugins
+  project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
+    /* Skip repositories. We just aren't going to be able to test them so it
+     * doesn't make sense to waste time installing them.
+     */
+    if (subproj.path.startsWith(':plugins:repository-')) {
+      return
+    }
+    // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
+    if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
+      return
+    }
+    testClusters.integTest.plugin subproj.path
   }
-  configFile 'analysis/example_word_list.txt'
-  configFile 'analysis/hyphenation_patterns.xml'
-  configFile 'analysis/synonym.txt'
-  configFile 'analysis/stemmer_override.txt'
-  configFile 'userdict_ja.txt'
-  configFile 'userdict_ko.txt'
-  configFile 'KeywordTokenizer.rbbi'
-  extraConfigFile 'hunspell/en_US/en_US.aff', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
-  extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
-  // Whitelist reindexing from the local node so we can test it.
-  setting 'reindex.remote.whitelist', '127.0.0.1:*'
-
-  // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
-  systemProperty 'es.transport.cname_in_publish_address', 'true'
 }
 
-// build the cluster with all plugins
-project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
-  /* Skip repositories. We just aren't going to be able to test them so it
-   * doesn't make sense to waste time installing them.
-   */
-  if (subproj.path.startsWith(':plugins:repository-')) {
-    return
-  }
-  // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-  if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
-    return
-  }
-  testClusters.integTest.plugin subproj.path
-}
+
 
 buildRestTests.docs = fileTree(projectDir) {
   // No snippets in here!

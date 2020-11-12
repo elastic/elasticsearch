@@ -29,7 +29,7 @@ restResources {
 }
 
 File repo = file("$buildDir/testclusters/repo")
-testClusters.integTest {
+testClusters.matching { it.name.equals("integTest") }.configureEach {
   numberOfNodes = 2
   setting 'path.repo', repo.absolutePath
 }

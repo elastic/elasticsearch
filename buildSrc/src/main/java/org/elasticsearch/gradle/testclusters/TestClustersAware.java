@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
+import groovy.lang.Closure;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.Nested;
@@ -44,5 +45,19 @@ public interface TestClustersAware extends Task {
     }
 
     default void beforeStart() {}
+
+    default void cluster(Closure<ElasticsearchCluster> configClosure) {
+        assert getClusters().size() == 1;
+        ElasticsearchCluster cluster = getClusters().iterator().next();
+        configClosure.setDelegate(cluster);
+        configClosure.call(cluster);
+    }
+
+    default void clusters(Closure<ElasticsearchCluster> configClosure) {
+        getClusters().stream().forEach(c -> {
+            configClosure.setDelegate(c);
+            configClosure.call(c);
+        });
+    }
 
 }

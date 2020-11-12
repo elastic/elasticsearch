@@ -161,10 +161,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         return false;
                     }
                     Map<String, Object> map = XContentHelper.convertToMap(index.source(), false, index.getContentType()).v2();
-                    Map<String, Object> indexRuntimeMappings = runtimeMappings.computeIfAbsent(
-                        index.index(),
-                        i -> new HashMap<>()
-                    );
+                    Map<String, Object> indexRuntimeMappings = runtimeMappings.computeIfAbsent(index.index(), i -> new HashMap<>());
                     Set<String> indexMappedfields = mappedFields.computeIfAbsent(
                         index.index(),
                         i -> org.elasticsearch.common.collect.Set.of()

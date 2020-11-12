@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -408,14 +409,16 @@ public class RootObjectMapper extends ObjectMapper {
 
         final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0);
         if (dynamicTemplateInvalid) {
-            String message = String.format(Locale.ROOT, "dynamic template [%s] has invalid content [%s]",
-                dynamicTemplate.getName(), Strings.toString(dynamicTemplate));
+            String format = "dynamic template [%s] has invalid content [%s], " +
+                "attempted to validate it with the following match_mapping_type: [%s]";
+            String message = String.format(Locale.ROOT, format, dynamicTemplate.getName(), Strings.toString(dynamicTemplate),
+                Arrays.toString(types));
             if (failInvalidDynamicTemplates) {
                 throw new IllegalArgumentException(message, lastError);
             } else {
                 final String deprecationMessage;
                 if (lastError != null) {
-                     deprecationMessage = String.format(Locale.ROOT, "%s, caused by [%s]", message, lastError.getMessage());
+                     deprecationMessage = String.format(Locale.ROOT, "%s, last error: [%s]", message, lastError.getMessage());
                 } else {
                     deprecationMessage = message;
                 }

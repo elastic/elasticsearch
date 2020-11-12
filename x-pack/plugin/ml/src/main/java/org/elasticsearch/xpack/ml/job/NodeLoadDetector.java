@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
@@ -89,49 +90,21 @@ public class NodeLoadDetector {
                 MlTasks.JOB_TASK_NAME, task -> nodeLoad.getNodeId().equals(task.getExecutorNode()));
             for (PersistentTasksCustomMetadata.PersistentTask<?> assignedTask : assignedAnomalyDetectorTasks) {
                 JobState jobState = MlTasks.getJobStateModifiedForReassignments(assignedTask);
-                if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
-                    // Don't count CLOSED or FAILED jobs, as they don't consume native memory
-                    ++nodeLoad.numAssignedJobs;
-                    if (jobState == JobState.OPENING) {
-                        ++nodeLoad.numAllocatingJobs;
-                    }
-                    OpenJobAction.JobParams params = (OpenJobAction.JobParams) assignedTask.getParams();
-                    Long jobMemoryRequirement = mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(params.getJobId());
-                    if (jobMemoryRequirement == null) {
-                        nodeLoad.useMemory = false;
-                        logger.debug(() -> new ParameterizedMessage(
-                            "[{}] memory requirement was not available. Calculating load by number of assigned jobs.",
-                            params.getJobId()
-                        ));
-                    } else {
-                        nodeLoad.assignedJobMemory += jobMemoryRequirement;
-                    }
-                }
+                OpenJobAction.JobParams params = (OpenJobAction.JobParams) assignedTask.getParams();
+                nodeLoad.adjustForAnomalyJob(jobState, params == null ? null : params.getJobId(), mlMemoryTracker);
             }
+            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> assignedShapshotUpgraderTasks = persistentTasks.findTasks(
+                MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME, task -> nodeLoad.getNodeId().equals(task.getExecutorNode()));
+            for (PersistentTasksCustomMetadata.PersistentTask<?> assignedTask : assignedShapshotUpgraderTasks) {
+                SnapshotUpgradeTaskParams params = (SnapshotUpgradeTaskParams) assignedTask.getParams();
+                nodeLoad.adjustForAnomalyJob(JobState.OPENED, params == null ? null : params.getJobId(), mlMemoryTracker);
+            }
+
             // find all the data frame analytics job tasks assigned to this node
             Collection<PersistentTasksCustomMetadata.PersistentTask<?>> assignedAnalyticsTasks = persistentTasks.findTasks(
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> nodeLoad.getNodeId().equals(task.getExecutorNode()));
             for (PersistentTasksCustomMetadata.PersistentTask<?> assignedTask : assignedAnalyticsTasks) {
-                DataFrameAnalyticsState dataFrameAnalyticsState = MlTasks.getDataFrameAnalyticsState(assignedTask);
-
-                // Don't count stopped and failed df-analytics tasks as they don't consume native memory
-                if (dataFrameAnalyticsState.isAnyOf(DataFrameAnalyticsState.STOPPED, DataFrameAnalyticsState.FAILED) == false) {
-                    // The native process is only running in the ANALYZING and STOPPING states, but in the STARTED
-                    // and REINDEXING states we're committed to using the memory soon, so account for it here
-                    ++nodeLoad.numAssignedJobs;
-                    StartDataFrameAnalyticsAction.TaskParams params =
-                        (StartDataFrameAnalyticsAction.TaskParams) assignedTask.getParams();
-                    Long jobMemoryRequirement = mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(params.getId());
-                    if (jobMemoryRequirement == null) {
-                        nodeLoad.useMemory = false;
-                        logger.debug(() -> new ParameterizedMessage(
-                            "[{}] memory requirement was not available. Calculating load by number of assigned jobs.",
-                            params.getId()
-                        ));
-                    } else {
-                        nodeLoad.assignedJobMemory += jobMemoryRequirement;
-                    }
-                }
+                nodeLoad.adjustForAnalyticsJob(assignedTask, mlMemoryTracker);
             }
             // if any jobs are running then the native code will be loaded, but shared between all jobs,
             // so increase the total memory usage of the assigned jobs to account for this
@@ -156,6 +129,52 @@ public class NodeLoadDetector {
             this.maxMemory = maxMemory;
             this.nodeId = nodeId;
             this.useMemory = useMemory;
+        }
+
+        private void adjustForAnomalyJob(JobState jobState,
+                                         String jobId,
+                                         MlMemoryTracker mlMemoryTracker) {
+            if ((jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) && jobId != null) {
+                // Don't count CLOSED or FAILED jobs, as they don't consume native memory
+                ++numAssignedJobs;
+                if (jobState == JobState.OPENING) {
+                    ++numAllocatingJobs;
+                }
+                Long jobMemoryRequirement = mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId);
+                if (jobMemoryRequirement == null) {
+                    useMemory = false;
+                    logger.debug(() -> new ParameterizedMessage(
+                        "[{}] memory requirement was not available. Calculating load by number of assigned jobs.",
+                        jobId
+                    ));
+                } else {
+                    assignedJobMemory += jobMemoryRequirement;
+                }
+            }
+        }
+
+        private void adjustForAnalyticsJob(PersistentTasksCustomMetadata.PersistentTask<?> assignedTask,
+                                           MlMemoryTracker mlMemoryTracker) {
+            DataFrameAnalyticsState dataFrameAnalyticsState = MlTasks.getDataFrameAnalyticsState(assignedTask);
+
+            // Don't count stopped and failed df-analytics tasks as they don't consume native memory
+            if (dataFrameAnalyticsState.isAnyOf(DataFrameAnalyticsState.STOPPED, DataFrameAnalyticsState.FAILED) == false) {
+                // The native process is only running in the ANALYZING and STOPPING states, but in the STARTED
+                // and REINDEXING states we're committed to using the memory soon, so account for it here
+                ++numAssignedJobs;
+                StartDataFrameAnalyticsAction.TaskParams params =
+                    (StartDataFrameAnalyticsAction.TaskParams) assignedTask.getParams();
+                Long jobMemoryRequirement = mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(params.getId());
+                if (jobMemoryRequirement == null) {
+                    useMemory = false;
+                    logger.debug(() -> new ParameterizedMessage(
+                        "[{}] memory requirement was not available. Calculating load by number of assigned jobs.",
+                        params.getId()
+                    ));
+                } else {
+                    assignedJobMemory += jobMemoryRequirement;
+                }
+            }
         }
 
         /**

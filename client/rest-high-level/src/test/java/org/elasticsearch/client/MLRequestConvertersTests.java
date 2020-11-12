@@ -84,6 +84,7 @@ import org.elasticsearch.client.ml.UpdateDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
 import org.elasticsearch.client.ml.calendars.ScheduledEvent;
@@ -504,6 +505,30 @@ public class MLRequestConvertersTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             UpdateModelSnapshotRequest parsedRequest = UpdateModelSnapshotRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(updateModelSnapshotRequest));
+        }
+    }
+
+    public void testUpgradeJobModelSnapshot() {
+        String jobId = randomAlphaOfLength(10);
+        String snapshotId = randomAlphaOfLength(10);
+        TimeValue timeout = TimeValue.parseTimeValue(randomTimeValue(), "test");
+        boolean waitForCompletion = randomBoolean();
+        boolean includeTimeout = randomBoolean();
+        boolean includeWaitForCompletion = randomBoolean();
+        UpgradeJobModelSnapshotRequest upgradeJobModelSnapshotRequest = new UpgradeJobModelSnapshotRequest(jobId,
+            snapshotId,
+            includeTimeout ? timeout : null,
+            includeWaitForCompletion ? waitForCompletion : null);
+
+        Request request = MLRequestConverters.upgradeJobSnapshot(upgradeJobModelSnapshotRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId + "/_upgrade", request.getEndpoint());
+        assertThat(request.getParameters().isEmpty(), equalTo(includeTimeout == false && includeWaitForCompletion == false));
+        if (includeTimeout) {
+            assertThat(request.getParameters().get("timeout"), equalTo(timeout.getStringRep()));
+        }
+        if (includeWaitForCompletion) {
+            assertThat(request.getParameters().get("wait_for_completion"), equalTo(Boolean.toString(waitForCompletion)));
         }
     }
 

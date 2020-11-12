@@ -149,7 +149,7 @@ public class NestedDocuments {
                 }
                 int lastParent = parentBitSet.prevSetBit(currentLevelDoc);
                 int offset = 0;
-                for (int i = lastParent + 1; i < currentLevelDoc; i = childBitSet.nextSetBit(i + 1)) {
+                for (int i = childBitSet.nextSetBit(lastParent + 1); i < currentLevelDoc; i = childBitSet.nextSetBit(i + 1)) {
                     offset++;
                 }
                 ni = new SearchHit.NestedIdentity(path.substring(path.indexOf(".") + 1), offset, ni);

@@ -175,11 +175,18 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
             assertEquals(12, leaf.rootDoc());
             assertEquals(new SearchHit.NestedIdentity("children", 0, null), leaf.nestedIdentity());
 
+            assertTrue(leaf.advance(4));
+            assertEquals(4, leaf.doc());
+            assertEquals(12, leaf.rootDoc());
+            assertEquals(
+                new SearchHit.NestedIdentity("children", 1, new SearchHit.NestedIdentity("grandchildren", 0, null)),
+                leaf.nestedIdentity());
+
             assertTrue(leaf.advance(5));
             assertEquals(5, leaf.doc());
             assertEquals(12, leaf.rootDoc());
             assertEquals(
-                new SearchHit.NestedIdentity("children", 1, new SearchHit.NestedIdentity("grandchildren", 0, null)),
+                new SearchHit.NestedIdentity("children", 1, new SearchHit.NestedIdentity("grandchildren", 1, null)),
                 leaf.nestedIdentity());
 
             assertFalse(leaf.advance(12));

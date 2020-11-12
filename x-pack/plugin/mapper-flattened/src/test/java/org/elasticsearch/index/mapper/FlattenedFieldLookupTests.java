@@ -127,9 +127,7 @@ public class FlattenedFieldLookupTests extends ESTestCase {
         FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper, flattenedMapper), emptyList());
 
         Set<String> fieldNames = new HashSet<>();
-        for (MappedFieldType fieldType : lookup) {
-            fieldNames.add(fieldType.name());
-        }
+        lookup.filter(ft -> true).forEach(ft -> fieldNames.add(ft.name()));
 
         assertThat(fieldNames, containsInAnyOrder(
             mapper.name(), flattenedMapper.name(), flattenedMapper.keyedFieldName()));

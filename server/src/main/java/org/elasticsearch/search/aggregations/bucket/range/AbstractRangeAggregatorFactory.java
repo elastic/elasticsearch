@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -51,7 +50,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
         builder.register(
             registryKey,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            RangeAggregator::new,
+            RangeAggregator::build,
                 true);
     }
 
@@ -92,8 +91,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
             .build(
                 name,
                 factories,
-                (Numeric) config.getValuesSource(),
-                config.format(),
+                config,
                 rangeFactory,
                 ranges,
                 keyed,

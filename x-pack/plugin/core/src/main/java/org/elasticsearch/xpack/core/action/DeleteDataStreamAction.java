@@ -12,6 +12,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -43,6 +44,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         // empty response can be returned in case wildcards were used or
         // 404 status code returned in case no wildcard were used.
         private final boolean wildcardExpressionsOriginallySpecified;
+        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
 
         public Request(String[] names) {
             this.names = Objects.requireNonNull(names);
@@ -66,6 +68,9 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             super(in);
             this.names = in.readStringArray();
             this.wildcardExpressionsOriginallySpecified = in.getVersion().onOrAfter(Version.V_7_10_0) && in.readBoolean();
+            if (in.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
+                this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+            }
         }
 
         @Override
@@ -75,6 +80,9 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
                 out.writeBoolean(wildcardExpressionsOriginallySpecified);
             }
+            if (out.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
+                indicesOptions.writeIndicesOptions(out);
+            }
         }
 
         @Override
@@ -83,12 +91,12 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return wildcardExpressionsOriginallySpecified == request.wildcardExpressionsOriginallySpecified &&
-                Arrays.equals(names, request.names);
+                Arrays.equals(names, request.names) && indicesOptions.equals(request.indicesOptions);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(wildcardExpressionsOriginallySpecified);
+            int result = Objects.hash(wildcardExpressionsOriginallySpecified, indicesOptions);
             result = 31 * result + Arrays.hashCode(names);
             return result;
         }
@@ -100,9 +108,12 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public IndicesOptions indicesOptions() {
-            // this doesn't really matter since data stream name resolution isn't affected by IndicesOptions and
-            // a data stream's backing indices are retrieved from its metadata
-            return IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+            return indicesOptions;
+        }
+
+        public IndicesRequest indicesOptions(IndicesOptions indicesOptions) {
+            this.indicesOptions = indicesOptions;
+            return this;
         }
 
         @Override

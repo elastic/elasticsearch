@@ -93,7 +93,7 @@ public class GeometryDocValueTests extends ESTestCase {
             int minY = randomIntBetween(-40, -1);
             int maxY = randomIntBetween(1, 40);
             Geometry rectangle = new Rectangle(minX, maxX, maxY, minY);
-            GeometryDocValueReader reader = GeoTestUtils.GeometryDocValueReader(rectangle, CoordinateEncoder.GEO);
+            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(rectangle, CoordinateEncoder.GEO);
 
             Extent expectedExtent  = getExtentFromBox(minX, minY, maxX, maxY);
             assertThat(expectedExtent, equalTo(reader.getExtent()));
@@ -114,7 +114,7 @@ public class GeometryDocValueTests extends ESTestCase {
     }
 
     private static void assertDimensionalShapeType(Geometry geometry, DimensionalShapeType expected) throws IOException {
-        GeometryDocValueReader reader = GeoTestUtils.GeometryDocValueReader(geometry, CoordinateEncoder.GEO);
+        GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(geometry, CoordinateEncoder.GEO);
         assertThat(reader.getDimensionalShapeType(), equalTo(expected));
     }
 

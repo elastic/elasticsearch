@@ -25,7 +25,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
@@ -65,7 +65,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     private final Map<Slot, Integer> map;
     private final SingleDimensionValuesSource<?>[] arrays;
 
-    private IntArray docCounts;
+    private LongArray docCounts;
     private boolean afterKeyIsSet = false;
 
     /**
@@ -88,7 +88,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
                 sources[i].setAfter(afterKey.get(i));
             }
         }
-        this.docCounts = bigArrays.newIntArray(1, false);
+        this.docCounts = bigArrays.newLongArray(1, false);
     }
 
     @Override
@@ -127,19 +127,19 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     /**
      * Returns the document count in <code>slot</code>.
      */
-    int getDocCount(int slot) {
+    long getDocCount(int slot) {
         return docCounts.get(slot);
     }
 
     /**
      * Copies the current value in <code>slot</code>.
      */
-    private void copyCurrent(int slot) {
+    private void copyCurrent(int slot, long value) {
         for (int i = 0; i < arrays.length; i++) {
             arrays[i].copyCurrent(slot);
         }
         docCounts = bigArrays.grow(docCounts, slot+1);
-        docCounts.set(slot, 1);
+        docCounts.set(slot, value);
     }
 
     /**
@@ -248,8 +248,8 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * Check if the current candidate should be added in the queue.
      * @return <code>true</code> if the candidate is competitive (added or already in the queue).
      */
-    boolean addIfCompetitive() {
-        return addIfCompetitive(0);
+    boolean addIfCompetitive(long inc) {
+        return addIfCompetitive(0, inc);
     }
 
 
@@ -263,12 +263,12 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      *
      * @throws CollectionTerminatedException if the current collection can be terminated early due to index sorting.
      */
-    boolean addIfCompetitive(int indexSortSourcePrefix) {
+    boolean addIfCompetitive(int indexSortSourcePrefix, long inc) {
         // checks if the candidate key is competitive
         Integer topSlot = compareCurrent();
         if (topSlot != null) {
             // this key is already in the top N, skip it
-            docCounts.increment(topSlot, 1);
+            docCounts.increment(topSlot, inc);
             return true;
         }
         if (afterKeyIsSet) {
@@ -309,7 +309,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
             newSlot = size();
         }
         // move the candidate key to its new slot
-        copyCurrent(newSlot);
+        copyCurrent(newSlot, inc);
         map.put(new Slot(newSlot), newSlot);
         add(newSlot);
         return true;

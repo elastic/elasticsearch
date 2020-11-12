@@ -42,7 +42,7 @@ class DocsTestPlugin implements Plugin<Project> {
         project.testClusters.integTest.testDistribution = distribution.toUpperCase()
         project.testClusters.integTest.nameCustomization = { it.replace("integTest", "node") }
         // Docs are published separately so no need to assemble
-        project.tasks.assemble.enabled = false
+        project.tasks.named("assemble").configure {enabled = false }
         Map<String, String> commonDefaultSubstitutions = [
                 /* These match up with the asciidoc syntax for substitutions but
                  * the values may differ. In particular {version} needs to resolve

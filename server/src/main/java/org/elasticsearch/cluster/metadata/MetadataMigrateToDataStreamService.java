@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -69,7 +68,7 @@ public class MetadataMigrateToDataStreamService {
     public void migrateToDataStream(MigrateToDataStreamClusterStateUpdateRequest request,
                                     ActionListener<AcknowledgedResponse> finalListener) {
         AtomicReference<String> writeIndexRef = new AtomicReference<>();
-        ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(
+        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
             response -> {
                 if (response.isAcknowledged()) {
                     String writeIndexName = writeIndexRef.get();
@@ -89,7 +88,7 @@ public class MetadataMigrateToDataStreamService {
             finalListener::onFailure
         );
         clusterService.submitStateUpdateTask("migrate-to-data-stream [" + request.aliasName + "]",
-            new AckedClusterStateUpdateTask<>(Priority.HIGH, request, listener) {
+            new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -105,11 +104,6 @@ public class MetadataMigrateToDataStreamService {
                         request);
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
-                }
-
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
                 }
             });
     }

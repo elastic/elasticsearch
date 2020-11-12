@@ -46,6 +46,11 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
     }
 
     @Override
+    protected boolean supportsOrIgnoresBoost() {
+        return false;
+    }
+
+    @Override
     protected GeoShapeFieldMapper.Builder newBuilder() {
         return new GeoShapeFieldMapper.Builder("geoshape");
     }

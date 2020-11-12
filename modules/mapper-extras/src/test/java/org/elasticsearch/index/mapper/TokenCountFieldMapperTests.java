@@ -94,6 +94,11 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         return new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
     }
 
+    @Override
+    protected String typeName() {
+        return "token_count";
+    }
+
     /**
      *  When position increments are counted, we're looking to make sure that we:
         - don't count tokens without an increment

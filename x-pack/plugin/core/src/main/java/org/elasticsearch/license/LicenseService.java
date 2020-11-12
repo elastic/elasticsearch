@@ -350,10 +350,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         return license == LicensesMetadata.LICENSE_TOMBSTONE ? null : license;
     }
 
-    public Lifecycle.State getLifecycleState() {
-        return clusterService.lifecycleState();
-    }
-
     private LicensesMetadata getLicensesMetadata() {
         return this.clusterService.state().metadata().custom(LicensesMetadata.TYPE);
     }
@@ -479,7 +475,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     protected void updateLicenseState(final License license, Version mostRecentTrialVersion) {
         if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
-            licenseState.update(License.OperationMode.MISSING, false, mostRecentTrialVersion);
+            licenseState.update(License.OperationMode.MISSING, false, license.expiryDate(), mostRecentTrialVersion);
             return;
         }
         if (license != null) {
@@ -492,7 +488,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 // date that is near Long.MAX_VALUE
                 active = time >= license.issueDate() && time - GRACE_PERIOD_DURATION.getMillis() < license.expiryDate();
             }
-            licenseState.update(license.operationMode(), active, mostRecentTrialVersion);
+            licenseState.update(license.operationMode(), active, license.expiryDate(), mostRecentTrialVersion);
 
             if (active) {
                 if (time < license.expiryDate()) {

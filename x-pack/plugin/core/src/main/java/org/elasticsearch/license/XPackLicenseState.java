@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -32,10 +32,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.service.ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME;
-import static org.elasticsearch.index.mapper.RangeFieldMapper.Defaults.DATE_FORMATTER;
 import static org.elasticsearch.license.LicenseService.GRACE_PERIOD_DURATION;
-import static org.elasticsearch.xpack.core.XPackPlugin.getSharedLicenseService;
 
 /**
  * A holder for the current state of the license for all xpack features.
@@ -407,9 +404,13 @@ public class XPackLicenseState {
         /** True if the license is active, or false if it is expired. */
         final boolean active;
 
-        Status(OperationMode mode, boolean active) {
+        /** The current expiration date of the license; Long.MAX_VALUE if not avILble yet. */
+        final long licenseExpiryDate;
+
+        Status(OperationMode mode, boolean active, long licenseExpiryDate) {
             this.mode = mode;
             this.active = active;
+            this.licenseExpiryDate = licenseExpiryDate;
         }
     }
 
@@ -423,7 +424,7 @@ public class XPackLicenseState {
     // XPackLicenseState. However, if status is read multiple times in a method, it can change in between
     // reads. Methods should use `executeAgainstStatus` and `checkAgainstStatus` to ensure that the status
     // is only read once.
-    private volatile Status status = new Status(OperationMode.TRIAL, true);
+    private volatile Status status = new Status(OperationMode.TRIAL, true, Long.MAX_VALUE);
 
     public XPackLicenseState(Settings settings, LongSupplier epochMillisProvider) {
         this.listeners = new CopyOnWriteArrayList<>();
@@ -471,12 +472,13 @@ public class XPackLicenseState {
      *
      * @param mode   The mode (type) of the current license.
      * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
+     * @param expirationDate Expiration date of the current license.
      * @param mostRecentTrialVersion If this cluster has, at some point commenced a trial, the most recent version on which they did that.
      *                               May be {@code null} if they have never generated a trial license on this cluster, or the most recent
      *                               trial was prior to this metadata being tracked (6.1)
      */
-    void update(OperationMode mode, boolean active, @Nullable Version mostRecentTrialVersion) {
-        status = new Status(mode, active);
+    void update(OperationMode mode, boolean active, long expirationDate, @Nullable Version mostRecentTrialVersion) {
+        status = new Status(mode, active, expirationDate);
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
@@ -513,7 +515,6 @@ public class XPackLicenseState {
      * Checks whether the given feature is allowed, tracking the last usage time.
      */
     public boolean checkFeature(Feature feature) {
-        License license;
         boolean allowed = isAllowed(feature);
         LongAccumulator maxEpochAccumulator = lastUsed.get(feature);
         long now = System.currentTimeMillis();
@@ -521,13 +522,11 @@ public class XPackLicenseState {
             maxEpochAccumulator.accumulate(epochMillisProvider.getAsLong());
         }
 
-        if(getSharedLicenseService() != null && getSharedLicenseService().getLifecycleState() == Lifecycle.State.STARTED
-            && (Thread.currentThread().getName().contains(CLUSTER_UPDATE_THREAD_NAME) == false)
-            && (license = getSharedLicenseService().getLicense()) != null
-            && feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0
-            && now > license.expiryDate() - GRACE_PERIOD_DURATION.getMillis()) {
-            HeaderWarning.addWarning("The license [{}] is going to expire on [{}]", license.uid(),
-                DATE_FORMATTER.formatMillis(license.expiryDate()));
+        if(feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0
+            && now > status.licenseExpiryDate - GRACE_PERIOD_DURATION.getMillis()) {
+            HeaderWarning.addWarning("Your license will expire in [{}] days. " +
+                    "Contact your administrator or update your license for continued use of features",
+                TimeUnit.MILLISECONDS.toDays(status.licenseExpiryDate - now));
         }
 
         return allowed;

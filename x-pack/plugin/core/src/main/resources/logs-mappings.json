@@ -21,7 +21,8 @@
             "match_mapping_type": "string",
             "path_match":   "*.message",
             "mapping": {
-              "type": "text"
+              "type": "text",
+              "norms": false
             }
           }
         }

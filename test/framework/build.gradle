@@ -38,8 +38,8 @@ dependencies {
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
-compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-unchecked'
-compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
+tasks.named("compileJava").configure { options.compilerArgs << '-Xlint:-cast,-rawtypes,-unchecked' }
+tasks.named("compileTestJava").configure { options.compilerArgs << '-Xlint:-rawtypes' }
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
 tasks.named('forbiddenApisMain').configure {
@@ -47,23 +47,25 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 // TODO: should we have licenses for our test deps?
-tasks.named("dependencyLicenses").configure { it.enabled = false }
-dependenciesInfo.enabled = false
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo").configure { enabled = false }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // classes are missing
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener',
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-  'org.apache.log4j.Category',
-  'org.apache.log4j.Level',
-  'org.apache.log4j.Logger',
-  'org.apache.log4j.Priority'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // classes are missing
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'org.apache.log4j.Category',
+          'org.apache.log4j.Level',
+          'org.apache.log4j.Logger',
+          'org.apache.log4j.Priority'
+  )
+}
 
-test {
+tasks.named("test").configure {
   systemProperty 'tests.gradle_index_compat_versions', BuildParams.bwcVersions.indexCompatible.join(',')
   systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
   systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
@@ -74,5 +76,5 @@ tasks.register("integTest", Test) {
 }
 
 tasks.register("verifyVersions") {
-  dependsOn test
+  dependsOn "test"
 }

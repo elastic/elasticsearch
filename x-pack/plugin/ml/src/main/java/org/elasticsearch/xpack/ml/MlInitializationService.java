@@ -96,12 +96,7 @@ class MlInitializationService implements ClusterStateListener {
         // index if there is a flurry of cluster state updates in quick succession
         if (this.isMaster && isIndexCreationInProgress.compareAndSet(false, true)) {
             AnnotationIndex.createAnnotationsIndexIfNecessary(client, event.state(), ActionListener.wrap(
-                r -> {
-                    isIndexCreationInProgress.set(false);
-                    if (r) {
-                        logger.info("Created ML annotations index and aliases");
-                    }
-                },
+                r -> isIndexCreationInProgress.set(false),
                 e -> {
                     isIndexCreationInProgress.set(false);
                     logger.error("Error creating ML annotations index or aliases", e);

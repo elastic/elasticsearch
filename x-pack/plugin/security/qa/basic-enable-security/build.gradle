@@ -1,21 +1,20 @@
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.elasticsearch.gradle.test.rest.JavaRestTestPlugin
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
+  javaRestTestImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-integTest {
+javaRestTest {
   description = "Run tests against a cluster that doesn't have security"
   systemProperty 'tests.has_security', 'false'
 }
 
-testClusters.integTest {
+testClusters.javaRestTest {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
   setting 'xpack.ml.enabled', 'false'
@@ -23,14 +22,15 @@ testClusters.integTest {
   setting 'xpack.security.enabled', 'false'
 }
 
-task integTestSecurity(type: StandaloneRestIntegTestTask) {
-  description = "Run tests against a cluster that has security"
-  useCluster testClusters.integTest
-  dependsOn integTest
+task javaRestTestWithSecurity(type: StandaloneRestIntegTestTask) {
+  description = "Run tests against a cluster that has security enabled"
+  useCluster testClusters.javaRestTest
+  dependsOn javaRestTest
   systemProperty 'tests.has_security', 'true'
-
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
   doFirst {
-    testClusters.integTest {
+    testClusters.javaRestTest {
       // Reconfigure cluster to enable security
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.authc.anonymous.roles', 'anonymous'
@@ -40,18 +40,18 @@ task integTestSecurity(type: StandaloneRestIntegTestTask) {
       setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
       setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
 
-      extraConfigFile 'transport.key', file('src/test/resources/ssl/transport.key')
-      extraConfigFile 'transport.crt', file('src/test/resources/ssl/transport.crt')
-      extraConfigFile 'ca.crt', file('src/test/resources/ssl/ca.crt')
-      extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+      extraConfigFile 'transport.key', file('src/javaRestTest/resources/ssl/transport.key')
+      extraConfigFile 'transport.crt', file('src/javaRestTest/resources/ssl/transport.crt')
+      extraConfigFile 'ca.crt', file('src/javaRestTest/resources/ssl/ca.crt')
+      extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
 
       user username: "admin_user", password: "admin-password"
       user username: "security_test_user", password: "security-test-password", role: "security_test_role"
 
       restart()
     }
-    nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.integTest.getAllHttpSocketURI().join(",")}"
+    nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.javaRestTest.getAllHttpSocketURI().join(",")}"
   }
 }
-tasks.named("check").configure { dependsOn(integTestSecurity) }
+tasks.named("check").configure { dependsOn(javaRestTestWithSecurity) }
 

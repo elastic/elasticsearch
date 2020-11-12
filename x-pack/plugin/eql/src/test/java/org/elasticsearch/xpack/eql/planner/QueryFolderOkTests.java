@@ -7,18 +7,15 @@
 package org.elasticsearch.xpack.eql.planner;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
-import org.junit.Assume;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -111,17 +108,10 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
     }
 
     public void test() {
-        String testName = name.toLowerCase(Locale.ROOT);
-        // skip tests that do not make sense from case sensitivity point of view
-        boolean isCaseSensitiveValidTest = testName.endsWith("sensitive") == false
-            || testName.endsWith("-casesensitive") && configuration.isCaseSensitive()
-            || testName.endsWith("-caseinsensitive") && configuration.isCaseSensitive() == false;
-        Assume.assumeTrue(isCaseSensitiveValidTest);
-
         PhysicalPlan p = plan(query);
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertEquals(1, eqe.output().size());
+        assertEquals(0, eqe.output().size());
 
         final String query = eqe.queryContainer().toString().replaceAll("\\s+", "");
 

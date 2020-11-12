@@ -21,24 +21,31 @@ package org.elasticsearch.client.ml.inference.results;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class FeatureImportanceTests extends AbstractXContentTestCase<FeatureImportance> {
 
     @Override
+    @SuppressWarnings("unchecked")
     protected FeatureImportance createTestInstance() {
+        Supplier<Object> classNameGenerator = randomFrom(
+            () -> randomAlphaOfLength(10),
+            ESTestCase::randomBoolean,
+            () -> randomIntBetween(0, 10)
+        );
         return new FeatureImportance(
             randomAlphaOfLength(10),
-            randomDoubleBetween(-10.0, 10.0, false),
+            randomBoolean() ? null : randomDoubleBetween(-10.0, 10.0, false),
             randomBoolean() ? null :
-                Stream.generate(() -> randomAlphaOfLength(10))
+                Stream.generate(classNameGenerator)
                     .limit(randomLongBetween(2, 10))
-                    .collect(Collectors.toMap(Function.identity(), (k) -> randomDoubleBetween(-10, 10, false))));
+                    .map(name -> new FeatureImportance.ClassImportance(name, randomDoubleBetween(-10, 10, false)))
+                    .collect(Collectors.toList()));
 
     }
 
@@ -52,8 +59,4 @@ public class FeatureImportanceTests extends AbstractXContentTestCase<FeatureImpo
         return true;
     }
 
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.equals(FeatureImportance.CLASS_IMPORTANCE);
-    }
 }

@@ -266,10 +266,10 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject());
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test").mapperService();
         for (String m : Arrays.asList(mapping, dynamicMapping)) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> parser.parse("type", new CompressedXContent(m)));
+                    () -> mapperService.parse("type", new CompressedXContent(m)));
             assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
         }
     }
@@ -283,9 +283,9 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject());
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test").mapperService();
         MapperParsingException e = expectThrows(MapperParsingException.class,
-                    () -> parser.parse("type", new CompressedXContent(mapping)));
+                    () -> mapperService.parse("type", new CompressedXContent(mapping)));
             assertEquals("Dynamic template syntax error. An array of named objects is expected.", e.getMessage());
     }
 
@@ -340,8 +340,9 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test").mapperService();
         MapperParsingException e = expectThrows(MapperParsingException.class,
             () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
-        assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getRootCause().getMessage(), equalTo("Unused mapping attributes [{foo=bar}]"));
+        assertThat(e.getRootCause(), instanceOf(MapperParsingException.class));
+        assertThat(e.getRootCause().getMessage(),
+            equalTo("unknown parameter [foo] on mapper [__dynamic__my_template] of type [keyword]"));
     }
 
     public void testIllegalDynamicTemplateInvalidAttribute() throws Exception {
@@ -368,8 +369,8 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test").mapperService();
         MapperParsingException e = expectThrows(MapperParsingException.class,
             () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
-        assertThat(e.getRootCause(), instanceOf(MapperParsingException.class));
-        assertThat(e.getRootCause().getMessage(), equalTo("analyzer [foobar] not found for field [__dummy__]"));
+        assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getRootCause().getMessage(), equalTo("analyzer [foobar] has not been configured in mappings"));
     }
 
     public void testIllegalDynamicTemplateNoMappingType() throws Exception {
@@ -433,7 +434,8 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
             MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
             assertThat(e.getRootCause(), instanceOf(MapperParsingException.class));
-            assertThat(e.getRootCause().getMessage(), equalTo("unknown parameter [foo] on mapper [__dummy__] of type [null]"));
+            assertThat(e.getRootCause().getMessage(),
+                equalTo("unknown parameter [foo] on mapper [__dynamic__my_template] of type [binary]"));
         }
     }
 

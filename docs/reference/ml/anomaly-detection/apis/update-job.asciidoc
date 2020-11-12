@@ -35,7 +35,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 The following properties can be updated after the job is created:
 
 `allow_lazy_open`::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
 +
 --
@@ -61,7 +61,7 @@ NOTE: You can update the `analysis_limits` only while the job is closed. The
  
 TIP: If the `memory_status` property in the
 <<ml-get-snapshot-results,`model_size_stats` object>> has a value of 
-`hard_limit`,mthis means that it was unable to process some data. You might want 
+`hard_limit`, this means that it was unable to process some data. You might want 
 to re-run the job with an increased `model_memory_limit`.
 
 --
@@ -181,11 +181,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config]
 [%collapsible%open]
 ====
 `annotations_enabled`:::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-annotations-enabled]
 
 `enabled`:::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
 
 `terms`:::
@@ -207,11 +207,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization]
 [%collapsible%open]
 ====
 `enabled`:::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-enabled]
 
 `stop_on_warn`:::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-stop-on-warn]
 ====
 //End per_partition_categorization

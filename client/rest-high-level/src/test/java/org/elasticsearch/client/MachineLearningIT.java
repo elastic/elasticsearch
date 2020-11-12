@@ -138,13 +138,16 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.PhaseProgress;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.PerClassSingleValue;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocPoint;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResult;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
-import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicErrorMetric;
@@ -175,6 +178,8 @@ import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.client.tasks.GetTaskRequest;
+import org.elasticsearch.client.tasks.GetTaskResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -187,6 +192,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.TaskId;
 import org.junit.After;
 
 import java.io.IOException;
@@ -198,8 +204,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -298,7 +306,18 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DeleteJobResponse response = execute(deleteJobRequest, machineLearningClient::deleteJob, machineLearningClient::deleteJobAsync);
 
         assertNull(response.getAcknowledged());
-        assertNotNull(response.getTask());
+
+        final TaskId taskId = response.getTask();
+        assertNotNull(taskId);
+
+        // When wait_for_completion=false the DeleteJobAction stored the task result in the .tasks index. In tests we need to wait
+        // for the delete job task to complete, otherwise the .tasks index could be created during the execution of a following test.
+        final GetTaskRequest taskRequest = new GetTaskRequest(taskId.getNodeId(), taskId.getId());
+        assertBusy(() -> {
+            Optional<GetTaskResponse> taskResponse = highLevelClient().tasks().get(taskRequest, RequestOptions.DEFAULT);
+            assertTrue(taskResponse.isPresent());
+            assertTrue(taskResponse.get().isCompleted());
+        }, 30L, TimeUnit.SECONDS);
     }
 
     public void testOpenJob() throws Exception {
@@ -1744,15 +1763,22 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 new OutlierDetection(
                     actualField,
                     probabilityField,
-                    PrecisionMetric.at(0.4, 0.5, 0.6), RecallMetric.at(0.5, 0.7), ConfusionMatrixMetric.at(0.5), AucRocMetric.withCurve()));
+                    org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.at(0.4, 0.5, 0.6),
+                    org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.at(0.5, 0.7),
+                    ConfusionMatrixMetric.at(0.5),
+                    org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.withCurve()));
 
         EvaluateDataFrameResponse evaluateDataFrameResponse =
             execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(OutlierDetection.NAME));
         assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(4));
 
-        PrecisionMetric.Result precisionResult = evaluateDataFrameResponse.getMetricByName(PrecisionMetric.NAME);
-        assertThat(precisionResult.getMetricName(), equalTo(PrecisionMetric.NAME));
+        org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.Result precisionResult =
+            evaluateDataFrameResponse.getMetricByName(
+                org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.NAME);
+        assertThat(
+            precisionResult.getMetricName(),
+            equalTo(org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.NAME));
         // Precision is 3/5=0.6 as there were 3 true examples (#7, #8, #9) among the 5 positive examples (#3, #4, #7, #8, #9)
         assertThat(precisionResult.getScoreByThreshold("0.4"), closeTo(0.6, 1e-9));
         // Precision is 2/3=0.(6) as there were 2 true examples (#8, #9) among the 3 positive examples (#4, #8, #9)
@@ -1761,8 +1787,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(precisionResult.getScoreByThreshold("0.6"), closeTo(0.666666666, 1e-9));
         assertNull(precisionResult.getScoreByThreshold("0.1"));
 
-        RecallMetric.Result recallResult = evaluateDataFrameResponse.getMetricByName(RecallMetric.NAME);
-        assertThat(recallResult.getMetricName(), equalTo(RecallMetric.NAME));
+        org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.Result recallResult =
+            evaluateDataFrameResponse.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.NAME);
+        assertThat(
+            recallResult.getMetricName(),
+            equalTo(org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.NAME));
         // Recall is 2/5=0.4 as there were 2 true positive examples (#8, #9) among the 5 true examples (#5, #6, #7, #8, #9)
         assertThat(recallResult.getScoreByThreshold("0.5"), closeTo(0.4, 1e-9));
         // Recall is 2/5=0.4 as there were 2 true positive examples (#8, #9) among the 5 true examples (#5, #6, #7, #8, #9)
@@ -1778,16 +1807,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(confusionMatrix.getFalseNegatives(), equalTo(3L));  // docs #5, #6 and #7
         assertNull(confusionMatrixResult.getScoreByThreshold("0.1"));
 
-        AucRocMetric.Result aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
+        AucRocResult aucRocResult =
+            evaluateDataFrameResponse.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME);
         assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-        assertThat(aucRocResult.getScore(), closeTo(0.70025, 1e-9));
+        assertThat(aucRocResult.getValue(), closeTo(0.70025, 1e-9));
         assertNotNull(aucRocResult.getCurve());
-        List<AucRocMetric.AucRocPoint> curve = aucRocResult.getCurve();
-        AucRocMetric.AucRocPoint curvePointAtThreshold0 = curve.stream().filter(p -> p.getThreshold() == 0.0).findFirst().get();
+        List<AucRocPoint> curve = aucRocResult.getCurve();
+        AucRocPoint curvePointAtThreshold0 = curve.stream().filter(p -> p.getThreshold() == 0.0).findFirst().get();
         assertThat(curvePointAtThreshold0.getTruePositiveRate(), equalTo(1.0));
         assertThat(curvePointAtThreshold0.getFalsePositiveRate(), equalTo(1.0));
         assertThat(curvePointAtThreshold0.getThreshold(), equalTo(0.0));
-        AucRocMetric.AucRocPoint curvePointAtThreshold1 = curve.stream().filter(p -> p.getThreshold() == 1.0).findFirst().get();
+        AucRocPoint curvePointAtThreshold1 = curve.stream().filter(p -> p.getThreshold() == 1.0).findFirst().get();
         assertThat(curvePointAtThreshold1.getTruePositiveRate(), equalTo(0.0));
         assertThat(curvePointAtThreshold1.getFalsePositiveRate(), equalTo(0.0));
         assertThat(curvePointAtThreshold1.getThreshold(), equalTo(1.0));
@@ -1890,24 +1920,38 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         createIndex(indexName, mappingForClassification());
         BulkRequest regressionBulk = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(docForClassification(indexName, "cat", "cat"))
-            .add(docForClassification(indexName, "cat", "cat"))
-            .add(docForClassification(indexName, "cat", "cat"))
-            .add(docForClassification(indexName, "cat", "dog"))
-            .add(docForClassification(indexName, "cat", "fish"))
-            .add(docForClassification(indexName, "dog", "cat"))
-            .add(docForClassification(indexName, "dog", "dog"))
-            .add(docForClassification(indexName, "dog", "dog"))
-            .add(docForClassification(indexName, "dog", "dog"))
-            .add(docForClassification(indexName, "ant", "cat"));
+            .add(docForClassification(indexName, "cat", "cat", "dog", "ant"))
+            .add(docForClassification(indexName, "cat", "cat", "dog", "ant"))
+            .add(docForClassification(indexName, "cat", "cat", "horse", "dog"))
+            .add(docForClassification(indexName, "cat", "dog", "cat", "mule"))
+            .add(docForClassification(indexName, "cat", "fish", "cat", "dog"))
+            .add(docForClassification(indexName, "dog", "cat", "dog", "mule"))
+            .add(docForClassification(indexName, "dog", "dog", "cat", "ant"))
+            .add(docForClassification(indexName, "dog", "dog", "cat", "ant"))
+            .add(docForClassification(indexName, "dog", "dog", "cat", "ant"))
+            .add(docForClassification(indexName, "ant", "cat", "ant", "wasp"));
         highLevelClient().bulk(regressionBulk, RequestOptions.DEFAULT);
-
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
+        {  // AucRoc
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName, null, new Classification(actualClassField, null, topClassesField, AucRocMetric.forClassWithCurve("cat")));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            AucRocResult aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
+            assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
+            assertThat(aucRocResult.getValue(), closeTo(0.6425, 1e-9));
+            assertNotNull(aucRocResult.getCurve());
+        }
         {  // Accuracy
             EvaluateDataFrameRequest evaluateDataFrameRequest =
                 new EvaluateDataFrameRequest(
-                    indexName, null, new Classification(actualClassField, predictedClassField, new AccuracyMetric()));
+                    indexName, null, new Classification(actualClassField, predictedClassField, null, new AccuracyMetric()));
 
             EvaluateDataFrameResponse evaluateDataFrameResponse =
                 execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
@@ -1921,75 +1965,57 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 equalTo(
                     List.of(
                         // 9 out of 10 examples were classified correctly
-                        new AccuracyMetric.PerClassResult("ant", 0.9),
+                        new PerClassSingleValue("ant", 0.9),
                         // 6 out of 10 examples were classified correctly
-                        new AccuracyMetric.PerClassResult("cat", 0.6),
+                        new PerClassSingleValue("cat", 0.6),
                         // 8 out of 10 examples were classified correctly
-                        new AccuracyMetric.PerClassResult("dog", 0.8))));
+                        new PerClassSingleValue("dog", 0.8))));
             assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.6));  // 6 out of 10 examples were classified correctly
         }
         {  // Precision
             EvaluateDataFrameRequest evaluateDataFrameRequest =
                 new EvaluateDataFrameRequest(
-                    indexName,
-                    null,
-                    new Classification(
-                        actualClassField,
-                        predictedClassField,
-                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric()));
+                    indexName, null, new Classification(actualClassField, predictedClassField, null, new PrecisionMetric()));
 
             EvaluateDataFrameResponse evaluateDataFrameResponse =
                 execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
             assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
             assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
 
-            org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.Result precisionResult =
-                evaluateDataFrameResponse.getMetricByName(
-                    org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME);
-            assertThat(
-                precisionResult.getMetricName(),
-                equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.NAME));
+            PrecisionMetric.Result precisionResult = evaluateDataFrameResponse.getMetricByName(PrecisionMetric.NAME);
+            assertThat(precisionResult.getMetricName(), equalTo(PrecisionMetric.NAME));
             assertThat(
                 precisionResult.getClasses(),
                 equalTo(
                     List.of(
                         // 3 out of 5 examples labeled as "cat" were classified correctly
-                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.PerClassResult("cat", 0.6),
+                        new PerClassSingleValue("cat", 0.6),
                         // 3 out of 4 examples labeled as "dog" were classified correctly
-                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric.PerClassResult("dog", 0.75))));
+                        new PerClassSingleValue("dog", 0.75))));
             assertThat(precisionResult.getAvgPrecision(), equalTo(0.675));
         }
         {  // Recall
             EvaluateDataFrameRequest evaluateDataFrameRequest =
                 new EvaluateDataFrameRequest(
-                    indexName,
-                    null,
-                    new Classification(
-                        actualClassField,
-                        predictedClassField,
-                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric()));
+                    indexName, null, new Classification(actualClassField, predictedClassField, null, new RecallMetric()));
 
             EvaluateDataFrameResponse evaluateDataFrameResponse =
                 execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
             assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
             assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
 
-            org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.Result recallResult =
-                evaluateDataFrameResponse.getMetricByName(
-                    org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME);
-            assertThat(
-                recallResult.getMetricName(),
-                equalTo(org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME));
+            RecallMetric.Result recallResult = evaluateDataFrameResponse.getMetricByName(RecallMetric.NAME);
+            assertThat(recallResult.getMetricName(), equalTo(RecallMetric.NAME));
             assertThat(
                 recallResult.getClasses(),
                 equalTo(
                     List.of(
                         // 3 out of 5 examples labeled as "cat" were classified correctly
-                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("cat", 0.6),
+                        new PerClassSingleValue("cat", 0.6),
                         // 3 out of 4 examples labeled as "dog" were classified correctly
-                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("dog", 0.75),
+                        new PerClassSingleValue("dog", 0.75),
                         // no examples labeled as "ant" were classified correctly
-                        new org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.PerClassResult("ant", 0.0))));
+                        new PerClassSingleValue("ant", 0.0))));
             assertThat(recallResult.getAvgRecall(), equalTo(0.45));
         }
         {  // No size provided for MulticlassConfusionMatrixMetric, default used instead
@@ -1997,7 +2023,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 new EvaluateDataFrameRequest(
                     indexName,
                     null,
-                    new Classification(actualClassField, predictedClassField, new MulticlassConfusionMatrixMetric()));
+                    new Classification(actualClassField, predictedClassField, null, new MulticlassConfusionMatrixMetric()));
 
             EvaluateDataFrameResponse evaluateDataFrameResponse =
                 execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
@@ -2042,7 +2068,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 new EvaluateDataFrameRequest(
                     indexName,
                     null,
-                    new Classification(actualClassField, predictedClassField, new MulticlassConfusionMatrixMetric(2)));
+                    new Classification(actualClassField, predictedClassField, null, new MulticlassConfusionMatrixMetric(2)));
 
             EvaluateDataFrameResponse evaluateDataFrameResponse =
                 execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
@@ -2116,6 +2142,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     private static final String actualClassField = "actual_class";
     private static final String predictedClassField = "predicted_class";
+    private static final String topClassesField = "top_classes";
 
     private static XContentBuilder mappingForClassification() throws IOException {
         return XContentFactory.jsonBuilder().startObject()
@@ -2126,14 +2153,26 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .startObject(predictedClassField)
                     .field("type", "keyword")
                 .endObject()
+                .startObject(topClassesField)
+                    .field("type", "nested")
+                .endObject()
             .endObject()
         .endObject();
     }
 
-    private static IndexRequest docForClassification(String indexName, String actualClass, String predictedClass) {
+    private static IndexRequest docForClassification(String indexName,
+                                                     String actualClass,
+                                                     String... topPredictedClasses) {
+        assert topPredictedClasses.length > 0;
         return new IndexRequest()
             .index(indexName)
-            .source(XContentType.JSON, actualClassField, actualClass, predictedClassField, predictedClass);
+            .source(XContentType.JSON,
+                actualClassField, actualClass,
+                predictedClassField, topPredictedClasses[0],
+                topClassesField, IntStream.range(0, topPredictedClasses.length)
+                    // Consecutive assigned probabilities are: 0.5, 0.25, 0.125, etc.
+                    .mapToObj(i -> Map.of("class_name", topPredictedClasses[i], "class_probability", 1.0 / (2 << i)))
+                    .collect(Collectors.toList()));
     }
 
     private static final String actualRegression = "regression_actual";
@@ -2227,7 +2266,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         {
             GetTrainedModelsResponse getTrainedModelsResponse = execute(
-                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(true).setIncludeDefinition(true),
+                new GetTrainedModelsRequest(modelIdPrefix + 0)
+                    .setDecompressDefinition(true)
+                    .includeDefinition()
+                    .includeTotalFeatureImportance(),
                 machineLearningClient::getTrainedModels,
                 machineLearningClient::getTrainedModelsAsync);
 
@@ -2238,7 +2280,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdPrefix + 0));
 
             getTrainedModelsResponse = execute(
-                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(false).setIncludeDefinition(true),
+                new GetTrainedModelsRequest(modelIdPrefix + 0)
+                    .setDecompressDefinition(false)
+                    .includeTotalFeatureImportance()
+                    .includeDefinition(),
                 machineLearningClient::getTrainedModels,
                 machineLearningClient::getTrainedModelsAsync);
 
@@ -2249,7 +2294,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdPrefix + 0));
 
             getTrainedModelsResponse = execute(
-                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(false).setIncludeDefinition(false),
+                new GetTrainedModelsRequest(modelIdPrefix + 0)
+                    .setDecompressDefinition(false),
                 machineLearningClient::getTrainedModels,
                 machineLearningClient::getTrainedModelsAsync);
             assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
@@ -2394,7 +2440,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testDeleteTrainedModel() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String modelId = "delete-trained-model-test";
+        String modelId = "delete-trained-models-test";
         putTrainedModel(modelId);
 
         GetTrainedModelsResponse getTrainedModelsResponse = execute(

@@ -102,10 +102,12 @@ public class DiskThresholdMonitor {
     private void checkFinished() {
         final boolean checkFinished = checkInProgress.compareAndSet(true, false);
         assert checkFinished;
+        logger.trace("checkFinished");
     }
 
     public void onNewInfo(ClusterInfo info) {
-
+        // TODO find a better way to limit concurrent updates (and potential associated reroutes) while allowing tests to ensure that
+        // all ClusterInfo updates are processed and never ignored
         if (checkInProgress.compareAndSet(false, true) == false) {
             logger.info("skipping monitor as a check is already in progress");
             return;
@@ -113,9 +115,12 @@ public class DiskThresholdMonitor {
 
         final ImmutableOpenMap<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
         if (usages == null) {
+            logger.trace("skipping monitor as no disk usage information is available");
             checkFinished();
             return;
         }
+
+        logger.trace("processing new cluster info");
 
         boolean reroute = false;
         String explanation = "";
@@ -182,7 +187,7 @@ public class DiskThresholdMonitor {
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
 
-                if (lastRunTimeMillis.get() < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
+                if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                     reroute = true;
                     explanation = "high disk watermark exceeded on one or more nodes";
                     usagesOverHighThreshold.add(usage);
@@ -217,7 +222,7 @@ public class DiskThresholdMonitor {
                 if (nodesOverLowThreshold.contains(node)) {
                     // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more shards
                     // if we reroute now.
-                    if (lastRunTimeMillis.get() < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
+                    if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                         reroute = true;
                         explanation = "one or more nodes has gone under the high or low watermark";
                         nodesOverLowThreshold.remove(node);
@@ -283,6 +288,7 @@ public class DiskThresholdMonitor {
                 listener.onFailure(e);
             }));
         } else {
+            logger.trace("no reroute required");
             listener.onResponse(null);
         }
         final Set<String> indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting()
@@ -297,10 +303,12 @@ public class DiskThresholdMonitor {
                 + " since they are now allocated to nodes with sufficient disk space");
             updateIndicesReadOnly(indicesToAutoRelease, listener, false);
         } else {
+            logger.trace("no auto-release required");
             listener.onResponse(null);
         }
 
         indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
+        logger.trace("marking indices as read-only: [{}]", indicesToMarkReadOnly);
         if (indicesToMarkReadOnly.isEmpty() == false) {
             updateIndicesReadOnly(indicesToMarkReadOnly, listener, true);
         } else {

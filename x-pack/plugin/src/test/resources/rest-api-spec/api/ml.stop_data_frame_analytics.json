@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-dfanalytics.html",
       "description":"Stops one or more data frame analytics jobs."
     },
-    "stability":"experimental",
+    "stability":"beta",
     "url":{
       "paths":[
         {

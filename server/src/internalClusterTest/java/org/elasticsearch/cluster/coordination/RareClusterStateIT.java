@@ -54,14 +54,12 @@ import org.elasticsearch.transport.TransportSettings;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -142,17 +140,16 @@ public class RareClusterStateIT extends ESIntegTestCase {
             ActionRequestBuilder<Req, Res> req) throws Exception {
         // Wait for no publication in progress to not accidentally cancel a publication different from the one triggered by the given
         // request.
-        assertBusy(
-            () -> {
-                assertFalse(((Coordinator) internalCluster().getCurrentMasterNodeInstance(Discovery.class)).publicationInProgress());
-                assertThat(StreamSupport.stream(
-                    internalCluster().getInstances(Discovery.class).spliterator(), false)
-                    .map(coordinator -> ((Coordinator) coordinator).getLastAcceptedState().version())
-                    .distinct().toArray(), arrayWithSize(1));
-            });
+        final Coordinator masterCoordinator = (Coordinator) internalCluster().getCurrentMasterNodeInstance(Discovery.class);
+        assertBusy(() -> {
+            assertFalse(masterCoordinator.publicationInProgress());
+            final long applierVersion = masterCoordinator.getApplierState().version();
+            for (Discovery instance : internalCluster().getInstances(Discovery.class)) {
+                assertEquals(((Coordinator) instance).getApplierState().version(), applierVersion);
+            }
+        });
         ActionFuture<Res> future = req.execute();
-        assertBusy(
-            () -> assertTrue(((Coordinator)internalCluster().getCurrentMasterNodeInstance(Discovery.class)).cancelCommittedPublication()));
+        assertBusy(() -> assertTrue(masterCoordinator.cancelCommittedPublication()));
         return future;
     }
 

@@ -25,10 +25,8 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RestTestBasePlugin
 import org.elasticsearch.gradle.testclusters.RunTask
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.elasticsearch.gradle.util.Util
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
@@ -42,9 +40,6 @@ import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Zip
 
-import java.util.regex.Matcher
-import java.util.regex.Pattern
-
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
@@ -56,7 +51,7 @@ class PluginBuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         project.pluginManager.apply(BuildPlugin)
         project.pluginManager.apply(RestTestBasePlugin)
-        project.pluginManager.apply(CompileOnlyResolvePlugin.class);
+        project.pluginManager.apply(CompileOnlyResolvePlugin.class)
 
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
@@ -64,25 +59,15 @@ class PluginBuildPlugin implements Plugin<Project> {
         boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
         boolean isModule = project.path.startsWith(':modules:') || isXPackModule
 
-        createIntegTestTask(project)
         createBundleTasks(project, extension)
-        project.tasks.named("integTest").configure {
-            it.dependsOn(project.tasks.named("bundlePlugin"))
-        }
-        if (isModule) {
-            project.testClusters.integTest.module(project.tasks.bundlePlugin.archiveFile)
-        } else {
-            project.testClusters.integTest.plugin(project.tasks.bundlePlugin.archiveFile)
-        }
 
         project.afterEvaluate {
             project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
                 // Auto add dependent modules to the test cluster
                 if (project.findProject(":modules:${pluginName}") != null) {
-                    project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
-                    project.testClusters.integTest.module(
-                            project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile
-                    )
+                    project.testClusters.all {
+                        module(":modules:${pluginName}")
+                    }
                 }
             }
             PluginPropertiesExtension extension1 = project.getExtensions().getByType(PluginPropertiesExtension.class)
@@ -97,7 +82,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             if (extension1.description == null) {
                 throw new InvalidUserDataException('description is a required setting for esplugin')
             }
-            if (extension1.classname == null) {
+            if (extension1.type != PluginType.BOOTSTRAP && extension1.classname == null) {
                 throw new InvalidUserDataException('classname is a required setting for esplugin')
             }
 
@@ -107,10 +92,12 @@ class PluginBuildPlugin implements Plugin<Project> {
                     'version'             : extension1.version,
                     'elasticsearchVersion': Version.fromString(VersionProperties.elasticsearch).toString(),
                     'javaVersion'         : project.targetCompatibility as String,
-                    'classname'           : extension1.classname,
+                    'classname'           : extension1.type == PluginType.BOOTSTRAP ? "" : extension1.classname,
                     'extendedPlugins'     : extension1.extendedPlugins.join(','),
                     'hasNativeController' : extension1.hasNativeController,
-                    'requiresKeystore'    : extension1.requiresKeystore
+                    'requiresKeystore'    : extension1.requiresKeystore,
+                    'type'                : extension1.type.toString(),
+                    'javaOpts'            : extension1.javaOpts,
             ]
             project.tasks.named('pluginProperties').configure {
                 expand(properties)
@@ -121,12 +108,20 @@ class PluginBuildPlugin implements Plugin<Project> {
             }
         }
 
-        //disable integTest task if project has been converted to use yaml or java rest test plugin
-        project.pluginManager.withPlugin("elasticsearch.yaml-rest-test") {
-            project.tasks.integTest.enabled = false
-        }
-        project.pluginManager.withPlugin("elasticsearch.java-rest-test") {
-            project.tasks.integTest.enabled = false
+        // We've ported this from multiple build scripts where we see this pattern into
+        // an extension method as a first step of consolidation.
+        // We might want to port this into a general pattern later on.
+        project.ext.addQaCheckDependencies = {
+            project.afterEvaluate {
+                // let check depend on check tasks of qa sub-projects
+                def checkTaskProvider = project.tasks.named("check")
+                def qaSubproject = project.subprojects.find { it.path == project.path + ":qa" }
+                if(qaSubproject) {
+                    qaSubproject.subprojects.each {p ->
+                        checkTaskProvider.configure {it.dependsOn(p.path + ":check") }
+                    }
+                }
+            }
         }
 
         project.tasks.named('testingConventions').configure {
@@ -146,8 +141,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                 .extendsFrom(project.configurations.getByName('runtimeClasspath'))
         // allow running ES with this plugin in the foreground of a build
         project.tasks.register('run', RunTask) {
-            dependsOn(project.tasks.bundlePlugin)
-            useCluster project.testClusters.integTest
+            dependsOn(project.tasks.named("bundlePlugin"))
         }
     }
 
@@ -175,13 +169,6 @@ class PluginBuildPlugin implements Plugin<Project> {
             compileOnly "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
             compileOnly "org.elasticsearch:jna:${project.versions.jna}"
         }
-    }
-
-    /** Adds an integTest task which runs rest tests */
-    private static void createIntegTestTask(Project project) {
-        RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
-        integTest.mustRunAfter('precommit', 'test')
-        project.check.dependsOn(integTest)
     }
 
     /**

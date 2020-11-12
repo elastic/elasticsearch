@@ -28,7 +28,9 @@ public class TimeBasedExtractedFields extends ExtractedFields {
     private final ExtractedField timeField;
 
     public TimeBasedExtractedFields(ExtractedField timeField, List<ExtractedField> allFields) {
-        super(allFields, Collections.emptyMap());
+        super(allFields,
+            Collections.emptyList(),
+            Collections.emptyMap());
         if (!allFields.contains(timeField)) {
             throw new IllegalArgumentException("timeField should also be contained in allFields");
         }

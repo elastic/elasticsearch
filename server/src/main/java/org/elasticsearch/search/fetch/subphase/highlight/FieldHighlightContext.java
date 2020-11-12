@@ -20,8 +20,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
 public class FieldHighlightContext {
@@ -29,8 +28,7 @@ public class FieldHighlightContext {
     public final String fieldName;
     public final SearchHighlightContext.Field field;
     public final MappedFieldType fieldType;
-    public final SearchShardTarget shardTarget;
-    public final QueryShardContext context;
+    public final FetchContext context;
     public final FetchSubPhase.HitContext hitContext;
     public final Query query;
     public final boolean forceSource;
@@ -38,15 +36,13 @@ public class FieldHighlightContext {
     public FieldHighlightContext(String fieldName,
                                  SearchHighlightContext.Field field,
                                  MappedFieldType fieldType,
-                                 SearchShardTarget shardTarget,
-                                 QueryShardContext context,
+                                 FetchContext context,
                                  FetchSubPhase.HitContext hitContext,
                                  Query query,
                                  boolean forceSource) {
         this.fieldName = fieldName;
         this.field = field;
         this.fieldType = fieldType;
-        this.shardTarget = shardTarget;
         this.context = context;
         this.hitContext = hitContext;
         this.query = query;

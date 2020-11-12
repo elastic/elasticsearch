@@ -108,10 +108,10 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
     }
 
     public static DocumentField fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         String fieldName = parser.currentName();
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
         List<Object> values = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             values.add(parseFieldsValue(parser));

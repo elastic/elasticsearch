@@ -21,13 +21,11 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.gradle.api.file.RegularFile;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.slf4j.Logger;
 
 import java.io.File;
-import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -45,17 +43,13 @@ public interface TestClusterConfiguration {
 
     void setTestDistribution(TestDistribution distribution);
 
-    void plugin(URI plugin);
+    void plugin(Provider<RegularFile> plugin);
 
-    void plugin(File plugin);
-
-    void plugin(Provider<URI> plugin);
-
-    void plugin(RegularFileProperty plugin);
-
-    void module(File module);
+    void plugin(String pluginProjectPath);
 
     void module(Provider<RegularFile> module);
+
+    void module(String moduleProjectPath);
 
     void keystore(String key, String value);
 

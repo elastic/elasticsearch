@@ -182,21 +182,11 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
                                PersistentTasksService persistentTasksService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(StartPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver);
+                Request::new, indexNameExpressionResolver, PersistentTaskResponse::new, ThreadPool.Names.GENERIC);
             this.persistentTasksClusterService = persistentTasksClusterService;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
             clusterService.addListener(new PersistentTasksNodeService(persistentTasksService, persistentTasksExecutorRegistry,
                     transportService.getTaskManager(), executor));
-        }
-
-        @Override
-        protected String executor() {
-            return ThreadPool.Names.GENERIC;
-        }
-
-        @Override
-        protected PersistentTaskResponse read(StreamInput in) throws IOException {
-            return new PersistentTaskResponse(in);
         }
 
         @Override

@@ -19,14 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -123,57 +117,19 @@ public class FunctionNode extends IRNode {
     /* ---- end node data, begin visitor ---- */
 
     @Override
-    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
-        return irTreeVisitor.visitFunction(this, input);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitFunction(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getBlockNode().visit(irTreeVisitor, scope);
     }
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        int access = Opcodes.ACC_PUBLIC;
-
-        if (isStatic) {
-            access |= Opcodes.ACC_STATIC;
-        } else {
-            writeScope.defineInternalVariable(Object.class, "this");
-        }
-
-        if (hasVarArgs) {
-            access |= Opcodes.ACC_VARARGS;
-        }
-
-        if (isSynthetic) {
-            access |= Opcodes.ACC_SYNTHETIC;
-        }
-
-        Type asmReturnType = MethodWriter.getType(returnType);
-        Type[] asmParameterTypes = new Type[typeParameters.size()];
-
-        for (int index = 0; index < asmParameterTypes.length; ++index) {
-            Class<?> type = typeParameters.get(index);
-            String name = parameterNames.get(index);
-            writeScope.defineVariable(type, name);
-            asmParameterTypes[index] = MethodWriter.getType(typeParameters.get(index));
-        }
-
-        Method method = new Method(name, asmReturnType, asmParameterTypes);
-
-        methodWriter = classWriter.newMethodWriter(access, method);
-        methodWriter.visitCode();
-
-        if (maxLoopCounter > 0) {
-            // if there is infinite loop protection, we do this once:
-            // int #loop = settings.getMaxLoopCounter()
-
-            Variable loop = writeScope.defineInternalVariable(int.class, "loop");
-
-            methodWriter.push(maxLoopCounter);
-            methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
-        }
-
-        blockNode.write(classWriter, methodWriter, writeScope.newScope());
-
-        methodWriter.endMethod();
+    public FunctionNode(Location location) {
+        super(location);
     }
+
 }

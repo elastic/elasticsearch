@@ -213,6 +213,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
      * recovery from a snapshot
      */
     public static class SnapshotRecoverySource extends RecoverySource {
+
+        public static final String NO_API_RESTORE_UUID = "_no_api_";
+
         private final String restoreUUID;
         private final Snapshot snapshot;
         private final IndexId index;
@@ -229,11 +232,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             restoreUUID = in.readString();
             snapshot = new Snapshot(in);
             version = Version.readVersion(in);
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                index = new IndexId(in);
-            } else {
-                index = new IndexId(in.readString(), IndexMetadata.INDEX_UUID_NA_VALUE);
-            }
+            index = new IndexId(in);
         }
 
         public String restoreUUID() {
@@ -263,11 +262,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             out.writeString(restoreUUID);
             snapshot.writeTo(out);
             Version.writeVersion(version, out);
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                index.writeTo(out);
-            } else {
-                out.writeString(index.getName());
-            }
+            index.writeTo(out);
         }
 
         @Override

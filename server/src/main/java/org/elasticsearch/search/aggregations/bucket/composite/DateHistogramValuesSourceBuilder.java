@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -60,7 +59,7 @@ import java.util.function.LongConsumer;
 public class DateHistogramValuesSourceBuilder
     extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder> implements DateIntervalConsumer {
     @FunctionalInterface
-    public interface DateHistogramCompositeSupplier extends ValuesSourceRegistry.CompositeSupplier {
+    public interface DateHistogramCompositeSupplier {
         CompositeValuesSourceConfig apply(
             ValuesSourceConfig config,
             Rounding rounding,
@@ -271,7 +270,7 @@ public class DateHistogramValuesSourceBuilder
     }
 
     public static void register(ValuesSourceRegistry.Builder builder) {
-        builder.registerComposite(
+        builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, order) -> {
@@ -310,8 +309,8 @@ public class DateHistogramValuesSourceBuilder
                         );
                     }
                 );
-            }
-        );
+            },
+            false);
     }
 
     @Override
@@ -320,10 +319,9 @@ public class DateHistogramValuesSourceBuilder
     }
 
     @Override
-    protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
+    protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
-        return queryShardContext.getValuesSourceRegistry()
-            .getComposite(REGISTRY_KEY, config)
+        return registry.getAggregator(REGISTRY_KEY, config)
             .apply(config, rounding, name, config.script() != null, format(), missingBucket(), order());
     }
 }

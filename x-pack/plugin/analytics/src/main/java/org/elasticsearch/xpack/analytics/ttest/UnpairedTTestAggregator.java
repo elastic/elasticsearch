@@ -12,7 +12,6 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -39,9 +38,8 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
                             Supplier<Tuple<Weight, Weight>> weightsSupplier, DocValueFormat format, SearchContext context,
                             Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, valuesSources, tails, format, context, parent, metadata);
-        BigArrays bigArrays = context.bigArrays();
-        a = new TTestStatsBuilder(bigArrays);
-        b = new TTestStatsBuilder(bigArrays);
+        a = new TTestStatsBuilder(bigArrays());
+        b = new TTestStatsBuilder(bigArrays());
         this.weightsSupplier = weightsSupplier;
         this.homoscedastic = homoscedastic;
     }
@@ -67,7 +65,6 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues docAValues = valuesSources.getField(A_FIELD.getPreferredName(), ctx);
         final SortedNumericDoubleValues docBValues = valuesSources.getField(B_FIELD.getPreferredName(), ctx);
         final CompensatedSum compSumA = new CompensatedSum(0, 0);
@@ -93,12 +90,12 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (bitsA == null || bitsA.get(doc)) {
-                    a.grow(bigArrays, bucket + 1);
+                    a.grow(bigArrays(), bucket + 1);
                     processValues(doc, bucket, docAValues, compSumA, compSumOfSqrA, a);
                 }
                 if (bitsB == null || bitsB.get(doc)) {
                     processValues(doc, bucket, docBValues, compSumB, compSumOfSqrB, b);
-                    b.grow(bigArrays, bucket + 1);
+                    b.grow(bigArrays(), bucket + 1);
                 }
             }
         };

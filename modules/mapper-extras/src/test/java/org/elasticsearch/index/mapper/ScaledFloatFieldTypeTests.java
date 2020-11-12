@@ -36,9 +36,10 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
-
 
     public void testTermQuery() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft
@@ -64,8 +65,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         // make sure the accuracy loss of scaled floats only occurs at index time
         // this test checks that searching scaled floats yields the same results as
         // searching doubles that are rounded to the closest half float
-        ScaledFloatFieldMapper.ScaledFloatFieldType ft
-            = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 0.1 + randomDouble() * 100);
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
+                    "scaled_float", true, false, false, Collections.emptyMap(), 0.1 + randomDouble() * 100, null);
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         final int numDocs = 1000;
@@ -150,7 +151,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             // single-valued
             ScaledFloatFieldMapper.ScaledFloatFieldType f1
                 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float1", scalingFactor);
-            IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder("index").build(null, null, null);
+            IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder("index", () -> {
+                throw new UnsupportedOperationException();
+            }).build(null, null);
             assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
             LeafNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
             SortedNumericDoubleValues values = leafFieldData.getDoubleValues();
@@ -161,7 +164,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             // multi-valued
             ScaledFloatFieldMapper.ScaledFloatFieldType f2
                 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float2", scalingFactor);
-            fielddata = (IndexNumericFieldData) f2.fielddataBuilder("index").build(null, null, null);
+            fielddata = (IndexNumericFieldData) f2.fielddataBuilder("index", () -> {
+                throw new UnsupportedOperationException();
+            }).build(null, null);
             leafFieldData = fielddata.load(reader.leaves().get(0));
             values = leafFieldData.getDoubleValues();
             assertTrue(values.advanceExact(0));
@@ -170,5 +175,22 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             assertEquals(12/f2.getScalingFactor(), values.nextValue(), 10e-5);
         }
         IOUtils.close(w, dir);
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        MappedFieldType mapper = new ScaledFloatFieldMapper.Builder("field", false, false)
+            .scalingFactor(100)
+            .build(new ContentPath())
+            .fieldType();
+        assertEquals(List.of(3.14), fetchSourceValue(mapper, 3.1415926));
+        assertEquals(List.of(3.14), fetchSourceValue(mapper, "3.1415"));
+        assertEquals(List.of(), fetchSourceValue(mapper, ""));
+
+        MappedFieldType nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false)
+            .scalingFactor(100)
+            .nullValue(2.71)
+            .build(new ContentPath())
+            .fieldType();
+        assertEquals(List.of(2.71), fetchSourceValue(nullValueMapper, ""));
     }
 }

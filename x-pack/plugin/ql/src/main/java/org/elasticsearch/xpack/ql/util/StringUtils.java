@@ -62,7 +62,7 @@ public final class StringUtils {
         }
         return sb.toString().toUpperCase(Locale.ROOT);
     }
-    
+
     //CAMEL_CASE to camelCase
     public static String underscoreToLowerCamelCase(String string) {
         if (!Strings.hasText(string)) {

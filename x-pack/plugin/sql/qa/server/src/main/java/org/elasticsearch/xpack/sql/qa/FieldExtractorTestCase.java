@@ -135,6 +135,39 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     /*
+     *    "wildcard_field": {
+     *       "type": "wildcard",
+     *       "ignore_above": 10
+     *    }
+     */
+    public void testWildcardField() throws IOException {
+        String wildcard = randomAlphaOfLength(20);
+        // _source for `wildcard` fields doesn't matter, as they should be taken from docvalue_fields
+        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
+        boolean enableSource = randomBoolean();          // enable _source at index level
+        boolean ignoreAbove = randomBoolean();
+
+        Map<String, Object> indexProps = new HashMap<>(1);
+        indexProps.put("_source", enableSource);
+
+        Map<String, Map<String, Object>> fieldProps = null;
+        if (ignoreAbove) {
+            fieldProps = new HashMap<>(1);
+            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProp.put("ignore_above", 10);
+            fieldProps.put("wildcard_field", fieldProp);
+        }
+
+        createIndexWithFieldTypeAndProperties("wildcard", fieldProps, explicitSourceSetting ? indexProps : null);
+        index("{\"wildcard_field\":\"" + wildcard + "\"}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(columnInfo("plain", "wildcard_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(ignoreAbove ? null : wildcard)));
+        assertResponse(expected, runSql("SELECT wildcard_field FROM test"));
+    }
+
+    /*
      *    "long/integer/short/byte_field": {
      *       "type": "long/integer/short/byte"
      *    }

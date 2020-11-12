@@ -40,10 +40,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.UUIDs;
@@ -63,6 +59,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -86,11 +83,8 @@ import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.hamcrest.Matcher;
 
@@ -117,8 +111,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -126,9 +118,11 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -140,7 +134,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class SearchableSnapshotDirectoryTests extends ESTestCase {
+public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshotsTestCase {
 
     public void testListAll() throws Exception {
         testDirectories(
@@ -319,7 +313,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     IndexInput::getFilePointer
                 );
 
-                int available = Math.toIntExact(indexInput.length() - indexInput.getFilePointer());
+                int available = toIntBytes(indexInput.length() - indexInput.getFilePointer());
                 if (available == 0) {
                     expectThrows(EOFException.class, () -> snapshotIndexInput.readBytes(snapshotBuffer, 0, snapshotBuffer.length));
                     return;
@@ -504,9 +498,6 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 writer.commit();
             }
 
-            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
-            releasables.add(() -> terminate(threadPool));
-
             final Store store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
             store.incRef();
             releasables.add(store::decRef);
@@ -546,6 +537,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     ),
                     NamedXContentRegistry.EMPTY,
                     BlobStoreTestUtil.mockClusterService(repositoryMetadata),
+                    MockBigArrays.NON_RECYCLING_INSTANCE,
                     new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
                 ) {
 
@@ -590,7 +582,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 }
                 final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = createTempDir();
-                final CacheService cacheService = TestUtils.createDefaultCacheService();
+                final CacheService cacheService = defaultCacheService();
                 releasables.add(cacheService);
                 cacheService.start();
 
@@ -598,6 +590,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     SearchableSnapshotDirectory snapshotDirectory = new SearchableSnapshotDirectory(
                         () -> blobContainer,
                         () -> snapshot,
+                        new TestUtils.NoopBlobStoreCacheService(),
+                        "_repo",
                         snapshotId,
                         indexId,
                         shardId,
@@ -623,6 +617,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             } finally {
                 Releasables.close(releasables);
             }
+        } finally {
+            assertThreadPoolNotBusy(threadPool);
         }
     }
 
@@ -648,7 +644,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     }
 
     public void testClearCache() throws Exception {
-        try (CacheService cacheService = TestUtils.createDefaultCacheService()) {
+        try (CacheService cacheService = defaultCacheService()) {
             cacheService.start();
 
             final int nbRandomFiles = randomIntBetween(3, 10);
@@ -688,11 +684,12 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             }
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = createTempDir();
-            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
             try (
                 SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                     () -> blobContainer,
                     () -> snapshot,
+                    new TestUtils.NoopBlobStoreCacheService(),
+                    "_repo",
                     snapshotId,
                     indexId,
                     shardId,
@@ -718,7 +715,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final byte[] buffer = new byte[1024];
                 for (int i = 0; i < randomIntBetween(10, 50); i++) {
                     final BlobStoreIndexShardSnapshot.FileInfo fileInfo = randomFrom(randomFiles);
-                    final int fileLength = Math.toIntExact(fileInfo.length());
+                    final int fileLength = toIntBytes(fileInfo.length());
 
                     try (IndexInput input = directory.openInput(fileInfo.physicalName(), newIOContext(random()))) {
                         assertThat(input.length(), equalTo((long) fileLength));
@@ -727,17 +724,17 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
                         input.seek(start);
                         while (input.getFilePointer() < end) {
-                            input.readBytes(buffer, 0, Math.toIntExact(Math.min(buffer.length, end - input.getFilePointer())));
+                            input.readBytes(buffer, 0, toIntBytes(Math.min(buffer.length, end - input.getFilePointer())));
                         }
                     }
                     assertListOfFiles(cacheDir, allOf(greaterThan(0), lessThanOrEqualTo(nbRandomFiles)), greaterThan(0L));
                     if (randomBoolean()) {
                         directory.clearCache();
-                        assertListOfFiles(cacheDir, equalTo(0), equalTo(0L));
+                        assertBusy(() -> assertListOfFiles(cacheDir, equalTo(0), equalTo(0L)));
                     }
                 }
             } finally {
-                terminate(threadPool);
+                assertThreadPoolNotBusy(threadPool);
             }
         }
     }
@@ -745,6 +742,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     public void testRequiresAdditionalSettings() {
         final List<Setting<String>> requiredSettings = List.of(
             SNAPSHOT_REPOSITORY_SETTING,
+            SNAPSHOT_INDEX_NAME_SETTING,
             SNAPSHOT_INDEX_ID_SETTING,
             SNAPSHOT_SNAPSHOT_NAME_SETTING,
             SNAPSHOT_SNAPSHOT_ID_SETTING
@@ -763,7 +761,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             final IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("test").settings(settings).build(), Settings.EMPTY);
             expectThrows(
                 IllegalArgumentException.class,
-                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null)
+                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null, null)
             );
         }
     }
@@ -777,9 +775,16 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         try {
             SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
             testDirectories(true, true, recoveryState, Settings.EMPTY, (directory, snapshotDirectory) -> {
-                assertExecutorIsIdle(snapshotDirectory.prewarmExecutor());
-
-                assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.FINALIZE));
+                boolean areAllFilesReused = snapshotDirectory.snapshot()
+                    .indexFiles()
+                    .stream()
+                    .allMatch(fileInfo -> fileInfo.metadata().hashEqualsContents());
+                assertBusy(() -> {
+                    // When the number of indexed documents == 0, the index snapshot only contains the
+                    // commit file, meaning that the recovery won't fail in that case.
+                    RecoveryState.Stage expectedStage = areAllFilesReused ? RecoveryState.Stage.DONE : RecoveryState.Stage.FINALIZE;
+                    assertThat(recoveryState.getStage(), equalTo(expectedStage));
+                });
                 // All pre-warm tasks failed
                 assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0L));
             });
@@ -823,7 +828,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             .putList(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), fileTypesExcludedFromCaching)
             .build();
         testDirectories(true, true, recoveryState, settings, (directory, snapshotDirectory) -> {
-            assertExecutorIsIdle(snapshotDirectory.prewarmExecutor());
+            assertBusy(() -> assertTrue(recoveryState.isPreWarmComplete()));
 
             assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
             for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
@@ -837,7 +842,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
 
         testDirectories(true, true, recoveryState, Settings.EMPTY, (directory, snapshotDirectory) -> {
-            assertExecutorIsIdle(snapshotDirectory.prewarmExecutor());
+            assertBusy(() -> assertTrue(recoveryState.isPreWarmComplete()));
             assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
 
             List<BlobStoreIndexShardSnapshot.FileInfo> filesWithEqualContent = snapshotDirectory.snapshot()
@@ -889,14 +894,6 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         assertThat("Sum of file sizes mismatch, got: " + files, files.values().stream().mapToLong(Long::longValue).sum(), matchSizeOfFiles);
     }
 
-    private void assertExecutorIsIdle(Executor executor) throws Exception {
-        ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) executor;
-        assertBusy(() -> {
-            assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));
-            assertThat(threadPoolExecutor.getQueue().size(), equalTo(0));
-        });
-    }
-
     private static IndexSettings newIndexSettings() {
         return IndexSettingsModule.newIndexSettings(
             "_index",
@@ -905,27 +902,6 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
                 .build()
         );
-    }
-
-    private SearchableSnapshotRecoveryState createRecoveryState() {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            randomAlphaOfLength(10),
-            0,
-            randomAlphaOfLength(10),
-            true,
-            ShardRoutingState.INITIALIZING
-        );
-        DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
-        SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
-
-        recoveryState.setStage(RecoveryState.Stage.INIT)
-            .setStage(RecoveryState.Stage.INDEX)
-            .setStage(RecoveryState.Stage.VERIFY_INDEX)
-            .setStage(RecoveryState.Stage.TRANSLOG);
-        recoveryState.getIndex().setFileDetailsComplete();
-        recoveryState.setStage(RecoveryState.Stage.FINALIZE).setStage(RecoveryState.Stage.DONE);
-
-        return recoveryState;
     }
 
     private static class FaultyReadsFileSystem extends FilterFileSystemProvider {
@@ -944,5 +920,4 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             };
         }
     }
-
 }

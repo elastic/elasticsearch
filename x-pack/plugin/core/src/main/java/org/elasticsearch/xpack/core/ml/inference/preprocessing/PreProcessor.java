@@ -18,13 +18,25 @@ import java.util.Map;
  */
 public interface PreProcessor extends NamedXContentObject, NamedWriteable, Accountable {
 
+    class PreProcessorParseContext {
+        public static final PreProcessorParseContext DEFAULT = new PreProcessorParseContext(false);
+        final boolean defaultIsCustomValue;
+        public PreProcessorParseContext(boolean defaultIsCustomValue) {
+            this.defaultIsCustomValue = defaultIsCustomValue;
+        }
+
+        public boolean isCustomByDefault() {
+            return defaultIsCustomValue;
+        }
+    }
+
     /**
      * The expected input fields
      */
     List<String> inputFields();
 
     /**
-     * @return The resulting output fields
+     * @return The resulting output fields. It is imperative that the order is consistent between calls.
      */
     List<String> outputFields();
 
@@ -47,5 +59,7 @@ public interface PreProcessor extends NamedXContentObject, NamedWriteable, Accou
      *         importance calculations.
      */
     boolean isCustom();
+
+    String getOutputFieldType(String outputField);
 
 }

@@ -6,8 +6,8 @@ Certain realms store user credentials in memory. To limit exposure
 to credential theft and mitigate credential compromise, the cache only stores
 a hashed version of the user credentials in memory. By default, the user cache
 is hashed with a salted `sha-256` hash algorithm. You can use a different
-hashing algorithm by setting the `cache.hash_algo` realm settings to any of the
-following values:
+hashing algorithm by setting the <<static-cluster-setting,static>>
+`cache.hash_algo` realm settings to any of the following values:
 
 [[cache-hash-algo]]
 .Cache hash algorithms
@@ -43,10 +43,11 @@ following values:
                             memory dumps and using `ptrace`).
 |=======================
 
-Likewise, realms that store passwords hash them using cryptographically strong 
-and password-specific salt values. You can configure the algorithm for password 
-hashing by setting the `xpack.security.authc.password_hashing.algorithm` setting 
-to one of the following:
+Likewise, realms that store passwords hash them using cryptographically strong
+and password-specific salt values. You can configure the algorithm for password
+hashing by setting the <<static-cluster-setting,static>>
+`xpack.security.authc.password_hashing.algorithm` setting to one of the
+following:
 
 [[password-hashing-algorithms]]
 .Password hashing algorithms

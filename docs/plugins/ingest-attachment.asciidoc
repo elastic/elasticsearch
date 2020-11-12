@@ -98,6 +98,53 @@ PUT _ingest/pipeline/attachment
 NOTE: Extracting contents from binary data is a resource intensive operation and
       consumes a lot of resources. It is highly recommended to run pipelines
       using this processor in a dedicated ingest node.
+      
+[[ingest-attachment-cbor]]
+==== Use the attachment processor with CBOR
+
+To avoid encoding and decoding JSON to base64, you can instead pass CBOR data to
+the attachment processor. For example, the following request creates the
+`cbor-attachment` pipeline, which uses the attachment processor.
+
+[source,console]
+----
+PUT _ingest/pipeline/cbor-attachment
+{
+  "description" : "Extract attachment information",
+  "processors" : [
+    {
+      "attachment" : {
+        "field" : "data"
+      }
+    }
+  ]
+}
+----
+
+The following Python script passes CBOR data to an HTTP indexing request that
+includes the `cbor-attachment` pipeline. The HTTP request headers use a
+a `content-type` of `application/cbor`.
+
+NOTE: Not all {es} clients support custom HTTP request headers.
+
+[source,python]
+----
+import cbor2
+import requests
+
+file = 'my-file'
+headers = {'content-type': 'application/cbor'}
+
+with open(file, 'rb') as f:
+  doc = {
+    'data': f.read()
+  }
+  requests.put(
+    'http://localhost:9200/my-index-000001/_doc/my_id?pipeline=cbor-attachment', 
+    data=cbor2.dumps(doc), 
+    headers=headers
+  )
+----
 
 [[ingest-attachment-extracted-chars]]
 ==== Limit the number of extracted chars

@@ -4,32 +4,34 @@
 <titleabbrev>Delete index template</titleabbrev>
 ++++
 
-Deletes an index template.
+Deletes an <<index-templates,index template>>.
 
 ////
 [source,console]
---------------------------------------------------
-PUT _template/template_1
+----
+PUT /_index_template/my-index-template
 {
  "index_patterns" : ["te*"],
-  "settings": {
+ "template": {
+     "settings": {
     "number_of_shards": 1
   }
+ }
 }
---------------------------------------------------
+----
 // TESTSETUP
 ////
 
 [source,console]
---------------------------------------------------
-DELETE /_template/template_1
---------------------------------------------------
+----
+DELETE /_index_template/my-index-template
+----
 
 
 [[delete-template-api-request]]
 ==== {api-request-title}
 
-`DELETE /_template/<index-template>`
+`DELETE /_index_template/<index-template>`
 
 
 [[delete-template-api-desc]]

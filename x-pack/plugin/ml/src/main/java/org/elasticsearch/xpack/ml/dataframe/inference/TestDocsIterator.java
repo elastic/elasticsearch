@@ -29,7 +29,7 @@ import java.util.Objects;
 public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     private final DataFrameAnalyticsConfig config;
-    private String lastDocId;
+    private Long lastDocId;
     private final Map<String, String> docValueFieldAndFormatPairs;
 
     TestDocsIterator(OriginSettingClient client, DataFrameAnalyticsConfig config, ExtractedFields extractedFields) {
@@ -54,7 +54,7 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected FieldSortBuilder sortField() {
-        return SortBuilders.fieldSort(DestinationIndex.ID_COPY).order(SortOrder.ASC);
+        return SortBuilders.fieldSort(DestinationIndex.INCREMENTAL_ID).order(SortOrder.ASC);
     }
 
     @Override
@@ -69,7 +69,7 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected void extractSearchAfterFields(SearchHit lastSearchHit) {
-        lastDocId = lastSearchHit.getId();
+        lastDocId = (long) lastSearchHit.getSortValues()[0];
     }
 
     @Override

@@ -59,8 +59,8 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-//The default 20 minutes timeout isn't always enough, please do not increase further than 30 before analyzing what makes this suite so slow
-@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
+//The default 20 minutes timeout isn't always enough, but Darwin CI hosts are incredibly slow...
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public DocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

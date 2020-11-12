@@ -89,13 +89,15 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         "darwin"  | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION   | "Contents/Home/bin/java" | ""
         "darwin"  | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "Contents/Home/bin/java" | ""
         "darwin"  | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "Contents/Home/bin/java" | "(old version)"
+        "mac"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "Contents/Home/bin/java" | ""
+        "mac"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "Contents/Home/bin/java" | "(old version)"
     }
 
     def "transforms are reused across projects"() {
         given:
         def mockRepoUrl = urlPath(jdkVendor, jdkVersion, platform)
         def mockedContent = filebytes(jdkVendor, platform)
-        10.times {
+        3.times {
             settingsFile << """
                 include ':sub-$it'
             """
@@ -132,8 +134,8 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         }
 
         then:
-        result.tasks.size() == 10
-        result.output.count("Unpacking linux-12.0.2-x64.tar.gz using SymbolicLinkPreservingUntarTransform.") == 1
+        result.tasks.size() == 3
+        result.output.count("Unpacking linux-12.0.2-x64.tar.gz using ${SymbolicLinkPreservingUntarTransform.simpleName}.") == 1
 
         where:
         platform | jdkVendor           | jdkVersion        | expectedJavaBin
@@ -149,7 +151,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
              id 'elasticsearch.jdk-download'
             }
-            
+            apply plugin: 'base'
             apply plugin: 'elasticsearch.jdk-download'
 
             jdks {
@@ -175,9 +177,9 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
             def commonGradleUserHome = testProjectDir.newFolder().toString()
             // initial run
-            gradleRunner('getJdk', '-g', commonGradleUserHome).build()
+            gradleRunner('clean', 'getJdk', '-g', commonGradleUserHome).build()
             // run against up-to-date transformations
-            gradleRunner('getJdk', '-i', '-g', commonGradleUserHome).build()
+            gradleRunner('clean', 'getJdk', '-i', '-g', commonGradleUserHome).build()
         }
 
         then:
@@ -200,10 +202,10 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
     private static String urlPath(final String vendor, final String version, final String platform) {
         if (vendor.equals(VENDOR_ADOPTOPENJDK)) {
-            final String module = platform.equals("darwin") ? "mac" : platform;
+            final String module = isMac(platform) ? "mac" : platform;
             return "/jdk-12.0.2+10/" + module + "/x64/jdk/hotspot/normal/adoptopenjdk";
         } else if (vendor.equals(VENDOR_OPENJDK)) {
-            final String effectivePlatform = platform.equals("darwin") ? "osx" : platform;
+            final String effectivePlatform = isMac(platform) ? "osx" : platform;
             final boolean isOld = version.equals(OPENJDK_VERSION_OLD);
             final String versionPath = isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
             final String filename = "openjdk-" + (isOld ? "1" : "12.0.1") + "_" + effectivePlatform + "-x64_bin." + extension(platform);
@@ -212,12 +214,16 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     private static byte[] filebytes(final String vendor, final String platform) throws IOException {
-        final String effectivePlatform = platform.equals("darwin") ? "osx" : platform;
+        final String effectivePlatform = isMac(platform) ? "osx" : platform;
         if (vendor.equals(VENDOR_ADOPTOPENJDK)) {
             return JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_adoptopenjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
         } else if (vendor.equals(VENDOR_OPENJDK)) {
             JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_openjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
         }
+    }
+
+    private static boolean isMac(String platform) {
+        platform.equals("darwin") || platform.equals("mac")
     }
 
     private static String extension(String platform) {

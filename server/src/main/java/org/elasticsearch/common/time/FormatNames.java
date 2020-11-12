@@ -58,7 +58,7 @@ public enum FormatNames {
     WEEK_DATE("week_date"),
     WEEK_DATE_TIME("week_date_time"),
     WEEK_DATE_TIME_NO_MILLIS("week_date_time_no_millis"),
-    WEEK_YEAR("week_year"),
+    WEEKYEAR("weekyear"),
     WEEK_YEAR_WEEK("weekyear_week"),
     WEEKYEAR_WEEK_DAY("weekyear_week_day"),
     YEAR("year"),
@@ -102,13 +102,17 @@ public enum FormatNames {
     STRICT_YEAR_MONTH("strict_year_month"),
     STRICT_YEAR_MONTH_DAY("strict_year_month_day");
 
-    private final String snakeCaseName;
+    private final String name;
 
-    FormatNames(String snakeCaseName) {
-        this.snakeCaseName = snakeCaseName;
+    FormatNames(String name) {
+        this.name = name;
     }
 
     public boolean matches(String format) {
-        return format.equals(snakeCaseName);
+        return format.equals(name);
+    }
+
+    public String getName() {
+        return name;
     }
 }

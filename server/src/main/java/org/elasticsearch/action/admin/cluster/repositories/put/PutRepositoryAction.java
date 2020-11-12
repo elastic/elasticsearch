@@ -31,7 +31,7 @@ public class PutRepositoryAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/repository/put";
 
     private PutRepositoryAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

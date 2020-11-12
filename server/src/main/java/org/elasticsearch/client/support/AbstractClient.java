@@ -94,6 +94,9 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
@@ -933,6 +936,21 @@ public abstract class AbstractClient implements Client {
         @Override
         public CreateSnapshotRequestBuilder prepareCreateSnapshot(String repository, String name) {
             return new CreateSnapshotRequestBuilder(this, CreateSnapshotAction.INSTANCE, repository, name);
+        }
+
+        @Override
+        public CloneSnapshotRequestBuilder prepareCloneSnapshot(String repository, String source, String target) {
+            return new CloneSnapshotRequestBuilder(this, CloneSnapshotAction.INSTANCE, repository, source, target);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> cloneSnapshot(CloneSnapshotRequest request) {
+            return execute(CloneSnapshotAction.INSTANCE, request);
+        }
+
+        @Override
+        public void cloneSnapshot(CloneSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
+            execute(CloneSnapshotAction.INSTANCE, request, listener);
         }
 
         @Override

@@ -107,7 +107,8 @@ teardown:
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: shared_logs
 
   # Joe searches:
   - do:
@@ -177,7 +178,8 @@ teardown:
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: shared_logs
 
   # Joe searches:
   - do:

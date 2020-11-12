@@ -1,5 +1,5 @@
 [[token-count]]
-=== Token count data type
+=== Token count field type
 ++++
 <titleabbrev>Token count</titleabbrev>
 ++++

@@ -85,6 +85,7 @@ public class InferenceRunner {
             TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config,
                 extractedFields);
             try (LocalModel localModel = localModelPlainActionFuture.actionGet()) {
+                LOGGER.debug("Loaded inference model [{}]", localModel);
                 inferTestDocs(localModel, testDocsIterator);
             }
         } catch (Exception e) {
@@ -159,6 +160,6 @@ public class InferenceRunner {
             bulkRequest,
             config.getId(),
             () -> isCancelled == false,
-            errorMsg -> {});
+            retryMessage -> {});
     }
 }

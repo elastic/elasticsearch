@@ -80,8 +80,7 @@ Besides creating a copy of each data stream and index, the snapshot process can 
 cluster settings and templates. The transient settings and registered snapshot repositories are not stored as part of
 the snapshot.
 
-Only one snapshot process can be started in the cluster at any time. While a
-snapshot of a particular shard is being
+While a snapshot of a particular shard is being
 created, this shard cannot be moved to another node, which can interfere with rebalancing and allocation
 filtering. {es} can only move a shard to another node (according to the current allocation
 filtering settings and rebalancing algorithm) after the snapshot process
@@ -125,3 +124,5 @@ PUT /_snapshot/my_backup/<snapshot-{now/d}>
 PUT /_snapshot/my_backup/%3Csnapshot-%7Bnow%2Fd%7D%3E
 -----------------------------------
 // TEST[continued]
+
+NOTE: You can also create snapshots that are copies of part of an existing snapshot using the <<clone-snapshot-api,clone snapshot API>>.

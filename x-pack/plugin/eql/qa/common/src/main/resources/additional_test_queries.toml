@@ -5,14 +5,14 @@
 name = "betweenAdditional1"
 expected_event_ids = [95]
 query = '''
-file where between(file_path, "dev", ".json", false) == "\\TestLogs\\something"
+file where between(file_path, "dev", ".json", false) : "\\TestLogs\\something"
 '''
 
 [[queries]]
 name = "betweenAdditional2"
 expected_event_ids = [95]
 query = '''
-file where between(file_path, "dev", ".json", true) == "\\TestLogs\\something"
+file where between(file_path, "dev", ".json", true) : "\\TestLogs\\something"
 '''
 
 [[queries]]
@@ -26,7 +26,7 @@ network where cidrMatch(source_address, "10.6.48.157/8") == true
 name = "stringCidrMatch2"
 expected_event_ids = [75304, 75305]
 query = '''
-network where string(cidrMatch(source_address, "10.6.48.157/8")) == "true"
+network where string(cidrMatch(source_address, "10.6.48.157/8")) : "true"
 '''
 
 [[queries]]
@@ -62,14 +62,14 @@ network where cidrMatch(source_address, "0.0.0.0/0") == true
 name = "concatEquals1"
 description = "test string concatenation. update test to avoid case-sensitivity issues"
 query = '''
-process where concat(serial_event_id, '::', process_name, '::', opcode) == '5::wininit.exe::3'
+process where concat(serial_event_id, "::", process_name, "::", opcode) : "5::wininit.exe::3"
 '''
 expected_event_ids  = [5]
 
 
 [[queries]]
 name = "concatEquals2"
-query = 'process where concat(serial_event_id) = "1"'
+query = 'process where concat(serial_event_id) : "1"'
 expected_event_ids  = [1]
 
 [[queries]]
@@ -98,7 +98,7 @@ expected_event_ids  = [1, 2, 3, 4]
 
 [[queries]]
 name = "numberStringConversion1"
-query = 'process where string(serial_event_id) = "1"'
+query = 'process where string(serial_event_id) : "1"'
 expected_event_ids  = [1]
 
 
@@ -131,48 +131,45 @@ name = "numberStringConversion5"
 query = 'any where number(string(serial_event_id), 16) == 17'
 expected_event_ids = [11]
 
-
-[[queries]]
-name = "matchWithCharacterClasses1"
-expected_event_ids  = [98]
-notes = "regexp doesn't support character classes"
-query = '''
-//
-//                                ?'.*?net1\s+localgroup.*?')
-process where match(command_line, ?'.*?net1[ ]+localgroup.*?')
-'''
-
-[[queries]]
-name = "matchLiteAdditional"
-expected_event_ids  = [98]
-query = '''
-process where matchLite(command_line, ?'.*?net1.*?')
-'''
-
-[[queries]]
-name = "matchWithCharacterClasses2"
-expected_event_ids  = [98]
-notes = "regexp doesn't support predefined character classes (like \\s)"
-query = '''
-//                                ?'.*?net1\s+\w{4,15}\s+.*?'
-process where match(command_line, ?'.*?net1[ ]+[a-z]{4,15}[ ]+.*?')
-'''
-
-
-
-[[queries]]
-name = "multiPatternMatch"
-expected_event_ids  = [50, 97, 98]
-query = '''
-process where match(command_line, '.*?net[1]?  localgroup.*?', '.*? myappserver.py .*?')
-'''
-
-[[queries]]
-name = "matchWithSubstring"
-expected_event_ids  = [50, 98]
-query = '''
-process where match(substring(command_line, 5), '.*?net[1]?  localgroup.*?', '.*? myappserver.py .*?')
-'''
+# [[queries]]
+# name = "matchWithCharacterClasses1"
+# expected_event_ids  = [98]
+# notes = "regexp doesn't support character classes"
+# query = '''
+# //
+# //                                """.*?net1\s+localgroup.*?""")
+# process where match(command_line, """.*?net1[ ]+localgroup.*?""")
+# '''
+#
+# [[queries]]
+# name = "matchLiteAdditional"
+# expected_event_ids  = [98]
+# query = '''
+# process where matchLite(command_line, """.*?net1.*?""")
+# '''
+#
+# [[queries]]
+# name = "matchWithCharacterClasses2"
+# expected_event_ids  = [98]
+# notes = "regexp doesn't support predefined character classes (like \\s)"
+# query = '''
+# //                                """.*?net1\s+\w{4,15}\s+.*?"""
+# process where match(command_line, """.*?net1[ ]+[a-z]{4,15}[ ]+.*?""")
+# '''
+#
+# [[queries]]
+# name = "multiPatternMatch"
+# expected_event_ids  = [50, 97, 98]
+# query = '''
+# process where match(command_line, ".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
+# '''
+#
+# [[queries]]
+# name = "matchWithSubstring"
+# expected_event_ids  = [50, 98]
+# query = '''
+# process where match(substring(command_line, 5), ".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
+# '''
 
 [[queries]]
 name = "moduloEqualsField"
@@ -223,8 +220,8 @@ query = "process where serial_event_id + ((1 + 3) * 2 / (3 - 1)) * 2 == 54 or 70
 name = "twoSequencesAdditional1"
 query = '''
 sequence
-  [process where serial_event_id = 1]
-  [process where serial_event_id = 2]
+  [process where serial_event_id == 1]
+  [process where serial_event_id == 2]
 '''
 expected_event_ids  = [1, 2]
 
@@ -232,7 +229,7 @@ expected_event_ids  = [1, 2]
 name = "twoSequencesAdditional2"
 query = '''
 sequence
-  [process where serial_event_id=1] by unique_pid
+  [process where serial_event_id==1] by unique_pid
   [process where true] by unique_ppid'''
 expected_event_ids  = [1, 2]
 
@@ -253,3 +250,28 @@ sequence
   [process where true] by unique_ppid
 '''
 expected_event_ids  = []
+
+[[queries]]
+name = "sequenceWithAnyFilter"
+query = '''
+sequence
+  [any where serial_event_id<3] by unique_pid
+  [any where true] by unique_ppid
+'''
+expected_event_ids  = [1, 2, 2, 3]
+
+[[queries]]
+name = "sequenceWithMoreThan10Results"
+query = '''
+sequence by unique_pid
+  [any where true]
+  [any where true]
+  [any where serial_event_id < 72]
+'''
+expected_event_ids  = [54, 55, 59,
+                       55, 59, 61,
+                       59, 61, 65,
+                       16, 60, 66,
+                       61, 65, 67,
+                       65, 67, 70,
+                       60, 66, 71]

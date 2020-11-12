@@ -19,13 +19,14 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
@@ -51,6 +52,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
     private final HighlightBuilder highlightBuilder;
     private final StoredFieldsContext storedFieldsContext;
     private final List<FieldAndFormat> docValueFields;
+    private final List<FieldAndFormat> fetchFields;
     private final List<ScriptFieldsContext.ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
@@ -65,13 +67,14 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
                                 HighlightBuilder highlightBuilder,
                                 StoredFieldsContext storedFieldsContext,
                                 List<FieldAndFormat> docValueFields,
+                                List<FieldAndFormat> fetchFields,
                                 List<ScriptFieldsContext.ScriptField> scriptFields,
                                 FetchSourceContext fetchSourceContext,
-                                QueryShardContext queryShardContext,
+                                AggregationContext context,
                                 AggregatorFactory parent,
                                 AggregatorFactories.Builder subFactories,
                                 Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metadata);
+        super(name, context, parent, subFactories, metadata);
         this.from = from;
         this.size = size;
         this.explain = explain;
@@ -82,6 +85,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         this.highlightBuilder = highlightBuilder;
         this.storedFieldsContext = storedFieldsContext;
         this.docValueFields = docValueFields;
+        this.fetchFields = fetchFields;
         this.scriptFields = scriptFields;
         this.fetchSourceContext = fetchSourceContext;
     }
@@ -106,8 +110,12 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.storedFieldsContext(storedFieldsContext);
         }
         if (docValueFields != null) {
-            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(searchContext.mapperService(), docValueFields);
+            FetchDocValuesContext docValuesContext = new FetchDocValuesContext(searchContext.getQueryShardContext(), docValueFields);
             subSearchContext.docValuesContext(docValuesContext);
+        }
+        if (fetchFields != null) {
+            FetchFieldsContext fieldsContext = new FetchFieldsContext(fetchFields);
+            subSearchContext.fetchFieldsContext(fieldsContext);
         }
         for (ScriptFieldsContext.ScriptField field : scriptFields) {
             subSearchContext.scriptFields().add(field);

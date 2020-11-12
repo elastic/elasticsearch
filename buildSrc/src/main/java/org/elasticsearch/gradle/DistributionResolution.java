@@ -51,6 +51,6 @@ public class DistributionResolution {
     }
 
     public interface Resolver {
-        Object resolve(Project project, ElasticsearchDistribution distribution);
+        DistributionDependency resolve(Project project, ElasticsearchDistribution distribution);
     }
 }

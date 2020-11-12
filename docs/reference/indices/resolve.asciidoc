@@ -4,8 +4,8 @@
 <titleabbrev>Resolve index</titleabbrev>
 ++++
 
-Resolves the specified name(s) and/or wildcard expression(s) to indices, index
-aliases, and data streams. Multiple expressions and remote clusters are
+Resolves the specified name(s) and/or index patterns for indices, index
+aliases, and data streams. Multiple patterns and remote clusters are
 supported.
 
 ////
@@ -63,7 +63,7 @@ GET /_resolve/index/my-index-*
 `<name>`::
 +
 --
-(Required, string) Comma-separated name(s) or wildcard expression(s) of the
+(Required, string) Comma-separated name(s) or index pattern(s) of the
 indices, index aliases, and data streams to resolve. Resources on
 <<modules-remote-clusters,remote clusters>> can be specified using the
 `<cluster>:<name>` syntax.

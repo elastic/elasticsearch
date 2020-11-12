@@ -54,6 +54,6 @@ public enum SpatialStrategy implements Writeable {
                 return strategy;
             }
         }
-        return null;
+        throw new IllegalArgumentException("Unknown strategy [" + strategyName + "]");
     }
 }

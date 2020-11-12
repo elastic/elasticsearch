@@ -27,7 +27,8 @@ https://maven.apache.org/[Maven]-compatible tools can retrieve it automatically 
 </dependency>
 ----
 
-from `artifacts.elastic.co/maven` by adding it to the repositories list:
+from https://search.maven.org/artifact/org.elasticsearch.plugin/x-pack-sql-jdbc[Maven Central Repository],
+or from `artifacts.elastic.co/maven` by adding it to the repositories list:
 
 ["source","xml",subs="attributes"]
 ----

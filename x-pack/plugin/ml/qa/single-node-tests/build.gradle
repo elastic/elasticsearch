@@ -1,13 +1,6 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
-dependencies {
-  testImplementation project(":x-pack:plugin:core")
-  testImplementation project(path: xpackModule('ml'))
-}
-
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

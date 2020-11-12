@@ -43,6 +43,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertM
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiPolygon;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertPolygon;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+
 /**
  * Tests for {@link ShapeBuilder}
  */
@@ -246,7 +248,7 @@ public class ShapeBuilderTests extends ESTestCase {
                     .coordinate(-40.0, -50.0)
                     .coordinate(40.0, -50.0).close());
         Exception e = expectThrows(InvalidShapeException.class, () -> newPolygon.buildS4J());
-        assertThat(e.getMessage(), containsString("Self-intersection at or near point (0.0"));
+        assertThat(e.getMessage(), containsString("Cannot determine orientation: signed area equal to 0"));
     }
 
     /** note: only supported by S4J at the moment */
@@ -775,8 +777,10 @@ public class ShapeBuilderTests extends ESTestCase {
         );
         Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
+        assertThat(e.getMessage(), not(containsString("NaN")));
         e = expectThrows(InvalidShapeException.class, () -> buildGeometry(builder.close()));
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
+        assertThat(e.getMessage(), not(containsString("NaN")));
     }
 
     public Object buildGeometry(ShapeBuilder<?, ?, ?> builder) {

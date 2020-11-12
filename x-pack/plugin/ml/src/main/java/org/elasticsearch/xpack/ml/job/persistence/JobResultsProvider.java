@@ -134,6 +134,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -825,6 +826,8 @@ public class JobResultsProvider {
         if (categoryId != null) {
             categoryIdQuery = QueryBuilders.termQuery(CategoryDefinition.CATEGORY_ID.getPreferredName(), categoryId);
         } else if (from != null && size != null) {
+            // Note: Even though category definitions currently have a result_type field, this was not the case for older versions
+            // So, until at least 9.x, this existsQuery is still the preferred way to gather category definition objects
             categoryIdQuery = QueryBuilders.existsQuery(CategoryDefinition.CATEGORY_ID.getPreferredName());
             sourceBuilder.from(from).size(size)
                     .sort(new FieldSortBuilder(CategoryDefinition.CATEGORY_ID.getPreferredName()).order(SortOrder.ASC));
@@ -1020,12 +1023,12 @@ public class JobResultsProvider {
                                String snapshotId,
                                Consumer<QueryPage<ModelSnapshot>> handler,
                                Consumer<Exception> errorHandler) {
-        ResultsFilterBuilder fb = new ResultsFilterBuilder();
-        if (snapshotId != null && !snapshotId.isEmpty()) {
-            fb.term(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), snapshotId);
-        }
+        String[] snapshotIds = Strings.splitStringByCommaToArray(snapshotId);
+        QueryBuilder qb = new ResultsFilterBuilder()
+            .resourceTokenFilters(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), snapshotIds)
+            .timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs)
+            .build();
 
-        QueryBuilder qb = fb.timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs).build();
         modelSnapshots(jobId, from, size, sortField, sortDescending, qb, handler, errorHandler);
     }
 
@@ -1281,7 +1284,7 @@ public class JobResultsProvider {
                         handler.onResponse(new QueryPage<>(Collections.emptyList(), 0, ScheduledEvent.RESULTS_FIELD));
                         return;
                     }
-                    List<String> calendarIds = calendars.results().stream().map(Calendar::getId).collect(Collectors.toList());
+                    String[] calendarIds = calendars.results().stream().map(Calendar::getId).toArray(String[]::new);
                     queryBuilder.calendarIds(calendarIds);
                     scheduledEvents(queryBuilder, handler);
                 },
@@ -1470,6 +1473,10 @@ public class JobResultsProvider {
                             List<Calendar> calendars = new ArrayList<>();
                             SearchHit[] hits = response.getHits().getHits();
                             try {
+                                if (queryBuilder.isForAllCalendars() == false && hits.length == 0) {
+                                    listener.onFailure(queryBuilder.buildNotFoundException());
+                                    return;
+                                }
                                 for (SearchHit hit : hits) {
                                     calendars.add(MlParserUtils.parse(hit, Calendar.LENIENT_PARSER).build());
                                 }
@@ -1565,6 +1572,50 @@ public class JobResultsProvider {
         } else {
             modelSizeStats(jobId, modelSizeStats -> handler.accept(modelSizeStats.getModelBytes()), errorHandler);
         }
+    }
+
+    /**
+     * Returns information needed to decide how to restart a job from a datafeed
+     * @param jobId the job id
+     * @param listener the listener
+     */
+    public void getRestartTimeInfo(String jobId, ActionListener<RestartTimeInfo> listener) {
+        AtomicReference<Bucket> latestFinalBucketHolder = new AtomicReference<>();
+
+        Consumer<DataCounts> dataCountsHandler = dataCounts -> listener.onResponse(
+            new RestartTimeInfo(
+                latestFinalBucketHolder.get() == null ? null : latestFinalBucketHolder.get().getTimestamp().getTime(),
+                dataCounts.getLatestRecordTimeStamp() == null ? null : dataCounts.getLatestRecordTimeStamp().getTime(),
+                dataCounts.getInputRecordCount() > 0)
+            );
+
+        ActionListener<Bucket> latestFinalBucketListener = ActionListener.wrap(
+            latestFinalBucket -> {
+                latestFinalBucketHolder.set(latestFinalBucket);
+                dataCounts(jobId, dataCountsHandler, listener::onFailure);
+            },
+            listener::onFailure
+        );
+
+        getLatestFinalBucket(jobId, latestFinalBucketListener);
+    }
+
+    private void getLatestFinalBucket(String jobId, ActionListener<Bucket> listener) {
+        BucketsQueryBuilder latestBucketQuery = new BucketsQueryBuilder()
+            .sortField(Result.TIMESTAMP.getPreferredName())
+            .sortDescending(true)
+            .size(1)
+            .includeInterim(false);
+        bucketsViaInternalClient(jobId, latestBucketQuery,
+            queryPage -> {
+                if (queryPage.results().isEmpty()) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onResponse(queryPage.results().get(0));
+                }
+            },
+            listener::onFailure
+        );
     }
 
     /**

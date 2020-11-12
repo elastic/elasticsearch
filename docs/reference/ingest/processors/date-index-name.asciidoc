@@ -1,5 +1,8 @@
 [[date-index-name-processor]]
-=== Date Index Name Processor
+=== Date index name processor
+++++
+<titleabbrev>Date index name</titleabbrev>
+++++
 
 The purpose of this processor is to point documents to the right time based index based
 on a date or timestamp field in a document by using the <<date-math-index-names, date math index name support>>.

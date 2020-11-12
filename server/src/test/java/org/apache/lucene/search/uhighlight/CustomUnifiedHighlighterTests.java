@@ -78,12 +78,23 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
         assertThat(topDocs.totalHits.value, equalTo(1L));
         String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
-        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(searcher, analyzer, null,
-                new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()), locale,
-                breakIterator, rawValue, noMatchSize);
-        highlighter.setFieldMatcher((name) -> "text".equals(name));
-        final Snippet[] snippets =
-            highlighter.highlightField("text", query, topDocs.scoreDocs[0].doc, expectedPassages.length);
+        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
+            searcher,
+            analyzer,
+            null,
+            new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
+            locale,
+            breakIterator,
+            "index",
+            "text",
+            query,
+            noMatchSize,
+            expectedPassages.length,
+            name -> "text".equals(name),
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE
+        );
+        final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
         assertEquals(snippets.length, expectedPassages.length);
         for (int i = 0; i < snippets.length; i++) {
             assertEquals(snippets[i].getText(), expectedPassages[i]);

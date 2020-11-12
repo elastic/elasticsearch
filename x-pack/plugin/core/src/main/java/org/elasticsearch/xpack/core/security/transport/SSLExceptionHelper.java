@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.core.security.transport;
 
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.ssl.NotSslRecordException;
+import org.elasticsearch.common.regex.Regex;
 
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
 
 public class SSLExceptionHelper {
 
@@ -22,6 +24,11 @@ public class SSLExceptionHelper {
     }
 
     public static boolean isCloseDuringHandshakeException(Throwable e) {
+        return isCloseDuringHandshakeSSLException(e)
+                || isCloseDuringHandshakeSSLException(e.getCause());
+    }
+
+    private static boolean isCloseDuringHandshakeSSLException(Throwable e) {
         return e instanceof SSLException
                 && e.getCause() == null
                 && "Received close_notify during handshake".equals(e.getMessage());
@@ -31,5 +38,11 @@ public class SSLExceptionHelper {
         return e instanceof DecoderException
                 && e.getCause() instanceof SSLException
                 && "Received fatal alert: certificate_unknown".equals(e.getCause().getMessage());
+    }
+
+    public static boolean isInsufficientBufferRemainingException(Throwable e) {
+        return e instanceof DecoderException
+                && e.getCause() instanceof SSLHandshakeException
+                && Regex.simpleMatch("Insufficient buffer remaining for AEAD cipher fragment*", e.getCause().getMessage());
     }
 }

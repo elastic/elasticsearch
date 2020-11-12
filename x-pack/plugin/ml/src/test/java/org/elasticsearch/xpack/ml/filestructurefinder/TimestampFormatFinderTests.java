@@ -219,6 +219,44 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
             "XX2018.05.15 17:14:56Z"));
     }
 
+    public void testMatchHasNanosecondPrecision() {
+
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56Z"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56-0100"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56+01:00"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56,374Z"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56.374+0100"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56,374-01:00"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56.374123Z"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56,374123-0100"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56.374123+01:00"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56,374123456Z"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56.374123456+0100"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("ISO8601", "2018-05-15T17:14:56,374123456-01:00"));
+
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("UNIX_MS", "1526400896374"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("UNIX", "1526400896"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("TAI64N", "400000005afb078a164ac980"));
+
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy-MM-dd HH:mm:ss,SSS XX",
+            "2018-05-15 17:14:56,374 +0100"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy-MM-dd HH:mm:ss.SSSSSS XX",
+            "2018-05-15 17:14:56.374123 +0100"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy-MM-dd HH:mm:ss,SSSSSSSSS XX",
+            "2018-05-15 17:14:56,374123456 +0100"));
+
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("'SSSS'yyyy.MM.dd HH:mm:ssXX",
+            "SSSS2018.05.15 17:14:56Z"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy.MM.dd HH:mm:ss,SSS'SSSS'",
+            "2018.05.15 17:14:56,374SSSS"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy.MM.dd HH:mm:ss,SSSS'SSSS'",
+            "2018.05.15 17:14:56,3741SSSS"));
+        assertFalse(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy.MM.dd'SSSS'HH:mm:ss.SSS",
+            "2018.05.15SSSS17:14:56.374"));
+        assertTrue(TimestampFormatFinder.TimestampMatch.matchHasNanosecondPrecision("yyyy.MM.dd'SSSS'HH:mm:ss.SSSS",
+            "2018.05.15SSSS17:14:56.3741"));
+    }
+
     public void testParseIndeterminateDateNumbers() {
 
         // Simplest case - nothing is indeterminate

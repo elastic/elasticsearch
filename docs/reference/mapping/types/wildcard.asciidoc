@@ -1,10 +1,8 @@
 [role="xpack"]
 [testenv="basic"]
-[[wildcard]]
-=== Wildcard data type
-++++
-<titleabbrev>Wildcard</titleabbrev>
-++++
+[discrete]
+[[wildcard-field-type]]
+=== Wildcard field type
 
 A `wildcard` field stores values optimised for wildcard grep-like queries.
 Wildcard queries are possible on other field types but suffer from constraints:
@@ -37,10 +35,14 @@ PUT my-index-000001/_doc/1
   "my_wildcard" : "This string can be quite lengthy"
 }
 
-POST my-index-000001/_doc/_search
+GET my-index-000001/_search
 {
   "query": {
-      "wildcard" : "*quite*lengthy"
+    "wildcard": {
+      "my_wildcard": {
+        "value": "*quite*lengthy"
+      }
+    }
   }
 }
 
@@ -48,6 +50,7 @@ POST my-index-000001/_doc/_search
 --------------------------------------------------
 
 
+[discrete]
 [[wildcard-params]]
 ==== Parameters for wildcard fields
 
@@ -55,11 +58,17 @@ The following parameters are accepted by `wildcard` fields:
 
 [horizontal]
 
+<<null-value,`null_value`>>::
+
+    Accepts a string value which is substituted for any explicit `null`
+    values.  Defaults to `null`, which means the field is treated as missing.
+
 <<ignore-above,`ignore_above`>>::
 
     Do not index any string longer than this value.  Defaults to `2147483647`
     so that all values would be accepted.
 
+[discrete]
 ==== Limitations
 
 * `wildcard` fields are untokenized like keyword fields, so do not support queries that rely on word positions such as phrase queries.

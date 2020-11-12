@@ -41,7 +41,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);
-            ElasticsearchCluster cluster = testClusters.create(restIntegTestTask.getName());
+            ElasticsearchCluster cluster = testClusters.maybeCreate(restIntegTestTask.getName());
             restIntegTestTask.useCluster(cluster);
             restIntegTestTask.include("**/*IT.class");
             restIntegTestTask.systemProperty("tests.rest.load_packaged", Boolean.FALSE.toString());

@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -169,7 +168,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         }
         if (this.mappings != null) {
             Map<String, Object> uncompressedMapping =
-                XContentHelper.convertToMap(new BytesArray(this.mappings.uncompressed()), true, XContentType.JSON).v2();
+                XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON).v2();
             if (uncompressedMapping.size() > 0) {
                 builder.field(MAPPINGS.getPreferredName());
                 builder.map(reduceMapping(uncompressedMapping));

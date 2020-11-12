@@ -56,8 +56,8 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
             TRAINED_MODEL);
         parser.declareNamedObjects(TrainedModelDefinition.Builder::setPreProcessors,
             (p, c, n) -> ignoreUnknownFields ?
-                p.namedObject(LenientlyParsedPreProcessor.class, n, null) :
-                p.namedObject(StrictlyParsedPreProcessor.class, n, null),
+                p.namedObject(LenientlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT) :
+                p.namedObject(StrictlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT),
             (trainedModelDefBuilder) -> trainedModelDefBuilder.setProcessorsInOrder(true),
             PREPROCESSORS);
         return parser;

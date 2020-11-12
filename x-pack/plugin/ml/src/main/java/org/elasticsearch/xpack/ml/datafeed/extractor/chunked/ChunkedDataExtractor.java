@@ -320,11 +320,11 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         /**
-         * This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig.Builder}
+         * This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig}
          */
         @Override
         public long estimateChunk() {
-            return DatafeedConfig.Builder.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis;
+            return DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis;
         }
 
         @Override

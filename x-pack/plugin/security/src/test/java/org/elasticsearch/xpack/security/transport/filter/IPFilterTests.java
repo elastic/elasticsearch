@@ -270,6 +270,7 @@ public class IPFilterTests extends ESTestCase {
         assertAddressIsDeniedForProfile("default", "8.8.8.8");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62298")
     public void testThatNodeStartsWithIPFilterDisabled() throws Exception {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())

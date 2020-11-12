@@ -32,7 +32,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   testClusters {
     "${baseName}" {
       version = bwcVersion.toString()
-      setting 'http.content_type.required', 'true'
     }
   }
 

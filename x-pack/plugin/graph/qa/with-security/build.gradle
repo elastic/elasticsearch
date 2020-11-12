@@ -1,10 +1,7 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
-  testImplementation project(":x-pack:plugin:core")
+  yamlRestTestImplementation project(":x-pack:plugin:core")
 }
 
 // bring in graph rest test suite
@@ -18,7 +15,7 @@ restResources {
   }
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -196,5 +197,15 @@ public abstract class Plugin implements Closeable {
     @Override
     public void close() throws IOException {
 
+    }
+
+    /**
+     * An {@link IndexSettingProvider} allows hooking in to parts of an index
+     * lifecycle to provide explicit default settings for newly created indices. Rather than changing
+     * the default values for an index-level setting, these act as though the setting has been set
+     * explicitly, but still allow the setting to be overridden by a template or creation request body.
+     */
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        return Collections.emptyList();
     }
 }

@@ -18,17 +18,5 @@
  */
 
 subprojects {
-  // fixtures is just intermediate parent project
-  if (name == 'fixtures') return
-
   group = 'org.elasticsearch.test'
-  apply plugin: 'elasticsearch.build'
-  apply plugin: 'elasticsearch.publish'
-
-  // TODO: should we have licenses for our test deps?
-  tasks.named("dependencyLicenses").configure { it.enabled = false }
-  dependenciesInfo.enabled = false
-
-  // TODO: why is the test framework pulled in...
-  jarHell.enabled = false
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
@@ -38,15 +37,13 @@ import java.util.stream.Stream;
 
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable {
 
-    public static final Version COMPACT_SHARD_ID_VERSION = Version.V_7_9_0;
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
     private final BulkItemRequest[] items;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
-        final ShardId itemShardId = in.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION) ? shardId : null;
-        items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(itemShardId, inpt)), BulkItemRequest[]::new);
+        items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
@@ -97,14 +94,14 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeArray(out.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION) ? (o, item) -> {
+        out.writeArray((o, item) -> {
             if (item != null) {
                 o.writeBoolean(true);
                 item.writeThin(o);
             } else {
                 o.writeBoolean(false);
             }
-        } : StreamOutput::writeOptionalWriteable, items);
+        }, items);
     }
 
     @Override

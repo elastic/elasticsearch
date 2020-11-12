@@ -31,12 +31,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
 import org.elasticsearch.search.internal.SearchContext;
@@ -193,7 +193,7 @@ public class AggregatorFactories {
         Aggregator[] aggregators = new Aggregator[countAggregators()];
         for (int i = 0; i < factories.length; ++i) {
             Aggregator factory = factories[i].create(searchContext, parent, cardinality);
-            Profilers profilers = factory.context().getProfilers();
+            Profilers profilers = searchContext.getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
             }
@@ -211,7 +211,7 @@ public class AggregatorFactories {
              * *exactly* what CardinalityUpperBound.ONE *means*.  
              */
             Aggregator factory = factories[i].create(searchContext, null, CardinalityUpperBound.ONE);
-            Profilers profilers = factory.context().getProfilers();
+            Profilers profilers = searchContext.getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
             }
@@ -225,6 +225,27 @@ public class AggregatorFactories {
      */
     public int countAggregators() {
         return factories.length;
+    }
+
+    /**
+     * This returns a copy of {@link AggregatorFactories} modified so that
+     * calls to {@link #createSubAggregators} will ignore the provided parent
+     * aggregator and always use {@code fixedParent} provided in to this
+     * method.
+     * <p>
+     * {@link AdaptingAggregator} uses this to make sure that sub-aggregators
+     * get the {@link AdaptingAggregator} aggregator itself as the parent.
+     */
+    public AggregatorFactories fixParent(Aggregator fixedParent) {
+        AggregatorFactories previous = this;
+        return new AggregatorFactories(factories) {
+            @Override
+            public Aggregator[] createSubAggregators(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality)
+                throws IOException {
+                // Note that we're throwing out the "parent" passed in to this method and using the parent passed to fixParent
+                return previous.createSubAggregators(searchContext, fixedParent, cardinality);
+            }
+        };
     }
 
     /**
@@ -337,14 +358,14 @@ public class AggregatorFactories {
             return e;
         }
 
-        public AggregatorFactories build(QueryShardContext queryShardContext, AggregatorFactory parent) throws IOException {
+        public AggregatorFactories build(AggregationContext context, AggregatorFactory parent) throws IOException {
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
                 return EMPTY;
             }
             AggregatorFactory[] aggFactories = new AggregatorFactory[aggregationBuilders.size()];
             int i = 0;
             for (AggregationBuilder agg : aggregationBuilders) {
-                aggFactories[i] = agg.build(queryShardContext, parent);
+                aggFactories[i] = agg.build(context, parent);
                 ++i;
             }
             return new AggregatorFactories(aggFactories);

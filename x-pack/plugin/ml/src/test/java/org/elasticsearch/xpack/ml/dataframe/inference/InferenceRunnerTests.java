@@ -80,6 +80,7 @@ public class InferenceRunnerTests extends ESTestCase {
     public void testInferTestDocs() {
         ExtractedFields extractedFields = new ExtractedFields(
             Collections.singletonList(new SourceField("key", Collections.singleton("integer"))),
+            Collections.emptyList(),
             Collections.emptyMap());
 
         Map<String, Object> doc1 = new HashMap<>();

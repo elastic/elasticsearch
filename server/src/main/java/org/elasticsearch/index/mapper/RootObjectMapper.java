@@ -21,10 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,16 +56,15 @@ public class RootObjectMapper extends ObjectMapper {
         public static final boolean NUMERIC_DETECTION = false;
     }
 
-    public static class Builder extends ObjectMapper.Builder<Builder> {
+    public static class Builder extends ObjectMapper.Builder {
 
         protected Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
         protected Explicit<DateFormatter[]> dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         protected Explicit<Boolean> dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         protected Explicit<Boolean> numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
 
-        public Builder(String name) {
-            super(name);
-            this.builder = this;
+        public Builder(String name, Version indexCreatedVersion) {
+            super(name, indexCreatedVersion);
         }
 
         public Builder dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
@@ -81,18 +78,24 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
-        public RootObjectMapper build(BuilderContext context) {
-            return (RootObjectMapper) super.build(context);
+        public RootObjectMapper.Builder add(Mapper.Builder builder) {
+            super.add(builder);
+            return this;
+        }
+
+        @Override
+        public RootObjectMapper build(ContentPath contentPath) {
+            return (RootObjectMapper) super.build(contentPath);
         }
 
         @Override
         protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
-                Map<String, Mapper> mappers, @Nullable Settings settings) {
+                Map<String, Mapper> mappers, Version indexCreatedVersion) {
             assert !nested.isNested();
             return new RootObjectMapper(name, enabled, dynamic, mappers,
                     dynamicDateTimeFormatters,
                     dynamicTemplates,
-                    dateDetection, numericDetection, settings);
+                    dateDetection, numericDetection, indexCreatedVersion);
         }
     }
 
@@ -127,10 +130,8 @@ public class RootObjectMapper extends ObjectMapper {
     public static class TypeParser extends ObjectMapper.TypeParser {
 
         @Override
-        @SuppressWarnings("rawtypes")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-
-            RootObjectMapper.Builder builder = new Builder(name);
+            RootObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -214,8 +215,8 @@ public class RootObjectMapper extends ObjectMapper {
 
     RootObjectMapper(String name, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers,
                      Explicit<DateFormatter[]> dynamicDateTimeFormatters, Explicit<DynamicTemplate[]> dynamicTemplates,
-                     Explicit<Boolean> dateDetection, Explicit<Boolean> numericDetection, Settings settings) {
-        super(name, name, enabled, Nested.NO, dynamic, mappers, settings);
+                     Explicit<Boolean> dateDetection, Explicit<Boolean> numericDetection, Version indexCreatedVersion) {
+        super(name, name, enabled, Nested.NO, dynamic, mappers, indexCreatedVersion);
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
@@ -274,7 +275,7 @@ public class RootObjectMapper extends ObjectMapper {
             return null;
         }
         String dynamicType = matchType.defaultMappingType();
-        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(dateFormat);
+        Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormat);
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {
@@ -389,14 +390,13 @@ public class RootObjectMapper extends ObjectMapper {
                 continue;
             }
 
-            Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName("__dummy__", defaultDynamicType);
-            fieldTypeConfig.remove("type");
+            String templateName = "__dynamic__" + dynamicTemplate.name();
+            Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName(templateName, defaultDynamicType);
             try {
-                Mapper.Builder<?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
+                Mapper.Builder dummyBuilder = typeParser.parse(templateName, fieldTypeConfig, parserContext);
+                fieldTypeConfig.remove("type");
                 if (fieldTypeConfig.isEmpty()) {
-                    Settings indexSettings = parserContext.mapperService().getIndexSettings().getSettings();
-                    BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
-                    dummyBuilder.build(builderContext);
+                    dummyBuilder.build(new ContentPath(1));
                     dynamicTemplateInvalid = false;
                     break;
                 } else {

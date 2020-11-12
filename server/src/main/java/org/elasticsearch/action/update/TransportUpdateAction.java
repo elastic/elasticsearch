@@ -57,6 +57,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -90,8 +91,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.WRITE;
+    protected String executor(ShardId shardId) {
+        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().getIndexMetadata().isSystem() ? Names.SYSTEM_WRITE : Names.WRITE;
     }
 
     @Override
@@ -267,7 +269,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             if (retryCount < request.retryOnConflict()) {
                 logger.trace("Retry attempt [{}] of [{}] on version conflict on [{}][{}][{}]",
                         retryCount + 1, request.retryOnConflict(), request.index(), request.getShardId(), request.id());
-                threadPool.executor(executor()).execute(ActionRunnable.wrap(listener, l -> shardOperation(request, l, retryCount + 1)));
+                threadPool.executor(executor(request.getShardId()))
+                    .execute(ActionRunnable.wrap(listener, l -> shardOperation(request, l, retryCount + 1)));
                 return;
             }
         }

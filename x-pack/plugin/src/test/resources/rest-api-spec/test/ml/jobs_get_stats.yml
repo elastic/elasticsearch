@@ -267,7 +267,8 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.refresh: {}
+      indices.refresh:
+        index: ".ml-anomalies*"
 
   # This is testing that the documents with v5.4 IDs are fetched.
   # Ideally we would use the v5.4 type but we can't put a mapping

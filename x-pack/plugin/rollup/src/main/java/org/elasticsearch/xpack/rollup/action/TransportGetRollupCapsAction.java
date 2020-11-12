@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -98,8 +97,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
             return Optional.empty();
         }
 
-        RollupIndexCaps caps = RollupIndexCaps.parseMetadataXContent(
-            new BytesArray(rollupMapping.source().uncompressed()), indexName);
+        RollupIndexCaps caps = RollupIndexCaps.parseMetadataXContent(rollupMapping.source().uncompressed(), indexName);
 
         if (caps.hasCaps()) {
             return Optional.of(caps);

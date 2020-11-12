@@ -113,7 +113,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
 
     public static QueryProfileShardResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         String currentFieldName = null;
         List<ProfileResult> queryProfileResults = new ArrayList<>();
         long rewriteTime = 0;

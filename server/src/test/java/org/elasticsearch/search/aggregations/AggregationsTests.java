@@ -296,7 +296,7 @@ public class AggregationsTests extends ESTestCase {
                     singleBucketAggTestCase.subAggregationsSupplier = () -> InternalAggregations.EMPTY;
                 }
             }
-            aggs.add(testCase.createTestInstance());
+            aggs.add(testCase.createTestInstanceForXContent());
         }
         return InternalAggregations.from(aggs);
     }

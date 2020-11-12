@@ -51,7 +51,7 @@ public class MetricInspectionHelper {
     public static boolean hasValue(InternalScriptedMetric agg) {
         // TODO better way to know if the scripted metric received documents?
         // Could check for null too, but a script might return null on purpose...
-        return agg.getAggregation().size() > 0 ;
+        return agg.aggregationsList().size() > 0 ;
     }
 
     public static boolean hasValue(InternalTDigestPercentileRanks agg) {

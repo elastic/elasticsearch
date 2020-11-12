@@ -30,7 +30,9 @@ import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.process.ExecOperations;
 
+import javax.inject.Inject;
 import java.io.File;
 
 /**
@@ -40,14 +42,17 @@ import java.io.File;
 public class LoggerUsageTask extends PrecommitTask {
 
     private FileCollection classpath;
+    private ExecOperations execOperations;
 
-    public LoggerUsageTask() {
+    @Inject
+    public LoggerUsageTask(ExecOperations execOperations) {
+        this.execOperations = execOperations;
         setDescription("Runs LoggerUsageCheck on output directories of all source sets");
     }
 
     @TaskAction
     public void runLoggerUsageTask() {
-        LoggedExec.javaexec(getProject(), spec -> {
+        LoggedExec.javaexec(execOperations, spec -> {
             spec.setMain("org.elasticsearch.test.loggerusage.ESLoggerUsageChecker");
             spec.classpath(getClasspath());
             getClassDirectories().forEach(spec::args);

@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -56,12 +55,11 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         // TODO: Stop expecting nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource() : null;
         if (valuesSource != null) {
-            final BigArrays bigArrays = context.bigArrays();
-            lonSum = bigArrays.newDoubleArray(1, true);
-            lonCompensations = bigArrays.newDoubleArray(1, true);
-            latSum = bigArrays.newDoubleArray(1, true);
-            latCompensations = bigArrays.newDoubleArray(1, true);
-            counts = bigArrays.newLongArray(1, true);
+            lonSum = bigArrays().newDoubleArray(1, true);
+            lonCompensations = bigArrays().newDoubleArray(1, true);
+            latSum = bigArrays().newDoubleArray(1, true);
+            latCompensations = bigArrays().newDoubleArray(1, true);
+            counts = bigArrays().newLongArray(1, true);
         }
     }
 
@@ -70,7 +68,6 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         final MultiGeoPointValues values = valuesSource.geoPointValues(ctx);
         final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
@@ -78,11 +75,11 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                latSum = bigArrays.grow(latSum, bucket + 1);
-                lonSum = bigArrays.grow(lonSum, bucket + 1);
-                lonCompensations = bigArrays.grow(lonCompensations, bucket + 1);
-                latCompensations = bigArrays.grow(latCompensations, bucket + 1);
-                counts = bigArrays.grow(counts, bucket + 1);
+                latSum = bigArrays().grow(latSum, bucket + 1);
+                lonSum = bigArrays().grow(lonSum, bucket + 1);
+                lonCompensations = bigArrays().grow(lonCompensations, bucket + 1);
+                latCompensations = bigArrays().grow(latCompensations, bucket + 1);
+                counts = bigArrays().grow(counts, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();

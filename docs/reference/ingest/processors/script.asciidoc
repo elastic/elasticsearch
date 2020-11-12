@@ -1,5 +1,8 @@
 [[script-processor]]
-=== Script Processor
+=== Script processor
+++++
+<titleabbrev>Script</titleabbrev>
+++++
 
 Allows inline and stored scripts to be executed within ingest pipelines.
 

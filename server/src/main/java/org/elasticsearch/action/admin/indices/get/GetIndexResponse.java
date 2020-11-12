@@ -94,10 +94,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         aliases = in.readImmutableMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
         settings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
         defaultSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
-
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            dataStreams = in.readImmutableMap(StreamInput::readString, StreamInput::readOptionalString);
-        }
+        dataStreams = in.readImmutableMap(StreamInput::readString, StreamInput::readOptionalString);
     }
 
     public String[] indices() {
@@ -183,9 +180,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
         out.writeMap(settings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
         out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeMap(dataStreams, StreamOutput::writeString, StreamOutput::writeOptionalString);
-        }
+        out.writeMap(dataStreams, StreamOutput::writeString, StreamOutput::writeOptionalString);
     }
 
     @Override

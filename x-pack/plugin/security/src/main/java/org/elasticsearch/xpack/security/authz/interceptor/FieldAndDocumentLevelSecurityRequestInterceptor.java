@@ -45,7 +45,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
             if (supports(indicesRequest) && shouldIntercept) {
                 final IndicesAccessControl indicesAccessControl =
                     threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-                for (String index : indicesRequest.indices()) {
+                for (String index : requestIndices(indicesRequest)) {
                     IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
                     if (indexAccessControl != null) {
                         boolean fieldLevelSecurityEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
@@ -63,6 +63,10 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
             }
         }
         listener.onResponse(null);
+    }
+
+    String[] requestIndices(IndicesRequest indicesRequest) {
+        return indicesRequest.indices();
     }
 
     abstract void disableFeatures(IndicesRequest request, boolean fieldLevelSecurityEnabled, boolean documentLevelSecurityEnabled,

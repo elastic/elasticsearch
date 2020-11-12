@@ -24,6 +24,8 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+
 /**
  * {@link CacheService} maintains a cache entry for all files read from searchable snapshot directories (
  * see {@link org.elasticsearch.index.store.SearchableSnapshotDirectory})
@@ -40,11 +42,13 @@ public class CacheService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
+    public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
+    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "range_size",
         new ByteSizeValue(32, ByteSizeUnit.MB),                 // default
-        new ByteSizeValue(4, ByteSizeUnit.KB),                  // min
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // max
+        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
+        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
     );
 
@@ -107,7 +111,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @return the cache range size (in bytes)
      */
     public int getRangeSize() {
-        return Math.toIntExact(rangeSize.getBytes());
+        return toIntBytes(rangeSize.getBytes());
     }
 
     public CacheFile get(final CacheKey cacheKey, final long fileLength, final Path cacheDir) throws Exception {

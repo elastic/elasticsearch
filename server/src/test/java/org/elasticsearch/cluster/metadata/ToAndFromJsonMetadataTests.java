@@ -79,7 +79,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     5L,
                     4L,
                     Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")),
-                    randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate()))
+                    randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate(),
+                    null))
                 .put(IndexMetadata.builder("test12")
                         .settings(settings(Version.CURRENT)
                                 .put("setting1", "value1")
@@ -295,7 +296,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "        \"in_sync_allocations\" : {\n" +
             "          \"0\" : [ ]\n" +
             "        },\n" +
-            "        \"rollover_info\" : { }\n" +
+            "        \"rollover_info\" : { },\n" +
+            "        \"system\" : false\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -451,7 +453,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "            \"met_conditions\" : { },\n" +
             "            \"time\" : 1\n" +
             "          }\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"system\" : false\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -552,7 +555,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "            \"met_conditions\" : { },\n" +
             "            \"time\" : 1\n" +
             "          }\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"system\" : false\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +

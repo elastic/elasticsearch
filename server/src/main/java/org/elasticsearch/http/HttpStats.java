@@ -19,6 +19,7 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -49,13 +50,21 @@ public class HttpStats implements Writeable, ToXContentFragment {
     public HttpStats(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
         totalOpen = in.readVLong();
-        clientStats = List.of();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            // add deserialization here
+            clientStats = List.of();
+        } else {
+            clientStats = List.of();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            // add serialization here
+        }
     }
 
     public long getServerOpen() {
@@ -71,6 +80,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
         static final String CURRENT_OPEN = "current_open";
         static final String TOTAL_OPENED = "total_opened";
         static final String CLIENTS = "clients";
+        static final String CLIENT_ID = "id";
         static final String CLIENT_AGENT = "agent";
         static final String CLIENT_LOCAL_ADDRESS = "local_address";
         static final String CLIENT_REMOTE_ADDRESS = "remote_address";
@@ -90,6 +100,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
         builder.startArray(Fields.CLIENTS);
         for (ClientStats clientStats : this.clientStats) {
             builder.startObject();
+            builder.field(Fields.CLIENT_ID, clientStats.id);
             builder.field(Fields.CLIENT_AGENT, clientStats.agent);
             builder.field(Fields.CLIENT_LOCAL_ADDRESS, clientStats.localAddress);
             builder.field(Fields.CLIENT_REMOTE_ADDRESS, clientStats.remoteAddress);
@@ -107,6 +118,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
     }
 
     static class ClientStats {
+        int id;
         String agent;
         String localAddress;
         String remoteAddress;
@@ -118,6 +130,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
         volatile long requestSizeBytes;
 
         ClientStats(HttpChannel httpChannel, long openedTimeMillis) {
+            this.id = System.identityHashCode(this);
             this.localAddress = NetworkAddress.format(httpChannel.getLocalAddress());
             this.remoteAddress = NetworkAddress.format(httpChannel.getRemoteAddress());
             this.openedTimeMillis = openedTimeMillis;

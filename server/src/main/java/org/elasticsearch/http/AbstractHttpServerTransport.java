@@ -310,10 +310,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         boolean addedOnThisCall = httpChannels.add(httpChannel);
         assert addedOnThisCall : "Channel should only be added to http channel set once";
         totalChannelsAccepted.incrementAndGet();
-        httpChannelStats.put(httpChannel.hashCode(), new HttpStats.ClientStats(httpChannel, threadPool.absoluteTimeInMillis()));
+        httpChannelStats.put(System.identityHashCode(httpChannel), new HttpStats.ClientStats(httpChannel, threadPool.absoluteTimeInMillis()));
         httpChannel.addCloseListener(ActionListener.wrap(() -> {
             httpChannels.remove(httpChannel);
-            HttpStats.ClientStats clientStats = httpChannelStats.get(httpChannel.hashCode());
+            HttpStats.ClientStats clientStats = httpChannelStats.get(System.identityHashCode(httpChannel));
             if (clientStats != null) {
                 clientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
             }
@@ -333,7 +333,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     void updateClientStats(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        HttpStats.ClientStats clientStats = httpChannelStats.get(httpChannel.hashCode());
+        HttpStats.ClientStats clientStats = httpChannelStats.get(System.identityHashCode(httpChannel));
         if (clientStats != null) {
             if (clientStats.agent == null) {
                 if (httpRequest.getHeaders().containsKey("x-elastic-product-origin")) {

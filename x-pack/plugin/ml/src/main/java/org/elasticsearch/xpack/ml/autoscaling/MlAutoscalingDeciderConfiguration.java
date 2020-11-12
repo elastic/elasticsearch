@@ -142,7 +142,7 @@ public class MlAutoscalingDeciderConfiguration implements AutoscalingDeciderConf
         }
 
         public Builder setDownScaleDelay(TimeValue downScaleDelay) {
-            this.downScaleDelay = downScaleDelay;
+            this.downScaleDelay = Objects.requireNonNull(downScaleDelay);
             return this;
         }
 

@@ -491,7 +491,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<ByteSizeValue> MAX_ML_NODE_SIZE = Setting.byteSizeSetting(
         "xpack.ml.max_ml_node_size",
         ByteSizeValue.ZERO,
-        Setting.Property.NodeScope);
+        Property.NodeScope);
 
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 

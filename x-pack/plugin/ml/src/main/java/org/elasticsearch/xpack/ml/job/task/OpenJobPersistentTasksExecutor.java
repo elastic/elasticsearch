@@ -65,7 +65,6 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     private final AutodetectProcessManager autodetectProcessManager;
-    private final MlMemoryTracker memoryTracker;
     private final Client client;
     private final JobResultsProvider jobResultsProvider;
 
@@ -76,7 +75,6 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                                           Client client, IndexNameExpressionResolver expressionResolver) {
         super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME, settings, clusterService, memoryTracker, expressionResolver);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
-        this.memoryTracker = Objects.requireNonNull(memoryTracker);
         this.client = Objects.requireNonNull(client);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         clusterService.addListener(event -> clusterState = event.state());
@@ -228,7 +226,25 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
     }
 
-    public static ElasticsearchException makeNoSuitableNodesException(Logger logger, String jobId, String explanation) {
+    public static Optional<ElasticsearchException> checkAssignmentState(PersistentTasksCustomMetadata.Assignment assignment,
+                                                                        String jobId,
+                                                                        Logger logger) {
+        if (assignment != null
+            && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false
+            && assignment.isAssigned() == false) {
+            // Assignment has failed on the master node despite passing our "fast fail" validation
+            if (assignment.equals(AWAITING_UPGRADE)) {
+                return Optional.of(makeCurrentlyBeingUpgradedException(logger, jobId, assignment.getExplanation()));
+            } else if (assignment.getExplanation().contains("[" + EnableAssignmentDecider.ALLOCATION_NONE_EXPLANATION + "]")) {
+                return Optional.of(makeAssignmentsNotAllowedException(logger, jobId));
+            } else {
+                return Optional.of(makeNoSuitableNodesException(logger, jobId, assignment.getExplanation()));
+            }
+        }
+        return Optional.empty();
+    }
+
+    static ElasticsearchException makeNoSuitableNodesException(Logger logger, String jobId, String explanation) {
         String msg = "Could not open job because no suitable nodes were found, allocation explanation [" + explanation + "]";
         logger.warn("[{}] {}", jobId, msg);
         Exception detail = new IllegalStateException(msg);
@@ -236,14 +252,14 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             RestStatus.TOO_MANY_REQUESTS, detail);
     }
 
-    public static ElasticsearchException makeAssignmentsNotAllowedException(Logger logger, String jobId) {
+    static ElasticsearchException makeAssignmentsNotAllowedException(Logger logger, String jobId) {
         String msg = "Cannot open jobs because persistent task assignment is disabled by the ["
             + EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING.getKey() + "] setting";
         logger.warn("[{}] {}", jobId, msg);
         return new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
     }
 
-    public static ElasticsearchException makeCurrentlyBeingUpgradedException(Logger logger, String jobId, String explanation) {
+    static ElasticsearchException makeCurrentlyBeingUpgradedException(Logger logger, String jobId, String explanation) {
         String msg = "Cannot open jobs when upgrade mode is enabled";
         logger.warn("[{}] {}", jobId, msg);
         return new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);

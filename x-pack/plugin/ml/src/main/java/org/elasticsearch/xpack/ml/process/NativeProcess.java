@@ -37,6 +37,15 @@ public interface NativeProcess extends Closeable {
     void persistState() throws IOException;
 
     /**
+     * Ask the process to persist state, even if it is unchanged.
+     * @param snapshotTimestampMs The snapshot timestamp in milliseconds
+     * @param snapshotId The id of the snapshot to save
+     * @param snapshotDescription the snapshot description
+     * @throws IOException if writing the request fails
+     */
+    void persistState(long snapshotTimestampMs, String snapshotId, String snapshotDescription) throws IOException;
+
+    /**
      * Flush the output data stream
      */
     void flushStream() throws IOException;

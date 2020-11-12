@@ -14,6 +14,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -139,7 +140,7 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return org.elasticsearch.common.collect.List.of(new AggregateMetricMapperPlugin());
+        return org.elasticsearch.common.collect.List.of(new AggregateMetricMapperPlugin(Settings.EMPTY));
     }
 
     @Override

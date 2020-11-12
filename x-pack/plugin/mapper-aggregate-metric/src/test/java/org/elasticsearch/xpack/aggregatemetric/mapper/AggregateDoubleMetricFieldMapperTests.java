@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -43,7 +44,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.elasticsearch.common.collect.List.of(new AggregateMetricMapperPlugin());
+        return org.elasticsearch.common.collect.List.of(new AggregateMetricMapperPlugin(Settings.EMPTY));
     }
 
     @Override

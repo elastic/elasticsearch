@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.aggregatemetric;
 
-import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -18,8 +18,9 @@ import org.elasticsearch.xpack.aggregatemetric.aggregations.metrics.AggregateMet
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -27,11 +28,22 @@ import static java.util.Collections.singletonMap;
 
 public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin, ActionPlugin, SearchPlugin {
 
-    public AggregateMetricMapperPlugin() {}
+    private final boolean transportClientMode;
+
+    public AggregateMetricMapperPlugin(Settings settings) {
+        this.transportClientMode = XPackPlugin.transportClientMode(settings);
+    }
 
     @Override
     public Collection<Module> createGuiceModules() {
-        return Collections.singletonList(b -> { XPackPlugin.bindFeatureSet(b, AggregateMetricFeatureSet.class); });
+        List<Module> modules = new ArrayList<>();
+
+        if (transportClientMode) {
+            return modules;
+        }
+
+        modules.add(b -> XPackPlugin.bindFeatureSet(b, AggregateMetricFeatureSet.class));
+        return modules;
     }
 
     @Override
@@ -41,7 +53,7 @@ public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin,
 
     @Override
     public java.util.List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return List.of(
+        return org.elasticsearch.common.collect.List.of(
             AggregateMetricsAggregatorsRegistrar::registerSumAggregator,
             AggregateMetricsAggregatorsRegistrar::registerAvgAggregator,
             AggregateMetricsAggregatorsRegistrar::registerMinAggregator,

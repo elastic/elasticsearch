@@ -84,18 +84,9 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
                 .create(request.create())
                 .masterTimeout(request.masterNodeTimeout())
                 .version(request.version()),
-
-                new MetadataIndexTemplateService.PutListener() {
-                    @Override
-                    public void onResponse(MetadataIndexTemplateService.PutResponse response) {
-                        listener.onResponse(AcknowledgedResponse.of(response.acknowledged()));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.debug(() -> new ParameterizedMessage("failed to put template [{}]", request.name()), e);
-                        listener.onFailure(e);
-                    }
-                });
+                ActionListener.delegateResponse(listener, (l, e) -> {
+                    logger.debug(() -> new ParameterizedMessage("failed to put template [{}]", request.name()), e);
+                    l.onFailure(e);
+                }));
     }
 }

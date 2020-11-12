@@ -25,10 +25,10 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.ActionClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateObserver.Listener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -105,9 +105,9 @@ public class TransportClearVotingConfigExclusionsAction
 
     private void submitClearVotingConfigExclusionsTask(ClearVotingConfigExclusionsRequest request, long startTimeMillis,
                                                        ActionListener<ClearVotingConfigExclusionsResponse> listener) {
-        clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT,
+        clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ActionClusterStateUpdateTask<>(Priority.URGENT,
                 TimeValue.timeValueMillis(
-                        Math.max(0, request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis()))) {
+                        Math.max(0, request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis())), listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final CoordinationMetadata newCoordinationMetadata =
@@ -115,11 +115,6 @@ public class TransportClearVotingConfigExclusionsAction
                 final Metadata newMetadata = Metadata.builder(currentState.metadata()).
                         coordinationMetadata(newCoordinationMetadata).build();
                 return ClusterState.builder(currentState).metadata(newMetadata).build();
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
             }
 
             @Override

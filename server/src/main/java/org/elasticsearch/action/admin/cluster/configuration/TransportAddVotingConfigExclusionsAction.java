@@ -25,10 +25,10 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.ActionClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateObserver.Listener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -84,7 +84,8 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
         resolveVotingConfigExclusionsAndCheckMaximum(request, state, maxVotingConfigExclusions);
         // throws IAE if no nodes matched or maximum exceeded
 
-        clusterService.submitStateUpdateTask("add-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
+        clusterService.submitStateUpdateTask("add-voting-config-exclusions",
+                new ActionClusterStateUpdateTask<>(Priority.URGENT, listener) {
 
             private Set<VotingConfigExclusion> resolvedExclusions;
 
@@ -100,11 +101,6 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                 final ClusterState newState = ClusterState.builder(currentState).metadata(newMetadata).build();
                 assert newState.getVotingConfigExclusions().size() <= finalMaxVotingConfigExclusions;
                 return newState;
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
             }
 
             @Override

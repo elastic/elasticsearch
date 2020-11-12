@@ -27,8 +27,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.ActionClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -145,8 +145,8 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         protected void masterOperation(
             Task task, final UpdateInternalOrPrivateAction.Request request,
             final ClusterState state,
-            final ActionListener<UpdateInternalOrPrivateAction.Response> listener) throws Exception {
-            clusterService.submitStateUpdateTask("update-index-internal-or-private", new ClusterStateUpdateTask() {
+            final ActionListener<UpdateInternalOrPrivateAction.Response> listener) {
+            clusterService.submitStateUpdateTask("update-index-internal-or-private", new ActionClusterStateUpdateTask<>(listener) {
                 @Override
                 public ClusterState execute(final ClusterState currentState) throws Exception {
                     final Metadata.Builder builder = Metadata.builder(currentState.metadata());
@@ -165,12 +165,6 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
                     listener.onResponse(new UpdateInternalOrPrivateAction.Response());
                 }
-
-                @Override
-                public void onFailure(final String source, final Exception e) {
-                    listener.onFailure(e);
-                }
-
             });
         }
 

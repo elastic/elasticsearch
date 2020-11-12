@@ -20,8 +20,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ActionClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -238,7 +238,7 @@ public class MlConfigMigrator {
 
         AtomicReference<RemovalResult> removedConfigs = new AtomicReference<>();
 
-        clusterService.submitStateUpdateTask("remove-migrated-ml-configs", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove-migrated-ml-configs", new ActionClusterStateUpdateTask<>(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 RemovalResult removed = removeJobsAndDatafeeds(jobsToRemove, datafeedsToRemove,
@@ -258,11 +258,6 @@ public class MlConfigMigrator {
                 }
                 newState.metadata(metadataBuilder.build());
                 return newState.build();
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
             }
 
             @Override

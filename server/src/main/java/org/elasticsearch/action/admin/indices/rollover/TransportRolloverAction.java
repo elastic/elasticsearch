@@ -29,8 +29,8 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ActionClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -113,7 +113,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         .filter(condition -> conditionResults.get(condition.toString())).collect(Collectors.toList());
                     if (conditionResults.size() == 0 || metConditions.size() > 0) {
                         clusterService.submitStateUpdateTask("rollover_index source [" + sourceIndexName + "] to target ["
-                            + rolloverIndexName + "]", new ClusterStateUpdateTask() {
+                            + rolloverIndexName + "]", new ActionClusterStateUpdateTask<>(listener) {
                             @Override
                             public ClusterState execute(ClusterState currentState) throws Exception {
                                 MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(currentState,
@@ -124,11 +124,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                         rolloverRequest.getRolloverTarget());
                                 }
                                 return rolloverResult.clusterState;
-                            }
-
-                            @Override
-                            public void onFailure(String source, Exception e) {
-                                listener.onFailure(e);
                             }
 
                             @Override

@@ -66,17 +66,9 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
             new MetadataIndexTemplateService
                 .RemoveRequest(request.name())
                 .masterTimeout(request.masterNodeTimeout()),
-            new MetadataIndexTemplateService.RemoveListener() {
-                @Override
-                public void onResponse(AcknowledgedResponse response) {
-                    listener.onResponse(response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("failed to delete templates [{}]", request.name()), e);
-                    listener.onFailure(e);
-                }
-            });
+            ActionListener.delegateResponse(listener, (l, e) -> {
+                logger.debug(() -> new ParameterizedMessage("failed to delete templates [{}]", request.name()), e);
+                l.onFailure(e);
+            }));
     }
 }

@@ -27,9 +27,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ActionClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -513,15 +513,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new ActionClusterStateUpdateTask<>(future) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return updater.apply(currentState);
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                future.onFailure(e);
             }
 
             @Override

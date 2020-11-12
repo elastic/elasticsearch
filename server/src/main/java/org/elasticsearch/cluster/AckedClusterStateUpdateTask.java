@@ -30,10 +30,10 @@ import org.elasticsearch.common.unit.TimeValue;
  * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
  * all the nodes have acknowledged a cluster state update request
  */
-public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask implements AckedClusterStateTaskListener {
+public abstract class AckedClusterStateUpdateTask extends ActionClusterStateUpdateTask<AcknowledgedResponse>
+        implements AckedClusterStateTaskListener {
 
-    private final ActionListener<AcknowledgedResponse> listener;
-    private final AckedRequest request;
+    private final TimeValue ackTimeout;
 
     protected AckedClusterStateUpdateTask(AckedRequest request, ActionListener<? extends AcknowledgedResponse> listener) {
         this(Priority.NORMAL, request, listener);
@@ -42,9 +42,8 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
     @SuppressWarnings("unchecked")
     protected AckedClusterStateUpdateTask(Priority priority, AckedRequest request,
                                           ActionListener<? extends AcknowledgedResponse> listener) {
-        super(priority, request.masterNodeTimeout());
-        this.listener = (ActionListener<AcknowledgedResponse>) listener;
-        this.request = request;
+        super(priority, request.masterNodeTimeout(), (ActionListener<AcknowledgedResponse>) listener);
+        this.ackTimeout = request.ackTimeout();
     }
 
     /**
@@ -79,15 +78,10 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
         listener.onResponse(newResponse(false));
     }
 
-    @Override
-    public void onFailure(String source, Exception e) {
-        listener.onFailure(e);
-    }
-
     /**
      * Acknowledgement timeout, maximum time interval to wait for acknowledgements
      */
     public final TimeValue ackTimeout() {
-        return request.ackTimeout();
+        return ackTimeout;
     }
 }

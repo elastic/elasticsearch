@@ -45,8 +45,8 @@ import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ActionClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -157,7 +157,7 @@ public class MetadataIndexStateService {
         }
 
         clusterService.submitStateUpdateTask("add-block-index-to-close " + Arrays.toString(concreteIndices),
-            new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
+            new ActionClusterStateUpdateTask<>(Priority.URGENT, request.masterNodeTimeout(), listener) {
 
                 private final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
 
@@ -175,22 +175,17 @@ public class MetadataIndexStateService {
                         assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)
                             .execute(new WaitForClosedBlocksApplied(blockedIndices, request,
-                                ActionListener.wrap(verifyResults ->
-                                    clusterService.submitStateUpdateTask("close-indices", new ClusterStateUpdateTask(Priority.URGENT) {
+                                ActionListener.wrap(verifyResults -> clusterService.submitStateUpdateTask("close-indices",
+                                    new ActionClusterStateUpdateTask<>(Priority.URGENT, listener) {
                                         private final List<IndexResult> indices = new ArrayList<>();
 
                                         @Override
-                                        public ClusterState execute(final ClusterState currentState) throws Exception {
+                                        public ClusterState execute(final ClusterState currentState) {
                                             Tuple<ClusterState, Collection<IndexResult>> closingResult =
                                                 closeRoutingTable(currentState, blockedIndices, verifyResults);
                                             assert verifyResults.size() == closingResult.v2().size();
                                             indices.addAll(closingResult.v2());
                                             return allocationService.reroute(closingResult.v1(), "indices closed");
-                                        }
-
-                                        @Override
-                                        public void onFailure(final String source, final Exception e) {
-                                            listener.onFailure(e);
                                         }
 
                                         @Override
@@ -226,11 +221,6 @@ public class MetadataIndexStateService {
                                 )
                             );
                     }
-                }
-
-                @Override
-                public void onFailure(final String source, final Exception e) {
-                    listener.onFailure(e);
                 }
             }
         );
@@ -403,7 +393,7 @@ public class MetadataIndexStateService {
         }
 
         clusterService.submitStateUpdateTask("add-index-block-[" + request.getBlock().name + "]-" + Arrays.toString(concreteIndices),
-            new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
+            new ActionClusterStateUpdateTask<>(Priority.URGENT, request.masterNodeTimeout(), listener) {
 
                 private Map<Index, ClusterBlock> blockedIndices;
 
@@ -428,21 +418,16 @@ public class MetadataIndexStateService {
                                             clusterService.submitStateUpdateTask("finalize-index-block-[" + request.getBlock().name +
                                                     "]-[" + blockedIndices.keySet().stream().map(Index::getName)
                                                         .collect(Collectors.joining(", ")) + "]",
-                                                new ClusterStateUpdateTask(Priority.URGENT) {
+                                                new ActionClusterStateUpdateTask<>(Priority.URGENT, listener) {
                                                 private final List<AddBlockResult> indices = new ArrayList<>();
 
                                                 @Override
-                                                public ClusterState execute(final ClusterState currentState) throws Exception {
+                                                public ClusterState execute(final ClusterState currentState) {
                                                     Tuple<ClusterState, Collection<AddBlockResult>> addBlockResult =
                                                         finalizeBlock(currentState, blockedIndices, verifyResults, request.getBlock());
                                                     assert verifyResults.size() == addBlockResult.v2().size();
                                                     indices.addAll(addBlockResult.v2());
                                                     return addBlockResult.v1();
-                                                }
-
-                                                @Override
-                                                public void onFailure(final String source, final Exception e) {
-                                                    listener.onFailure(e);
                                                 }
 
                                                 @Override
@@ -459,11 +444,6 @@ public class MetadataIndexStateService {
                                 )
                             );
                     }
-                }
-
-                @Override
-                public void onFailure(final String source, final Exception e) {
-                    listener.onFailure(e);
                 }
             }
         );

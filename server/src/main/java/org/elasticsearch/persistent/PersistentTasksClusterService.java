@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ActionClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -102,7 +103,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      */
     public <Params extends PersistentTaskParams> void createPersistentTask(String taskId, String taskName, Params taskParams,
                                                                            ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("create persistent task", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create persistent task", new ActionClusterStateUpdateTask<>(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder builder = builder(currentState);
@@ -115,11 +116,6 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
                 Assignment assignment = createAssignment(taskName, taskParams, currentState);
                 return update(currentState, builder.addTask(taskId, taskName, taskParams, assignment));
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
             }
 
             @Override
@@ -154,7 +150,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         } else {
             source = "finish persistent task (success)";
         }
-        clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask(source, new ActionClusterStateUpdateTask<>(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
@@ -173,11 +169,6 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
-            }
-
-            @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 // Using old state since in the new state the task is already gone
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
@@ -192,7 +183,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * @param listener the listener that will be called when task is removed
      */
     public void removePersistentTask(String id, ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("remove persistent task", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove persistent task", new ActionClusterStateUpdateTask<>(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
@@ -201,11 +192,6 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 } else {
                     throw new ResourceNotFoundException("the task with id {} doesn't exist", id);
                 }
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
             }
 
             @Override
@@ -228,7 +214,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                                           final long taskAllocationId,
                                           final PersistentTaskState taskState,
                                           final ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("update task state [" + taskId + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update task state [" + taskId + "]", new ActionClusterStateUpdateTask<>(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
@@ -242,11 +228,6 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     }
                     throw new ResourceNotFoundException("the task with id {} and allocation id {} doesn't exist", taskId, taskAllocationId);
                 }
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
             }
 
             @Override
@@ -271,9 +252,9 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                                        final long taskAllocationId,
                                        final String reason,
                                        final ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("unassign persistent task from any node", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("unassign persistent task from any node", new ActionClusterStateUpdateTask<>(listener) {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
                 if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
                     logger.trace("Unassigning task {} with allocation id {}", taskId, taskAllocationId);
@@ -281,11 +262,6 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 } else {
                     throw new ResourceNotFoundException("the task with id {} and allocation id {} doesn't exist", taskId, taskAllocationId);
                 }
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
             }
 
             @Override

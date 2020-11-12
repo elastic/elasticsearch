@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.cluster.ActionClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -77,13 +77,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
     ) throws Exception {
         clusterService.submitStateUpdateTask(
             "remove-data-stream [" + Strings.arrayToCommaDelimitedString(request.getNames()) + "]",
-            new ClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout()) {
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    listener.onFailure(e);
-                }
-
+            new ActionClusterStateUpdateTask<>(Priority.HIGH, request.masterNodeTimeout(), listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return removeDataStream(deleteIndexService, indexNameExpressionResolver, currentState, request);

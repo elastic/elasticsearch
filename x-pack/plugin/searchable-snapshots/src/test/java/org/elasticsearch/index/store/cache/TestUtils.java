@@ -52,7 +52,8 @@ public final class TestUtils {
     }
 
     static SortedSet<Tuple<Long, Long>> mergeContiguousRanges(final SortedSet<Tuple<Long, Long>> ranges) {
-        return ranges.stream().collect(() -> new TreeSet<>(Comparator.comparingLong(Tuple::v1)), (gaps, gap) -> {
+        // Eclipse needs the TreeSet type to be explicit (see https://bugs.eclipse.org/bugs/show_bug.cgi?id=568600)
+        return ranges.stream().collect(() -> new TreeSet<Tuple<Long, Long>>(Comparator.comparingLong(Tuple::v1)), (gaps, gap) -> {
             if (gaps.isEmpty()) {
                 gaps.add(gap);
             } else {

@@ -34,7 +34,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
@@ -75,7 +74,7 @@ public abstract class SearchContext implements Releasable {
     public static final int TRACK_TOTAL_HITS_DISABLED = -1;
     public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
-    private final List<Releasable> releasables = new CopyOnWriteArrayList<>();
+    protected final List<Releasable> releasables = new CopyOnWriteArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
 
@@ -90,15 +89,9 @@ public abstract class SearchContext implements Releasable {
     @Override
     public final void close() {
         if (closed.compareAndSet(false, true)) {
-            try {
-                Releasables.close(releasables);
-            } finally {
-                doClose();
-            }
+            Releasables.close(releasables);
         }
     }
-
-    protected abstract void doClose();
 
     /**
      * Should be called before executing the main query and after all other parameters have been set.
@@ -121,8 +114,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchShardTarget shardTarget();
 
     public abstract int numberOfShards();
-
-    public abstract float queryBoost();
 
     public abstract ScrollContext scrollContext();
 
@@ -221,8 +212,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract MapperService mapperService();
 
-    public abstract SimilarityService similarityService();
-
     public abstract BigArrays bigArrays();
 
     public abstract BitsetFilterCache bitsetFilterCache();
@@ -275,8 +264,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ParsedQuery parsedPostFilter();
 
-    public abstract Query aliasFilter();
-
     public abstract SearchContext parsedQuery(ParsedQuery query);
 
     public abstract ParsedQuery parsedQuery();
@@ -295,13 +282,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchContext size(int size);
 
     public abstract boolean hasStoredFields();
-
-    public abstract boolean hasStoredFieldsContext();
-
-    /**
-     * A shortcut function to see whether there is a storedFieldsContext and it says the fields are requested.
-     */
-    public abstract boolean storedFieldsRequested();
 
     public abstract StoredFieldsContext storedFieldsContext();
 
@@ -328,11 +308,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract int[] docIdsToLoad();
 
-    public abstract int docIdsToLoadFrom();
-
     public abstract int docIdsToLoadSize();
 
-    public abstract SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize);
+    public abstract SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize);
 
     public abstract DfsSearchResult dfsResult();
 

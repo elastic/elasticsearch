@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -46,13 +47,13 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         }
 
         @Override
-        public Object getFrom() {
+        public ZonedDateTime getFrom() {
             return Double.isInfinite(((Number) from).doubleValue()) ? null :
                 Instant.ofEpochMilli(((Number) from).longValue()).atZone(ZoneOffset.UTC);
         }
 
         @Override
-        public Object getTo() {
+        public ZonedDateTime getTo() {
             return Double.isInfinite(((Number) to).doubleValue()) ? null :
                 Instant.ofEpochMilli(((Number) to).longValue()).atZone(ZoneOffset.UTC);
         }

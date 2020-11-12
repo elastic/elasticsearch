@@ -34,6 +34,8 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
@@ -73,6 +75,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.rollup.RollupShardDecider;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -124,6 +127,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -585,7 +589,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
-                searchContext.docIdsToLoad(request.docIds(), request.docIdsSize());
+                searchContext.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
                 try (SearchOperationListenerExecutor executor =
                          new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())) {
                     fetchPhase.execute(searchContext);
@@ -985,7 +989,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         if (source.scriptFields() != null && source.size() != 0) {
-            int maxAllowedScriptFields = queryShardContext.getIndexSettings().getMaxScriptFields();
+            int maxAllowedScriptFields = context.mapperService().getIndexSettings().getMaxScriptFields();
             if (source.scriptFields().size() > maxAllowedScriptFields) {
                 throw new IllegalArgumentException(
                         "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxAllowedScriptFields
@@ -1103,7 +1107,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 docIdsToLoad[docsOffset++] = option.getDoc().doc;
             }
         }
-        context.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
+        context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
     }
 
     private void processScroll(InternalScrollSearchRequest request, ReaderContext reader, SearchContext context) {
@@ -1158,7 +1162,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private CanMatchResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
-        assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
+        //TODO(talevy): should this still be here?
+        //assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         final ReaderContext readerContext = request.readerId() != null ? findReaderContext(request.readerId(), request) : null;
         final Releasable markAsUsed = readerContext != null ? readerContext.markAsUsed(getKeepAlive(request)) : null;
         try (markAsUsed) {
@@ -1177,16 +1182,37 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
 
             try (canMatchSearcher) {
+                // get info about things
+
+                RollupMetadata rollupMetadata = clusterService.state().getMetadata().custom(RollupMetadata.TYPE);
+                IndexMetadata requestIndexMetadata = clusterService.state().getMetadata().index(request.shardId().getIndexName());
+                // cluster state point here. collect metadata about all other indices that are a part of the query
+
+                Map<String, String> indexRollupMeta = requestIndexMetadata.getCustomData(RollupMetadata.TYPE);
+                logger.error("indices searching: " + Arrays.toString(request.indices()));
+                logger.error("shard's index: " + requestIndexMetadata.getIndex().getName());
+
                 QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
-                    request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
+                    request::nowInMillis, request.getClusterAlias());
+
                 Rewriteable.rewrite(request.getRewriteable(), context, false);
+
                 final boolean aliasFilterCanMatch = request.getAliasFilter()
                     .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
                 FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
                 MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
                 final boolean canMatch;
+
+                QueryBuilder queryBuilder = request.source() == null ? null : request.source().query();
+                AggregatorFactories.Builder aggregations = request.source() == null ? null : request.source().aggregations();
+
+                // check can-match because rollup is part of request
+                if (RollupShardDecider.shouldMatchRollup(context, queryBuilder, aggregations, rollupMetadata, indexRollupMeta,
+                        requestIndexMetadata, request.indices(), clusterService.state().getMetadata().getIndicesLookup()) == false) {
+                    return new CanMatchResponse(false, minMax);
+                }
+
                 if (canRewriteToMatchNone(request.source())) {
-                    QueryBuilder queryBuilder = request.source().query();
                     canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
                 } else {
                     // null query means match_all

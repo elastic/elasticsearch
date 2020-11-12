@@ -59,6 +59,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
 
     private final Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory;
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
+    private final boolean preFilterRollup;
 
     CanMatchPreFilterSearchPhase(Logger logger, SearchTransportService searchTransportService,
                                  BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -68,13 +69,14 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
                                  ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                  TransportSearchAction.SearchTimeProvider timeProvider, ClusterState clusterState,
                                  SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
-                                 SearchResponse.Clusters clusters) {
+                                 SearchResponse.Clusters clusters, boolean preFilterRollup) {
         //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
         super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener, shardsIts, timeProvider, clusterState, task,
                 new CanMatchSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;
+        this.preFilterRollup = preFilterRollup;
     }
 
     @Override

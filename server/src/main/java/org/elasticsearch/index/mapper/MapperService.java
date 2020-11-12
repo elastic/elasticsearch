@@ -432,8 +432,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Returns all mapped field types.
      */
-    public Iterable<MappedFieldType> fieldTypes() {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes();
+    public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
+        return this.mapper == null ? Collections.emptySet() :
+            this.mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
     }
 
     public ObjectMapper getObjectMapper(String name) {

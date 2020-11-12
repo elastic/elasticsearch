@@ -10,7 +10,7 @@ project.forbiddenPatterns {
   exclude '**/*.key'
 }
 
-tasks.named("dependencyLicenses").configure { it.enabled = false }
+tasks.named("dependencyLicenses").configure { enabled = false }
 
 tasks.register("buildZip", Zip) {
   dependsOn "jar"

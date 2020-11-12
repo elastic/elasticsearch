@@ -133,8 +133,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 @Override
                 public void onFailure(Exception e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                        e = new ElasticsearchStatusException("Cannot open job [" + jobParams.getJobId() +
-                                "] because it has already been opened", RestStatus.CONFLICT, e);
+                        e = new ElasticsearchStatusException(
+                            "Cannot open job [{}] because it has already been opened",
+                            RestStatus.CONFLICT,
+                            e,
+                            jobParams.getJobId());
                     }
                     listener.onFailure(e);
                 }
@@ -193,8 +196,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                listener.onFailure(new ElasticsearchException("Opening job ["
-                        + jobParams.getJobId() + "] timed out after [" + timeout + "]"));
+                listener.onFailure(new ElasticsearchException("Opening job [{}] timed out after [{}]", jobParams.getJob(), timeout));
             }
         });
     }
@@ -241,8 +243,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error("[" + persistentTask.getParams().getJobId() + "] Failed to cancel persistent task that could " +
-                                "not be assigned due to [" + exception.getMessage() + "]", e);
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                                persistentTask.getParams().getJobId(),
+                                exception.getMessage()),
+                            e);
                         listener.onFailure(exception);
                     }
                 }
@@ -266,9 +272,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         @Override
         public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
             JobState jobState = JobState.CLOSED;
+            String reason = null;
             if (persistentTask != null) {
                 JobTaskState jobTaskState = (JobTaskState) persistentTask.getState();
                 jobState = jobTaskState == null ? JobState.OPENING : jobTaskState.getState();
+                reason = jobTaskState == null ? null : jobTaskState.getReason();
 
                 PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
 
@@ -309,13 +317,20 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     node = persistentTask.getExecutorNode();
                     return true;
                 case CLOSING:
-                    exception = ExceptionsHelper.conflictStatusException("The job has been " + JobState.CLOSED + " while waiting to be "
-                            + JobState.OPENED);
+                    exception = ExceptionsHelper.conflictStatusException(
+                        "The job has been {} while waiting to be {}",
+                        JobState.CLOSED,
+                        JobState.OPENED);
                     return true;
                 case FAILED:
                 default:
-                    exception = ExceptionsHelper.serverError("Unexpected job state [" + jobState
-                            + "] while waiting for job to be " + JobState.OPENED);
+                    // Default http status is SERVER ERROR
+                    exception = ExceptionsHelper.serverError(
+                        "Unexpected job state [{}] {}while waiting for job to be {}",
+                        jobState,
+                        reason == null ? "" : "with reason [" + reason + "] ",
+                        JobState.OPENED
+                    );
                     return true;
             }
         }

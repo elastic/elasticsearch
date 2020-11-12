@@ -6,7 +6,8 @@ dependencies {
   api project(":test:framework")
 }
 
-test.enabled = false // We don't currently have any tests for this because they are test utilities.
+// We don't currently have any tests for this because they are test utilities.
+tasks.named("test").configure { enabled = false }
 
 subprojects {
   if (project.name.startsWith('core-with-')) {

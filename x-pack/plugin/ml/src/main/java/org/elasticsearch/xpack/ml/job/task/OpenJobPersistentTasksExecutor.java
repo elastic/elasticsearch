@@ -138,11 +138,12 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             throw ExceptionsHelper.missingJobException(jobId);
         }
         if (job.isDeleting()) {
-            throw ExceptionsHelper.conflictStatusException("Cannot open job [" + jobId + "] because it is being deleted");
+            throw ExceptionsHelper.conflictStatusException("Cannot open job [{}] because it is being deleted", jobId);
         }
         if (job.getJobVersion() == null) {
-            throw ExceptionsHelper.badRequestException("Cannot open job [" + jobId
-                + "] because jobs created prior to version 5.5 are not supported");
+            throw ExceptionsHelper.badRequestException(
+                "Cannot open job [{}] because jobs created prior to version 5.5 are not supported",
+                jobId);
         }
     }
 
@@ -202,7 +203,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                         ActionListener.wrap(
                             response -> jobTask.markAsCompleted(),
                             e -> {
-                                logger.error("error finalizing job [" + jobId + "]", e);
+                                logger.error(new ParameterizedMessage("[{}] error finalizing job", jobId), e);
                                 Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                                 if (unwrapped instanceof DocumentMissingException || unwrapped instanceof ResourceNotFoundException) {
                                     jobTask.markAsCompleted();

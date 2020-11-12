@@ -298,12 +298,13 @@ determine the cardinality of your data, you can run searches such as:
 
 [source,js]
 --------------------------------------------------
-GET .../_search {
+GET .../_search 
+{
   "aggs": {
     "service_cardinality": {
       "cardinality": {
         "field": "service"
-        }
+      }
     }
   }
 }

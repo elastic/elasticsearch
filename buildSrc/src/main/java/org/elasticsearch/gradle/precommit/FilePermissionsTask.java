@@ -28,12 +28,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.tools.ant.taskdefs.condition.Os;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.StopExecutionException;
@@ -41,10 +43,14 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
 
+import javax.inject.Inject;
+
 /**
  * Checks source files for correct file permissions.
  */
-public class FilePermissionsTask extends DefaultTask {
+public abstract class FilePermissionsTask extends DefaultTask {
+
+    private final ProjectLayout projectLayout;
 
     /**
      * A pattern set of which files should be checked.
@@ -57,7 +63,9 @@ public class FilePermissionsTask extends DefaultTask {
 
     private File outputMarker = new File(getProject().getBuildDir(), "markers/filePermissions");
 
-    public FilePermissionsTask() {
+    @Inject
+    public FilePermissionsTask(ProjectLayout projectLayout) {
+        this.projectLayout = projectLayout;
         setDescription("Checks java source files for correct file permissions");
     }
 
@@ -80,11 +88,11 @@ public class FilePermissionsTask extends DefaultTask {
     @InputFiles
     @SkipWhenEmpty
     public FileCollection getFiles() {
-        return GradleUtils.getJavaSourceSets(getProject())
+        return getSources().get()
             .stream()
-            .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
+            .map(sourceTree -> sourceTree.matching(filesFilter))
             .reduce(FileTree::plus)
-            .orElse(getProject().files().getAsFileTree());
+            .orElse(projectLayout.files().getAsFileTree());
     }
 
     @TaskAction
@@ -111,4 +119,6 @@ public class FilePermissionsTask extends DefaultTask {
         return outputMarker;
     }
 
+    @Internal
+    public abstract ListProperty<FileTree> getSources();
 }

@@ -472,6 +472,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);
         assertThat(mapper.mappingSource().toString(), containsString("\"type\":\"string\""));
         assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"type\":" +
-            "\"string\"}}], caused by [No mapper found for type [string]]");
+            "\"string\"}}], attempted to validate it with the following match_mapping_type: [[string]], " +
+            "last error: [No mapper found for type [string]]");
     }
 }

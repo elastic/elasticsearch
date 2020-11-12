@@ -114,6 +114,13 @@ For instance:
        ... test definitions ...
 ....
 
+The value for version can also be `all`, to skip in any version of
+Elasticsearch. This can be used for example when a feature is being implemented
+or awaiting a fix.
+
+`skip` can also be used at the top level of the file in the `setup` block, so
+all the tests in a file will be skipped if the condition applies.
+
 The skip section can also be used to list new features that need to be
 supported in order to run a test. This way the up-to-date runners will
 run the test, while the ones that don't support the feature yet can

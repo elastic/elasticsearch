@@ -56,6 +56,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.greaterThan;
@@ -238,7 +239,7 @@ public class TransformContinuousIT extends ESRestTestCase {
 
                 // simulate a different timestamp that is off from the timestamp used for sync, so it can fall into the previous bucket
                 String metricDateString = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
-                    .format(runDate.minusSeconds(randomIntBetween(0, 5)).plusNanos(randomIntBetween(0, 999999)));
+                    .format(runDate.minusSeconds(randomIntBetween(0, 2)).plusNanos(randomIntBetween(0, 999999)));
                 source.append("\"metric-timestamp\":\"").append(metricDateString).append("\",");
 
                 String dateString = ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
@@ -443,7 +444,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                     stats.getCheckpointingInfo().getLast().getTimeUpperBoundMillis(),
                     greaterThan(timeStampUpperBoundMillis)
                 );
-            });
+            }, 20, TimeUnit.SECONDS);
         }
     }
 

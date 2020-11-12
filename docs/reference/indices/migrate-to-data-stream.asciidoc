@@ -24,7 +24,7 @@ PUT /_index_template/template
 
 [source,console]
 ----
-PUT /_data_stream/_migrate/my-logs
+POST /_data_stream/_migrate/my-logs
 ----
 // TEST[continued]
 

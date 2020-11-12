@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor.isValidValue;
 
@@ -27,11 +26,11 @@ public class ProcessedField {
     }
 
     public List<String> getInputFieldNames() {
-        return preProcessor.inputFields().stream().sorted().collect(Collectors.toList());
+        return preProcessor.inputFields();
     }
 
     public List<String> getOutputFieldNames() {
-        return preProcessor.outputFields().stream().sorted().collect(Collectors.toList());
+        return preProcessor.outputFields();
     }
 
     public Set<String> getOutputFieldType(String outputField) {
@@ -56,7 +55,7 @@ public class ProcessedField {
             }
         }
         preProcessor.process(inputs);
-        return preProcessor.outputFields().stream().sorted().map(inputs::get).toArray();
+        return preProcessor.outputFields().stream().map(inputs::get).toArray();
     }
 
     public String getProcessorName() {

@@ -1,6 +1,6 @@
 [role="xpack"]
 [[indices-migrate-to-data-stream]]
-=== Migreat to data stream API
+=== Migrate to data stream API
 ++++
 <titleabbrev>Migrate to data stream</titleabbrev>
 ++++

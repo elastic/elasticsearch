@@ -10,6 +10,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.geo.LatLonGeometry;
+import org.apache.lucene.geo.Point;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.index.DirectoryReader;
@@ -18,6 +20,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SerialMergeScheduler;
+import org.apache.lucene.search.CheckHits;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryUtils;
@@ -29,6 +33,7 @@ import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -59,32 +64,25 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         Directory dir = newDirectory();
         // RandomIndexWriter is too slow here:
         IndexWriter w = new IndexWriter(dir, iwc);
-        final int numDocs = randomIntBetween(10, 100);
+        final int numDocs = randomIntBetween(10, 1000);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, FIELD_NAME);
         for (int id = 0; id < numDocs; id++) {
             Document doc = new Document();
             @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometryFunc = ESTestCase.randomFrom(
-                GeometryTestUtils::randomCircle,
                 GeometryTestUtils::randomLine,
                 GeometryTestUtils::randomPoint,
                 GeometryTestUtils::randomPolygon
             );
             Geometry geometry = geometryFunc.apply(false);
-            try {
-                geometry = indexer.prepareForIndexing(geometry);
-                List<IndexableField> fields = indexer.indexShape(null, geometry);
-                for (IndexableField field : fields) {
-                    doc.add(field);
-                }
-                BinaryGeoShapeDocValuesField docVal = new BinaryGeoShapeDocValuesField(FIELD_NAME);
-                docVal.add(fields, geometry);
-                doc.add(docVal);
-                w.addDocument(doc);
-
-
-            } catch (Exception e) {
-                // ignore
+            geometry = indexer.prepareForIndexing(geometry);
+            List<IndexableField> fields = indexer.indexShape(null, geometry);
+            for (IndexableField field : fields) {
+                doc.add(field);
             }
+            BinaryGeoShapeDocValuesField docVal = new BinaryGeoShapeDocValuesField(FIELD_NAME);
+            docVal.add(fields, geometry);
+            doc.add(docVal);
+            w.addDocument(doc);
         }
 
         if (random().nextBoolean()) {
@@ -94,20 +92,31 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         w.close();
 
         IndexSearcher s = newSearcher(r);
-        for (int i = 0; i < 100; i++) {
-            org.apache.lucene.geo.Polygon q = GeoTestUtil.nextPolygon();
-            Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, q);
-            Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME,ShapeField.QueryRelation.INTERSECTS, q);
-            assertEquals(s.count(indexQuery), s.count(docValQuery));
-            indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.WITHIN, q);
-            docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.WITHIN, q);
-            assertEquals(s.count(indexQuery), s.count(docValQuery));
-            indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, q);
-            docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, q);
-            assertEquals(s.count(indexQuery), s.count(docValQuery));
-            indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.CONTAINS, q);
-            docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.CONTAINS, q);
-            assertEquals(s.count(indexQuery), s.count(docValQuery));
+        for (int i = 0; i < 25; i++) {
+            LatLonGeometry[] geometries = randomLuceneQueryGeometries();
+            {
+                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, geometries);
+                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, geometries);
+                assertQueries(s, indexQuery, docValQuery, numDocs);
+            }
+            {
+                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.WITHIN, geometries);
+                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.WITHIN, geometries);
+                assertQueries(s, indexQuery, docValQuery, numDocs);
+            }
+            {
+                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, geometries);
+                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, geometries);
+                assertQueries(s, indexQuery, docValQuery, numDocs);
+            }
+            {
+                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.CONTAINS, geometries);
+                // I open LUCENE-9606 so the query is wrap internally with a ConstantScoreQuery in the case of
+                // geometry collections.
+                indexQuery = new ConstantScoreQuery(indexQuery);
+                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.CONTAINS, geometries);
+                assertQueries(s, indexQuery, docValQuery, numDocs);
+            }
         }
         IOUtils.close(r, dir);
     }
@@ -121,24 +130,20 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         Directory dir = newDirectory();
         // RandomIndexWriter is too slow here:
         IndexWriter w = new IndexWriter(dir, iwc);
-        final int numDocs = randomIntBetween(10, 1000);
+        final int numDocs = randomIntBetween(10, 100);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, FIELD_NAME);
         for (int id = 0; id < numDocs; id++) {
             Document doc = new Document();
             Geometry geometry = GeometryTestUtils.randomGeometryWithoutCircle(randomIntBetween(1, 5), false);
-            try {
-                geometry = indexer.prepareForIndexing(geometry);
-                List<IndexableField> fields = indexer.indexShape(null, geometry);
-                for (IndexableField field : fields) {
-                    doc.add(field);
-                }
-                BinaryGeoShapeDocValuesField docVal = new BinaryGeoShapeDocValuesField(FIELD_NAME);
-                docVal.add(fields, geometry);
-                doc.add(docVal);
-                w.addDocument(doc);
-            } catch (Exception e) {
-                // ignore
+            geometry = indexer.prepareForIndexing(geometry);
+            List<IndexableField> fields = indexer.indexShape(null, geometry);
+            for (IndexableField field : fields) {
+                doc.add(field);
             }
+            BinaryGeoShapeDocValuesField docVal = new BinaryGeoShapeDocValuesField(FIELD_NAME);
+            docVal.add(fields, geometry);
+            doc.add(docVal);
+            w.addDocument(doc);
         }
 
         if (random().nextBoolean()) {
@@ -148,22 +153,53 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         w.close();
 
         IndexSearcher s = newSearcher(r);
-        for (int i = 0; i < 100; i++) {
-            org.apache.lucene.geo.Polygon q = GeoTestUtil.nextPolygon();
-            Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, q);
-            Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME,ShapeField.QueryRelation.INTERSECTS, q);
-            assertEquals(s.count(indexQuery), s.count(docValQuery));
-            indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.WITHIN, q);
-            docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.WITHIN, q);
-            assertEquals(s.count(indexQuery), s.count(docValQuery));
-            indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, q);
-            docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, q);
-            assertEquals(s.count(indexQuery), s.count(docValQuery));
-            // CONTAINS and multi-shapes fails due to LUCENE-9595
-            // indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.CONTAINS, q);
-            // docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.CONTAINS, q);
-            // assertEquals(s.count(indexQuery), s.count(docValQuery));
+        for (int i = 0; i < 25; i++) {
+            LatLonGeometry[] geometries = randomLuceneQueryGeometries();
+            {
+                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, geometries);
+                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, geometries);
+                assertQueries(s, indexQuery, docValQuery, numDocs);
+            }
+            {
+                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.WITHIN, geometries);
+                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.WITHIN, geometries);
+                assertQueries(s, indexQuery, docValQuery, numDocs);
+            }
+            {
+                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, geometries);
+                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, geometries);
+                assertQueries(s, indexQuery, docValQuery, numDocs);
+            }
+            {
+                // CONTAINS and multi-shapes fails due to LUCENE-9595
+                // indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.CONTAINS, q);
+                // docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.CONTAINS, q);
+                // assertQueries(s, indexQuery, docValQuery, numDocs);
+            }
         }
         IOUtils.close(r, dir);
+    }
+
+    private void assertQueries(IndexSearcher s, Query indexQuery, Query docValQuery, int numDocs) throws IOException {
+        assertEquals(s.count(indexQuery), s.count(docValQuery));
+        CheckHits.checkEqual(docValQuery, s.search(indexQuery, numDocs).scoreDocs, s.search(docValQuery, numDocs).scoreDocs);
+    }
+
+    private LatLonGeometry[] randomLuceneQueryGeometries() {
+        int numGeom = randomIntBetween(1, 3);
+        LatLonGeometry[] geometries = new LatLonGeometry[numGeom];
+        for (int i = 0; i < numGeom; i++) {
+            geometries[i] = randomLuceneQueryGeometry();
+        }
+        return geometries;
+    }
+
+    private LatLonGeometry randomLuceneQueryGeometry() {
+        switch (randomInt(3)) {
+            case 0: return GeoTestUtil.nextPolygon();
+            case 1: return GeoTestUtil.nextCircle();
+            case 2: return new Point(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude());
+            default: return GeoTestUtil.nextBox();
+        }
     }
 }

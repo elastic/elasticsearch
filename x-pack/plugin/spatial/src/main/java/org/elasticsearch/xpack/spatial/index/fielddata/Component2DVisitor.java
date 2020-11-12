@@ -24,8 +24,10 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
         this.encoder = encoder;
     }
 
+    /** If the relationship has been honour. */
     public abstract boolean matches();
 
+    /** Reset the visitor to the initial state. */
     public abstract void reset();
 
     @Override
@@ -85,6 +87,11 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
         return doPush(relation);
     }
 
+    /** Relation between the query shape and the doc value bounding box. Depending on the query relationship,
+     * decide if we should traverse the tree.
+     *
+     * @return if true, the visitor keeps traversing the tree, else it stops.
+     * */
     abstract boolean doPush(PointValues.Relation relation);
 
     /**
@@ -115,7 +122,7 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
      */
     private static class IntersectsVisitor extends Component2DVisitor {
 
-        boolean answer;
+        boolean intersects;
 
         private IntersectsVisitor(Component2D component2D, CoordinateEncoder encoder) {
             super(component2D, encoder);
@@ -123,42 +130,48 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
 
         @Override
         public boolean matches() {
-            return answer;
+            return intersects;
         }
 
         @Override
         public void reset() {
-            answer = false;
+            // Start assuming that shapes are disjoint. As soon an intersecting component is found,
+            // stop traversing the tree.
+            intersects = false;
         }
 
         @Override
         void doVisitPoint(double x, double y) {
-            answer = component2D.contains(x, y);
+            intersects = component2D.contains(x, y);
         }
 
         @Override
         void doVisitLine(double aX, double aY, double bX, double bY, byte metadata) {
-            answer = component2D.intersectsLine(aX, aY, bX, bY);
+            intersects = component2D.intersectsLine(aX, aY, bX, bY);
         }
 
         @Override
         void doVisitTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
-            answer = component2D.intersectsTriangle(aX, aY, bX, bY, cX, cY);
+            intersects = component2D.intersectsTriangle(aX, aY, bX, bY, cX, cY);
         }
 
         @Override
         public boolean push() {
-            return answer == false;
+            // as far as shapes don't intersect, keep traversing the tree
+            return intersects == false;
         }
 
         @Override
        boolean doPush(PointValues.Relation relation) {
             if (relation == PointValues.Relation.CELL_OUTSIDE_QUERY) {
+                // shapes are disjoint, stop traversing the tree.
                 return false;
             } else if (relation == PointValues.Relation.CELL_INSIDE_QUERY) {
-                answer = true;
+                // shapes intersects, stop traversing the tree.
+                intersects = true;
                 return false;
             } else {
+                // traverse the tree.
                 return true;
             }
         }
@@ -169,52 +182,57 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
      */
     private static class DisjointVisitor extends Component2DVisitor {
 
-        boolean answer;
+        boolean disjoint;
 
         private DisjointVisitor(Component2D component2D, CoordinateEncoder encoder) {
             super(component2D, encoder);
-            answer = true;
+            disjoint = true;
         }
 
         @Override
         public boolean matches() {
-            return answer;
+            return disjoint;
         }
 
         @Override
         public void reset() {
-            answer = true;
+            // Start assuming that shapes are disjoint. As soon an intersecting component is found,
+            // stop traversing the tree.
+            disjoint = true;
         }
-
 
         @Override
         void doVisitPoint(double x, double y) {
-            answer = component2D.contains(x, y) == false;
+            disjoint = component2D.contains(x, y) == false;
         }
 
         @Override
         void doVisitLine(double aX, double aY, double bX, double bY, byte metadata) {
-            answer = component2D.intersectsLine(aX, aY, bX, bY) == false;
+            disjoint = component2D.intersectsLine(aX, aY, bX, bY) == false;
         }
 
         @Override
         void doVisitTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
-            answer = component2D.intersectsTriangle(aX, aY, bX, bY, cX, cY) == false;
+            disjoint = component2D.intersectsTriangle(aX, aY, bX, bY, cX, cY) == false;
         }
 
         @Override
         public boolean push() {
-            return answer;
+            // as far as the shapes are disjoint, keep traversing the tree
+            return disjoint;
         }
 
         @Override
         boolean doPush(PointValues.Relation relation) {
             if (relation == PointValues.Relation.CELL_OUTSIDE_QUERY) {
+                // shapes are disjoint, stop traversing the tree.
                 return false;
             } else if (relation == PointValues.Relation.CELL_INSIDE_QUERY) {
-                answer = false;
+                // shapes intersects, stop traversing the tree.
+                disjoint = false;
                 return false;
             } else {
+                // trasverse the tree
                 return true;
             }
         }
@@ -225,67 +243,77 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
      */
     private static class WithinVisitor extends Component2DVisitor {
 
-        boolean answer;
+        boolean within;
 
         private WithinVisitor(Component2D component2D, CoordinateEncoder encoder) {
             super(component2D, encoder);
-            answer = true;
+            within = true;
         }
 
         @Override
         public boolean matches() {
-            return answer;
+            return within;
         }
 
         @Override
         public void reset() {
-            answer = true;
+            // Start assuming that the doc value is within the query shape. As soon
+            // as a component is not within the query, stop traversing the tree.
+            within = true;
         }
 
         @Override
         void doVisitPoint(double x, double y) {
-            answer = component2D.contains(x, y);
+            within = component2D.contains(x, y);
         }
 
         @Override
         void doVisitLine(double aX, double aY, double bX, double bY, byte metadata) {
-            answer = component2D.containsLine(aX, aY, bX, bY);
+            within = component2D.containsLine(aX, aY, bX, bY);
         }
 
         @Override
         void doVisitTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
-            answer = component2D.containsTriangle(aX, aY, bX, bY, cX, cY);
+            within = component2D.containsTriangle(aX, aY, bX, bY, cX, cY);
         }
 
         @Override
         public boolean push() {
-            return answer;
+            // as far as the doc value is within the query shape, keep traversing the tree
+            return within;
         }
 
         @Override
         public boolean pushX(int minX) {
-            answer = super.pushX(minX);
-            return answer;
+            // if any part of the tree is skipped, then the doc value is not within the shape,
+            // stop traversing the tree
+            within = super.pushX(minX);
+            return within;
         }
 
         @Override
         public boolean pushY(int minY) {
-            answer = super.pushY(minY);
-            return answer;
+            // if any part of the tree is skipped, then the doc value is not within the shape,
+            // stop traversing the tree
+            within = super.pushY(minY);
+            return within;
         }
 
         @Override
         public boolean push(int maxX, int maxY) {
-            answer = super.push(maxX, maxY);
-            return answer;
+            // if any part of the tree is skipped, then the doc value is not within the shape,
+            // stop traversing the tree
+            within = super.push(maxX, maxY);
+            return within;
         }
 
         @Override
         boolean doPush(PointValues.Relation relation) {
             if (relation == PointValues.Relation.CELL_OUTSIDE_QUERY) {
-                answer = false;
+                // shapes are disjoint, stop traversing the tree.
+                within = false;
             }
-            return answer;
+            return within;
         }
     }
 
@@ -309,6 +337,8 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
 
         @Override
         public void reset() {
+            // Start assuming that shapes are disjoint. As soon
+            // as a component has a NOTWITHIN relationship, stop traversing the tree.
             answer = Component2D.WithinRelation.DISJOINT;
         }
 
@@ -316,6 +346,7 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
         void doVisitPoint(double x, double y) {
             final Component2D.WithinRelation rel = component2D.withinPoint(x, y);
             if (rel != Component2D.WithinRelation.DISJOINT) {
+                // Only override relationship if different to DISJOINT
                 answer = rel;
             }
         }
@@ -325,6 +356,7 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
             final boolean ab = (metadata & 1 << 4) == 1 << 4;
             final Component2D.WithinRelation rel = component2D.withinLine(aX, aY, ab, bX, bY);
             if (rel != Component2D.WithinRelation.DISJOINT) {
+                // Only override relationship if different to DISJOINT
                 answer = rel;
             }
         }
@@ -336,17 +368,20 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
             final boolean ca = (metadata & 1 << 6) == 1 << 6;
             final Component2D.WithinRelation rel = component2D.withinTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
             if (rel != Component2D.WithinRelation.DISJOINT) {
+                // Only override relationship if different to DISJOINT
                 answer = rel;
             }
         }
 
         @Override
         public boolean push() {
+            // If the relationship is NOTWITHIN, stop traversing the tree
             return answer != Component2D.WithinRelation.NOTWITHIN;
         }
 
         @Override
         boolean doPush(PointValues.Relation relation) {
+            // Only traverse the tree if the shapes intersects.
             return relation == PointValues.Relation.CELL_CROSSES_QUERY;
         }
     }

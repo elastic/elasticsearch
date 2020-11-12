@@ -24,7 +24,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -40,9 +39,39 @@ public class FieldTypeLookupTests extends ESTestCase {
         Collection<String> names = lookup.simpleMatchToFullName("foo");
         assertNotNull(names);
         assertTrue(names.isEmpty());
-        Iterator<MappedFieldType> itr = lookup.iterator();
-        assertNotNull(itr);
-        assertFalse(itr.hasNext());
+        assertEquals(0, size(lookup.filter(ft -> true)));
+    }
+
+    public void testFilter() {
+        Collection<FieldMapper> fieldMappers = List.of(new MockFieldMapper("field"), new MockFieldMapper("test"));
+        Collection<FieldAliasMapper> fieldAliases = singletonList(new FieldAliasMapper("alias", "alias", "test"));
+        Collection<RuntimeFieldType> runtimeFields = List.of(new TestRuntimeField("runtime"), new TestRuntimeField("field"));
+        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(fieldMappers, fieldAliases, runtimeFields);
+        Iterable<MappedFieldType> allFieldTypes = fieldTypeLookup.filter(ft -> true);
+        assertEquals(3, size(allFieldTypes));
+        for (MappedFieldType fieldType : allFieldTypes) {
+            if (fieldType.name().equals("test")) {
+                assertThat(fieldType, instanceOf(MockFieldMapper.FakeFieldType.class));
+            }
+            if (fieldType.name().equals("field") || fieldType.name().equals("runtime")) {
+                assertThat(fieldType, instanceOf(TestRuntimeField.class));
+            }
+        }
+        assertEquals(0, size(fieldTypeLookup.filter(ft -> false)));
+        {
+            Iterable<MappedFieldType> fieldIterable = fieldTypeLookup.filter(ft -> ft.name().equals("field"));
+            assertEquals(1, size(fieldIterable));
+            MappedFieldType field = fieldIterable.iterator().next();
+            assertEquals("field", field.name());
+            assertThat(field, instanceOf(TestRuntimeField.class));
+        }
+        {
+            Iterable<MappedFieldType> fieldIterable = fieldTypeLookup.filter(ft -> ft.name().equals("test"));
+            assertEquals(1, size(fieldIterable));
+            MappedFieldType field = fieldIterable.iterator().next();
+            assertEquals("test", field.name());
+            assertThat(field, instanceOf(MockFieldMapper.FakeFieldType.class));
+        }
     }
 
     public void testAddNewField() {
@@ -50,7 +79,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList(), Collections.emptyList());
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup.get("foo"));
-        assertEquals(1, size(lookup.iterator()));
+        assertEquals(1, size(lookup.filter(ft -> true)));
     }
 
     public void testAddFieldAlias() {
@@ -110,16 +139,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field.subfield1"));
     }
 
-    public void testIteratorImmutable() {
-        MockFieldMapper f1 = new MockFieldMapper("foo");
-        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f1), emptyList(), emptyList());
-
-        Iterator<MappedFieldType> itr = lookup.iterator();
-        assertTrue(itr.hasNext());
-        assertEquals(f1.fieldType(), itr.next());
-        expectThrows(UnsupportedOperationException.class, itr::remove);
-    }
-
     public void testRuntimeFieldsLookup() {
         MockFieldMapper concrete = new MockFieldMapper("concrete");
         TestRuntimeField runtime = new TestRuntimeField("runtime");
@@ -127,7 +146,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(List.of(concrete), emptyList(), List.of(runtime));
         assertThat(fieldTypeLookup.get("concrete"), instanceOf(MockFieldMapper.FakeFieldType.class));
         assertThat(fieldTypeLookup.get("runtime"), instanceOf(TestRuntimeField.class));
-        assertEquals(2, size(fieldTypeLookup.iterator()));
+        assertEquals(2, size(fieldTypeLookup.filter(ft -> true)));
     }
 
     public void testRuntimeFieldOverrides() {
@@ -144,7 +163,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertThat(fieldTypeLookup.get("object.subfield"), instanceOf(TestRuntimeField.class));
         assertThat(fieldTypeLookup.get("concrete"), instanceOf(MockFieldMapper.FakeFieldType.class));
         assertThat(fieldTypeLookup.get("runtime"), instanceOf(TestRuntimeField.class));
-        assertEquals(4, size(fieldTypeLookup.iterator()));
+        assertEquals(4, size(fieldTypeLookup.filter(ft -> true)));
     }
 
     public void testRuntimeFieldsSimpleMatchToFullName() {
@@ -191,14 +210,10 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
     }
 
-    private static int size(Iterator<MappedFieldType> iterator) {
-        if (iterator == null) {
-            throw new NullPointerException("iterator");
-        }
+    private static int size(Iterable<MappedFieldType> iterable) {
         int count = 0;
-        while (iterator.hasNext()) {
+        for (MappedFieldType fieldType : iterable) {
             count++;
-            iterator.next();
         }
         return count;
     }

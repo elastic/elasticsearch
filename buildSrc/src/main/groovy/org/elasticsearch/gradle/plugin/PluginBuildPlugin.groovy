@@ -108,6 +108,22 @@ class PluginBuildPlugin implements Plugin<Project> {
             }
         }
 
+        // We've ported this from multiple build scripts where we see this pattern into
+        // an extension method as a first step of consolidation.
+        // We might want to port this into a general pattern later on.
+        project.ext.addQaCheckDependencies = {
+            project.afterEvaluate {
+                // let check depend on check tasks of qa sub-projects
+                def checkTaskProvider = project.tasks.named("check")
+                def qaSubproject = project.subprojects.find { it.path == project.path + ":qa" }
+                if(qaSubproject) {
+                    qaSubproject.subprojects.each {p ->
+                        checkTaskProvider.configure {it.dependsOn(p.path + ":check") }
+                    }
+                }
+            }
+        }
+
         project.tasks.named('testingConventions').configure {
             naming.clear()
             naming {
@@ -125,7 +141,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                 .extendsFrom(project.configurations.getByName('runtimeClasspath'))
         // allow running ES with this plugin in the foreground of a build
         project.tasks.register('run', RunTask) {
-            dependsOn(project.tasks.bundlePlugin)
+            dependsOn(project.tasks.named("bundlePlugin"))
         }
     }
 

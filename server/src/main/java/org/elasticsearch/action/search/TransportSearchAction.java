@@ -265,7 +265,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     }
 
                     @Override
-                    boolean includeSearchContextInResponse() {
+                    boolean buildPointInTimeFromSearchResults() {
                         return includeSearchContext;
                     }
                 };

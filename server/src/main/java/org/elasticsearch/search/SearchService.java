@@ -31,7 +31,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -589,7 +588,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
-                searchContext.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
+                searchContext.docIdsToLoad(request.docIds(), request.docIdsSize());
                 try (SearchOperationListenerExecutor executor =
                          new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())) {
                     fetchPhase.execute(searchContext);
@@ -1107,7 +1106,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 docIdsToLoad[docsOffset++] = option.getDoc().doc;
             }
         }
-        context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+        context.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
     }
 
     private void processScroll(InternalScrollSearchRequest request, ReaderContext reader, SearchContext context) {
@@ -1193,7 +1192,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 logger.error("shard's index: " + requestIndexMetadata.getIndex().getName());
 
                 QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
-                    request::nowInMillis, request.getClusterAlias());
+                    request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
 
                 Rewriteable.rewrite(request.getRewriteable(), context, false);
 

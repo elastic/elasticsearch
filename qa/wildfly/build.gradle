@@ -82,10 +82,10 @@ tasks.register("integTest", Test) {
 }
 
 tasks.named("check").configure {
-  dependsOn integTest
+  dependsOn "integTest"
 }
 tasks.named("test").configure {enabled = false }
-tasks.named("dependencyLicenses").configure { it.enabled = false }
+tasks.named("dependencyLicenses").configure { enabled = false }
 tasks.named("dependenciesInfo") {
   enabled = false
 }

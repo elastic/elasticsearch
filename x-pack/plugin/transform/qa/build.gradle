@@ -3,11 +3,11 @@
 gradle.projectsEvaluated {
   subprojects {
     project.tasks.matching { it.name.equals('assemble') }.configureEach {
-      it.enabled = false
+      enabled = false
     }
 
     project.tasks.matching { it.name.equals('dependenciesInfo') }.configureEach {
-      it.enabled = false
+      enabled = false
     }
   }
 }

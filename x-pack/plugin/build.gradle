@@ -77,10 +77,10 @@ tasks.register("copyKeyCerts", Copy) {
 // Add keystores to test classpath: it expects it there
 sourceSets.yamlRestTest.resources.srcDir(keystoreDir)
 tasks.named("processYamlRestTestResources").configure {
-  it.dependsOn("copyKeyCerts")
+  dependsOn("copyKeyCerts")
 }
 tasks.named("processJavaRestTestResources").configure {
-  it.dependsOn("copyKeyCerts")
+  dependsOn("copyKeyCerts")
 }
 
 yamlRestTest {

@@ -149,27 +149,27 @@ if (project != rootProject) {
 
   // groovydoc succeeds, but has some weird internal exception...
   tasks.named("groovydoc").configure {
-    it.enabled = false
+    enabled = false
   }
 
   // build-tools is not ready for primetime with these...
-  tasks.named("dependencyLicenses").configure { it.enabled = false }
-  tasks.named("dependenciesInfo").configure {it.enabled = false }
+  tasks.named("dependencyLicenses").configure { enabled = false }
+  tasks.named("dependenciesInfo").configure {enabled = false }
   disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   tasks.named("jarHell").configure {
-    it.enabled = false
+    enabled = false
   }
   tasks.named("thirdPartyAudit").configure {
-    it.enabled = false
+    enabled = false
   }
   if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm) {
     // We don't support running gradle with a JVM that is in FIPS 140 mode, so we don't test it.
     // WaitForHttpResourceTests tests would fail as they use JKS/PKCS12 keystores
     tasks.named("test").configure {
-      it.enabled = false;
+      enabled = false;
     }
     tasks.named("testingConventions").configure {
-      it.enabled = false
+      enabled = false
     }
   }
 
@@ -246,7 +246,7 @@ if (project != rootProject) {
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath
   }
-  tasks.named("check").configure { it.dependsOn("integTest") }
+  tasks.named("check").configure { dependsOn("integTest") }
 
   // for now we hardcode the tests for our build to use the gradle jvm.
   tasks.withType(Test).configureEach {
@@ -259,7 +259,7 @@ if (project != rootProject) {
    */
   afterEvaluate {
     tasks.named("generatePomFileForPluginMavenPublication").configure {
-      it.enabled = false
+      enabled = false
     }
   }
 

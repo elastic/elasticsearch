@@ -96,7 +96,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.named("integTest").configure {
-  it.dependsOn(project.tasks.named("bundlePlugin"))
+  dependsOn(project.tasks.named("bundlePlugin"))
 }
 
 testClusters.integTest {

@@ -117,8 +117,9 @@ class PluginBuildPlugin implements Plugin<Project> {
                 def checkTaskProvider = project.tasks.named("check")
                 def qaSubproject = project.subprojects.find { it.path == project.path + ":qa" }
                 if(qaSubproject) {
-                    qaSubproject.subprojects.findAll {p -> p.path.startsWith(project.path + ":qa") }
-                            .each {p -> checkTaskProvider.configure {it.dependsOn(p.path + ":check") } }
+                    qaSubproject.subprojects.each {p ->
+                        checkTaskProvider.configure {it.dependsOn(p.path + ":check") }
+                    }
                 }
             }
         }

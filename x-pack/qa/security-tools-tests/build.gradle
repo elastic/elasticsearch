@@ -20,4 +20,4 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 // these are just tests, no need to audit
-tasks.named("thirdPartyAudit").configure { it.enabled = false }
+tasks.named("thirdPartyAudit").configure { enabled = false }

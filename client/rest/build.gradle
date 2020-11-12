@@ -61,7 +61,7 @@ tasks.named('forbiddenApisTest').configure {
 // JarHell is part of es server, which we don't want to pull in
 // TODO: Not anymore. Now in :libs:elasticsearch-core
 tasks.named("jarHell").configure {
-  it.enabled = false
+  enabled = false
 }
 
 tasks.named("testingConventions").configure {

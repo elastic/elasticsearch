@@ -228,7 +228,7 @@ if (useFixture) {
       'repository_s3/50_repository_ecs_credentials/*'
     ].join(",")
   }
-  tasks.named("check").configure { it.dependsOn(yamlRestTestMinio) }
+  tasks.named("check").configure { dependsOn(yamlRestTestMinio) }
 
   testClusters.yamlRestTestMinio {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
@@ -255,7 +255,7 @@ if (useFixture) {
       'repository_s3/40_repository_ec2_credentials/*'
     ].join(",")
   }
-  tasks.named("check").configure { it.dependsOn(yamlRestTestECS) }
+  tasks.named("check").configure { dependsOn(yamlRestTestECS) }
 
   testClusters.yamlRestTestECS {
     setting 's3.client.integration_test_ecs.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}" }, IGNORE_VALUE
@@ -282,7 +282,7 @@ TaskProvider s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
 tasks.named("check").configure { dependsOn(s3ThirdPartyTest) }
 
 tasks.named("thirdPartyAudit").configure {
-  it.ignoreMissingClasses(
+  ignoreMissingClasses(
           // classes are missing
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',

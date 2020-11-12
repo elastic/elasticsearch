@@ -151,4 +151,4 @@ task azureThirdPartyTest(type: Test) {
     nonInputProperties.systemProperty 'test.azure.endpoint_suffix', "${-> azureAddress.call() }"
   }
 }
-tasks.named("check").configure { it.dependsOn("azureThirdPartyTest") }
+tasks.named("check").configure { dependsOn("azureThirdPartyTest") }

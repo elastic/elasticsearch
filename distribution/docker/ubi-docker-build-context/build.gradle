@@ -10,4 +10,4 @@ tasks.register("buildUbiDockerBuildContext", Tar) {
   with dockerBuildContext(null, false, DockerBase.UBI, false)
 }
 
-tasks.named("assemble").configure { it.dependsOn("buildUbiDockerBuildContext") }
+tasks.named("assemble").configure { dependsOn("buildUbiDockerBuildContext") }

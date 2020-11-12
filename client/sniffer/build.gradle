@@ -60,7 +60,7 @@ tasks.named("dependencyLicenses").configure {
 
 // JarHell is part of es server, which we don't want to pull in
 // TODO: Not anymore. Now in :libs:elasticsearch-core
-tasks.named("jarHell").configure { it.enabled = false }
+tasks.named("jarHell").configure { enabled = false }
 
 tasks.named("testingConventions").configure {
   naming.clear()
@@ -72,7 +72,7 @@ tasks.named("testingConventions").configure {
 }
 
 tasks.named("thirdPartyAudit").configure {
-  it.ignoreMissingClasses(
+  ignoreMissingClasses(
           //commons-logging optional dependencies
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',

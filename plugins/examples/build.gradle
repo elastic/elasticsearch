@@ -2,7 +2,7 @@
 gradle.projectsEvaluated {
   subprojects {
     project.tasks.matching { it.name.equals('assemble') }.configureEach {
-      assemble.enabled = false
+      enabled = false
     }
   }
 }

@@ -8,5 +8,5 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 ["test", "javadoc", "loggerUsageCheck", "jarHell"].each {
-  tasks.named(it).configure { it.enabled = false }
+  tasks.named(it).configure { enabled = false }
 }

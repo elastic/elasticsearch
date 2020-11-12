@@ -31,5 +31,5 @@ testClusters.'follow-cluster' {
     { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\"" }
 }
 
-tasks.named("check").configure { it.dependsOn "follow-cluster" }
-tasks.named("test").configure { it.enabled = false }
+tasks.named("check").configure { dependsOn "follow-cluster" }
+tasks.named("test").configure { enabled = false }

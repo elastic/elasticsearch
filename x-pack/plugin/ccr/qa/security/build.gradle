@@ -51,6 +51,6 @@ testClusters.'follow-cluster' {
   user username: "test_ccr", role: "ccruser"
 }
 
-tasks.named("check").configure { it.dependsOn('follow-cluster') }
+tasks.named("check").configure { dependsOn('follow-cluster') }
 // no unit tests for multi-cluster-search, only the rest integration test
-tasks.named("test").configure { it.enabled = false }
+tasks.named("test").configure { enabled = false }

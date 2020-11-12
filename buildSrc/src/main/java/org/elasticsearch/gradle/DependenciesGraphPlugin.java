@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 public class DependenciesGraphPlugin implements Plugin<Project> {
 
     public void apply(Project project) {
+        project.getRootProject().getPluginManager().apply(DependenciesGraphHookPlugin.class);
         final String url = System.getenv("SCA_URL");
         final String token = System.getenv("SCA_TOKEN");
         TaskProvider<DependenciesGraphTask> depsGraph = project.getTasks().register("dependenciesGraph", DependenciesGraphTask.class);
@@ -42,7 +43,6 @@ public class DependenciesGraphPlugin implements Plugin<Project> {
                 t.setUrl(url);
             });
         });
-        project.getRootProject().getPluginManager().apply(DependenciesGraphHookPlugin.class);
     }
 
     static class DependenciesGraphHookPlugin implements Plugin<Project> {

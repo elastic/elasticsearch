@@ -22,7 +22,9 @@ dependencies {
 }
 
 // disable unit tests because these are all integration tests used other qa projects
-test.enabled = false
+tasks.named("test").configure {
+  enabled = false
+}
 
 subprojects {
   if (subprojects.isEmpty()) {
@@ -63,7 +65,7 @@ subprojects {
       setting 'xpack.watcher.enabled', 'false'
     }
 
-    integTest {
+    tasks.named("integTest").configure {
         classpath += configurations.jdbcDriver
         systemProperty 'jdbc.driver.version', VersionProperties.elasticsearch
     }
@@ -89,7 +91,7 @@ subprojects {
           "jdbcDriver${baseName}"(driverDependency)
         }
 
-        tasks.create(bwcTaskName(bwcVersion), RestIntegTestTask) {
+        tasks.register(bwcTaskName(bwcVersion), RestIntegTestTask) {
             classpath += driverConfiguration
             systemProperty 'jdbc.driver.version', bwcVersion.toString()
         }

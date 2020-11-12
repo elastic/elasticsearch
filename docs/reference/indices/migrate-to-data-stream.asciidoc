@@ -1,0 +1,61 @@
+[role="xpack"]
+[[indices-migrate-to-data-stream]]
+=== Migreat to data stream API
+++++
+<titleabbrev>Migrate to data stream</titleabbrev>
+++++
+
+Migrates an existing alias with its indices to a new
+<<data-streams,data stream>>.
+
+Data streams require a matching <<indices-templates,index template>>.
+See <<set-up-a-data-stream>>.
+
+////
+[source,console]
+----
+PUT /_index_template/template
+{
+  "index_patterns": ["my-logs*"],
+  "data_stream": { }
+}
+----
+////
+
+[source,console]
+----
+PUT /_data_stream/_migrate/my-logs
+----
+// TEST[continued]
+
+////
+[source,console]
+-----------------------------------
+DELETE /_data_stream/my-logs
+DELETE /_index_template/template
+-----------------------------------
+// TEST[continued]
+////
+
+[[indices-migrate-to-data-stream-request]]
+==== {api-request-title}
+
+`POST /_data_stream/_migrate/<alias>`
+
+[[indices-migrate-to-data-stream-api-path-params]]
+==== {api-path-parms-title}
+
+`<alias>`::
++
+--
+(Required, string) Name of the alias to be migrated to a data stream. The
+alias's indices will be hidden and converted to backing indices for the
+new data stream. The alias will be removed, and the new data stream will
+be named `<alias>`.
+
+Aliases must meet the following criteria to be migrated to a data stream:
+
+- Must have an index defined as the <<aliases-write-index,write index>>
+- Must not have any <<filtered,filters>>
+- Must not have any <<aliases-routing,custom routing>>
+--

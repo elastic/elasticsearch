@@ -414,10 +414,10 @@ gradle.projectsEvaluated {
      */
     if (project.name.equals('qa') || project.path.contains(':qa:')) {
       maybeConfigure(project.tasks, 'assemble') {
-        enabled = false
+        it.enabled = false
       }
       maybeConfigure(project.tasks, 'dependenciesInfo') {
-        enabled = false
+        it.enabled = false
       }
     }
   }

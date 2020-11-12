@@ -137,7 +137,7 @@ the Authentication Request, as HTTP GET parameters:
   "redirect" : "http://127.0.0.1:8080/c2id-login?login_hint=this_is_an_opaque_string&scope=openid&response_type=id_token&redirect_uri=https%3A%2F%2Fmy.fantastic.rp%2Fcb&state=4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I&nonce=WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM&client_id=elasticsearch-rp",
   "state" : "4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I",
   "nonce" : "WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM",
-  "realm_name" : "oidc1"
+  "realm" : "oidc1"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I/\$\{body.state\}/]

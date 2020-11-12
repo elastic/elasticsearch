@@ -75,7 +75,7 @@ public class TransportOpenIdConnectAuthenticateAction
                         ActionListener.wrap(tokenResult -> {
                             final TimeValue expiresIn = tokenService.getExpirationDelay();
                             listener.onResponse(new OpenIdConnectAuthenticateResponse(authentication, tokenResult.getAccessToken(),
-                                tokenResult.getRefreshToken(), expiresIn, authentication.getAuthenticatedBy().getName()));
+                                tokenResult.getRefreshToken(), expiresIn));
                         }, listener::onFailure));
                 }, e -> {
                     logger.debug(() -> new ParameterizedMessage("OpenIDConnectToken [{}] could not be authenticated", token), e);

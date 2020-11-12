@@ -83,8 +83,7 @@ and the refresh token:
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
   "type" : "Bearer",
   "expires_in" : 1200,
-  "refresh_token": "vLBPvmAB6KvwvJZr27cS",
-  "realm_name": "oidc1"
+  "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
 // NOTCONSOLE

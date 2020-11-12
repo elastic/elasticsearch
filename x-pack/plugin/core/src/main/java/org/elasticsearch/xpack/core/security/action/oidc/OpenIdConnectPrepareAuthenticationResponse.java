@@ -89,7 +89,7 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
         builder.field("state", state);
         builder.field("nonce", nonce);
         if(realmName != null){
-            builder.field("realm_name", realmName);
+            builder.field("realm", realmName);
         }
         builder.endObject();
         return builder;

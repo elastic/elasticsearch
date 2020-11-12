@@ -420,7 +420,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             logger.info(" OpenIDConnect authentication response {}", responseBody);
             assertNotNull(responseBody.get("access_token"));
             assertNotNull(responseBody.get("refresh_token"));
-            assertNotNull(responseBody.get("realm_name"));
+            assertNotNull(responseBody.get("realm"));
             assertNotNull(responseBody.get("authentication"));
             assertEquals("alice", ((Map)responseBody.get("authentication")).get("username"));
             return Tuple.tuple(responseBody.get("access_token").toString(), responseBody.get("refresh_token").toString());
@@ -518,11 +518,13 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         private URI authUri;
         private String state;
         private String nonce;
+        private String realm;
 
-        PrepareAuthResponse(URI authUri, String state, String nonce, @Nullable String realm) {
+        PrepareAuthResponse(URI authUri, String state, String nonce, String realm) {
             this.authUri = authUri;
             this.state = state;
             this.nonce = nonce;
+            this.realm = realm;
         }
 
         URI getAuthUri() {
@@ -536,6 +538,8 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         String getNonce() {
             return nonce;
         }
+
+        String getRealm() { return realm; }
 
     }
 }

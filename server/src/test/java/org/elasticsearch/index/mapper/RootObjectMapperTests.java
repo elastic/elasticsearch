@@ -471,23 +471,63 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testRuntimeSectionMerge() throws IOException {
         MapperService mapperService;
         {
-            String mapping = Strings.toString(runtimeMapping(builder -> {
-                builder.startObject("field1").field("type", "test").field("prop1", "first version").endObject();
-                builder.startObject("field2").field("type", "test").endObject();
-            }));
+            String mapping = Strings.toString(fieldMapping(b -> b.field("type", "keyword")));
             mapperService = createMapperService(mapping);
             assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+            MappedFieldType field = mapperService.fieldType("field");
+            assertThat(field, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         }
         {
-            String mapping = Strings.toString(runtimeMapping(
-                builder -> builder.startObject("field1").field("type", "test").field("prop2", "second version").endObject()));
+            String mapping = Strings.toString(runtimeMapping(builder -> {
+                builder.startObject("field").field("type", "test").field("prop1", "first version").endObject();
+                builder.startObject("field2").field("type", "test").endObject();
+            }));
             merge(mapperService, mapping);
-            RuntimeField field1 = (RuntimeField)mapperService.fieldType("field1");
-            assertNull(field1.prop1);
-            assertEquals("second version", field1.prop2);
+            //field overrides now the concrete field already defined
+            RuntimeField field = (RuntimeField)mapperService.fieldType("field");
+            assertEquals("first version", field.prop1);
+            assertNull(field.prop2);
             RuntimeField field2 = (RuntimeField)mapperService.fieldType("field2");
             assertNull(field2.prop1);
             assertNull(field2.prop2);
+        }
+        {
+            String mapping = Strings.toString(runtimeMapping(
+                //the existing runtime field gets updated
+                builder -> builder.startObject("field").field("type", "test").field("prop2", "second version").endObject()));
+            merge(mapperService, mapping);
+            RuntimeField field = (RuntimeField)mapperService.fieldType("field");
+            assertNull(field.prop1);
+            assertEquals("second version", field.prop2);
+            RuntimeField field2 = (RuntimeField)mapperService.fieldType("field2");
+            assertNull(field2.prop1);
+            assertNull(field2.prop2);
+        }
+        {
+            String mapping = Strings.toString(mapping(builder -> builder.startObject("concrete").field("type", "keyword").endObject()));
+            merge(mapperService, mapping);
+            RuntimeField field = (RuntimeField)mapperService.fieldType("field");
+            assertNull(field.prop1);
+            assertEquals("second version", field.prop2);
+            RuntimeField field2 = (RuntimeField)mapperService.fieldType("field2");
+            assertNull(field2.prop1);
+            assertNull(field2.prop2);
+            MappedFieldType concrete = mapperService.fieldType("concrete");
+            assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        }
+        {
+            String mapping = Strings.toString(runtimeMapping(
+                builder -> builder.startObject("field3").field("type", "test").field("prop1", "value").endObject()));
+            merge(mapperService, mapping);
+            assertEquals("{\"_doc\":" +
+                    "{\"runtime\":{" +
+                    "\"field\":{\"type\":\"test\",\"prop2\":\"second version\"}," +
+                    "\"field2\":{\"type\":\"test\"}," +
+                    "\"field3\":{\"type\":\"test\",\"prop1\":\"value\"}}," +
+                    "\"properties\":{" +
+                    "\"concrete\":{\"type\":\"keyword\"}," +
+                    "\"field\":{\"type\":\"keyword\"}}}}",
+                mapperService.documentMapper().mappingSource().toString());
         }
     }
 

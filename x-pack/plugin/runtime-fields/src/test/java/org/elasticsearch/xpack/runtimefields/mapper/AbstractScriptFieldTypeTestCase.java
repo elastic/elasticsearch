@@ -33,8 +33,6 @@ import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -45,7 +43,9 @@ import static org.mockito.Mockito.when;
 
 public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestCase {
 
-    private static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(Map.of("include_defaults", "true"));
+    private static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(
+        Collections.singletonMap("include_defaults", "true")
+    );
 
     protected abstract MappedFieldType simpleMappedFieldType() throws IOException;
 
@@ -320,7 +320,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new RuntimeFields(), new TestScriptPlugin());
+        return org.elasticsearch.common.collect.List.of(new RuntimeFields(), new TestScriptPlugin());
     }
 
     private static class TestScriptPlugin extends Plugin implements ScriptPlugin {
@@ -354,7 +354,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                 }
 
                 public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.copyOf(new RuntimeFields().getContexts());
+                    return org.elasticsearch.common.collect.Set.copyOf(new RuntimeFields().getContexts());
                 }
             };
         }

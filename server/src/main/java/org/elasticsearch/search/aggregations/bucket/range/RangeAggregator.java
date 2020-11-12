@@ -58,6 +58,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -288,7 +289,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
          * which is good enough because that is the most embarrassing scenario.
          */
         double averageDocsPerRange = ((double) context.searcher().getIndexReader().maxDoc()) / ranges.length;
-        Aggregator adapted = adaptIntoFiltersOrNull(
+        FromFilters<?> adapted = adaptIntoFiltersOrNull(
             name,
             factories,
             valuesSourceConfig,
@@ -301,8 +302,15 @@ public abstract class RangeAggregator extends BucketsAggregator {
             cardinality,
             metadata
         );
+        Map<String, Object> filtersDebug = null;
         if (adapted != null) {
-            return adapted;
+            long maxEstimatedFiltersCost = context.searcher().getIndexReader().maxDoc();
+            long estimatedFiltersCost = adapted.estimateCost(maxEstimatedFiltersCost);
+            if (estimatedFiltersCost <= maxEstimatedFiltersCost) {
+                return adapted;
+            }
+            filtersDebug = new HashMap<>();
+            adapted.delegate().collectDebugInfo(filtersDebug::put);
         }
         return buildWithoutAttemptedToAdaptToFilters(
             name,
@@ -312,6 +320,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             rangeFactory,
             ranges,
             averageDocsPerRange,
+            filtersDebug,
             keyed,
             context,
             parent,
@@ -320,7 +329,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         );
     }
 
-    public static Aggregator adaptIntoFiltersOrNull(
+    public static FromFilters<?> adaptIntoFiltersOrNull(
         String name,
         AggregatorFactories factories,
         ValuesSourceConfig valuesSourceConfig,
@@ -383,8 +392,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
                     context.getQueryShardContext()
                 );
         }
-        long maxCost = context.searcher().getIndexReader().maxDoc();
-        FiltersAggregator delegate = FiltersAggregator.buildFilterOrderOrNull(
+        FiltersAggregator.FilterByFilter delegate = FiltersAggregator.buildFilterOrderOrNull(
             name,
             factories,
             keys,
@@ -394,8 +402,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             context,
             parent,
             cardinality,
-            metadata,
-            maxCost
+            metadata
         );
         if (delegate == null) {
             return null;
@@ -426,6 +433,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         InternalRange.Factory<?, ?> rangeFactory,
         Range[] ranges,
         double averageDocsPerRange,
+        Map<String, Object> filtersDebug,
         boolean keyed,
         SearchContext context,
         Aggregator parent,
@@ -441,6 +449,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 rangeFactory,
                 ranges,
                 averageDocsPerRange,
+                filtersDebug,
                 keyed,
                 context,
                 parent,
@@ -456,6 +465,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             rangeFactory,
             ranges,
             averageDocsPerRange,
+            filtersDebug,
             keyed,
             context,
             parent,
@@ -470,11 +480,23 @@ public abstract class RangeAggregator extends BucketsAggregator {
     private final boolean keyed;
     private final InternalRange.Factory rangeFactory;
     private final double averageDocsPerRange;
+    private final Map<String, Object> filtersDebug;
 
-    private RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
-            InternalRange.Factory rangeFactory, Range[] ranges, double averageDocsPerRange, boolean keyed, SearchContext context,
-            Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
-
+    private RangeAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Numeric valuesSource,
+        DocValueFormat format,
+        InternalRange.Factory rangeFactory,
+        Range[] ranges,
+        double averageDocsPerRange,
+        Map<String, Object> filtersDebug,
+        boolean keyed,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(ranges.length), metadata);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
@@ -483,6 +505,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         this.rangeFactory = rangeFactory;
         this.ranges = ranges;
         this.averageDocsPerRange = averageDocsPerRange;
+        this.filtersDebug = filtersDebug;
     }
 
     @Override
@@ -542,6 +565,9 @@ public abstract class RangeAggregator extends BucketsAggregator {
         super.collectDebugInfo(add);
         add.accept("ranges", ranges.length);
         add.accept("average_docs_per_range", averageDocsPerRange);
+        if (filtersDebug != null) {
+            add.accept("filters_debug", filtersDebug);
+        }
     }
 
     public static class Unmapped<R extends RangeAggregator.Range> extends NonCollectingAggregator {
@@ -593,6 +619,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             Factory rangeFactory,
             Range[] ranges,
             double averageDocsPerRange,
+            Map<String, Object> filtersDebug,
             boolean keyed,
             SearchContext context,
             Aggregator parent,
@@ -607,6 +634,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 rangeFactory,
                 ranges,
                 averageDocsPerRange,
+                filtersDebug,
                 keyed,
                 context,
                 parent,
@@ -643,6 +671,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             Factory rangeFactory,
             Range[] ranges,
             double averageDocsPerRange,
+            Map<String, Object> filtersDebug,
             boolean keyed,
             SearchContext context,
             Aggregator parent,
@@ -657,6 +686,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 rangeFactory,
                 ranges,
                 averageDocsPerRange,
+                filtersDebug,
                 keyed,
                 context,
                 parent,
@@ -747,6 +777,13 @@ public abstract class RangeAggregator extends BucketsAggregator {
             this.keyed = keyed;
             this.rangeFactory = rangeFactory;
             this.averageDocsPerRange = averageDocsPerRange;
+        }
+
+        /**
+         * Estimate the number of documents that this aggregation must visit.
+         */
+        long estimateCost(long maxEstimatedCost) throws IOException {
+            return ((FiltersAggregator.FilterByFilter) delegate()).estimateCost(maxEstimatedCost);
         }
 
         @Override

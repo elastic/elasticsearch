@@ -25,13 +25,11 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
@@ -164,8 +162,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             context,
             parent,
             cardinality,
-            metadata,
-            Long.MAX_VALUE
+            metadata
         );
         if (filterOrder != null) {
             return filterOrder;
@@ -191,7 +188,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
      * and we don't collect "other" buckets. Collecting {@link FilterByFilter}
      * is generally going to be much faster than the {@link Compatible} aggregator.
      */
-    public static FiltersAggregator buildFilterOrderOrNull(
+    public static FilterByFilter buildFilterOrderOrNull(
         String name,
         AggregatorFactories factories,
         String[] keys,
@@ -201,8 +198,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         SearchContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata,
-        long maxCost
+        Map<String, Object> metadata
     ) throws IOException {
         if (parent != null) {
             return null;
@@ -213,36 +209,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         if (otherBucketKey != null) {
             return null;
         }
-        long estimatedCost = 0;
-        if (maxCost != Long.MAX_VALUE) {
-            Weight[] weights = buildWeights(context.searcher(), context.query(), filters);
-            List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
-            BulkScorer[][] scorers = new BulkScorer[leaves.size()][];
-            for (int l = 0; l < leaves.size(); l++) {
-                scorers[l] = new BulkScorer[filters.length];
-                for (int f = 0; f < filters.length; f++) {
-                    scorers[l][f] = weights[f].bulkScorer(leaves.get(l));
-                    if (scorers[l][f] == null) {
-                        // Doesn't find anything in this leaf
-                        continue;
-                    }
-                    estimatedCost += scorers[l][f].cost();
-                    if (estimatedCost < 0) {
-                        // Overflow
-                        return null;
-                    }
-                    if (estimatedCost > maxCost) {
-                        return null;
-                    }
-                }
-            }
-        }
-        // TODO reuse the scorers if called above
         return new FiltersAggregator.FilterByFilter(
             name,
             keys,
             filters,
-            estimatedCost,
             keyed,
             context,
             parent,
@@ -299,17 +269,24 @@ public abstract class FiltersAggregator extends BucketsAggregator {
      * {@link Compatible} but doesn't support when there is a parent aggregator
      * or any child aggregators.
      */
-    private static class FilterByFilter extends FiltersAggregator {
+    public static class FilterByFilter extends FiltersAggregator {
         private final Query[] filters;
-        private final long estimatedCost; 
+        private final boolean profiling;
+        private long estimatedCost = -1;
+        /**
+         * The maximum allowed estimated cost. Defaults to {@code -1} meaning no
+         * max but can be set. Used for emitting debug info.
+         */
+        private long maxCost = -1;
+        private long estimateCostTime;
         private Weight[] weights;
+        private BulkScorer[][] scorers;
         private int segmentsWithDeletedDocs;
 
-        FilterByFilter(
+        private FilterByFilter(
             String name,
             String[] keys,
             Query[] filters,
-            long estimatedCost,
             boolean keyed,
             SearchContext context,
             Aggregator parent,
@@ -318,7 +295,56 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         ) throws IOException {
             super(name, AggregatorFactories.EMPTY, keys, keyed, null, context, parent, cardinality, metadata);
             this.filters = filters;
-            this.estimatedCost = estimatedCost;
+            this.profiling = context.getProfilers() != null;
+        }
+
+        /**
+         * Estimate the number of documents that this aggregation must visit. We'll
+         * stop counting once we've passed {@code maxEstimatedCost} if we aren't profiling.
+         */
+        public long estimateCost(long maxCost) throws IOException {
+            this.maxCost = maxCost;
+            if (estimatedCost != -1) {
+                return estimatedCost;
+            }
+            long limit;
+            long start;
+            if (profiling) {
+                limit = Long.MAX_VALUE;
+                start = System.nanoTime();
+            } else {
+                limit = maxCost;
+                start = 0;
+            }
+            try {
+                estimatedCost = 0;
+                Weight[] weights = buildWeights(topLevelQuery(), filters);
+                List<LeafReaderContext> leaves = searcher().getIndexReader().leaves();
+                BulkScorer[][] scorers = new BulkScorer[leaves.size()][];
+                for (LeafReaderContext ctx : leaves) {
+                    scorers[ctx.ord] = new BulkScorer[filters.length];
+                    for (int f = 0; f < filters.length; f++) {
+                        scorers[ctx.ord][f] = weights[f].bulkScorer(ctx);
+                        if (scorers[ctx.ord][f] == null) {
+                            // Doesn't find anything in this leaf
+                            continue;
+                        }
+                        estimatedCost += scorers[ctx.ord][f].cost();
+                        if (estimatedCost < 0) {
+                            // Overflow
+                            return Long.MAX_VALUE;
+                        }
+                        if (estimatedCost > limit) {
+                            return estimatedCost;
+                        }
+                    }
+                }
+                return estimatedCost;
+            } finally {
+                if (profiling) {
+                    estimateCostTime = System.nanoTime() - start;
+                }
+            }
         }
 
         /**
@@ -331,11 +357,18 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         @Override
         protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
             if (weights == null) {
-                weights = buildWeights(searcher(), topLevelQuery(), filters);
+                weights = buildWeights(topLevelQuery(), filters);
             }
             Bits live = ctx.reader().getLiveDocs();
             for (int filterOrd = 0; filterOrd < filters.length; filterOrd++) {
-                BulkScorer scorer = weights[filterOrd].bulkScorer(ctx);
+                BulkScorer scorer;
+                if (scorers == null) {
+                    // No cached scorers
+                    scorer = weights[filterOrd].bulkScorer(ctx);
+                } else {
+                    // Scorers cached when calling estimateCost
+                    scorer = scorers[ctx.ord][filterOrd];
+                }
                 if (scorer == null) {
                     // the filter doesn't match any docs
                     continue;
@@ -352,6 +385,12 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         public void collectDebugInfo(BiConsumer<String, Object> add) {
             super.collectDebugInfo(add);
             add.accept("segments_with_deleted_docs", segmentsWithDeletedDocs);
+            if (estimatedCost != -1) {
+                // -1 means we didn't estimate it.
+                add.accept("estimated_cost", estimatedCost);
+                add.accept("max_cost", maxCost);
+                add.accept("estimate_cost_time", estimateCostTime);
+            }
         }
     }
 
@@ -391,7 +430,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         @Override
         protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
             if (filterWeights == null) {
-                filterWeights = buildWeights(searcher(), new MatchAllDocsQuery(), filters);
+                filterWeights = buildWeights(new MatchAllDocsQuery(), filters);
             }
             final Bits[] bits = new Bits[filters.length];
             for (int i = 0; i < filters.length; ++i) {
@@ -419,11 +458,11 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
     }
 
-    static Weight[] buildWeights(IndexSearcher searcher, Query topLevelQuery, Query filters[]) throws IOException{
+    protected Weight[] buildWeights(Query topLevelQuery, Query filters[]) throws IOException{
         Weight[] weights = new Weight[filters.length];
         for (int i = 0; i < filters.length; ++i) {
             Query filter = filterMatchingBoth(topLevelQuery, filters[i]);
-            weights[i] = searcher.createWeight(searcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1);
+            weights[i] = searcher().createWeight(searcher().rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1);
         }
         return weights;
     }
@@ -435,7 +474,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
      * top level query on a date and a filter on a date. This kind of thing
      * is very common when visualizing logs and metrics.
      */
-    private static Query filterMatchingBoth(Query lhs, Query rhs) {
+    private Query filterMatchingBoth(Query lhs, Query rhs) {
         if (lhs instanceof MatchAllDocsQuery) {
             return rhs;
         }
@@ -457,7 +496,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         return builder.build();
     }
 
-    private static Query unwrap(Query query) {
+    private Query unwrap(Query query) {
         if (query instanceof IndexSortSortedNumericDocValuesRangeQuery) {
             query = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
         }

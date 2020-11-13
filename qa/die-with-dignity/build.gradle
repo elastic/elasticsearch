@@ -23,5 +23,7 @@ testClusters.javaRestTest {
   systemProperty "die.with.dignity.test", "whatever"
 }
 
-test.enabled = false
+tasks.named("test").configure {
+  enabled = false
+}
 

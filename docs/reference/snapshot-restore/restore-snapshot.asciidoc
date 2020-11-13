@@ -79,8 +79,8 @@ POST /_snapshot/my_backup/snapshot_1/_restore
   "indices": "data_stream_1,index_1,index_2",
   "ignore_unavailable": true,
   "include_global_state": false,              <1>
-  "rename_pattern": "index_(.+)",
-  "rename_replacement": "restored_index_$1",
+  "rename_pattern": "index_(.+)",             <2>
+  "rename_replacement": "restored_index_$1",  <3>
   "include_aliases": false
 }
 -----------------------------------
@@ -93,6 +93,8 @@ If `true`, the snapshot's persistent settings, index templates, ingest
 pipelines, and {ilm-init} policies are restored into the current cluster. This
 overwrites any existing cluster settings, templates, pipelines and {ilm-init}
 policies whose names match those in the snapshot.
+<2> Regular expression that matches data streams and indices in the snapshot. Supports https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[regular expression constructs].
+<3> Renames data streams and indices that match the `rename_pattern`. `$1` is a reference to the first capturing group. In this example, `index_1` and `index_2` will be renamed as `restored_index_1` and `restored_index_2`.
 
 The restore operation must be performed on a functioning cluster. However, an
 existing index can be only restored if it's <<indices-close,closed>> and

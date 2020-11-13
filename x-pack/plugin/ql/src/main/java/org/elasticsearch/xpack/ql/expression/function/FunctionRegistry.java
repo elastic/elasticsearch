@@ -134,7 +134,9 @@ public class FunctionRegistry {
             if (false == children.isEmpty()) {
                 throw new QlIllegalArgumentException("expects no arguments");
             }
-            ensureNoDistinct(distinct);
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
             return ctorRef.apply(source);
         };
         return def(function, builder, false, names);
@@ -152,7 +154,9 @@ public class FunctionRegistry {
             if (false == children.isEmpty()) {
                 throw new QlIllegalArgumentException("expects no arguments");
             }
-            ensureNoDistinct(distinct);
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
             return ctorRef.build(source, cfg);
         };
         return def(function, builder, false, names);
@@ -174,7 +178,9 @@ public class FunctionRegistry {
             if (children.size() > 1) {
                 throw new QlIllegalArgumentException("expects exactly one argument");
             }
-            ensureNoDistinct(distinct);
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
             Expression ex = children.size() == 1 ? children.get(0) : null;
             return ctorRef.build(source, ex, cfg);
         };
@@ -197,7 +203,9 @@ public class FunctionRegistry {
             if (children.size() != 1) {
                 throw new QlIllegalArgumentException("expects exactly one argument");
             }
-            ensureNoDistinct(distinct);
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
             return ctorRef.apply(source, children.get(0));
         };
         return def(function, builder, false, names);
@@ -211,7 +219,9 @@ public class FunctionRegistry {
     public static <T extends Function> FunctionDefinition def(Class<T> function,
             MultiFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            ensureNoDistinct(distinct);
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
             return ctorRef.build(source, children);
         };
         return def(function, builder, false, names);
@@ -229,7 +239,9 @@ public class FunctionRegistry {
     public static <T extends Function> FunctionDefinition def(Class<T> function,
             DistinctAwareUnaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            ensureExactNumberOfArguments(children, 1);
+            if (children.size() != 1) {
+                throw new QlIllegalArgumentException("expects exactly one argument");
+            }
             return ctorRef.build(source, children.get(0), distinct);
         };
         return def(function, builder, false, names);
@@ -250,7 +262,9 @@ public class FunctionRegistry {
             if (children.size() != 1) {
                 throw new QlIllegalArgumentException("expects exactly one argument");
             }
-            ensureNoDistinct(distinct);
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
             return ctorRef.build(source, children.get(0), cfg.zoneId());
         };
         return def(function, builder, true, names);
@@ -268,8 +282,12 @@ public class FunctionRegistry {
     public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef,
             String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            ensureExactNumberOfArguments(children, 2);
-            ensureNoDistinct(distinct);
+            if (children.size() != 2) {
+                throw new QlIllegalArgumentException("expects exactly two arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
             return ctorRef.build(source, children.get(0), children.get(1), cfg.zoneId());
         };
         return def(function, builder, false, names);
@@ -287,8 +305,12 @@ public class FunctionRegistry {
     public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeThreeArgsFunctionBuilder<T> ctorRef,
             String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            ensureExactNumberOfArguments(children, 3);
-            ensureNoDistinct(distinct);
+            if (children.size() != 3) {
+                throw new QlIllegalArgumentException("expects three arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
             return ctorRef.build(source, children.get(0), children.get(1), children.get(2), cfg.zoneId());
         };
         return def(function, builder, false, names);
@@ -306,40 +328,19 @@ public class FunctionRegistry {
     public static <T extends Function> FunctionDefinition def(Class<T> function,
             BinaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            checkNumberOfArguments(function, children, 2);
-            ensureNoDistinct(distinct);
+            boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
+            if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
+                throw new QlIllegalArgumentException("expects one or two arguments");
+            } else if (!isBinaryOptionalParamFunction && children.size() != 2) {
+                throw new QlIllegalArgumentException("expects exactly two arguments");
+            }
+
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
             return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null);
         };
         return def(function, builder, false, names);
-    }
-
-    private static <T extends Function> void ensureExactNumberOfArguments(List<Expression> children, int numTotalArguments) {
-        if (children.size() != numTotalArguments) {
-            throw new QlIllegalArgumentException("expects exactly " + NUM_NAMES[numTotalArguments] + " arguments");
-        }
-    }
-
-    private static <T extends Function> int numberOfOptionalArguments(Class<T> function) {
-        if (TwoOptionalArguments.class.isAssignableFrom(function)) {
-            return 2;
-        } else if (OptionalArgument.class.isAssignableFrom(function)) {
-            return 1;
-        }
-        return 0;
-    }
-
-    private static <T extends Function> void checkNumberOfArguments(Class<T> function, List<Expression> children, int numTotalArguments) {
-        int requiredArgCount = numTotalArguments - numberOfOptionalArguments(function);
-        if (numTotalArguments == requiredArgCount && children.size() != requiredArgCount) {
-            throw new QlIllegalArgumentException("expects exactly " + NUM_NAMES[requiredArgCount] + " arguments");
-        } else if (numTotalArguments != requiredArgCount && (children.size() > numTotalArguments || children.size() < requiredArgCount)) {
-            throw new QlIllegalArgumentException(
-                "expects minimum " + NUM_NAMES[requiredArgCount] + ", maximum " + NUM_NAMES[numTotalArguments] + " arguments");
-        }
-    }
-
-    private static Expression child(List<Expression> children, int index) {
-        return children.size() > index ? children.get(index) : null;
     }
 
     protected interface BinaryFunctionBuilder<T> {
@@ -375,9 +376,16 @@ public class FunctionRegistry {
     public static <T extends Function> FunctionDefinition def(Class<T> function,
             ThreeParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            checkNumberOfArguments(function, children, 3);
-            ensureNoDistinct(distinct);
-            return ctorRef.build(source, children.get(0), child(children, 1), child(children, 2));
+            boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
+            if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
+                throw new QlIllegalArgumentException("expects two or three arguments");
+            } else if (!hasMinimumTwo && children.size() != 3) {
+                throw new QlIllegalArgumentException("expects exactly three arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);
         };
         return def(function, builder, false, names);
     }
@@ -390,9 +398,16 @@ public class FunctionRegistry {
     public static <T extends Function> FunctionDefinition def(Class<T> function,
                                                               ScalarTriFunctionConfigurationAwareBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            checkNumberOfArguments(function, children, 3);
-            ensureNoDistinct(distinct);
-            return ctorRef.build(source, children.get(0), child(children, 1), child(children, 2), cfg);
+            boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
+            if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
+                throw new QlIllegalArgumentException("expects two or three arguments");
+            } else if (!hasMinimumTwo && children.size() != 3) {
+                throw new QlIllegalArgumentException("expects exactly three arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null, cfg);
         };
         return def(function, builder, false, names);
     }
@@ -405,23 +420,23 @@ public class FunctionRegistry {
     public static <T extends Function> FunctionDefinition def(Class<T> function,
             FourParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            checkNumberOfArguments(function, children, 4);
-            ensureNoDistinct(distinct);
-
-            // somehow we need to mark that a function with max 4 parameters can accept 2,3,4 parameters
-            // how to check that the required parameters are specified even when there can be a few optional parameters?
-            // 1. annotations, specify the number of required args --> cannot work, cannot use reflection
-            // 2. OptionalArgument.requireArgNum() method defaulting to 1 --> does not work, we need this info before we have an instance
-            // 3. TwoOptionalArguments marker class --> works, simple, but kind of ugly
-            // 4. ValidatesArguments marker class and let the constructor deal with it (pass null if child is not specified) --> would work and seems reasonable, keep check for argument count is <= 4 here
-                  // this is the most
-            // 5. add the number of required arguments to the def method call --> would work, but needs an extra override, ugly and definition of function will be spread between the function class and the function registry
-
-            // should pass in 4 children (or null if not specified) and let the constructor do the checks
-            // the builder should have very little to do with this,
-            // the non-existing parameters should be wrapped into Optional or should be marked as Expression.UNSPECIFIED
-            // instead of the UNSPECIFIED null is acceptable, because the SQL NULL values are passed in as Literal(value=null)
-            return ctorRef.build(source, children.get(0), child(children, 1), child(children, 2), child(children, 3));
+            if (TwoOptionalArguments.class.isAssignableFrom(function)) {
+                if (children.size() > 4 || children.size() < 2) {
+                    throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
+                }
+            } else if (OptionalArgument.class.isAssignableFrom(function)) {
+                if (children.size() > 4 || children.size() < 3) {
+                    throw new QlIllegalArgumentException("expects three or four arguments");
+                }
+            } else if (children.size() != 4) {
+                throw new QlIllegalArgumentException("expects exactly four arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1),
+                children.size() > 2 ? children.get(2) : null,
+                children.size() > 3 ? children.get(3) : null);
         };
         return def(function, builder, false, names);
     }
@@ -435,7 +450,14 @@ public class FunctionRegistry {
                                                               FiveParametersFunctionBuilder<T> ctorRef,
                                                               int numOptionalParams, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            checkNumberOfArguments(function, children, 5);
+            final int NUM_TOTAL_PARAMS = 5;
+            boolean hasOptionalParams = OptionalArgument.class.isAssignableFrom(function);
+            if (hasOptionalParams && (children.size() > NUM_TOTAL_PARAMS || children.size() < NUM_TOTAL_PARAMS - numOptionalParams)) {
+                throw new QlIllegalArgumentException("expects between " + NUM_NAMES[NUM_TOTAL_PARAMS - numOptionalParams]
+                        + " and " + NUM_NAMES[NUM_TOTAL_PARAMS] + " arguments");
+            } else if (hasOptionalParams == false && children.size() != NUM_TOTAL_PARAMS) {
+                throw new QlIllegalArgumentException("expects exactly " + NUM_NAMES[NUM_TOTAL_PARAMS] + " arguments");
+            }
             if (distinct) {
                 throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
@@ -476,17 +498,18 @@ public class FunctionRegistry {
     public static <T extends Function> FunctionDefinition def(Class<T> function,
                                                               TwoParametersVariadicBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            checkNumberOfArguments(function, children, 2);
-            ensureNoDistinct(distinct);
+            boolean hasMinimumOne = OptionalArgument.class.isAssignableFrom(function);
+            if (hasMinimumOne && children.size() < 1) {
+                throw new QlIllegalArgumentException("expects at least one argument");
+            } else if (!hasMinimumOne && children.size() < 2) {
+                throw new QlIllegalArgumentException("expects at least two arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
             return ctorRef.build(source, children.get(0), children.subList(1, children.size()));
         };
         return def(function, builder, false, names);
-    }
-
-    private static void ensureNoDistinct(boolean distinct) {
-        if (distinct) {
-            throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
-        }
     }
 
     protected interface TwoParametersVariadicBuilder<T> {
@@ -500,8 +523,12 @@ public class FunctionRegistry {
     public static <T extends Function> FunctionDefinition def(Class<T> function,
         ScalarBiFunctionConfigurationAwareBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            ensureExactNumberOfArguments(children, 2);
-            ensureNoDistinct(distinct);
+            if (children.size() != 2) {
+                throw new QlIllegalArgumentException("expects exactly two arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
             return ctorRef.build(source, children.get(0), children.get(1), cfg);
         };
         return def(function, builder, true, names);

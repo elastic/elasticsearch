@@ -34,18 +34,7 @@ public class Percentile extends NumericAggregate implements EnclosedAgg, TwoOpti
     private final Expression method;
     private final Expression methodParameter;
 
-    // PERCENTILE(int, 20, NULL, NULL) -> PERCENTILE(int, 20, null, null)
-    // PERCENTILE(int, 20, 'tdigest', NULL) -> PERCENTILE(int, 20, 'tdigest', null)
-    // PERCENTILE(int, 20, NULL, 2) -> error, if the method parameter is specified, the method also has to be specified
-    // Literal(null) -> Percentile will fold into null -> parameters should be skipped
-    // Percentiles(field, null, null, percents) -> folds into null -> parameters cannot be skipped (how can we implement replaceChildren?)
-    // children cannot contain null
-    // arguments should be Named. The children() should not be a List<T>, but a Map<String, List<T>> --> easier to manage.
-    // it is guaranteed that the replaceChildren() will call us with the same number of items as the original expression's children count
-    // why? new child cannot be null, cannot disappear, they are transformed one-by-one, so if we have some marker
-    // fields in the original expression, we can use those to read the List in replaceChildren()
     public Percentile(Source source, Expression field, Expression percent, Expression method, Expression methodParameter) {
-        // probably we should set up the default parameters here
         super(source, field, Stream.of(percent, (method = defaultMethod(source, method)),
             (methodParameter = defaultMethodParameter(methodParameter))).filter(Objects::nonNull).collect(Collectors.toList()));
         this.percent = percent;

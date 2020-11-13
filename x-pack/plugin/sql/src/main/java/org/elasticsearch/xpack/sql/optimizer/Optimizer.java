@@ -666,7 +666,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             } else if (e instanceof Alias == false
                     && e.nullable() == Nullability.TRUE
                     && Expressions.anyMatch(e.children(), Expressions::isNull)) {
-                // TODO: check if this is the correct behaviour for percentile(int, pct, NULL, NULL)
                     return Literal.of(e, null);
                 }
 

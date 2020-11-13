@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.security.Security;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;

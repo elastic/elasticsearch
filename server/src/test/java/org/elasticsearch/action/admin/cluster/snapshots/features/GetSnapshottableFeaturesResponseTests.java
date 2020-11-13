@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class GetSnapshottableFeaturesResponseTest extends AbstractWireSerializingTestCase<GetSnapshottableFeaturesResponse> {
+public class GetSnapshottableFeaturesResponseTests extends AbstractWireSerializingTestCase<GetSnapshottableFeaturesResponse> {
 
     @Override
     protected Writeable.Reader instanceReader() {

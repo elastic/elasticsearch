@@ -55,6 +55,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -540,6 +542,26 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(rows.get().get(2).shouldSkip(), is(false));
     }
 
+    public void testExtractionWithProcessedFieldThrows() {
+        ProcessedField processedField = mock(ProcessedField.class);
+        doThrow(new RuntimeException("process field error")).when(processedField).value(any(), any());
+
+        extractedFields = new ExtractedFields(Arrays.asList(
+            new DocValueField("field_1", Collections.singleton("keyword")),
+            new DocValueField("field_2", Collections.singleton("keyword"))),
+            Collections.singletonList(processedField),
+            Collections.emptyMap());
+
+        TestExtractor dataExtractor = createExtractor(true, true);
+
+        SearchResponse response = createSearchResponse(Arrays.asList(1_1, null, 1_3), Arrays.asList(2_1, 2_2, 2_3));
+        dataExtractor.setAlwaysResponse(response);
+
+        assertThat(dataExtractor.hasNext(), is(true));
+
+        expectThrows(RuntimeException.class, () -> dataExtractor.next());
+    }
+
     private TestExtractor createExtractor(boolean includeSource, boolean supportsRowsWithMissingValues) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(JOB_ID, extractedFields, indices, query, scrollSize,
             headers, includeSource, supportsRowsWithMissingValues, trainTestSplitterFactory);
@@ -595,19 +617,27 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         private Queue<SearchResponse> responses = new LinkedList<>();
         private List<SearchRequestBuilder> capturedSearchRequests = new ArrayList<>();
+        private SearchResponse alwaysResponse;
 
         TestExtractor(Client client, DataFrameDataExtractorContext context) {
             super(client, context);
         }
 
         void setNextResponse(SearchResponse searchResponse) {
+            if (alwaysResponse != null) {
+                throw new IllegalStateException("Should not set next response when an always response has been set");
+            }
             responses.add(searchResponse);
+        }
+
+        void setAlwaysResponse(SearchResponse searchResponse) {
+            alwaysResponse = searchResponse;
         }
 
         @Override
         protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
             capturedSearchRequests.add(searchRequestBuilder);
-            SearchResponse searchResponse = responses.remove();
+            SearchResponse searchResponse =  alwaysResponse == null ? responses.remove() : alwaysResponse;
             if (searchResponse.getShardFailures() != null) {
                 throw new RuntimeException(searchResponse.getShardFailures()[0].getCause());
             }

@@ -105,7 +105,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     public void testScriptIsRequired() throws Exception {
         XContentBuilder mapping = runtimeFieldMapping(b -> { b.field("type", typeName()); });
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: script must be specified for runtime field [field]", exception.getMessage());
+        assertEquals("Failed to parse mapping [_doc]: script must be specified for runtime field [field]", exception.getMessage());
     }
 
     public void testCopyToIsNotSupported() throws IOException {
@@ -114,7 +114,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             b.field("copy_to", "target");
         });
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: runtime field [field] does not support [copy_to]", exception.getMessage());
+        assertEquals("Failed to parse mapping [_doc]: runtime field [field] does not support [copy_to]", exception.getMessage());
     }
 
     public void testMultiFieldsIsNotSupported() throws IOException {
@@ -123,7 +123,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             b.startObject("fields").startObject("test").field("type", "keyword").endObject().endObject();
         });
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: runtime field [field] does not support [fields]", exception.getMessage());
+        assertEquals("Failed to parse mapping [_doc]: runtime field [field] does not support [fields]", exception.getMessage());
     }
 
     public void testStoredScriptsAreNotSupported() throws Exception {
@@ -132,7 +132,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             b.startObject("script").field("id", "test").endObject();
         });
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: stored scripts are not supported for runtime field [field]", exception.getMessage());
+        assertEquals("Failed to parse mapping [_doc]: stored scripts are not supported for runtime field [field]", exception.getMessage());
     }
 
     public void testFieldCaps() throws Exception {

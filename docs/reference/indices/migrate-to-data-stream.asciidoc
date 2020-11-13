@@ -5,8 +5,7 @@
 <titleabbrev>Migrate to data stream</titleabbrev>
 ++++
 
-Migrates an existing alias with its indices to a new
-<<data-streams,data stream>>.
+Converts an <<indices-aliases,index alias>> to a <<data-streams,data stream>>.
 
 Data streams require a matching <<indices-templates,index template>>.
 See <<set-up-a-data-stream>>.

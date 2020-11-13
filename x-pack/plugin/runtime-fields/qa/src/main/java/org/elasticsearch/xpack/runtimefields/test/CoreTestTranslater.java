@@ -116,6 +116,7 @@ public abstract class CoreTestTranslater {
         return Map.of("type", type, "index", false, "doc_values", false);
     }
 
+    // TODO there isn't yet a way to create fields in the runtime section from a dynamic template
     protected static Map<String, Object> dynamicTemplateToAddRuntimeFields(String type) {
         return Map.ofEntries(
             Map.entry("type", "runtime"),
@@ -255,25 +256,25 @@ public abstract class CoreTestTranslater {
                 Object settings = body.get("settings");
                 if (settings instanceof Map && ((Map<?, ?>) settings).containsKey("sort.field")) {
                     /*
-                     * You can't sort the index on a runtime_keyword and it is
-                     * hard to figure out if the sort was a runtime_keyword so
-                     * let's just skip this test.
+                     * You can't sort the index on a runtime field
                      */
                     continue;
                 }
-                Object mapping = body.get("mappings");
-                if (false == (mapping instanceof Map)) {
-                    continue;
-                }
-                Object properties = ((Map<?, ?>) mapping).get("properties");
-                if (false == (properties instanceof Map)) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> mapping = (Map<String, Object>) body.get("mappings");
+                if (mapping == null) {
                     continue;
                 }
                 @SuppressWarnings("unchecked")
-                Map<String, Object> propertiesMap = (Map<String, Object>) properties;
-                if (false == modifyMappingProperties(index, propertiesMap)) {
+                Map<String, Object> propertiesMap = (Map<String, Object>) ((Map<?, ?>) mapping).get("properties");
+                if (propertiesMap == null) {
+                    continue;
+                }
+                Map<String, Object> runtimeFields = new HashMap<>();
+                if (false == modifyMappingProperties(index, propertiesMap, runtimeFields)) {
                     return false;
                 }
+                mapping.put("runtime", runtimeFields);
             }
             return true;
         }
@@ -281,26 +282,21 @@ public abstract class CoreTestTranslater {
         /**
          * Modify the mapping defined in the test.
          */
-        protected abstract boolean modifyMappingProperties(String index, Map<String, Object> properties);
+        protected abstract boolean modifyMappingProperties(String index, Map<String, Object> mappings, Map<String, Object> runtimeFields);
 
         /**
          * Modify the provided map in place, translating all fields into
          * runtime fields that load from source.
          * @return true if this mapping supports runtime fields, false otherwise
          */
-        protected final boolean runtimeifyMappingProperties(
-            Map<String, Object> properties,
-            Map<String, Object> untouchedProperties,
-            Map<String, Map<String, Object>> runtimeProperties
-        ) {
+        protected final boolean runtimeifyMappingProperties(Map<String, Object> properties, Map<String, Object> runtimeFields) {
             for (Map.Entry<String, Object> property : properties.entrySet()) {
                 if (false == property.getValue() instanceof Map) {
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> propertyMap = (Map<String, Object>) property.getValue();
-                String name = property.getKey().toString();
+                String name = property.getKey();
                 String type = Objects.toString(propertyMap.get("type"));
                 if ("nested".equals(type)) {
                     // Our loading scripts can't be made to manage nested fields so we have to skip those tests.
@@ -308,40 +304,39 @@ public abstract class CoreTestTranslater {
                 }
                 if ("false".equals(Objects.toString(propertyMap.get("doc_values")))) {
                     // If doc_values is false we can't emulate with scripts. So we keep the old definition. `null` and `true` are fine.
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 if ("false".equals(Objects.toString(propertyMap.get("index")))) {
                     // If index is false we can't emulate with scripts
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 if ("true".equals(Objects.toString(propertyMap.get("store")))) {
                     // If store is true we can't emulate with scripts
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 if (propertyMap.containsKey("ignore_above")) {
                     // Scripts don't support ignore_above so we skip those fields
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 if (propertyMap.containsKey("ignore_malformed")) {
                     // Our source reading script doesn't emulate ignore_malformed
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 String toLoad = painlessToLoadFromSource(name, type);
                 if (toLoad == null) {
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 Map<String, Object> runtimeConfig = new HashMap<>(propertyMap);
+                runtimeConfig.put("type", type);
                 runtimeConfig.put("script", toLoad);
                 runtimeConfig.remove("store");
                 runtimeConfig.remove("index");
                 runtimeConfig.remove("doc_values");
-                runtimeProperties.put(property.getKey(), runtimeConfig);
+                runtimeFields.put(name, runtimeConfig);
+
+                // we disable the mapped fields and shadow them with their corresponding runtime field
+                propertyMap.put("doc_values", false);
+                propertyMap.put("index", false);
             }
             /*
              * Its tempting to return false here if we didn't make any runtime

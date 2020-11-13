@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 public final class MappingLookup {
-
     /** Full field name to mapper */
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
@@ -50,24 +49,24 @@ public final class MappingLookup {
                 newFieldMappers.add(metadataMapper);
             }
         }
-        collect(mapping.root, newObjectMappers, newFieldMappers, newFieldAliasMappers);
-        return new MappingLookup(newFieldMappers, newObjectMappers, newFieldAliasMappers, mapping.metadataMappers.length);
+        for (Mapper child : mapping.root) {
+            collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers);
+        }
+        return new MappingLookup(newFieldMappers, newObjectMappers, newFieldAliasMappers,
+            mapping.root.runtimeFieldTypes(), mapping.metadataMappers.length);
     }
 
     private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
                                Collection<FieldMapper> fieldMappers,
                                Collection<FieldAliasMapper> fieldAliasMappers) {
-        if (mapper instanceof RootObjectMapper) {
-            // root mapper isn't really an object mapper
-        } else if (mapper instanceof ObjectMapper) {
+        if (mapper instanceof ObjectMapper) {
             objectMappers.add((ObjectMapper)mapper);
         } else if (mapper instanceof FieldMapper) {
             fieldMappers.add((FieldMapper)mapper);
         } else if (mapper instanceof FieldAliasMapper) {
             fieldAliasMappers.add((FieldAliasMapper) mapper);
         } else {
-            throw new IllegalStateException("Unrecognized mapper type [" +
-                mapper.getClass().getSimpleName() + "].");
+            throw new IllegalStateException("Unrecognized mapper type [" + mapper.getClass().getSimpleName() + "].");
         }
 
         for (Mapper child : mapper) {
@@ -78,6 +77,7 @@ public final class MappingLookup {
     public MappingLookup(Collection<FieldMapper> mappers,
                          Collection<ObjectMapper> objectMappers,
                          Collection<FieldAliasMapper> aliasMappers,
+                         Collection<RuntimeFieldType> runtimeFieldTypes,
                          int metadataFieldCount) {
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, Analyzer> indexAnalyzers = new HashMap<>();
@@ -114,7 +114,7 @@ public final class MappingLookup {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers);
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, runtimeFieldTypes);
 
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);

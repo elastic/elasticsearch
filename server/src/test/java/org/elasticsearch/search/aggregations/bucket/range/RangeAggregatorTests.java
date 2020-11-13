@@ -48,6 +48,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
@@ -177,7 +178,6 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void testDateFieldNanosecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, Collections.emptyMap());
@@ -191,8 +191,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(milli1 - 1, milli1 + 1);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli1)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli2)));
+            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, TimeUnit.MILLISECONDS.toNanos(milli1))));
+            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, TimeUnit.MILLISECONDS.toNanos(milli2))));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(1, ranges.size());
@@ -201,8 +201,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
-    public void  testMissingDateWithDateField() throws IOException {
+    public void  testMissingDateWithDateNanosField() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, Collections.emptyMap());
 
@@ -216,8 +215,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(milli1 - 1, milli1 + 1);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli1)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli2)));
+            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, TimeUnit.MILLISECONDS.toNanos(milli1))));
+            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, TimeUnit.MILLISECONDS.toNanos(milli2))));
             // Missing will apply to this document
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
         }, range -> {

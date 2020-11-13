@@ -78,16 +78,16 @@ DELETE /_index_template/template
 `<alias>`::
 +
 --
-(Required, string) Name of the alias to be migrated to a data stream. The
-alias's indices will be hidden and converted to backing indices for the
-new data stream. The alias will be removed, and the new data stream will
-be named `<alias>`.
+(Required, string)
+Name of the index alias to convert to a data stream. The alias must meet the
+following criteria:
 
-Aliases must meet the following criteria to be migrated to a data stream:
+- The alias must have a <<aliases-write-index,write index>>.
+- All indices for the alias have a `@timestamp` field mapping of a `date` or `date_nanos` field type.
+- The alias must not have any <<filtered,filters>>.
+- The alias must not use <<aliases-routing,custom routing>>.
 
-- Must have an index defined as the <<aliases-write-index,write index>>
-- All indices associated with the alias must have a mapping for the
-`@timestamp` field of type `date` or `date_nanos`
-- Must not have any <<filtered,filters>>
-- Must not have any <<aliases-routing,custom routing>>
+If successful, the request removes the alias and creates a data stream with the
+same name. The alias's indices become hidden backing indices for the stream. The
+alias's write index becomes the stream's write index.
 --

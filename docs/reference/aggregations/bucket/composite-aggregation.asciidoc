@@ -6,9 +6,10 @@
 
 A multi-bucket aggregation that creates composite buckets from different sources.
 
-Unlike the other `multi-bucket` aggregation the `composite` aggregation can be used
-to paginate **all** buckets from a multi-level aggregation efficiently. This aggregation
-provides a way to stream **all** buckets of a specific aggregation similarly to what
+Unlike the other `multi-bucket` aggregations, you can use the `composite`
+aggregation to paginate **all** buckets from a multi-level aggregation
+efficiently. This aggregation provides a way to stream **all** buckets of a
+specific aggregation, similar to what
 <<scroll-search-results, scroll>> does for documents.
 
 The composite buckets are built from the combinations of the
@@ -76,7 +77,7 @@ POST /sales/_bulk?refresh
 
 //////////////////////////
 
-For instance the following document:
+For example, consider the following document:
 
 [source,js]
 --------------------------------------------------
@@ -87,8 +88,8 @@ For instance the following document:
 --------------------------------------------------
 // NOTCONSOLE
 
-\... creates the following composite buckets when `keyword` and `number` are used as values source
-for the aggregation:
+Using `keyword` and `number` as source fields for the aggregation results in
+the following composite buckets:
 
 [source,js]
 --------------------------------------------------
@@ -101,15 +102,20 @@ for the aggregation:
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Values source
+==== Value sources
 
-The `sources` parameter controls the sources that should be used to build the composite buckets.
-The order that the `sources` are defined is important because it also controls the order
-the keys are returned.
+The `sources` parameter defines the source fields to use when building
+composite buckets. The order that the `sources` are defined controls the order
+that the keys are returned.
 
-The name given to each sources must be unique.
+NOTE: You must use a unique name when defining `sources`.
 
-There are three different types of values source:
+The `sources` parameter can be any of the following types:
+
+* <<_terms,Terms>>
+* <<_histogram,Histogram>>
+* <<_date_histogram,Date histogram>>
+* <<_geotile_grid,GeoTile grid>>
 
 [[_terms]]
 ===== Terms
@@ -430,10 +436,10 @@ GET /_search
 }
 --------------------------------------------------
 
-===== Mixing different values source
+===== Mixing different value sources
 
-The `sources` parameter accepts an array of values source.
-It is possible to mix different values source to create composite buckets.
+The `sources` parameter accepts an array of value sources.
+It is possible to mix different value sources to create composite buckets.
 For example:
 
 [source,console,id=composite-aggregation-mixing-sources-example]
@@ -454,7 +460,7 @@ GET /_search
 }
 --------------------------------------------------
 
-This will create composite buckets from the values created by two values source, a `date_histogram` and a `terms`.
+This will create composite buckets from the values created by two value sources, a `date_histogram` and a `terms`.
 Each bucket is composed of two values, one for each value source defined in the aggregation.
 Any type of combinations is allowed and the order in the array is preserved
 in the composite buckets.
@@ -542,7 +548,7 @@ first (ascending order, `asc`) or last (descending order, `desc`).
 
 The `size` parameter can be set to define how many composite buckets should be returned.
 Each composite bucket is considered as a single bucket, so setting a size of 10 will return the
-first 10 composite buckets created from the values source.
+first 10 composite buckets created from the value sources.
 The response contains the values for each composite bucket in an array containing the values extracted
 from each value source. Defaults to `10`.
 

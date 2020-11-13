@@ -50,7 +50,7 @@ def generateVersionProperties = tasks.register("generateVersionProperties", Writ
   properties(props)
 }
 
-processResources {
+tasks.named("processResources").configure {
   from(generateVersionProperties)
 }
 
@@ -132,7 +132,9 @@ if (project == rootProject) {
     runtimeOnly project('reaper')
   }
   // only run tests as build-tools
-  test.enabled = false
+  tasks.named("test").configure {
+    enabled = false
+  }
 }
 
 /*****************************************************************************
@@ -146,19 +148,29 @@ if (project != rootProject) {
   apply plugin: 'elasticsearch.publish'
 
   // groovydoc succeeds, but has some weird internal exception...
-  groovydoc.enabled = false
+  tasks.named("groovydoc").configure {
+    enabled = false
+  }
 
   // build-tools is not ready for primetime with these...
-  tasks.named("dependencyLicenses").configure { it.enabled = false }
-  dependenciesInfo.enabled = false
+  tasks.named("dependencyLicenses").configure { enabled = false }
+  tasks.named("dependenciesInfo").configure {enabled = false }
   disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
-  jarHell.enabled = false
-  thirdPartyAudit.enabled = false
+  tasks.named("jarHell").configure {
+    enabled = false
+  }
+  tasks.named("thirdPartyAudit").configure {
+    enabled = false
+  }
   if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm) {
     // We don't support running gradle with a JVM that is in FIPS 140 mode, so we don't test it.
     // WaitForHttpResourceTests tests would fail as they use JKS/PKCS12 keystores
-    test.enabled = false
-    testingConventions.enabled = false
+    tasks.named("test").configure {
+      enabled = false;
+    }
+    tasks.named("testingConventions").configure {
+      enabled = false
+    }
   }
 
   configurations.register("distribution")
@@ -185,7 +197,7 @@ if (project != rootProject) {
   }
 
   // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
-  processResources {
+  tasks.named("processResources").configure {
     exclude 'buildSrc.marker'
     into('META-INF') {
       from configurations.reaper
@@ -204,7 +216,7 @@ if (project != rootProject) {
     }
   }
 
-  forbiddenPatterns {
+  tasks.named("forbiddenPatterns").configure {
     exclude '**/*.wav'
     exclude '**/*.p12'
     exclude '**/*.jks'
@@ -214,7 +226,7 @@ if (project != rootProject) {
     exclude '**/*.bcfks'
   }
 
-  testingConventions {
+  tasks.named("testingConventions") {
     naming.clear()
     naming {
       Tests {
@@ -234,7 +246,7 @@ if (project != rootProject) {
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath
   }
-  check.dependsOn("integTest")
+  tasks.named("check").configure { dependsOn("integTest") }
 
   // for now we hardcode the tests for our build to use the gradle jvm.
   tasks.withType(Test).configureEach {
@@ -246,7 +258,9 @@ if (project != rootProject) {
    * comes from the java-gradle-plugin.
    */
   afterEvaluate {
-    generatePomFileForPluginMavenPublication.enabled = false
+    tasks.named("generatePomFileForPluginMavenPublication").configure {
+      enabled = false
+    }
   }
 
   publishing.publications.named("nebula").configure {

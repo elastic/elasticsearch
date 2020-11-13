@@ -76,8 +76,12 @@ tasks.register("copyKeyCerts", Copy) {
 }
 // Add keystores to test classpath: it expects it there
 sourceSets.yamlRestTest.resources.srcDir(keystoreDir)
-processYamlRestTestResources.dependsOn("copyKeyCerts")
-processJavaRestTestResources.dependsOn("copyKeyCerts")
+tasks.named("processYamlRestTestResources").configure {
+  dependsOn("copyKeyCerts")
+}
+tasks.named("processJavaRestTestResources").configure {
+  dependsOn("copyKeyCerts")
+}
 
 yamlRestTest {
   /*
@@ -96,7 +100,7 @@ yamlRestTest {
     blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
-  dependsOn copyKeyCerts
+  dependsOn "copyKeyCerts"
 }
 
 testClusters.all {

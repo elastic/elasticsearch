@@ -88,7 +88,7 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
+        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(searchSource()
                 .aggregation(terms("from").field("result.actions.email.message.from"))
                 .aggregation(terms("to").field("result.actions.email.message.to"))
                 .aggregation(terms("cc").field("result.actions.email.message.cc"))

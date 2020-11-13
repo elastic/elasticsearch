@@ -1267,7 +1267,7 @@ See <<transforms>>.
 
 See <<search-aggregations-matrix-stats-aggregation>>.
 
-[[search-aggregations-pipeline-movavg-aggregation]]
+[role="exclude",id="search-aggregations-pipeline-movavg-aggregation"]
 === Moving average aggregation
 
 The moving average aggregation has been removed. Use the

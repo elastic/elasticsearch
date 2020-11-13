@@ -92,8 +92,7 @@ public class ForceMergeIT extends ESIntegTestCase {
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
         ensureGreen(index);
-       /* assertAcked(client().freprepareUpdateSettings("test-index")
-            .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, true)).get());*/
+
         ClusterBlockException exception =
             expectThrows(ClusterBlockException.class, () -> client().admin().indices().prepareForceMerge("test-index").get());
         assertThat(exception.getMessage(), containsString("index [test-index] blocked by: [FORBIDDEN/8/index write (api)]"));

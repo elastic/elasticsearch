@@ -370,8 +370,14 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
                            boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) {
-        assert false : "this should not be called";
-        throw new UnsupportedOperationException("force merge is not supported on a read-only engine");
+        if (maxNumSegments < lastCommittedSegmentInfos.size()) {
+            throw new UnsupportedOperationException("force merge is not supported on a read-only engine, " +
+                "target max number of segments[" + maxNumSegments + "], " +
+                "current number of segments[" + lastCommittedSegmentInfos.size() + "].");
+        } else {
+            logger.debug("current number of segments[{}] is not greater than target max number of segments[{}].",
+                lastCommittedSegmentInfos.size(), maxNumSegments);
+        }
     }
 
     @Override

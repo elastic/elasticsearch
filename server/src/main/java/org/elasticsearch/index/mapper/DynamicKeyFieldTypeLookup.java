@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.Iterator;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * A container that supports looking up field types for 'dynamic key' fields ({@link DynamicKeyFieldMapper}).
@@ -83,10 +83,8 @@ class DynamicKeyFieldTypeLookup {
         }
     }
 
-    Iterator<MappedFieldType> fieldTypes() {
-        return mappers.values().stream()
-            .<MappedFieldType>map(mapper -> mapper.keyedFieldType(""))
-            .iterator();
+    Stream<MappedFieldType> fieldTypes() {
+        return mappers.values().stream().map(mapper -> mapper.keyedFieldType(""));
     }
 
     // Visible for testing.

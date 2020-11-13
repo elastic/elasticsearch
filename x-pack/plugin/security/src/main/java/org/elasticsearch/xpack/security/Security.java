@@ -1156,7 +1156,12 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     @Override
-    public String getPluginName() {
+    public String getFeatureName() {
         return "security";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages configuration for Security features, such as users and roles";
     }
 }

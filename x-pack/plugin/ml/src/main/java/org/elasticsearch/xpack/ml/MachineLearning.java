@@ -1114,8 +1114,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     }
 
     @Override
-    public String getPluginName() {
+    public String getFeatureName() {
         return "machine_learning";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Provides anomaly detection and forecasting functionality";
     }
 
     @Override

@@ -38,7 +38,12 @@ public class LocalStateSearchableSnapshots extends LocalStateCompositeXPackPlugi
     }
 
     @Override
-    public String getPluginName() {
-        return plugin.getPluginName();
+    public String getFeatureName() {
+        return plugin.getFeatureName();
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return plugin.getFeatureDescription();
     }
 }

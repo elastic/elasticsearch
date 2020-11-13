@@ -94,8 +94,13 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        public String getPluginName() {
+        public String getFeatureName() {
             return ClusterInfoServiceIT.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin";
         }
     }
 

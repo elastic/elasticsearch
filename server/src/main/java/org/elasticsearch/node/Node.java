@@ -492,7 +492,7 @@ public class Node implements Closeable {
                 .filterPlugins(SystemIndexPlugin.class)
                 .stream()
                 .collect(Collectors.toUnmodifiableMap(
-                    plugin -> plugin.getPluginName(),
+                    plugin -> plugin.getFeatureName(),
                     plugin -> plugin.getSystemIndexDescriptors(settings)));
             final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
 

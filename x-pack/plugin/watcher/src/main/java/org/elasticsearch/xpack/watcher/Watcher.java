@@ -707,7 +707,12 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     }
 
     @Override
-    public String getPluginName() {
+    public String getFeatureName() {
         return "watcher";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages Watch definitions and state";
     }
 }

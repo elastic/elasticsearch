@@ -126,6 +126,11 @@ settings belong in the `elasticsearch.yml` file.
 
     The protocol to use to connect to S3. Valid values are either `http` or
     `https`. Defaults to `https`.
+    
+    NOTE: This plugin wraps the `AmazonS3Client` which will use the default JVM
+    truststore, rather than the truststore configured in Elasticsearch.
+    If you experience certificate validation errors, add your root CA 
+    certificates to the default `cacerts` store.
 
 `proxy.host`::
 

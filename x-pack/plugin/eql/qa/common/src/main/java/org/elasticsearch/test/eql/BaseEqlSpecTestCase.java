@@ -7,6 +7,7 @@
 package org.elasticsearch.test.eql;
 
 import org.apache.http.HttpHost;
+import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.client.EqlClient;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -118,11 +119,19 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
         // some queries return more than 10 results
         request.size(50);
         request.fetchSize(randomIntBetween(2, 50));
+        request.resultPosition(randomBoolean() ? "head" : "tail");
         return runRequest(eqlClient(), request);
     }
 
     protected  EqlSearchResponse runRequest(EqlClient eqlClient, EqlSearchRequest request) throws IOException {
-        return eqlClient.search(request, RequestOptions.DEFAULT);
+        int timeout = Math.toIntExact(timeout().millis());
+
+        RequestConfig config = RequestConfig.copy(RequestConfig.DEFAULT)
+            .setConnectionRequestTimeout(timeout)
+            .setConnectTimeout(timeout)
+            .setSocketTimeout(timeout)
+            .build();
+        return eqlClient.search(request, RequestOptions.DEFAULT.toBuilder().setRequestConfig(config).build());
     }
 
     protected EqlClient eqlClient() {

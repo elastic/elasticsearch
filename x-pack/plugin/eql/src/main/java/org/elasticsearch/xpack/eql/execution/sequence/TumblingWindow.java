@@ -107,16 +107,14 @@ public class TumblingWindow implements Executable {
      * Move the window while preserving the same base.
      */
     private void tumbleWindow(int currentStage, ActionListener<Payload> listener) {
-        if (currentStage > 0) {
-            if (matcher.hasCandidates() == false) {
-                if (restartWindowFromTailQuery) {
-                    currentStage = 0;
-                } else {
-                    // if there are no in-flight sequences (from previous stages)
-                    // no need to look for more results
-                    payload(listener);
-                    return;
-                }
+        if (currentStage > 0 && matcher.hasCandidates() == false) {
+            if (restartWindowFromTailQuery) {
+                currentStage = 0;
+            } else {
+                // if there are no in-flight sequences (from previous stages)
+                // no need to look for more results
+                payload(listener);
+                return;
             }
         }
 

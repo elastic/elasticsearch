@@ -43,14 +43,10 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
     void add(E element) {
         Ordinal ordinal = extractor.apply(element);
-        if (start == null) {
-            start = ordinal;
-        } else if (start.compareTo(ordinal) > 0) {
+        if (start == null || start.compareTo(ordinal) > 0) {
             start = ordinal;
         }
-        if (stop == null) {
-            stop = ordinal;
-        } else if (stop.compareTo(ordinal) < 0) {
+        if (stop == null || stop.compareTo(ordinal) < 0) {
             stop = ordinal;
         }
         elements.add(element);

@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import java.util.Objects;
 
 /**
- * A match within a sequence, holding the result and occurrance time.
+ * A match within a sequence, holding the result and occurrence time.
  */
 class Match {
 

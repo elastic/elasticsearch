@@ -26,7 +26,6 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 public class BoxedQueryRequest implements QueryRequest {
 
     private final RangeQueryBuilder timestampRange;
-
     private final SearchSourceBuilder searchSource;
 
     private Ordinal from, to;
@@ -61,6 +60,16 @@ public class BoxedQueryRequest implements QueryRequest {
         return this;
     }
 
+    /**
+     * Sets the upper boundary for the query (inclusive).
+     * Can be removed through null.
+     */
+    public BoxedQueryRequest to(Ordinal end) {
+        to = end;
+        timestampRange.lte(end != null ? end.timestamp() : null);
+        return this;
+    }
+
     public Ordinal after() {
         return after;
     }
@@ -69,13 +78,8 @@ public class BoxedQueryRequest implements QueryRequest {
         return from;
     }
 
-    /**
-     * Sets the upper boundary for the query (inclusive).
-     */
-    public BoxedQueryRequest to(Ordinal end) {
-        to = end;
-        timestampRange.lte(end != null ? end.timestamp() : null);
-        return this;
+    public Ordinal to() {
+        return to;
     }
 
     @Override

@@ -82,7 +82,7 @@ the Authentication Request, as HTTP GET parameters:
   "redirect" : "http://127.0.0.1:8080/c2id-login?scope=openid&response_type=id_token&redirect_uri=https%3A%2F%2Fmy.fantastic.rp%2Fcb&state=4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I&nonce=WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM&client_id=elasticsearch-rp",
   "state" : "4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I",
   "nonce" : "WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM",
-  "realm_name" : "oidc1"
+  "realm" : "oidc1"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I/\$\{body.state\}/]
@@ -111,7 +111,7 @@ the Authentication Request, as HTTP GET parameters:
   "redirect" : "http://127.0.0.1:8080/c2id-login?scope=openid&response_type=id_token&redirect_uri=https%3A%2F%2Fmy.fantastic.rp%2Fcb&state=lGYK0EcSLjqH6pkT5EVZjC6eIW5YCGgywj2sxROO&nonce=zOBXLJGUooRrbLbQk5YCcyC8AXw3iloynvluYhZ5&client_id=elasticsearch-rp",
   "state" : "lGYK0EcSLjqH6pkT5EVZjC6eIW5YCGgywj2sxROO",
   "nonce" : "zOBXLJGUooRrbLbQk5YCcyC8AXw3iloynvluYhZ5",
-  "realm_name" : "oidc1"
+  "realm" : "oidc1"
 }
 --------------------------------------------------
 

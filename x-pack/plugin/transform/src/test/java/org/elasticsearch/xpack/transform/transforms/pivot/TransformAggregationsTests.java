@@ -110,6 +110,12 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("flattened", TransformAggregations.resolveTargetMapping("rare_terms", "text"));
         assertEquals("flattened", TransformAggregations.resolveTargetMapping("rare_terms", "keyword"));
 
+        // top_metrics
+        assertEquals("int", TransformAggregations.resolveTargetMapping("top_metrics", "int"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("top_metrics", "double"));
+        assertEquals("ip", TransformAggregations.resolveTargetMapping("top_metrics", "ip"));
+        assertEquals("keyword", TransformAggregations.resolveTargetMapping("top_metrics", "keyword"));
+
         // corner case: source type null
         assertEquals(null, TransformAggregations.resolveTargetMapping("min", null));
     }

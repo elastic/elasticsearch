@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -76,7 +77,6 @@ public final class TransformAggregations {
         "stats", // https://github.com/elastic/elasticsearch/issues/51925
         "string_stats", // https://github.com/elastic/elasticsearch/issues/51925
         "top_hits",
-        "top_metrics", // https://github.com/elastic/elasticsearch/issues/52236
         "t_test", // https://github.com/elastic/elasticsearch/issues/54503,
         "variable_width_histogram", // https://github.com/elastic/elasticsearch/issues/58140
         "rate", // https://github.com/elastic/elasticsearch/issues/61351
@@ -113,7 +113,8 @@ public final class TransformAggregations {
         FILTER("filter", LONG),
         TERMS("terms", FLATTENED),
         RARE_TERMS("rare_terms", FLATTENED),
-        MISSING("missing", LONG);
+        MISSING("missing", LONG),
+        TOP_METRICS("top_metrics", SOURCE);
 
         private final String aggregationType;
         private final String targetMapping;
@@ -175,6 +176,27 @@ public final class TransformAggregations {
         return agg.getTargetMapping();
     }
 
+    /**
+     * Checks the aggregation object and returns a tuple with 2 maps:
+     *
+     * 1. mapping the name of the agg to the used field
+     * 2. mapping the name of the agg to the aggregation type
+     *
+     * Example:
+     * {
+     *   "my_agg": {
+     *     "max": {
+     *       "field": "my_field"
+     * }}}
+     *
+     * creates ({ "my_agg": "my_field" }, { "my_agg": "max" })
+     *
+     * Both mappings can contain _multiple_ entries, e.g. due to sub aggregations or because of aggregations creating multiple
+     * values(e.g. percentiles)
+     *
+     * @param agg the aggregation builder
+     * @return a tuple with 2 mappings that maps the used field(s) and aggregation type(s)
+     */
     public static Tuple<Map<String, String>, Map<String, String>> getAggregationInputAndOutputTypes(AggregationBuilder agg) {
         if (agg instanceof PercentilesAggregationBuilder) {
             PercentilesAggregationBuilder percentilesAgg = (PercentilesAggregationBuilder) agg;
@@ -185,7 +207,9 @@ public final class TransformAggregations {
                 Collections.emptyMap(),
                 Arrays.stream(percentilesAgg.percentiles())
                     .mapToObj(OutputFieldNameConverter::fromDouble)
-                    .collect(Collectors.toMap(p -> agg.getName() + "." + p, p -> { return agg.getType(); }, (p1, p2) -> p1))
+                    .collect(
+                        Collectors.toMap(p -> percentilesAgg.getName() + "." + p, p -> { return percentilesAgg.getType(); }, (p1, p2) -> p1)
+                    )
             );
         }
 
@@ -193,7 +217,7 @@ public final class TransformAggregations {
             ValuesSourceAggregationBuilder<?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?>) agg;
             return new Tuple<>(
                 Collections.singletonMap(valueSourceAggregation.getName(), valueSourceAggregation.field()),
-                Collections.singletonMap(agg.getName(), agg.getType())
+                Collections.singletonMap(valueSourceAggregation.getName(), valueSourceAggregation.getType())
             );
         }
 
@@ -215,6 +239,32 @@ public final class TransformAggregations {
             }
 
             return new Tuple<>(inputTypes, outputTypes);
+        }
+
+        // does the agg specify output field names
+        Optional<Set<String>> outputFieldNames = agg.getOutputFieldNames();
+        if (outputFieldNames.isPresent()) {
+            return new Tuple<>(
+                outputFieldNames.get()
+                    .stream()
+                    .collect(
+                        Collectors.toMap(
+                            outputField -> agg.getName() + "." + outputField,
+                            outputField -> { return outputField; },
+                            (v1, v2) -> v1
+                        )
+                    ),
+                outputFieldNames.get()
+                    .stream()
+                    .collect(
+
+                        Collectors.toMap(
+                            outputField -> agg.getName() + "." + outputField,
+                            outputField -> { return agg.getType(); },
+                            (v1, v2) -> v1
+                        )
+                    )
+            );
         }
 
         // catch all in case no special handling required

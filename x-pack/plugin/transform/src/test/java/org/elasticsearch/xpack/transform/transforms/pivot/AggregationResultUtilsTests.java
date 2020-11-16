@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -20,6 +21,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
@@ -36,6 +38,7 @@ import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
@@ -77,6 +80,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.is;
@@ -114,6 +118,56 @@ public class AggregationResultUtilsTests extends ESTestCase {
             .stream()
             .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
             .collect(Collectors.toList());
+    }
+
+    class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiValue {
+
+        private final Map<String, Object> values;
+
+        TestMultiValueAggregation(String name, Map<String, Object> values) {
+            super(name, emptyMap());
+            this.values = values;
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public double value(String name) {
+            Object o = values.get(name);
+            if (o instanceof Double) {
+                return ((Double) o).doubleValue();
+            }
+
+            return Double.NaN;
+        }
+
+        @Override
+        public String valueAsString(String name) {
+            return values.get(name).toString();
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterable<String> valueNames() {
+            return values.keySet();
+        }
     }
 
     @Override
@@ -661,6 +715,47 @@ public class AggregationResultUtilsTests extends ESTestCase {
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("metric", "unsigned_long"), ""),
             equalTo(100L)
+        );
+    }
+
+    public void testMultiValueAggExtractor() {
+        Aggregation agg = new TestMultiValueAggregation("mv_metric", Collections.singletonMap("approx_answer", Double.valueOf(42.2)));
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.approx_answer", "double"), ""),
+            equalTo(Collections.singletonMap("approx_answer", Double.valueOf(42.2)))
+        );
+
+        agg = new TestMultiValueAggregation("mv_metric", Collections.singletonMap("exact_answer", Double.valueOf(42.0)));
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.exact_answer", "long"), ""),
+            equalTo(Collections.singletonMap("exact_answer", Long.valueOf(42)))
+        );
+
+        agg = new TestMultiValueAggregation("mv_metric", Collections.singletonMap("ip", "192.168.1.1"));
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.ip", "ip"), ""),
+            equalTo(Collections.singletonMap("ip", "192.168.1.1"))
+        );
+
+        agg = new TestMultiValueAggregation("mv_metric", Collections.singletonMap("written_answer", "fortytwo"));
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.written_answer", "written_answer"), ""),
+            equalTo(Collections.singletonMap("written_answer", "fortytwo"))
+        );
+
+        agg = new TestMultiValueAggregation(
+            "mv_metric",
+            Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Double.valueOf(42.0), "ip", "192.168.1.1")
+        );
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg)
+                .value(agg, Map.of("mv_metric.approx_answer", "double", "mv_metric.exact_answer", "long", "mv_metric.ip", "ip"), ""),
+            equalTo(Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42), "ip", "192.168.1.1"))
         );
     }
 

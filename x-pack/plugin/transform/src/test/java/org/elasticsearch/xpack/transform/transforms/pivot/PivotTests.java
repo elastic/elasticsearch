@@ -48,6 +48,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -68,8 +69,12 @@ public class PivotTests extends ESTestCase {
     private NamedXContentRegistry namedXContentRegistry;
     private Client client;
 
+    // exclude aggregations from the analytics module as we don't have parser for it here
+    private final Set<String> externalAggregations = Collections.singleton("top_metrics");
+
     private final Set<String> supportedAggregations = Stream.of(AggregationType.values())
         .map(AggregationType::getName)
+        .filter(agg -> externalAggregations.contains(agg) == false)
         .collect(Collectors.toSet());
     private final String[] unsupportedAggregations = { "stats" };
 
@@ -148,11 +153,7 @@ public class PivotTests extends ESTestCase {
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Function pivot = new Pivot(
-                getValidPivotConfig(aggregationConfig),
-                new SettingsConfig(),
-                Version.CURRENT
-            );
+            Function pivot = new Pivot(getValidPivotConfig(aggregationConfig), new SettingsConfig(), Version.CURRENT);
             assertValidTransform(client, source, pivot);
         }
     }
@@ -161,11 +162,7 @@ public class PivotTests extends ESTestCase {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Function pivot = new Pivot(
-                getValidPivotConfig(aggregationConfig),
-                new SettingsConfig(),
-                Version.CURRENT
-            );
+            Function pivot = new Pivot(getValidPivotConfig(aggregationConfig), new SettingsConfig(), Version.CURRENT);
 
             pivot.validateConfig(ActionListener.wrap(r -> { fail("expected an exception but got a response"); }, e -> {
                 assertThat(e, anyOf(instanceOf(ElasticsearchException.class)));
@@ -179,7 +176,7 @@ public class PivotTests extends ESTestCase {
             + "\"group-A\": { \"terms\": { \"field\": \"field-A\" } },"
             + "\"group-B\": { \"terms\": { \"field\": \"field-B\" } },"
             + "\"group-C\": { \"terms\": { \"field\": \"field-C\" } }"
-        + "}";
+            + "}";
         GroupConfig groupConfig;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, groupConfigJson)) {
             groupConfig = GroupConfig.fromXContent(parser, false);

@@ -40,5 +40,12 @@ public interface NumericMetricsAggregation extends Aggregation {
          */
         double value(String name);
 
+        /**
+         * Return the result of 1 value by name as string
+         *
+         * @param name of the value
+         * @return the value as string
+         */
+        String valueAsString(String name);
     }
 }

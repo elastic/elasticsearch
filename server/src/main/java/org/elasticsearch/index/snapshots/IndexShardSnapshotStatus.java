@@ -110,7 +110,10 @@ public class IndexShardSnapshotStatus {
     public synchronized Copy moveToFinalize(final long indexVersion) {
         if (stage.compareAndSet(Stage.STARTED, Stage.FINALIZE)) {
             this.indexVersion = indexVersion;
+        } else if (isAborted()) {
+            throw new AbortedSnapshotException();
         } else {
+            assert false : "Should not try to move stage [" + stage.get() + "] to [FINALIZE]";
             throw new IllegalStateException("Unable to move the shard snapshot status to [FINALIZE]: " +
                 "expecting [STARTED] but got [" + stage.get() + "]");
         }

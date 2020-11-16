@@ -1,13 +1,13 @@
 [role="xpack"]
 [[security-api-saml-sp-metadata]]
-=== SAML sp metadata API
+=== SAML service provider metadata API
 
-Generate a SAML 2.0 Service Provider Metadata.
+Generate SAML metadata for a SAML 2.0 Service Provider.
 
 [[security-api-saml-sp-metadata-request]]
 ==== {api-request-title}
 
-`POST /_security/saml/metadata/<realmname>`
+`GET /_security/saml/metadata/<realmname>`
 
 [[security-api-saml-sp-metadata-desc]]
 ==== {api-description-title}
@@ -21,12 +21,12 @@ in Elasticsearch.
 ==== {api-response-body-title}
 
 `metadata`::
-(string) An XML string that contains a SAML Service Providers metadata for the realm.
+(string) An XML string that contains a SAML Service Provider's metadata for the realm.
 
 [[security-api-saml-sp-metadata-example]]
 ==== {api-examples-title}
 
-The following example generate Service Provider metadata for
+The following example generates Service Provider metadata for
 SAML realm `saml1`:
 
 [source,console]
@@ -35,10 +35,9 @@ GET /_security/saml/metadata/saml1
 --------------------------------------------------
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "metadata" : "<?xml version="1.0" encoding="UTF-8"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://kibana.example.com/"><md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"><md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://kibana.example.com/logout"/><md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://kibana.example.com/api/security/v1/saml" index="1" isDefault="true"/></md:SPSSODescriptor></md:EntityDescriptor>"
 }
 --------------------------------------------------
-// NOTCONSOLE

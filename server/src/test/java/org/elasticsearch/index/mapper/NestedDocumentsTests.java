@@ -59,22 +59,22 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
             NestedDocuments nested = new NestedDocuments(mapperService, QueryBitSetProducer::new);
             LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
-            assertTrue(leaf.advance(0));
+            assertNotNull(leaf.advance(0));
             assertEquals(0, leaf.doc());
             assertEquals(3, leaf.rootDoc());
             assertEquals(new SearchHit.NestedIdentity("children", 0, null), leaf.nestedIdentity());
 
-            assertTrue(leaf.advance(1));
+            assertNotNull(leaf.advance(1));
             assertEquals(1, leaf.doc());
             assertEquals(3, leaf.rootDoc());
             assertEquals(new SearchHit.NestedIdentity("children", 1, null), leaf.nestedIdentity());
 
-            assertTrue(leaf.advance(2));
+            assertNotNull(leaf.advance(2));
             assertEquals(2, leaf.doc());
             assertEquals(3, leaf.rootDoc());
             assertEquals(new SearchHit.NestedIdentity("children", 2, null), leaf.nestedIdentity());
 
-            assertFalse(leaf.advance(3));
+            assertNull(leaf.advance(3));
             assertEquals(3, leaf.doc());
             assertEquals(3, leaf.rootDoc());
             assertNull(leaf.nestedIdentity());
@@ -156,40 +156,40 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
             NestedDocuments nested = new NestedDocuments(mapperService, QueryBitSetProducer::new);
             LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
-            assertTrue(leaf.advance(0));
+            assertNotNull(leaf.advance(0));
             assertEquals(0, leaf.doc());
             assertEquals(12, leaf.rootDoc());
             assertEquals(
                 new SearchHit.NestedIdentity("children", 0, new SearchHit.NestedIdentity("grandchildren", 0, null)),
                 leaf.nestedIdentity());
 
-            assertTrue(leaf.advance(2));
+            assertNotNull(leaf.advance(2));
             assertEquals(2, leaf.doc());
             assertEquals(12, leaf.rootDoc());
             assertEquals(
                 new SearchHit.NestedIdentity("children", 0, new SearchHit.NestedIdentity("grandchildren", 2, null)),
                 leaf.nestedIdentity());
 
-            assertTrue(leaf.advance(3));
+            assertNotNull(leaf.advance(3));
             assertEquals(3, leaf.doc());
             assertEquals(12, leaf.rootDoc());
             assertEquals(new SearchHit.NestedIdentity("children", 0, null), leaf.nestedIdentity());
 
-            assertTrue(leaf.advance(4));
+            assertNotNull(leaf.advance(4));
             assertEquals(4, leaf.doc());
             assertEquals(12, leaf.rootDoc());
             assertEquals(
                 new SearchHit.NestedIdentity("children", 1, new SearchHit.NestedIdentity("grandchildren", 0, null)),
                 leaf.nestedIdentity());
 
-            assertTrue(leaf.advance(5));
+            assertNotNull(leaf.advance(5));
             assertEquals(5, leaf.doc());
             assertEquals(12, leaf.rootDoc());
             assertEquals(
                 new SearchHit.NestedIdentity("children", 1, new SearchHit.NestedIdentity("grandchildren", 1, null)),
                 leaf.nestedIdentity());
 
-            assertFalse(leaf.advance(12));
+            assertNull(leaf.advance(12));
             assertNull(leaf.nestedIdentity());
         });
     }

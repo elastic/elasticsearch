@@ -144,5 +144,4 @@ public class ParsedMediaType {
         //TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
         return true;
     }
-
 }

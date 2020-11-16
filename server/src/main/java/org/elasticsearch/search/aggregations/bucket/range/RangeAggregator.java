@@ -309,8 +309,16 @@ public abstract class RangeAggregator extends BucketsAggregator {
             if (estimatedFiltersCost <= maxEstimatedFiltersCost) {
                 return adapted;
             }
-            filtersDebug = new HashMap<>();
-            adapted.delegate().collectDebugInfo(filtersDebug::put);
+            /*
+             * Looks like it'd be more expensive to use the filter-by-filter
+             * aggregator. Oh well. Snapshot the the filter-by-filter
+             * aggregator's debug information if we're profiling bececause it
+             * is useful even if the aggregator isn't. 
+             */
+            if (context.getProfilers() != null) {
+                filtersDebug = new HashMap<>();
+                adapted.delegate().collectDebugInfo(filtersDebug::put);
+            }
         }
         return buildWithoutAttemptedToAdaptToFilters(
             name,

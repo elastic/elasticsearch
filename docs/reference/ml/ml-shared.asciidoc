@@ -1283,7 +1283,9 @@ and <<script-fields,Script fields>>.
 end::script-fields[]
 
 tag::scroll-size[]
-The `size` parameter that is used in {es} searches. The default value is `1000`.
+The `size` parameter that is used in {es} searches when the {dfeed} does not use 
+aggregations. The default value is `1000`. The maximum value is the value of 
+`index.max_result_window` which is 10,000 by default.
 end::scroll-size[]
 
 tag::search-bucket-avg[]

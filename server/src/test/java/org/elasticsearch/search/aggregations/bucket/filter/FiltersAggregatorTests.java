@@ -20,23 +20,34 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class FiltersAggregatorTests extends AggregatorTestCase {
     private MappedFieldType fieldType;
@@ -139,7 +150,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 // make sure we have more than one segment to test the merge
                 indexWriter.commit();
             }
-            int value = randomInt(maxTerm-1);
+            int value = randomInt(maxTerm - 1);
             expectedBucketCount[value] += 1;
             document.add(new Field("field", Integer.toString(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
             indexWriter.addDocument(document);
@@ -187,5 +198,26 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             indexReader.close();
             directory.close();
         }
+    }
+
+    public void testMergePointRangeQueries() throws IOException {
+        MappedFieldType ft = new DateFieldMapper.DateFieldType("test", Resolution.MILLISECONDS);
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new RangeQueryBuilder("test").from("2020-01-01").to("2020-03-01").includeUpper(false))
+        );
+        Query query = LongPoint.newRangeQuery(
+            "test",
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01"),
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-02-01")
+        );
+        testCase(builder, query, iw -> {
+            iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"))));
+            iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"))));
+        }, result -> {
+            InternalFilters filters = (InternalFilters) result;
+            assertThat(filters.getBuckets(), hasSize(1));
+            assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
+        }, ft);
     }
 }

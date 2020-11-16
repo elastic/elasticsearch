@@ -1030,7 +1030,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Mappings specified on this search request that override built in mappings.
      */
     public Map<String, Object> runtimeMappings() {
-        return runtimeMappings;
+        return Collections.unmodifiableMap(runtimeMappings);
     }
 
     /**

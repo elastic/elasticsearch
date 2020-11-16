@@ -172,6 +172,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                                                       Settings settings,
                                                       BooleanSupplier idFieldDataEnabled,
                                                       XContentBuilder mapping) throws IOException {
+
+        MapperService mapperService = createMapperService(version, settings, idFieldDataEnabled);
+        merge(mapperService, mapping);
+        return mapperService;
+    }
+
+    protected final MapperService createMapperService(Version version,
+                                                      Settings settings,
+                                                      BooleanSupplier idFieldDataEnabled) {
         settings = Settings.builder()
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
@@ -191,7 +200,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
         ScriptService scriptService = new ScriptService(getIndexSettings(), scriptModule.engines, scriptModule.contexts);
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
-        MapperService mapperService = new MapperService(
+        return new MapperService(
             indexSettings,
             createIndexAnalyzers(indexSettings),
             xContentRegistry(),
@@ -201,8 +210,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             idFieldDataEnabled,
             scriptService
         );
-        merge(mapperService, mapping);
-        return mapperService;
     }
 
     protected final void withLuceneIndex(
@@ -288,6 +295,20 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             buildField.accept(b);
             b.endObject();
         });
+    }
+
+    protected final XContentBuilder runtimeFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
+        return runtimeMapping(b -> {
+            b.startObject("field");
+            buildField.accept(b);
+            b.endObject();
+        });
+    }
+
+    protected final XContentBuilder runtimeMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("runtime");
+        buildFields.accept(builder);
+        return builder.endObject().endObject().endObject();
     }
 
     private AggregationContext aggregationContext(

@@ -279,15 +279,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         Conflicts conflicts = new Conflicts(name());
         builder.merge((FieldMapper) mergeWith, conflicts);
         conflicts.check();
-        return builder.build(parentPath(name()));
-    }
-
-    private static ContentPath parentPath(String name) {
-        int endPos = name.lastIndexOf(".");
-        if (endPos == -1) {
-            return new ContentPath(0);
-        }
-        return new ContentPath(name.substring(0, endPos));
+        return builder.build(Builder.parentPath(name()));
     }
 
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
@@ -483,7 +475,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Serializes a parameter
      */
-    protected interface Serializer<T> {
+    public interface Serializer<T> {
         void serialize(XContentBuilder builder, String name, T value) throws IOException;
     }
 
@@ -936,7 +928,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         /**
          * Writes the current builder parameter values as XContent
          */
-        protected final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        public final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
@@ -1010,11 +1002,19 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             validate();
         }
 
+        protected static ContentPath parentPath(String name) {
+            int endPos = name.lastIndexOf(".");
+            if (endPos == -1) {
+                return new ContentPath(0);
+            }
+            return new ContentPath(name.substring(0, endPos));
+        }
+
         // These parameters were previously *always* parsed by TypeParsers#parseField(), even if they
         // made no sense; if we've got here, that means that they're not declared on a current mapper,
         // and so we emit a deprecation warning rather than failing a previously working mapping.
         private static final Set<String> DEPRECATED_PARAMS
-            = new HashSet<>(Arrays.asList("store", "meta", "index", "doc_values", "index_options", "similarity"));
+            = new HashSet<>(Arrays.asList("store", "meta", "index", "doc_values", "index_options", "similarity", "boost"));
 
         private static boolean isDeprecatedParameter(String propName, Version indexCreatedVersion) {
             return DEPRECATED_PARAMS.contains(propName);

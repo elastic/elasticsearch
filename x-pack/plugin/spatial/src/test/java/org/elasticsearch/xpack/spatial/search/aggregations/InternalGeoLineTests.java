@@ -20,9 +20,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGeoLine> {
@@ -32,18 +30,32 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
         return new SpatialPlugin();
     }
 
-    @Override
-    protected InternalGeoLine createTestInstance(String name, Map<String, Object> metadata) {
-        int length = randomIntBetween(2, GeoLineAggregationBuilder.MAX_PATH_SIZE);
+    static InternalGeoLine randomInstance(String name, Map<String, Object> metadata, int size, double magicDecimal) {
+        int length = randomIntBetween(2, size);
+        SortOrder sortOrder = randomFrom(SortOrder.values());
         long[] points = new long[length];
         double[] sortVals = new double[length];
         for (int i = 0; i < length; i++) {
-            points[i] = i;
-            sortVals[i] = i;
+            points[i] = randomNonNegativeLong();
+            sortVals[i] = randomIntBetween(1, 100) + magicDecimal;
         }
-        int size = randomIntBetween(length, GeoLineAggregationBuilder.MAX_PATH_SIZE);
+        Arrays.sort(sortVals);
+        if (SortOrder.DESC.equals(sortOrder)) {
+            // reverse the list
+            for (int i = 0, j = sortVals.length - 1; i < j; i++, j--) {
+                double tmp = sortVals[i];
+                sortVals[i] = sortVals[j];
+                sortVals[j] = tmp;
+            }
+        }
         boolean complete = length <= size;
-        return new InternalGeoLine(name, points, sortVals, metadata, complete, randomBoolean(), randomFrom(SortOrder.values()), size);
+        return new InternalGeoLine(name, points, sortVals, metadata, complete, randomBoolean(), sortOrder, size);
+    }
+
+    @Override
+    protected InternalGeoLine createTestInstance(String name, Map<String, Object> metadata) {
+        int size = randomIntBetween(10, GeoLineAggregationBuilder.MAX_PATH_SIZE);
+        return randomInstance(name, metadata, size, randomDoubleBetween(0, 1, false));
     }
 
     @Override
@@ -94,17 +106,50 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
 
     @Override
     protected List<InternalGeoLine> randomResultsToReduce(String name, int size) {
-        return Stream.generate(() -> createTestInstance(name, null)).limit(size).collect(toList());
+        int maxLineLength = randomIntBetween(10, GeoLineAggregationBuilder.MAX_PATH_SIZE);
+        List<InternalGeoLine> instances = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            // use the magicDecimal to have absolute ordering between heap-sort and testing array sorting
+            instances.add(randomInstance(name, null, maxLineLength, ((double) i) / size));
+        }
+        return instances;
     }
 
     @Override
     protected void assertReduced(InternalGeoLine reduced, List<InternalGeoLine> inputs) {
-        int reducedLength = 0;
+        int mergedLength = 0;
         for (InternalGeoLine subLine : inputs) {
-            reducedLength += subLine.length();
+            mergedLength += subLine.length();
         }
-        int expectedReducedLength = Math.min(reducedLength, reduced.size());
+        boolean complete = mergedLength <= reduced.size();
+        int expectedReducedLength = Math.min(mergedLength, reduced.size());
         assertThat(reduced.length(), equalTo(expectedReducedLength));
+        assertThat(complete, equalTo(reduced.isComplete()));
+
+        // check arrays
+        long[] finalList = new long[mergedLength];
+        double[] finalSortVals = new double[mergedLength];
+        int idx = 0;
+        for (InternalGeoLine geoLine : inputs) {
+            for (int i = 0; i < geoLine.line().length; i++) {
+                finalSortVals[idx] = geoLine.sortVals()[i];
+                finalList[idx] = geoLine.line()[i];
+                idx += 1;
+            }
+        }
+
+        new PathArraySorter(finalList, finalSortVals, reduced.sortOrder()).sort();
+
+        // cap to max length
+        long[] finalCappedPoints = Arrays.copyOf(finalList, Math.min(reduced.size(), mergedLength));
+        double[] finalCappedSortVals = Arrays.copyOf(finalSortVals, Math.min(reduced.size(), mergedLength));
+
+        if (SortOrder.DESC.equals(reduced.sortOrder())) {
+            new PathArraySorter(finalCappedPoints, finalCappedSortVals, SortOrder.ASC).sort();
+        }
+
+        assertArrayEquals(finalCappedSortVals, reduced.sortVals(), 0d);
+        assertArrayEquals(finalCappedPoints, reduced.line());
     }
 
     @Override

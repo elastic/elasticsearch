@@ -138,7 +138,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 for (int i = 0; i < geoLine.sortVals().length; i++) {
                     geoLine.sortVals()[i] = NumericUtils.sortableLongToDouble((long) geoLine.sortVals()[i]);
                 }
-                assertArrayEquals(expectedGeoLine.sortVals(), geoLine.sortVals(), 0.0001);
+                assertArrayEquals(expectedGeoLine.sortVals(), geoLine.sortVals(), 0d);
                 assertArrayEquals(expectedGeoLine.line(), geoLine.line());
             }
         });

@@ -36,6 +36,18 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         this.valuesSources = valuesSources;
     }
 
+    public long sizeOf(long bucket) {
+        int bucketSize = getBucketSize();
+        long rootIndex = bucket * bucketSize;
+        if (rootIndex >= values().size()) {
+            // We've never seen this bucket.
+            return 0;
+        }
+        long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
+        long end = rootIndex + bucketSize;
+        return end - start;
+    }
+
     public double[] getSortValues(long bucket) {
         int bucketSize = getBucketSize();
         long rootIndex = bucket * bucketSize;

@@ -72,33 +72,25 @@ public class InternalGeoLine extends InternalAggregation {
         int mergedSize = 0;
         boolean complete = true;
         boolean includeSorts = true;
+        List<InternalGeoLine> internalGeoLines = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoLine geoLine = (InternalGeoLine) aggregation;
+            internalGeoLines.add(geoLine);
             mergedSize += geoLine.line.length;
             complete &= geoLine.complete;
             includeSorts &= geoLine.includeSorts;
         }
-
         complete &= mergedSize <= size;
+        int finalSize = Math.min(mergedSize, size);
 
-        long[] finalList = new long[mergedSize];
-        double[] finalSortVals = new double[mergedSize];
-        int idx = 0;
-        for (InternalAggregation aggregation : aggregations) {
-            InternalGeoLine geoLine = (InternalGeoLine) aggregation;
-            for (int i = 0; i < geoLine.line.length; i++) {
-                finalSortVals[idx] = geoLine.sortVals[i];
-                finalList[idx] = geoLine.line[i];
-                idx += 1;
-            }
-        }
+        MergedGeoLines mergedGeoLines = new MergedGeoLines(internalGeoLines, finalSize, sortOrder);
+        mergedGeoLines.merge();
         // the final reduce should always be in ascending order
-        if (reduceContext.isFinalReduce()) {
-            new PathArraySorter(finalList, finalSortVals, SortOrder.ASC).sort();
+        if (reduceContext.isFinalReduce() && SortOrder.DESC.equals(sortOrder)) {
+            new PathArraySorter(mergedGeoLines.getFinalPoints(), mergedGeoLines.getFinalSortValues(), SortOrder.ASC).sort();
         }
-        long[] finalCappedList = Arrays.copyOf(finalList, Math.min(size, mergedSize));
-        double[] finalCappedSortVals = Arrays.copyOf(finalSortVals, Math.min(size, mergedSize));
-        return new InternalGeoLine(name, finalCappedList, finalCappedSortVals, getMetadata(), complete, includeSorts, sortOrder, size);
+        return new InternalGeoLine(name, mergedGeoLines.getFinalPoints(), mergedGeoLines.getFinalSortValues(), getMetadata(), complete,
+            includeSorts, sortOrder, size);
     }
 
     @Override

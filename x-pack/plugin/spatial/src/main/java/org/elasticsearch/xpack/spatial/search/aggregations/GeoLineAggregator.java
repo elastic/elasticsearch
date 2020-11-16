@@ -80,6 +80,7 @@ final class GeoLineAggregator extends MetricsAggregator {
             return buildEmptyAggregation();
         }
         boolean complete = sort.inHeapMode(bucket) == false;
+        addRequestCircuitBreakerBytes((Double.SIZE + Long.SIZE) * sort.sizeOf(bucket));
         double[] sortVals = sort.getSortValues(bucket);
         long[] bucketLine = sort.getPoints(bucket);
         new PathArraySorter(bucketLine, sortVals, sortOrder).sort();

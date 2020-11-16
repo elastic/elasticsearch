@@ -777,7 +777,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // that's why it's added last even though it could be easier to read
                 // if we'd apply it earlier. this comparator will only differentiate across
                 // indices all shards of the same index is treated equally.
-                return secondaryComparator.compare(o1, o2);
+                final int secondary = secondaryComparator.compare(o1, o2);
+                assert secondary != 0 : "Index names are equal, should be returned early.";
+                return secondary;
             };
             /*
              * we use 2 arrays and move replicas to the second array once we allocated an identical

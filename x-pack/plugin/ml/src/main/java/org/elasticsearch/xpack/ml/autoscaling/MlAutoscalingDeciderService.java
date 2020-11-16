@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
@@ -134,19 +133,17 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
     /**
      * @param unassignedJobs The list of unassigned jobs
      * @param sizeFunction   Function providing the memory required for a job
-     * @param defaultSize    The default memory size (if the sizeFunction returns null)
      * @param maxNumInQueue  The number of unassigned jobs allowed.
      * @return The capacity needed to reduce the length of `unassignedJobs` to `maxNumInQueue`
      */
     static Optional<NativeMemoryCapacity> requiredCapacityForUnassignedJobs(List<String> unassignedJobs,
                                                                             Function<String, Long> sizeFunction,
-                                                                            long defaultSize,
                                                                             int maxNumInQueue) {
         List<Long> jobSizes = unassignedJobs
             .stream()
             // TODO do we want to verify memory requirements aren't stale? Or just consider `null` a fastpath?
             .map(sizeFunction)
-            .map(l -> l == null ? defaultSize : l)
+            .map(l -> l == null ? 0L : l)
             .collect(Collectors.toList());
         // Only possible if unassignedJobs was empty.
         if (jobSizes.isEmpty()) {
@@ -299,12 +296,12 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
         if (waitingAnalyticsJobs.isEmpty() == false || waitingAnomalyJobs.isEmpty() == false) {
             // We don't want to continue to consider a scale down if there are now waiting jobs
             resetScaleDownCoolDown();
-            return new AutoscalingDeciderResult(
+            noScaleResultOrRefresh(reasonBuilder, memoryTrackingStale, new AutoscalingDeciderResult(
                 context.currentCapacity(),
                 reasonBuilder
                     .setSimpleReason("Passing currently perceived capacity as there are analytics and anomaly jobs in the queue, " +
                         "but the number in the queue is less than the configured maximum allowed.")
-                    .build());
+                    .build()));
         }
         if (mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false) {
             return buildDecisionAndRequestRefresh(reasonBuilder);
@@ -346,10 +343,20 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
                     .build());
         }
 
-        return new AutoscalingDeciderResult(context.currentCapacity(),
+        return noScaleResultOrRefresh(reasonBuilder, memoryTrackingStale, new AutoscalingDeciderResult(context.currentCapacity(),
             reasonBuilder
                 .setSimpleReason("Passing currently perceived capacity as no scaling changes were detected to be possible")
-                .build());
+                .build()));
+    }
+
+    AutoscalingDeciderResult noScaleResultOrRefresh(MlScalingReason.Builder reasonBuilder,
+                                                    Duration memoryTrackingStale,
+                                                    AutoscalingDeciderResult potentialResult) {
+        if (mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false) {
+            return buildDecisionAndRequestRefresh(reasonBuilder);
+        } else {
+            return potentialResult;
+        }
     }
 
     Optional<AutoscalingDeciderResult> checkForScaleUp(MlAutoscalingDeciderConfiguration decider,
@@ -365,12 +372,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
             NativeMemoryCapacity updatedCapacity = NativeMemoryCapacity.from(currentScale);
             Optional<NativeMemoryCapacity> analyticsCapacity = requiredCapacityForUnassignedJobs(waitingAnalyticsJobs,
                 this::getAnalyticsMemoryRequirement,
-                // TODO Better default???
-                AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB,
                 decider.getNumAnalyticsJobsInQueue());
             Optional<NativeMemoryCapacity> anomalyCapacity = requiredCapacityForUnassignedJobs(waitingAnomalyJobs,
                 this::getAnomalyMemoryRequirement,
-                AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB,
                 decider.getNumAnomalyJobsInQueue());
 
             updatedCapacity.merge(anomalyCapacity.orElse(NativeMemoryCapacity.ZERO))
@@ -527,7 +531,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService<Ml
             nodeLoads.add(nodeLoad);
             isMemoryAccurateFlag = isMemoryAccurateFlag && nodeLoad.isUseMemory();
         }
-        // Even if we verify that memory usage is up today before checking node capacity, we could still run into stale information.
+        // Even if we verify that memory usage is up to date before checking node capacity, we could still run into stale information.
         // We should not make a decision if the memory usage is stale/inaccurate.
         if (isMemoryAccurateFlag == false) {
             return Optional.empty();

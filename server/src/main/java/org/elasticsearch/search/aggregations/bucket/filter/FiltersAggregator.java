@@ -307,20 +307,13 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             if (estimatedCost != -1) {
                 return estimatedCost;
             }
-            long limit;
-            long start;
-            if (profiling) {
-                limit = Long.MAX_VALUE;
-                start = System.nanoTime();
-            } else {
-                limit = maxCost;
-                start = 0;
-            }
+            long limit = profiling ? Long.MAX_VALUE : maxCost;
+            long start = profiling ? System.nanoTime() : 0;
             try {
                 estimatedCost = 0;
-                Weight[] weights = buildWeights(topLevelQuery(), filters);
+                weights = buildWeights(topLevelQuery(), filters);
                 List<LeafReaderContext> leaves = searcher().getIndexReader().leaves();
-                BulkScorer[][] scorers = new BulkScorer[leaves.size()][];
+                scorers = new BulkScorer[leaves.size()][];
                 for (LeafReaderContext ctx : leaves) {
                     scorers[ctx.ord] = new BulkScorer[filters.length];
                     for (int f = 0; f < filters.length; f++) {
@@ -345,6 +338,15 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                     estimateCostTime = System.nanoTime() - start;
                 }
             }
+        }
+
+        /**
+         * Are the scorers cached?
+         * <p>
+         * Package private for testing.
+         */
+        boolean scorersCached() {
+            return scorers != null;
         }
 
         /**

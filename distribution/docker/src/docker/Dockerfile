@@ -175,7 +175,7 @@ RUN mkdir /licenses && \\
     cp LICENSE.txt /licenses/LICENSE
 <% } %>
 
-ENTRYPOINT ["/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
+ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
 

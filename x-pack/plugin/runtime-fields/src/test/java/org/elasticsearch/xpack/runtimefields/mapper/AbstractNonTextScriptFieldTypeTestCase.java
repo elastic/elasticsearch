@@ -9,30 +9,28 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.unit.Fuzziness;
 
-import java.io.IOException;
-
 import static org.hamcrest.Matchers.equalTo;
 
 abstract class AbstractNonTextScriptFieldTypeTestCase extends AbstractScriptFieldTypeTestCase {
-    public void testFuzzyQueryIsError() throws IOException {
+    public void testFuzzyQueryIsError() {
         assertQueryOnlyOnTextAndKeyword(
             "fuzzy",
             () -> simpleMappedFieldType().fuzzyQuery("cat", Fuzziness.AUTO, 0, 1, true, mockContext())
         );
     }
 
-    public void testPrefixQueryIsError() throws IOException {
+    public void testPrefixQueryIsError() {
         assertQueryOnlyOnTextKeywordAndWildcard("prefix", () -> simpleMappedFieldType().prefixQuery("cat", null, mockContext()));
     }
 
-    public void testRegexpQueryIsError() throws IOException {
+    public void testRegexpQueryIsError() {
         assertQueryOnlyOnTextAndKeyword(
             "regexp",
             () -> simpleMappedFieldType().regexpQuery("cat", 0, 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
         );
     }
 
-    public void testWildcardQueryIsError() throws IOException {
+    public void testWildcardQueryIsError() {
         assertQueryOnlyOnTextKeywordAndWildcard("wildcard", () -> simpleMappedFieldType().wildcardQuery("cat", null, mockContext()));
     }
 
@@ -43,8 +41,8 @@ abstract class AbstractNonTextScriptFieldTypeTestCase extends AbstractScriptFiel
             equalTo(
                 "Can only use "
                     + queryName
-                    + " queries on keyword and text fields - not on [test] which is of type [runtime] with runtime_type ["
-                    + runtimeType()
+                    + " queries on keyword and text fields - not on [test] which is a runtime field of type ["
+                    + typeName()
                     + "]"
             )
         );
@@ -57,8 +55,8 @@ abstract class AbstractNonTextScriptFieldTypeTestCase extends AbstractScriptFiel
             equalTo(
                 "Can only use "
                     + queryName
-                    + " queries on keyword, text and wildcard fields - not on [test] which is of type [runtime] with runtime_type ["
-                    + runtimeType()
+                    + " queries on keyword, text and wildcard fields - not on [test] which is a runtime field of type ["
+                    + typeName()
                     + "]"
             )
         );

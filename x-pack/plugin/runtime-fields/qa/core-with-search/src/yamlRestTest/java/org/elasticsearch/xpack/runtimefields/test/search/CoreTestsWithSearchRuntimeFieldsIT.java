@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.runtimefields.test.search;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -57,9 +56,9 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
         @Override
         protected Suite suite(ClientYamlTestCandidate candidate) {
             return new Suite(candidate) {
-                private Map<String, Map<String, Map<String, Object>>> runtimeMappingsAfterSetup;
+                private Map<String, Map<String, Object>> runtimeMappingsAfterSetup;
                 private Map<String, Set<String>> mappedFieldsAfterSetup;
-                private Map<String, Map<String, Map<String, Object>>> runtimeMappings;
+                private Map<String, Map<String, Object>> runtimeMappings;
                 private Map<String, Set<String>> mappedFields;
 
                 @Override
@@ -83,16 +82,12 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                 }
 
                 @Override
-                protected boolean modifyMappingProperties(String index, Map<String, Object> properties) {
-                    Map<String, Object> untouchedMapping = new HashMap<>();
-                    Map<String, Map<String, Object>> runtimeMapping = new HashMap<>();
-                    if (false == runtimeifyMappingProperties(properties, untouchedMapping, runtimeMapping)) {
+                protected boolean modifyMappingProperties(String index, Map<String, Object> properties, Map<String, Object> runtimeFields) {
+                    if (false == runtimeifyMappingProperties(properties, runtimeFields)) {
                         return false;
                     }
-                    properties.clear();
-                    properties.putAll(untouchedMapping);
-                    mappedFields.put(index, untouchedMapping.keySet());
-                    runtimeMappings.put(index, runtimeMapping);
+                    mappedFields.put(index, properties.keySet());
+                    runtimeMappings.put(index, runtimeFields);
                     return true;
                 }
 
@@ -116,6 +111,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         return mergeMappings(new String[] { "*" });
                     }
                     String[] patterns = Arrays.stream(index.split(",")).map(m -> m.equals("_all") ? "*" : m).toArray(String[]::new);
+                    // TODO this is always false?
                     if (patterns.length == 0 && Regex.isSimpleMatchPattern(patterns[0])) {
                         return runtimeMappings.get(patterns[0]);
                     }
@@ -123,13 +119,14 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                 }
 
                 private Map<?, ?> mergeMappings(String[] patterns) {
-                    Map<String, Map<String, Object>> merged = new HashMap<>();
-                    for (Map.Entry<String, Map<String, Map<String, Object>>> indexEntry : runtimeMappings.entrySet()) {
+                    Map<String, Object> merged = new HashMap<>();
+                    for (Map.Entry<String, Map<String, Object>> indexEntry : runtimeMappings.entrySet()) {
                         if (false == Regex.simpleMatch(patterns, indexEntry.getKey())) {
                             continue;
                         }
-                        for (Map.Entry<String, Map<String, Object>> field : indexEntry.getValue().entrySet()) {
-                            Map<String, Object> mergedConfig = merged.get(field.getKey());
+                        for (Map.Entry<String, Object> field : indexEntry.getValue().entrySet()) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> mergedConfig = (Map<String, Object>) merged.get(field.getKey());
                             if (mergedConfig == null) {
                                 merged.put(field.getKey(), field.getValue());
                             } else if (false == mergedConfig.equals(field.getValue())) {
@@ -164,10 +161,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         return false;
                     }
                     Map<String, Object> map = XContentHelper.convertToMap(index.source(), false, index.getContentType()).v2();
-                    Map<String, Map<String, Object>> indexRuntimeMappings = runtimeMappings.computeIfAbsent(
-                        index.index(),
-                        i -> new HashMap<>()
-                    );
+                    Map<String, Object> indexRuntimeMappings = runtimeMappings.computeIfAbsent(index.index(), i -> new HashMap<>());
                     Set<String> indexMappedfields = mappedFields.computeIfAbsent(index.index(), i -> Set.of());
                     for (Map.Entry<String, Object> e : map.entrySet()) {
                         String name = e.getKey();

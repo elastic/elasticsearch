@@ -18,6 +18,7 @@ See also <<ml-df-analytics-apis>>.
 * <<ml-flush-job,Flush {anomaly-jobs}>>
 * <<ml-post-data,Post data to {anomaly-jobs}>>
 * <<ml-update-job,Update {anomaly-jobs}>>
+* <<ml-upgrade-job-model-snapshot,Upgrade {anomaly-job} snapshot>>
 * <<ml-forecast,Create>> or <<ml-delete-forecast,delete forecasts>>
 
 

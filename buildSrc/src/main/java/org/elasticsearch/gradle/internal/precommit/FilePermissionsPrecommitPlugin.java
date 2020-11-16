@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.precommit;
+package org.elasticsearch.gradle.internal.precommit;
 
+import org.elasticsearch.gradle.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -28,25 +29,27 @@ import org.gradle.api.tasks.TaskProvider;
 import javax.inject.Inject;
 import java.util.stream.Collectors;
 
-public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin {
+public class FilePermissionsPrecommitPlugin extends PrecommitPlugin {
 
-    private final ProviderFactory providerFactory;
+    private ProviderFactory providerFactory;
 
     @Inject
-    public ForbiddenPatternsPrecommitPlugin(ProviderFactory providerFactory) {
+    public FilePermissionsPrecommitPlugin(ProviderFactory providerFactory) {
         this.providerFactory = providerFactory;
     }
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        return project.getTasks().register("forbiddenPatterns", ForbiddenPatternsTask.class, forbiddenPatternsTask -> {
-            forbiddenPatternsTask.getSourceFolders()
-                .addAll(
-                    providerFactory.provider(
-                        () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
+        return project.getTasks()
+            .register(
+                "filepermissions",
+                FilePermissionsTask.class,
+                filePermissionsTask -> filePermissionsTask.getSources()
+                    .addAll(
+                        providerFactory.provider(
+                            () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
+                        )
                     )
-                );
-            forbiddenPatternsTask.getRootDir().set(project.getRootDir());
-        });
+            );
     }
 }

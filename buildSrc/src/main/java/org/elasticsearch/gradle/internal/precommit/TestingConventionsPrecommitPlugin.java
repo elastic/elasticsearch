@@ -17,27 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.precommit;
+package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.precommit.PrecommitPlugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.TaskProvider;
 
-public class LoggerUsagePrecommitPlugin extends PrecommitPlugin {
+public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        Object dependency = BuildParams.isInternal()
-            ? project.project(":test:logger-usage")
-            : ("org.elasticsearch.test:logger-usage:" + VersionProperties.getElasticsearch());
-
-        Configuration loggerUsageConfig = project.getConfigurations().create("loggerUsagePlugin");
-        project.getDependencies().add("loggerUsagePlugin", dependency);
-        TaskProvider<LoggerUsageTask> loggerUsage = project.getTasks().register("loggerUsageCheck", LoggerUsageTask.class);
-        loggerUsage.configure(t -> t.setClasspath(loggerUsageConfig));
-
-        return loggerUsage;
+        TaskProvider<TestingConventionsTasks> testingConventions = project.getTasks()
+            .register("testingConventions", TestingConventionsTasks.class);
+        testingConventions.configure(t -> {
+            TestingConventionRule testsRule = t.getNaming().maybeCreate("Tests");
+            testsRule.baseClass("org.apache.lucene.util.LuceneTestCase");
+            TestingConventionRule itRule = t.getNaming().maybeCreate("IT");
+            itRule.baseClass("org.elasticsearch.test.ESIntegTestCase");
+            itRule.baseClass("org.elasticsearch.test.rest.ESRestTestCase");
+        });
+        return testingConventions;
     }
 }

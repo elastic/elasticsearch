@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.precommit;
+package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.LoggedExec;
+import org.elasticsearch.gradle.precommit.PrecommitTask;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.CacheableTask;

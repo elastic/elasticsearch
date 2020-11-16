@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.precommit;
+package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Plugin;

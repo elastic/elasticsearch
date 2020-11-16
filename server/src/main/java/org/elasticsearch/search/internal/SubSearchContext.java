@@ -52,7 +52,6 @@ public class SubSearchContext extends FilteredSearchContext {
     private final QuerySearchResult querySearchResult;
 
     private int[] docIdsToLoad;
-    private int docsIdsToLoadFrom;
     private int docsIdsToLoadSize;
 
     private StoredFieldsContext storedFields;
@@ -71,10 +70,6 @@ public class SubSearchContext extends FilteredSearchContext {
         super(context);
         this.fetchSearchResult = new FetchSearchResult();
         this.querySearchResult = new QuerySearchResult();
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     @Override
@@ -251,16 +246,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public boolean hasStoredFieldsContext() {
-        return storedFields != null;
-    }
-
-    @Override
-    public boolean storedFieldsRequested() {
-        return storedFields != null && storedFields.fetchFields();
-    }
-
-    @Override
     public StoredFieldsContext storedFieldsContext() {
         return storedFields;
     }
@@ -312,19 +297,13 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public int docIdsToLoadFrom() {
-        return docsIdsToLoadFrom;
-    }
-
-    @Override
     public int docIdsToLoadSize() {
         return docsIdsToLoadSize;
     }
 
     @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
         this.docIdsToLoad = docIdsToLoad;
-        this.docsIdsToLoadFrom = docsIdsToLoadFrom;
         this.docsIdsToLoadSize = docsIdsToLoadSize;
         return this;
     }

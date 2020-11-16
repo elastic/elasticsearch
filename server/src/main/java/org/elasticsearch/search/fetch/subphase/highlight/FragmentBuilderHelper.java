@@ -20,7 +20,6 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
@@ -29,9 +28,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.mapper.MappedFieldType;
 
-import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -47,23 +44,19 @@ public final class FragmentBuilderHelper {
      * Fixes problems with broken analysis chains if positions and offsets are messed up that can lead to
      * {@link StringIndexOutOfBoundsException} in the {@link FastVectorHighlighter}
      */
-    public static WeightedFragInfo fixWeightedFragInfo(MappedFieldType fieldType, Field[] values, WeightedFragInfo fragInfo) {
+    public static WeightedFragInfo fixWeightedFragInfo(WeightedFragInfo fragInfo) {
         assert fragInfo != null : "FragInfo must not be null";
-        assert fieldType.name().equals(values[0].name()) : "Expected MappedFieldType for field " + values[0].name();
-        if (!fragInfo.getSubInfos().isEmpty() && containsBrokenAnalysis(fieldType.indexAnalyzer())) {
+        if (!fragInfo.getSubInfos().isEmpty()) {
             /* This is a special case where broken analysis like WDF is used for term-vector creation at index-time
              * which can potentially mess up the offsets. To prevent a SAIIOBException we need to resort
              * the fragments based on their offsets rather than using solely the positions as it is done in
              * the FastVectorHighlighter. Yet, this is really a lucene problem and should be fixed in lucene rather
              * than in this hack... aka. "we are are working on in!" */
             final List<SubInfo> subInfos = fragInfo.getSubInfos();
-            CollectionUtil.introSort(subInfos, new Comparator<SubInfo>() {
-                @Override
-                public int compare(SubInfo o1, SubInfo o2) {
-                    int startOffset = o1.getTermsOffsets().get(0).getStartOffset();
-                    int startOffset2 = o2.getTermsOffsets().get(0).getStartOffset();
-                    return FragmentBuilderHelper.compare(startOffset, startOffset2);
-                }
+            CollectionUtil.introSort(subInfos, (o1, o2) -> {
+                int startOffset = o1.getTermsOffsets().get(0).getStartOffset();
+                int startOffset2 = o2.getTermsOffsets().get(0).getStartOffset();
+                return compare(startOffset, startOffset2);
             });
             return new WeightedFragInfo(Math.min(fragInfo.getSubInfos().get(0).getTermsOffsets().get(0).getStartOffset(),
                     fragInfo.getStartOffset()), fragInfo.getEndOffset(), subInfos, fragInfo.getTotalBoost());

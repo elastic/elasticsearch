@@ -37,9 +37,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -265,9 +265,10 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 }
             }
 
-            mergeBuckets(mergeMap, bucketOrd + 1);
+            LongUnaryOperator howToRewrite = b -> mergeMap[(int) b];
+            rewriteBuckets(bucketOrd + 1, howToRewrite);
             if (deferringCollector != null) {
-                deferringCollector.mergeBuckets(mergeMap);
+                deferringCollector.rewriteBuckets(howToRewrite);
             }
         }
 
@@ -440,7 +441,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
     private CollectionPhase collector;
 
-    private MergingBucketsDeferringCollector deferringCollector;
+    private BestBucketsDeferringCollector deferringCollector;
 
     VariableWidthHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, int shardSize,
                                      int initialBuffer, @Nullable ValuesSourceConfig valuesSourceConfig,
@@ -507,7 +508,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
     @Override
     public DeferringBucketCollector buildDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
+        deferringCollector = new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
         return deferringCollector;
     }
 

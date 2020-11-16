@@ -61,3 +61,20 @@ The API returns the following result:
   "acknowledged": true
 }
 --------------------------------------------------
+
+This example deletes all autoscaling policies.
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/*
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------

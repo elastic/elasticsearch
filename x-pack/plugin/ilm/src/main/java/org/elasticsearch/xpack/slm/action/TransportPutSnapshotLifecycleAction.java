@@ -56,6 +56,8 @@ public class TransportPutSnapshotLifecycleAction extends
                                    final ActionListener<PutSnapshotLifecycleAction.Response> listener) {
         SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
 
+        SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);
+
         // headers from the thread context stored by the AuthenticationService to be shared between the
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the

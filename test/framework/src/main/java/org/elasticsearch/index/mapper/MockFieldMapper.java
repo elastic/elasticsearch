@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -30,9 +27,6 @@ import java.util.List;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends FieldMapper {
-    static Settings DEFAULT_SETTINGS = Settings.builder()
-        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
-        .build();
 
     public MockFieldMapper(String fullName) {
         this(new FakeFieldType(fullName));
@@ -109,8 +103,8 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         @Override
-        public MockFieldMapper build(BuilderContext context) {
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+        public MockFieldMapper build(ContentPath contentPath) {
+            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
             return new MockFieldMapper(name(), fieldType, multiFields, copyTo.build());
         }
     }

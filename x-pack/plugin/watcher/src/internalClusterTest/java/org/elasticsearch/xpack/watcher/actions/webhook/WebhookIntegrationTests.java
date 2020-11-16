@@ -71,6 +71,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         webServer.close();
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/65063")
     public void testWebhook() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())

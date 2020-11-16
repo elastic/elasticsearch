@@ -27,7 +27,6 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,12 +47,10 @@ import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
+import java.util.Optional;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
-import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.makeAssignmentsNotAllowedException;
-import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.makeCurrentlyBeingUpgradedException;
-import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.makeNoSuitableNodesException;
+import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.checkAssignmentState;
 
 /*
  This class extends from TransportMasterNodeAction for cluster state observing purposes.
@@ -287,17 +284,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                 // This logic is only appropriate when opening a job, not when reallocating following a failure,
                 // and this is why this class must only be used when opening a job
-                if (assignment != null && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false &&
-                        assignment.isAssigned() == false) {
-                    OpenJobAction.JobParams params = (OpenJobAction.JobParams) persistentTask.getParams();
-                    // Assignment has failed on the master node despite passing our "fast fail" validation
-                    if (assignment.equals(AWAITING_UPGRADE)) {
-                        exception = makeCurrentlyBeingUpgradedException(logger, params.getJobId(), assignment.getExplanation());
-                    } else if (assignment.getExplanation().contains("[" + EnableAssignmentDecider.ALLOCATION_NONE_EXPLANATION + "]")) {
-                        exception = makeAssignmentsNotAllowedException(logger, params.getJobId());
-                    } else {
-                        exception = makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
-                    }
+                OpenJobAction.JobParams params = (OpenJobAction.JobParams) persistentTask.getParams();
+                Optional<ElasticsearchException> assignmentException = checkAssignmentState(assignment, params.getJobId(), logger);
+                if (assignmentException.isPresent()) {
+                    exception = assignmentException.get();
                     // The persistent task should be cancelled so that the observed outcome is the
                     // same as if the "fast fail" validation on the coordinating node had failed
                     shouldCancel = true;

@@ -30,6 +30,7 @@ dependencies {
 
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   testImplementation project(xpackModule('ilm'))
+  testImplementation project(xpackModule('data-streams'))
 
   // watcher deps
   api 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20191001.1'

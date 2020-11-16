@@ -6,6 +6,9 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.docker.DockerBuildTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
+
+import java.nio.file.Path
+
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
@@ -46,6 +49,15 @@ ext.expansions = { Architecture architecture, boolean oss, DockerBase base, bool
 
   final String elasticsearch = "elasticsearch-${oss ? 'oss-' : ''}${VersionProperties.elasticsearch}-${classifier}.tar.gz"
 
+  String buildArgs = '#'
+  if (base == DockerBase.IRON_BANK) {
+    buildArgs = """
+ARG BASE_REGISTRY=nexus-docker-secure.levelup-nexus.svc.cluster.local:18082
+ARG BASE_IMAGE=redhat/ubi/ubi8
+ARG BASE_TAG=8.2
+"""
+  }
+
   /* Both the following Dockerfile commands put the resulting artifact at
    * the same location, regardless of classifier, so that the commands that
    * follow in the Dockerfile don't have to know about the runtime
@@ -61,16 +73,32 @@ RUN curl --retry 8 -S -L \\
 """.trim()
   }
 
+  def (major,minor) = VersionProperties.elasticsearch.split("\\.")
+
   return [
     'base_image'          : base.getImage(),
+    'bin_dir'             : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
+    'build_args'          : buildArgs,
     'build_date'          : BuildParams.buildDate,
+    'config_dir'          : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'        : BuildParams.gitRevision,
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
     'package_manager'     : base == DockerBase.UBI ? 'microdnf' : 'yum',
     'source_elasticsearch': sourceElasticsearch,
     'docker_base'         : base.name().toLowerCase(),
-    'version'             : VersionProperties.elasticsearch
+    'version'             : VersionProperties.elasticsearch,
+    'major_minor_version' : "${major}.${minor}"
   ]
+}
+
+/**
+ * This filter squashes long runs of newlines so that the output
+ * is a little more aesthetically pleasing.
+ */
+class SquashNewlinesFilter extends FilterReader {
+  SquashNewlinesFilter(Reader input) {
+    super(new StringReader(input.text.replaceAll("\n{2,}", "\n\n")))
+  }
 }
 
 private static String buildPath(Architecture architecture, boolean oss, DockerBase base) {
@@ -78,6 +106,7 @@ private static String buildPath(Architecture architecture, boolean oss, DockerBa
     (architecture == Architecture.AARCH64 ? 'aarch64-' : '') +
     (oss ? 'oss-' : '') +
     (base == DockerBase.UBI ? 'ubi-' : '') +
+    (base == DockerBase.UBI ? 'ubi-' : (base == DockerBase.IRON_BANK ? 'ironbank-' : '')) +
     'docker'
 }
 
@@ -85,34 +114,46 @@ private static String taskName(String prefix, Architecture architecture, boolean
   return prefix +
     (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
     (oss ? 'Oss' : '') +
-    (base == DockerBase.UBI ? 'Ubi' : '') +
+    (base == DockerBase.UBI ? 'Ubi' : (base == DockerBase.IRON_BANK ? 'IronBank' : '')) +
     suffix
 }
 
 project.ext {
   dockerBuildContext = { Architecture architecture, boolean oss, DockerBase base, boolean local ->
     copySpec {
-      into('bin') {
-        from project.projectDir.toPath().resolve("src/docker/bin")
-      }
+      final Map<String,String> varExpansions = expansions(architecture, oss, base, local)
+      final Path projectDir = project.projectDir.toPath()
 
-      into('config') {
-        /*
-         * The OSS and default distributions have different configurations, therefore we want to allow overriding the default configuration
-         * from files in the 'oss' sub-directory. We don't want the 'oss' sub-directory to appear in the final build context, however.
-         */
-        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-        from(project.projectDir.toPath().resolve("src/docker/config")) {
-          exclude 'oss'
+      if (base == DockerBase.IRON_BANK) {
+        into('scripts') {
+          from projectDir.resolve("src/docker/bin")
+          from(projectDir.resolve("src/docker/config")) {
+            exclude '**/oss'
+          }
         }
-        if (oss) {
-          // Overlay the config file
-          from project.projectDir.toPath().resolve("src/docker/config/oss")
+        from(projectDir.resolve("src/docker/iron_bank")) {
+          expand(varExpansions)
+        }
+      } else {
+        into('bin') {
+          from projectDir.resolve("src/docker/bin")
+        }
+
+        into('config') {
+          // The OSS and default distribution can have different configuration, therefore we want to
+          // allow overriding the default configuration by creating config files in oss or default
+          // build-context sub-modules.
+          duplicatesStrategy = DuplicatesStrategy.INCLUDE
+          from projectDir.resolve("src/docker/config")
+          if (oss) {
+            from projectDir.resolve("src/docker/config/oss")
+          }
         }
       }
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
-        expand(expansions(architecture, oss, base, local))
+        expand(varExpansions)
+        filter SquashNewlinesFilter
       }
     }
   }
@@ -324,6 +365,8 @@ subprojects { Project subProject ->
 
     final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
     final boolean oss = subProject.name.contains('oss-')
+    // We can ignore Iron Bank at the moment as we don't
+    // build those images ourselves.
     final DockerBase base = subProject.name.contains('ubi-') ? DockerBase.UBI : DockerBase.CENTOS
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''

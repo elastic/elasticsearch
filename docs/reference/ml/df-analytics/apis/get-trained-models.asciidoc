@@ -57,16 +57,16 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-models]
 
 `decompress_definition`::
-(Optional, boolean)
+(Optional, Boolean)
 Specifies whether the included model definition should be returned as a JSON map
 (`true`) or in a custom compressed format (`false`). Defaults to `true`.
 
 `exclude_generated`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-generated]
 
 `from`::

@@ -536,7 +536,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     // jar-hell check the bundle against the parent classloader and extended plugins
-    // the plugin cli does it, but we do it again, in case lusers mess with jar files manually
+    // the plugin cli does it, but we do it again, in case users mess with jar files manually
     static void checkBundleJarHell(Set<URL> classpath, Bundle bundle, Map<String, Set<URL>> transitiveUrls) {
         // invariant: any plugins this plugin bundle extends have already been added to transitiveUrls
         List<String> exts = bundle.plugin.getExtendedPlugins();

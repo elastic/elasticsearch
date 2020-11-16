@@ -261,7 +261,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             }
 
             clusterService.submitStateUpdateTask("register license [" + newLicense.uid() + "]", new
-                AckedClusterStateUpdateTask<PutLicenseResponse>(request, listener) {
+                AckedClusterStateUpdateTask(request, listener) {
                     @Override
                     protected PutLicenseResponse newResponse(boolean acknowledged) {
                         return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);

@@ -13,6 +13,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.MediaTypeRegistry;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -141,5 +143,10 @@ public class SecurityRestFilter implements RestHandler {
             return ((RestRequestFilter)restHandler).getFilteredRequest(restRequest);
         }
         return restRequest;
+    }
+
+    @Override
+    public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
+        return restHandler.validAcceptMediaTypes();
     }
 }

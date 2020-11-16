@@ -98,7 +98,7 @@ set to `0`, the terms must appear next to each other.
 --
 
 `ordered`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, matching terms must appear in their specified order. Defaults to
 `false`.
 
@@ -193,7 +193,7 @@ edit distance defined by <<fuzziness>>.  If the fuzzy expansion matches more tha
 expansions. Defaults to `0`.
 
 `transpositions`::
-(Optional, boolean) Indicates whether edits include transpositions of two
+(Optional, Boolean) Indicates whether edits include transpositions of two
 adjacent characters (ab → ba). Defaults to `true`.
 
 `fuzziness`::
@@ -235,7 +235,7 @@ set to `0`, the terms must appear next to each other.
 --
 
 `ordered`::
-(Optional, boolean) If `true`, intervals produced by the rules should appear in
+(Optional, Boolean) If `true`, intervals produced by the rules should appear in
 the order in which they are specified. Defaults to `false`.
 
 `filter`::

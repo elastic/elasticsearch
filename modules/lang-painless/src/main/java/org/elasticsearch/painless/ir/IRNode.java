@@ -31,40 +31,56 @@ public abstract class IRNode {
 
     /* ---- begin decorations ---- */
 
-    public interface IRDecoration {
+    public abstract static class IRDecoration<V> {
 
+        private final V value;
+
+        public IRDecoration(V value) {
+            this.value = value;
+        }
+
+        public V getValue() {
+            return value;
+        }
+
+        @Override
+        public String toString() {
+            return value.toString();
+        }
     }
 
-    private final Map<Class<? extends IRDecoration>, IRDecoration> decorations = new HashMap<>();
+    private final Map<Class<? extends IRDecoration<?>>, IRDecoration<?>> decorations = new HashMap<>();
 
     @SuppressWarnings("unchecked")
-    public <T extends IRDecoration> T attachDecoration(T decoration) {
-        return (T)decorations.put(decoration.getClass(), decoration);
+    public <V> V attachDecoration(IRDecoration<V> decoration) {
+        IRDecoration<V> previous = (IRDecoration<V>)decorations.put((Class<? extends IRDecoration<?>>)decoration.getClass(), decoration);
+        return previous == null ? null : previous.getValue();
     }
 
-    public <T extends IRDecoration> T removeDecoration(Class<T> type) {
+    public <T extends IRDecoration<?>> T removeDecoration(Class<T> type) {
         return type.cast(decorations.remove(type));
     }
 
-    public <T extends IRDecoration> T getDecoration(Class<T> type) {
-        return type.cast(decorations.get(type));
-    }
-
-    public boolean hasDecoration(Class<? extends IRDecoration> type) {
+    public boolean hasDecoration(Class<? extends IRDecoration<?>> type) {
         return decorations.containsKey(type);
     }
 
-    public <T extends IRDecoration> boolean copyDecorationFrom(IRNode copyFromIRNode, Class<T> type) {
-        T decoration = copyFromIRNode.getDecoration(type);
+    public <T extends IRDecoration<?>> T getDecoration(Class<T> type) {
+        return type.cast(decorations.get(type));
+    }
 
+    public <T extends IRDecoration<V>, V> V getDecorationValue(Class<T> type) {
+        return getDecorationValueOrDefault(type, null);
+    }
 
-        if (decoration != null) {
-            attachDecoration(decoration);
+    public <T extends IRDecoration<V>, V> V getDecorationValueOrDefault(Class<T> type, V defaultValue) {
+        T decoration = type.cast(decorations.get(type));
+        return decoration == null ? defaultValue : decoration.getValue();
+    }
 
-            return true;
-        }
-
-        return false;
+    public <T extends IRDecoration<?>> String getDecorationString(Class<T> type) {
+        T decoration = type.cast(decorations.get(type));
+        return decoration == null ? null : decoration.toString();
     }
 
     /* ---- end decorations, begin conditions ---- */
@@ -85,16 +101,6 @@ public abstract class IRNode {
 
     public boolean hasCondition(Class<? extends IRCondition> type) {
         return conditions.contains(type);
-    }
-
-    public boolean copyConditionFrom(IRNode copyFromIRNode, Class<? extends IRCondition> type) {
-        if (copyFromIRNode.hasCondition(type)) {
-            attachCondition(type);
-
-            return true;
-        }
-
-        return false;
     }
 
     /* ---- end conditions, begin node data ---- */

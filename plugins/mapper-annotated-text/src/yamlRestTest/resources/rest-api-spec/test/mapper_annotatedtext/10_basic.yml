@@ -143,3 +143,43 @@
         body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
   - match: {_shards.failed: 0}
 
+---
+"Signficant text support":
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+          mappings:
+            properties:
+              my_field:
+                type: annotated_text
+
+  - do:
+      index:
+        index: annotated
+        id: 1
+        body:
+            "my_field" : "[Apple](Apple+Inc) launched the iphone 12"
+  - do:
+      index:
+        index: annotated
+        id: 2
+        body:
+            "my_field" : "[They](Apple+Inc) make iphone accessories"
+  - do:
+      index:
+        index: annotated
+        id: 3
+        body:
+            "my_field" : "[Apple](Apple+Inc) have a new iphone coming"
+        refresh: true
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match" : { "my_field" : "iphone" } }, "aggs" : { "keywords" : { "significant_text" : {"field" : "my_field", "min_doc_count":3, "percentage":{}, "exclude":["iphone"]} } } }
+  - match: {_shards.failed: 0}
+  - match: {aggregations.keywords.buckets.0.key: "Apple Inc"}
+

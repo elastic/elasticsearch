@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.RequestOptions;
@@ -23,7 +24,6 @@ import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -122,7 +122,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             assertEquals(activeKeyHash, tokenService.getActiveKeyHash());
         }
         client().admin().cluster().prepareHealth().execute().get();
-        PlainActionFuture<ClusterStateUpdateResponse> rotateActionFuture = new PlainActionFuture<>();
+        PlainActionFuture<AcknowledgedResponse> rotateActionFuture = new PlainActionFuture<>();
         logger.info("rotate on master: {}", masterName);
         masterTokenService.rotateKeysOnMaster(rotateActionFuture);
         assertTrue(rotateActionFuture.actionGet().isAcknowledged());

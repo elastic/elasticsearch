@@ -70,7 +70,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=timeout-start]
 == {api-response-body-title}
 
 `acknowledged`::
-  (boolean) For a successful response, this value is always `true`. On failure, an
+  (Boolean) For a successful response, this value is always `true`. On failure, an
   exception is returned instead.
 
 `node`::

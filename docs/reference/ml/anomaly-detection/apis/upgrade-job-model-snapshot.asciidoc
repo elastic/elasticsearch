@@ -3,7 +3,7 @@
 [[ml-upgrade-job-model-snapshot]]
 = Upgrade model snapshots API
 ++++
-<titleabbrev>Upgrade model snapshot</titleabbrev>
+<titleabbrev>Upgrade model snapshots</titleabbrev>
 ++++
 
 Upgrades an {anomaly-detect} model snapshot to the latest major version.
@@ -11,7 +11,7 @@ Upgrades an {anomaly-detect} model snapshot to the latest major version.
 [[ml-upgrade-job-model-snapshot-request]]
 == {api-request-title}
 
-`POST _ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_upgrade`
+`POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_upgrade`
 
 [[ml-upgrade-job-model-snapshot-prereqs]]
 == {api-prereq-title}

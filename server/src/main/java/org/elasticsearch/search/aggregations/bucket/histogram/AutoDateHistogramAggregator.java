@@ -35,9 +35,9 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongToIntFunction;
+import java.util.function.LongUnaryOperator;
 
 /**
  * An aggregator for date values that attempts to return a specific number of
@@ -103,9 +104,9 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     private final Function<Rounding, Rounding.Prepared> roundingPreparer;
     /**
      * A reference to the collector so we can
-     * {@link MergingBucketsDeferringCollector#mergeBuckets(long[])}.
+     * {@link BestBucketsDeferringCollector#rewriteBuckets}.
      */
-    private MergingBucketsDeferringCollector deferringCollector;
+    private BestBucketsDeferringCollector deferringCollector;
 
     protected final RoundingInfo[] roundingInfos;
     protected final int targetBuckets;
@@ -145,7 +146,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public final DeferringBucketCollector buildDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
+        deferringCollector = new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
         return deferringCollector;
     }
 
@@ -205,9 +206,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     }
 
     protected final void merge(long[] mergeMap, long newNumBuckets) {
-        mergeBuckets(mergeMap, newNumBuckets);
+        LongUnaryOperator howToRewrite = b -> mergeMap[(int) b];
+        rewriteBuckets(newNumBuckets, howToRewrite);
         if (deferringCollector != null) {
-            deferringCollector.mergeBuckets(mergeMap);
+            deferringCollector.rewriteBuckets(howToRewrite);
         }
     }
 
@@ -370,7 +372,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
      * heuristic.
      * <p>
      * When promoting a rounding we keep the old buckets around because it is
-     * expensive to call {@link MergingBucketsDeferringCollector#mergeBuckets}.
+     * expensive to call {@link BestBucketsDeferringCollector#rewriteBuckets}.
      * In particular it is {@code O(number_of_hits_collected_so_far)}. So if we
      * called it frequently we'd end up in {@code O(n^2)} territory. Bad news for
      * aggregations! Instead, we keep a "budget" of buckets that we're ok

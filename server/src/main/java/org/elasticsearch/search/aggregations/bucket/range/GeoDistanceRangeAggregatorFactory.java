@@ -66,13 +66,15 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                 cardinality,
                 metadata) -> {
                 DistanceSource distanceSource = new DistanceSource((ValuesSource.GeoPoint) valuesSource, distanceType, origin, units);
-                return new RangeAggregator(
+                double averageDocsPerRange = ((double) context.searcher().getIndexReader().maxDoc()) / ranges.length;
+                return RangeAggregator.buildWithoutAttemptedToAdaptToFilters(
                     name,
                     factories,
                     distanceSource,
                     format,
                     rangeFactory,
                     ranges,
+                    averageDocsPerRange,
                     keyed,
                     context,
                     parent,

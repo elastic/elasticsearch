@@ -231,11 +231,11 @@ that `"total.value"` is the accurate count.
 GET my-index-000001/_search
 {
   "track_total_hits": true,
-    "query": {
-      "match" : {
-        "user.id" : "elkbee"
-      }
+  "query": {
+    "match" : {
+      "user.id" : "elkbee"
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:my_index]

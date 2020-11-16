@@ -30,25 +30,8 @@ setup:
             "timestamp": "2016-06-02T00:00:00Z",
             "snapshot_id": "snapshot-1",
             "snapshot_doc_count": 3,
-            "min_version": "8.0.0",
+            "min_version": "7.11.0",
             "retain": false
-          }
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-        Content-Type: application/json
-      index:
-        index:  .ml-anomalies-upgrade-model-snapshot
-        id:     "upgrade-model-snapshot_model_snapshot_snapshot-2"
-        body: >
-          {
-            "job_id": "upgrade-model-snapshot",
-            "timestamp": "2016-06-01T00:00:00Z",
-            "snapshot_id": "snapshot-2",
-            "description": "snapshot 2 description",
-            "snapshot_doc_count": 2,
-            "min_version": "7.0.0"
           }
 
   - do:

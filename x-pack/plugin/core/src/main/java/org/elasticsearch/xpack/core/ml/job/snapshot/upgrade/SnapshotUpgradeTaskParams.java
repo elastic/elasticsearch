@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
+package org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -12,7 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
@@ -20,7 +21,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME;
 
-public class SnapshotUpgradeTaskParams implements PersistentTaskParams {
+public class SnapshotUpgradeTaskParams implements XPackPlugin.XPackPersistentTaskParams {
 
     public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
 
@@ -32,6 +33,10 @@ public class SnapshotUpgradeTaskParams implements PersistentTaskParams {
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_ID);
+    }
+
+    public static SnapshotUpgradeTaskParams fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     public static final String NAME = JOB_SNAPSHOT_UPGRADE_TASK_NAME;

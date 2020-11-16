@@ -107,8 +107,8 @@ import static org.elasticsearch.xpack.sql.planner.QueryTranslator.TIME_FORMAT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -2364,21 +2364,26 @@ public class QueryTranslatorTests extends ESTestCase {
         }).collect(Collectors.toList());
     }
 
-    public void testPercentileNullOrUnspecifiedMethodIsTheSame() {
+    public void testPercentileNullOrUnspecifiedMethodOrDefaultMethodParameterIsTheSame() {
         List<PercentilesAggregationBuilder> aggs =
             metricAggsByField(() -> optimizeAndPlan(
                 "SELECT " +
+                    "   PERCENTILE(int, 50, 'tdigest', 100), " +
                     "   PERCENTILE(int, 50, 'tdigest', null), " +
                     "   PERCENTILE(int, 50, 'tdigest'), " +
-                    "   PERCENTILE(int, 50) " +
-                    "FROM test"), 3);
+                    "   PERCENTILE(int, 50), " +
+                    "   PERCENTILE(int, 50, 'tdigest', 22) " +
+                    "FROM test"), 5);
         assertEquals(aggs.get(0), aggs.get(1));
         assertEquals(aggs.get(0), aggs.get(2));
+        assertEquals(aggs.get(0), aggs.get(3));
+        assertNotEquals(aggs.get(0), aggs.get(4));
         assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
+        assertEquals(new PercentilesConfig.TDigest(22), aggs.get(4).percentilesConfig());
         assertArrayEquals(new double[]{50}, aggs.get(0).percentiles(), 0);
     }
 
-    public void testPercentileDefaultsToTDigest() {
+    public void testPercentileUsesTheDefaultPercentileConfig() {
         List<PercentilesAggregationBuilder> aggs =
             metricAggsByField(() -> optimizeAndPlan("SELECT PERCENTILE(int, 50) FROM test"), 1);
         assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
@@ -2404,6 +2409,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(aggs.get(0), aggs.get(1));
         // the rest of the fields should be handled by separate aggregations
         assertNotEquals(aggs.get(0), aggs.get(2));
+        assertNotEquals(aggs.get(1), aggs.get(2));
+        assertNotEquals(aggs.get(1), aggs.get(3));
         assertNotEquals(aggs.get(2), aggs.get(3));
 
         assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
@@ -2415,21 +2422,26 @@ public class QueryTranslatorTests extends ESTestCase {
         assertArrayEquals(new double[]{60}, aggs.get(3).percentiles(), 0);
     }
 
-    public void testPercentileRankNullOrUnspecifiedMethodIsTheSame() {
+    public void testPercentileRankNullOrUnspecifiedMethodOrDefaultMethodParameterIsTheSame() {
         List<PercentileRanksAggregationBuilder> aggs =
             metricAggsByField(() -> optimizeAndPlan(
                 "SELECT " +
+                    "   PERCENTILE_RANK(int, 50, 'tdigest', 100), " +
                     "   PERCENTILE_RANK(int, 50, 'tdigest', null), " +
                     "   PERCENTILE_RANK(int, 50, 'tdigest'), " +
-                    "   PERCENTILE_RANK(int, 50) " +
-                    "FROM test"), 3);
+                    "   PERCENTILE_RANK(int, 50), " +
+                    "   PERCENTILE_RANK(int, 50, 'tdigest', 22) " +
+                    "FROM test"), 5);
         assertEquals(aggs.get(0), aggs.get(1));
         assertEquals(aggs.get(0), aggs.get(2));
+        assertEquals(aggs.get(0), aggs.get(3));
+        assertNotEquals(aggs.get(0), aggs.get(4));
         assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
+        assertEquals(new PercentilesConfig.TDigest(22), aggs.get(4).percentilesConfig());
         assertArrayEquals(new double[]{50}, aggs.get(0).values(), 0);
     }
 
-    public void testPercentileRankDefaultsToTDigest() {
+    public void testPercentileRankUsesTheDefaultPercentileConfig() {
         List<PercentileRanksAggregationBuilder> aggs =
             metricAggsByField(() -> optimizeAndPlan("SELECT PERCENTILE_RANK(int, 50) FROM test"), 1);
         assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
@@ -2455,6 +2467,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(aggs.get(0), aggs.get(1));
         // the rest of the fields should be handled by separate aggregations
         assertNotEquals(aggs.get(0), aggs.get(2));
+        assertNotEquals(aggs.get(1), aggs.get(2));
+        assertNotEquals(aggs.get(1), aggs.get(3));
         assertNotEquals(aggs.get(2), aggs.get(3));
 
         assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());

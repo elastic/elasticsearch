@@ -15,27 +15,22 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.ql.expression.function.Functions.countOfNonNullOptionalArgs;
-import static org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileMethodConfiguration.defaultMethod;
-import static org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileMethodConfiguration.defaultMethodParameter;
-import static org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileMethodConfiguration.resolvePercentileConfiguration;
+import static org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile.resolvePercentileConfiguration;
 
-public class PercentileRank extends NumericAggregate implements EnclosedAgg, TwoOptionalArguments {
+public class PercentileRank extends NumericAggregate implements EnclosedAgg, TwoOptionalArguments, HasPercentileConfig {
 
     private final Expression value;
     private final Expression method;
     private final Expression methodParameter;
 
     public PercentileRank(Source source, Expression field, Expression value, Expression method, Expression methodParameter) {
-        super(source, field, Stream.of(value, (method = defaultMethod(source, method)),
-            (methodParameter = defaultMethodParameter(methodParameter))).filter(Objects::nonNull).collect(Collectors.toList()));
+        super(source, field, Collections.singletonList(value));
         this.value = value;
         this.method = method;
         this.methodParameter = methodParameter;
@@ -48,12 +43,10 @@ public class PercentileRank extends NumericAggregate implements EnclosedAgg, Two
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (children().size() != newChildren.size()) {
-            throw new IllegalArgumentException("expected [" + children().size() + "] children but received [" + newChildren.size() + "]");
+        if (children().size() < 2) {
+            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
         }
-        return new PercentileRank(source(), newChildren.get(0), newChildren.get(1),
-            method == null ? null : newChildren.get(2),
-            methodParameter == null ? null : newChildren.get(2 + countOfNonNullOptionalArgs(method)));
+        return new PercentileRank(source(), newChildren.get(0), newChildren.get(1), method, methodParameter);
     }
 
     @Override
@@ -80,10 +73,12 @@ public class PercentileRank extends NumericAggregate implements EnclosedAgg, Two
         return value;
     }
 
+    @Override
     public Expression method() {
         return method;
     }
 
+    @Override
     public Expression methodParameter() {
         return methodParameter;
     }
@@ -92,5 +87,22 @@ public class PercentileRank extends NumericAggregate implements EnclosedAgg, Two
     public String innerName() {
         Double doubleValue = (Double) SqlDataTypeConverter.convert(Foldables.valueOf(value), DataTypes.DOUBLE);
         return Double.toString(doubleValue);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+
+        PercentileRank that = (PercentileRank) o;
+
+        return Objects.equals(method, that.method)
+            && Objects.equals(methodParameter, that.methodParameter);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), method, methodParameter);
     }
 }

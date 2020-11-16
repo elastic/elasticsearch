@@ -478,7 +478,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggMadScalars]
 --------------------------------------------------
 PERCENTILE(
     field_name,         <1>
-    numeric_exp[,       <2>
+    percentile[,        <2>
     method[,            <3>
     method_parameter]]) <4>
 --------------------------------------------------
@@ -486,9 +486,9 @@ PERCENTILE(
 *Input*:
 
 <1> a numeric field
-<2> a numeric expression (must be a constant and not based on a field)
-<3> optional text expression (can be omitted, must be a constant). Possible values if specified: `tdigest` or `hdr`, representing the algorithm used for the percentile calculation. Default: `tdigest`
-<4> optional numeric expression (can be omitted, must be a constant). For the `tdigest` method it sets the `compression` parameter, while for the `hdr` method it is used to set the `number_of_significant_value_digits` parameter. If not specified the algorithm's default parameter value will be used.
+<2> a numeric literal
+<3> optional string literal to indicate the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
+<4> optional numeric literal for configuring the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
 
 *Output*: `double` numeric value
 
@@ -507,6 +507,11 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentile]
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileScalars]
 --------------------------------------------------
 
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileWithPercentileConfig]
+--------------------------------------------------
+
 [[sql-functions-aggs-percentile-rank]]
 ==== `PERCENTILE_RANK`
 
@@ -515,7 +520,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileScalars]
 --------------------------------------------------
 PERCENTILE_RANK(
     field_name,         <1>
-    numeric_exp[,       <2>
+    value[,             <2>
     method[,            <3>
     method_parameter]]) <4>
 --------------------------------------------------
@@ -523,9 +528,9 @@ PERCENTILE_RANK(
 *Input*:
 
 <1> a numeric field
-<2> a numeric expression (must be a constant and not based on a field)
-<3> optional text expression (can be omitted, must be a constant). Possible values if specified: `tdigest` or `hdr`, representing the algorithm used for the percentile calculation. Default: `tdigest`
-<4> optional numeric expression (can be omitted, must be a constant). For the `tdigest` method it sets the `compression` parameter, while for the `hdr` method it is used to set the `number_of_significant_value_digits` parameter. If not specified the algorithm's default parameter value will be used.
+<2> a numeric literal
+<3> optional string literal to indicate the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
+<4> optional numeric literal for configuring the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
 
 
 *Output*: `double` numeric value
@@ -543,6 +548,11 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRank]
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRankScalars]
+--------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRankWithPercentileConfig]
 --------------------------------------------------
 
 [[sql-functions-aggs-skewness]]

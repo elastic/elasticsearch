@@ -980,7 +980,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testErrorMessageForPercentileWithNullMethodType() {
-        assertEquals("1:8: third argument of [PERCENTILE(int, 50, null)] must be a string, one of [tdigest, hdr], received [null]",
+        assertEquals("1:8: third argument of [PERCENTILE(int, 50, null)] must be one of [tdigest, hdr], received [null]",
             error("SELECT PERCENTILE(int, 50, null) FROM test"));
     }
 
@@ -990,7 +990,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testErrorMessageForPercentileWithWrongMethod() {
-        assertEquals("1:8: third argument of [PERCENTILE(int, 50, 'notExistingMethod', 5)] must be a string, " +
+        assertEquals("1:8: third argument of [PERCENTILE(int, 50, 'notExistingMethod', 5)] must be " +
                 "one of [tdigest, hdr], received [notExistingMethod]",
             error("SELECT PERCENTILE(int, 50, 'notExistingMethod', 5) FROM test"));
     }
@@ -1011,7 +1011,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testErrorMessageForPercentileRankWithNullMethodType() {
-        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, null)] must be a string, one of [tdigest, hdr], received [null]",
+        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, null)] must be one of [tdigest, hdr], received [null]",
             error("SELECT PERCENTILE_RANK(int, 50, null) FROM test"));
     }
 
@@ -1021,7 +1021,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testErrorMessageForPercentileRankWithWrongMethod() {
-        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, 'notExistingMethod', 5)] must be a string, " +
+        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, 'notExistingMethod', 5)] must be " +
                 "one of [tdigest, hdr], received [notExistingMethod]",
             error("SELECT PERCENTILE_RANK(int, 50, 'notExistingMethod', 5) FROM test"));
     }

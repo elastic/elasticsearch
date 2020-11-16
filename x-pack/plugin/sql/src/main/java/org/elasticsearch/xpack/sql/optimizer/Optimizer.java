@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
+import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -97,6 +98,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -1006,36 +1008,68 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class ReplaceAggsWithPercentiles extends OptimizerBasicRule {
+    private static class PercentileArgumentCombination {
+        final Expression field;
+        final PercentilesConfig config;
+        final Expression method;
+        final Expression methodParameter;
 
-        private List<Expression> keyOf(Percentile per) {
-            return Arrays.asList(per.field(), per.method(), per.methodParameter());
+        PercentileArgumentCombination(Percentile per) {
+            this.field = per.field();
+            this.method = per.method();
+            this.methodParameter = per.methodParameter();
+            this.config = per.percentileConfig();
+        }
+
+        PercentileArgumentCombination(PercentileRank per) {
+            this.field = per.field();
+            this.method = per.method();
+            this.methodParameter = per.methodParameter();
+            this.config = per.percentileConfig();
         }
 
         @Override
-        public LogicalPlan apply(LogicalPlan p) {
-            // percentile per (field/expression, method, methodparameters)
-            Map<List<Expression>, Set<Expression>> percentsPerArgs = new LinkedHashMap<>();
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
 
-            // count gather the percents for each field
+            PercentileArgumentCombination that = (PercentileArgumentCombination) o;
+
+            return field.equals(that.field) && Objects.equals(config, that.config);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(field, config);
+        }
+    }
+
+    static class ReplaceAggsWithPercentiles extends OptimizerBasicRule {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan p) {
+            Map<PercentileArgumentCombination, Set<Expression>> distinctPercentsPerArgs = new LinkedHashMap<>();
+
             p.forEachExpressionsUp(e -> {
                 if (e instanceof Percentile) {
                     Percentile per = (Percentile) e;
-                    percentsPerArgs.computeIfAbsent(keyOf(per), k -> new LinkedHashSet<>()).add(per.percent());
+                    distinctPercentsPerArgs.computeIfAbsent(new PercentileArgumentCombination(per), k -> new LinkedHashSet<>())
+                        .add(per.percent());
                 }
             });
 
             // create a Percentile agg for each argument combination
-            Map<List<Expression>, Percentiles> percentilesPerArgs = new LinkedHashMap<>();
-            percentsPerArgs.forEach((arguments, percents) -> percentilesPerArgs.put(
-                    arguments,
+            Map<PercentileArgumentCombination, Percentiles> percentilesPerArgs = new LinkedHashMap<>();
+            distinctPercentsPerArgs.forEach((args, percents) -> percentilesPerArgs.put(
+                    args,
                     new Percentiles(percents.iterator().next().source(),
-                        arguments.get(0), arguments.get(1), arguments.get(2), new ArrayList<>(percents))));
+                        args.field, new ArrayList<>(percents), args.method, args.methodParameter)));
 
             return p.transformExpressionsUp(e -> {
                 if (e instanceof Percentile) {
                     Percentile per = (Percentile) e;
-                    Percentiles percentiles = percentilesPerArgs.get(keyOf(per));
+                    PercentileArgumentCombination a = new PercentileArgumentCombination(per);
+                    Percentiles percentiles = percentilesPerArgs.get(a);
                     return new InnerAggregate(per, percentiles);
                 }
 
@@ -1046,33 +1080,29 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     static class ReplaceAggsWithPercentileRanks extends OptimizerBasicRule {
 
-        private List<Expression> keyOf(PercentileRank per) {
-            return Arrays.asList(per.field(), per.method(), per.methodParameter());
-        }
-
         @Override
         public LogicalPlan apply(LogicalPlan p) {
-            // percentile per field/expression
-            final Map<List<Expression>, Set<Expression>> valuesPerArgs = new LinkedHashMap<>();
+            final Map<PercentileArgumentCombination, Set<Expression>> distinctValuesPerArgs = new LinkedHashMap<>();
 
-            // count gather the percents for each field
             p.forEachExpressionsUp(e -> {
                 if (e instanceof PercentileRank) {
                     PercentileRank per = (PercentileRank) e;
-                    valuesPerArgs.computeIfAbsent(keyOf(per), k -> new LinkedHashSet<>()).add(per.value());
+                    distinctValuesPerArgs.computeIfAbsent(new PercentileArgumentCombination(per), k -> new LinkedHashSet<>())
+                        .add(per.value());
                 }
             });
 
-            Map<List<Expression>, PercentileRanks> ranksPerArgs = new LinkedHashMap<>();
-            valuesPerArgs.forEach((arguments, values) -> ranksPerArgs.put(
-                arguments,
+            // create a PercentileRank agg for each argument combination
+            Map<PercentileArgumentCombination, PercentileRanks> ranksPerArgs = new LinkedHashMap<>();
+            distinctValuesPerArgs.forEach((args, values) -> ranksPerArgs.put(
+                args,
                 new PercentileRanks(values.iterator().next().source(),
-                    arguments.get(0), arguments.get(1), arguments.get(2), new ArrayList<>(values))));
+                    args.field, new ArrayList<>(values), args.method, args.methodParameter)));
 
             return p.transformExpressionsUp(e -> {
                 if (e instanceof PercentileRank) {
                     PercentileRank per = (PercentileRank) e;
-                    PercentileRanks ranks = ranksPerArgs.get(keyOf(per));
+                    PercentileRanks ranks = ranksPerArgs.get(new PercentileArgumentCombination(per));
                     return new InnerAggregate(per, ranks);
                 }
 

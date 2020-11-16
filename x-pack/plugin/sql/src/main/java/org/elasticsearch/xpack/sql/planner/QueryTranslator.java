@@ -83,7 +83,6 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Expressions.id;
 import static org.elasticsearch.xpack.ql.expression.Foldables.valueOf;
-import static org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileMethodConfiguration.asPercentileConfig;
 
 final class QueryTranslator {
 
@@ -613,8 +612,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Percentiles p) {
-            return new PercentilesAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.percents()),
-                asPercentileConfig(p.method(), p.methodParameter()));
+            return new PercentilesAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.percents()), p.percentileConfig());
         }
     }
 
@@ -622,8 +620,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, PercentileRanks p) {
-            return new PercentileRanksAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.values()),
-                asPercentileConfig(p.method(), p.methodParameter()));
+            return new PercentileRanksAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.values()), p.percentileConfig());
         }
     }
 

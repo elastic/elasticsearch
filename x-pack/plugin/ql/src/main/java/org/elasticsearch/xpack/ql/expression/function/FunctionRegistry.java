@@ -420,13 +420,13 @@ public class FunctionRegistry {
     public static <T extends Function> FunctionDefinition def(Class<T> function,
             FourParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            if (TwoOptionalArguments.class.isAssignableFrom(function)) {
-                if (children.size() > 4 || children.size() < 2) {
-                    throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
-                }
-            } else if (OptionalArgument.class.isAssignableFrom(function)) {
+            if (OptionalArgument.class.isAssignableFrom(function)) {
                 if (children.size() > 4 || children.size() < 3) {
                     throw new QlIllegalArgumentException("expects three or four arguments");
+                }
+            } else if (TwoOptionalArguments.class.isAssignableFrom(function)) {
+                if (children.size() > 4 || children.size() < 2) {
+                    throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
                 }
             } else if (children.size() != 4) {
                 throw new QlIllegalArgumentException("expects exactly four arguments");
@@ -434,7 +434,7 @@ public class FunctionRegistry {
             if (distinct) {
                 throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(source, children.get(0), children.get(1),
+            return ctorRef.build(source, children.get(0), children.get(1), 
                 children.size() > 2 ? children.get(2) : null,
                 children.size() > 3 ? children.get(3) : null);
         };

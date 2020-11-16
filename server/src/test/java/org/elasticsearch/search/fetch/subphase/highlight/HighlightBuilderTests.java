@@ -70,6 +70,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -280,7 +281,7 @@ public class HighlightBuilderTests extends ESTestCase {
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, null, null, null, xContentRegistry(), namedWriteableRegistry,
-                null, null, System::currentTimeMillis, null, null, () -> true, null) {
+                null, null, System::currentTimeMillis, null, null, () -> true, null, emptyMap()) {
             @Override
             public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER);

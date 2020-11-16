@@ -140,39 +140,31 @@ public class CompatibleVersionPluginTests extends ESTestCase {
 
     public void testTextMediaTypes() {
         assertThat(
-            requestWith(acceptHeader("text/tab-separated-values"),
-                contentTypeHeader("application/json"),
-                bodyNotPresent()),
+            requestWith(acceptHeader("text/tab-separated-values"), contentTypeHeader("application/json"), bodyNotPresent()),
             not(isCompatible())
         );
 
-        assertThat(requestWith(acceptHeader("text/plain"),
-            contentTypeHeader("application/json"),
-            bodyNotPresent()),
-            not(isCompatible()));
+        assertThat(requestWith(acceptHeader("text/plain"), contentTypeHeader("application/json"), bodyNotPresent()), not(isCompatible()));
 
-        assertThat(requestWith(acceptHeader("text/csv"),
-            contentTypeHeader("application/json"),
-            bodyNotPresent()),
-            not(isCompatible()));
+        assertThat(requestWith(acceptHeader("text/csv"), contentTypeHeader("application/json"), bodyNotPresent()), not(isCompatible()));
 
         // versioned
-        assertThat(requestWith(acceptHeader("text/vnd.elasticsearch+tab-separated-values;compatible-with=7"),
-            contentTypeHeader(7),
-            bodyNotPresent()),
-            isCompatible()
-        );
-
-        assertThat(requestWith(acceptHeader("text/vnd.elasticsearch+plain;compatible-with=7"),
-            contentTypeHeader(7),
-            bodyNotPresent()),
+        assertThat(
+            requestWith(
+                acceptHeader("text/vnd.elasticsearch+tab-separated-values;compatible-with=7"),
+                contentTypeHeader(7),
+                bodyNotPresent()
+            ),
             isCompatible()
         );
 
         assertThat(
-            requestWith(acceptHeader("text/vnd.elasticsearch+csv;compatible-with=7"),
-                contentTypeHeader(7),
-                bodyNotPresent()),
+            requestWith(acceptHeader("text/vnd.elasticsearch+plain;compatible-with=7"), contentTypeHeader(7), bodyNotPresent()),
+            isCompatible()
+        );
+
+        assertThat(
+            requestWith(acceptHeader("text/vnd.elasticsearch+csv;compatible-with=7"), contentTypeHeader(7), bodyNotPresent()),
             isCompatible()
         );
     }

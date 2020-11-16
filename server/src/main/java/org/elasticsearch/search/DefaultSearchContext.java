@@ -37,7 +37,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -457,12 +456,7 @@ final class DefaultSearchContext extends SearchContext {
     public IndexShard indexShard() {
         return this.indexShard;
     }
-
-    @Override
-    public MapperService mapperService() {
-        return indexService.mapperService();
-    }
-
+    
     @Override
     public BigArrays bigArrays() {
         return bigArrays;
@@ -708,7 +702,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public NestedDocuments getNestedDocuments() {
-        return new NestedDocuments(mapperService(), bitsetFilterCache()::getBitSetProducer);
+        return new NestedDocuments(indexService.mapperService(), bitsetFilterCache()::getBitSetProducer);
     }
 
     @Override

@@ -30,7 +30,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -210,8 +209,6 @@ public abstract class SearchContext implements Releasable {
     public abstract ContextIndexSearcher searcher();
 
     public abstract IndexShard indexShard();
-
-    public abstract MapperService mapperService();
 
     public abstract BigArrays bigArrays();
 

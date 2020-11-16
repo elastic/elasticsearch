@@ -11,7 +11,7 @@ roles should be assigned to each user based on their username, groups, or
 other metadata.
 
 NOTE: When <<anonymous-access,anonymous access>> is enabled, the roles
-of the anonymous user are assigned to all the other users as well. Users with no roles assigned will be unauthorized for any action.
+of the anonymous user are assigned to all the other users as well.
 
 You can define role-mappings via an
 <<mapping-roles-api, API>> or manage them through <<mapping-roles-file, files>>.
@@ -19,6 +19,8 @@ These two sources of role-mapping are combined inside of the {es}
 {security-features}, so it is
 possible for a single user to have some roles that have been mapped through
 the API, and other roles that are mapped through files.
+
+NOTE: Users with no roles assigned will be unauthorized for any action.
 
 When you use role-mappings, you assign existing roles to users.
 The available roles should either be added using the

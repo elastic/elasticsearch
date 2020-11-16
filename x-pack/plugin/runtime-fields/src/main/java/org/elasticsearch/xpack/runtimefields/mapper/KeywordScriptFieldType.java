@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldTermQuery;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldTermsQuery;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldWildcardQuery;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -36,12 +40,31 @@ import java.util.function.Supplier;
 import static java.util.stream.Collectors.toSet;
 
 public final class KeywordScriptFieldType extends AbstractScriptFieldType<StringFieldScript.LeafFactory> {
-    KeywordScriptFieldType(String name, Script script, StringFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, script, scriptFactory::newFactory, meta);
+
+    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
+        @Override
+        protected AbstractScriptFieldType<?> buildFieldType() {
+            StringFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), StringFieldScript.CONTEXT);
+            return new KeywordScriptFieldType(name, factory, this);
+        }
+    });
+
+    private KeywordScriptFieldType(String name, StringFieldScript.Factory scriptFactory, Builder builder) {
+        super(name, scriptFactory::newFactory, builder);
+    }
+
+    KeywordScriptFieldType(
+        String name,
+        StringFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+    ) {
+        super(name, scriptFactory::newFactory, script, meta, toXContent);
     }
 
     @Override
-    protected String runtimeType() {
+    public String typeName() {
         return KeywordFieldMapper.CONTENT_TYPE;
     }
 

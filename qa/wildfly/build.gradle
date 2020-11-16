@@ -49,7 +49,7 @@ dependencies {
   testImplementation project(':test:framework')
 }
 
-war {
+tasks.named("war").configure {
   archiveFileName = 'example-app.war'
 }
 
@@ -63,8 +63,8 @@ elasticsearch_distributions {
   }
 }
 
-preProcessFixture {
-  dependsOn war, elasticsearch_distributions.docker
+tasks.named("preProcessFixture").configure {
+  dependsOn "war", elasticsearch_distributions.docker
 }
 
 dockerCompose {
@@ -81,17 +81,20 @@ tasks.register("integTest", Test) {
   include '**/*IT.class'
 }
 
-check.dependsOn integTest
+tasks.named("check").configure {
+  dependsOn "integTest"
+}
+tasks.named("test").configure {enabled = false }
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo") {
+  enabled = false
+}
 
-test.enabled = false
+tasks.named("thirdPartyAudit").configure {
+  enabled = false
+}
 
-tasks.named("dependencyLicenses").configure { it.enabled = false }
-dependenciesInfo.enabled = false
-
-thirdPartyAudit.enabled = false
-
-
-testingConventions {
+tasks.named("testingConventions").configure {
   naming.clear()
   // We only have one "special" integration test here to connect to wildfly
   naming {

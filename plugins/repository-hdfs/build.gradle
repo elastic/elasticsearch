@@ -48,7 +48,7 @@ configurations {
 
 dependencies {
   api "org.apache.hadoop:hadoop-client:${versions.hadoop2}"
-  api project(path: 'hadoop-common', configuration: 'archives')
+  api project(path: 'hadoop-common', configuration: 'shadow')
   api "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
   api "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
   api "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
@@ -96,7 +96,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.named("integTest").configure {
-  it.dependsOn(project.tasks.named("bundlePlugin"))
+  dependsOn(project.tasks.named("bundlePlugin"))
 }
 
 testClusters.integTest {
@@ -155,7 +155,7 @@ Set disabledIntegTestTaskNames = []
 for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
   task "${integTestTaskName}"(type: RestIntegTestTask) {
     description = "Runs rest tests against an elasticsearch cluster with HDFS."
-    dependsOn(project.bundlePlugin)
+    dependsOn("bundlePlugin")
 
     if (disabledIntegTestTaskNames.contains(integTestTaskName)) {
       enabled = false;

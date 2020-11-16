@@ -303,7 +303,7 @@ The API returns the following response. Note the `jumping` token has a
 ==== Configurable parameters
 
 `ignore_case`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, matching for the `keywords` and `keywords_path` parameters ignores
 letter case. Defaults to `false`.
 

@@ -33,7 +33,7 @@ Specifies where to store the snapshot.
 See <<snapshots-register-repository>> for more information.
 
 `force_merge_index`::
-(Optional, boolean)
+(Optional, Boolean)
 Force merges the managed index to one segment.
 Defaults to `true`.
 If the managed index was already force merged using the

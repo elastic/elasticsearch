@@ -60,6 +60,20 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    public void testDeprecatedBoost() throws IOException {
+        assumeTrue("Does not support [boost] parameter", supportsOrIgnoresBoost());
+        createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("boost", 2.0);
+        }));
+        String type = typeName();
+        String[] warnings = new String[] {
+            "The [sparse_vector] field type is deprecated and will be removed in 8.0.",
+            "Parameter [boost] has no effect on type [" + type + "] and will be removed in future" };
+        allowedWarnings(warnings);
+    }
+
+    @Override
     protected Collection<Plugin> getPlugins() {
         return Collections.singletonList(new Vectors());
     }

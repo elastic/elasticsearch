@@ -5,7 +5,7 @@
 ++++
 
 Creates or updates a component template. 
-Component templates are building blocks for constructing <<indices-templates,index templates>>.  
+Component templates are building blocks for constructing <<indices-templates,index templates>>  
 that specify index <<mapping,mappings>>, <<index-modules-settings,settings>>, 
 and <<indices-aliases,aliases>>. 
 
@@ -85,7 +85,7 @@ Name of the component template to create.
 ==== {api-query-parms-title}
 
 `create`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, this request cannot replace or update existing component templates.
 Defaults to `false`.
 

@@ -7,6 +7,7 @@
 package org.elasticsearch.test.eql;
 
 import org.apache.http.HttpHost;
+import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.client.EqlClient;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -111,18 +112,28 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
 
     protected EqlSearchResponse runQuery(String index, String query) throws Exception {
         EqlSearchRequest request = new EqlSearchRequest(index, query);
+
+        request.eventCategoryField(eventCategory());
+        request.timestampField(timestamp());
         String tiebreaker = tiebreaker();
         if (tiebreaker != null) {
             request.tiebreakerField(tiebreaker());
         }
-        // some queries return more than 10 results
-        request.size(50);
-        request.fetchSize(randomIntBetween(2, 50));
+        request.size(requestSize());
+        request.fetchSize(requestFetchSize());
+        request.resultPosition(requestResultPosition());
         return runRequest(eqlClient(), request);
     }
 
     protected  EqlSearchResponse runRequest(EqlClient eqlClient, EqlSearchRequest request) throws IOException {
-        return eqlClient.search(request, RequestOptions.DEFAULT);
+        int timeout = Math.toIntExact(timeout().millis());
+
+        RequestConfig config = RequestConfig.copy(RequestConfig.DEFAULT)
+            .setConnectionRequestTimeout(timeout)
+            .setConnectTimeout(timeout)
+            .setSocketTimeout(timeout)
+            .build();
+        return eqlClient.search(request, RequestOptions.DEFAULT.toBuilder().setRequestConfig(config).build());
     }
 
     protected EqlClient eqlClient() {
@@ -190,9 +201,30 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
         return builder.build();
     }
 
-    protected TimeValue timeout() {
-        return TimeValue.timeValueSeconds(10);
+    protected String timestamp() {
+        return "@timestamp";
+    };
+
+    private String eventCategory() {
+        return "event.category";
     }
 
     protected abstract String tiebreaker();
+
+    protected int requestSize() {
+        // some queries return more than 10 results
+        return 50;
+    }
+
+    protected int requestFetchSize() {
+        return randomIntBetween(2, requestSize());
+    }
+
+    protected String requestResultPosition() {
+        return randomBoolean() ? "head" : "tail";
+    }
+
+    protected TimeValue timeout() {
+        return TimeValue.timeValueSeconds(10);
+    }
 }

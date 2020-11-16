@@ -54,7 +54,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
 `ignore_unavailable`::
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, requests that target a missing index return an error. Defaults to
 `false`.
 

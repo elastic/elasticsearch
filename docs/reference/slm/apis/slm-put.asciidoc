@@ -55,12 +55,12 @@ Configuration for each snapshot created by the policy.
 [%collapsible%open]
 ====
 `ignore_unavailable`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, missing data streams or indices do *not* cause snapshot creation to fail and return
 an error. Defaults to `false`.
 
 `include_global_state`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, cluster states are included in snapshots. Defaults to `false`.
 
 `indices`::

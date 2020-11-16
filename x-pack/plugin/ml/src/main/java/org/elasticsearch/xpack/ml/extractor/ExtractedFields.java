@@ -66,6 +66,23 @@ public class ExtractedFields {
         return cardinalitiesForFieldsWithConstraints;
     }
 
+    public String[] extractOrganicFeatureNames() {
+        Set<String> processedFieldInputs = getProcessedFieldInputs();
+        return allFields
+            .stream()
+            .map(ExtractedField::getName)
+            .filter(f -> processedFieldInputs.contains(f) == false)
+            .toArray(String[]::new);
+    }
+
+    public String[] extractProcessedFeatureNames() {
+        return processedFields
+            .stream()
+            .map(ProcessedField::getOutputFieldNames)
+            .flatMap(List::stream)
+            .toArray(String[]::new);
+    }
+
     private static List<ExtractedField> filterFields(ExtractedField.Method method, List<ExtractedField> fields) {
         return fields.stream().filter(field -> field.getMethod() == method).collect(Collectors.toList());
     }

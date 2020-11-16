@@ -938,6 +938,10 @@ setup:
           }
 
   - is_true: classification.multiclass_confusion_matrix
+  - is_true: classification.accuracy
+  - is_true: classification.precision
+  - is_true: classification.recall
+  - is_false: classification.auc_roc
 ---
 "Test classification given missing actual_field":
   - do:
@@ -1104,8 +1108,8 @@ setup:
 
   - match: { regression.mse.value: 28.67749840974834 }
   - match: { regression.r_squared.value: 0.8551031778603486 }
+  - match: { regression.huber.value: 1.9205280586939963 }
   - is_false: regression.msle.value
-  - is_false: regression.huber.value
 ---
 "Test regression given missing actual_field":
   - do:

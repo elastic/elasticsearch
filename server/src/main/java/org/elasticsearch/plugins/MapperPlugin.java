@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 
 import java.util.Collections;
 import java.util.Map;
@@ -40,6 +41,10 @@ public interface MapperPlugin {
      * mapper settings into a {@link Mapper}.
      */
     default Map<String, Mapper.TypeParser> getMappers() {
+        return Collections.emptyMap();
+    }
+
+    default Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
         return Collections.emptyMap();
     }
 

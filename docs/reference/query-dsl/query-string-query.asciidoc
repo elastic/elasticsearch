@@ -84,11 +84,11 @@ It is defined by the `indices.query.bool.max_clause_count`
 --
 
 `allow_leading_wildcard`::
-(Optional, boolean) If `true`, the wildcard characters `*` and `?` are allowed
+(Optional, Boolean) If `true`, the wildcard characters `*` and `?` are allowed
 as the first character of the query string. Defaults to `true`.
 
 `analyze_wildcard`::
-(Optional, boolean) If `true`, the query attempts to analyze wildcard terms in
+(Optional, Boolean) If `true`, the query attempts to analyze wildcard terms in
 the query string. Defaults to `false`.
 
 `analyzer`::
@@ -98,7 +98,7 @@ query string into tokens. Defaults to the
 `default_field`. If no analyzer is mapped, the index's default analyzer is used.
 
 `auto_generate_synonyms_phrase_query`::
-(Optional, boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
+(Optional, Boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
 queries are automatically created for multi-term synonyms. Defaults to `true`.
 See <<query-string-synonyms>> for an example.
 
@@ -129,7 +129,7 @@ AND of AND Hungary`.
 --
 
 `enable_position_increments`::
-(Optional, boolean) If `true`, enable position increments in queries constructed
+(Optional, Boolean) If `true`, enable position increments in queries constructed
 from a `query_string` search. Defaults to `true`.
 
 `fields`::
@@ -154,11 +154,11 @@ matching. Defaults to `50`.
 matching. Defaults to `0`.
 
 `fuzzy_transpositions`::
-(Optional, boolean) If `true`, edits for fuzzy matching include
+(Optional, Boolean) If `true`, edits for fuzzy matching include
 transpositions of two adjacent characters (ab → ba). Defaults to `true`.
 
 `lenient`::
-(Optional, boolean) If `true`, format-based errors, such as providing a text
+(Optional, Boolean) If `true`, format-based errors, such as providing a text
 value for a <<number,numeric>> field, are ignored. Defaults to `false`.
 
 `max_determinized_states`::

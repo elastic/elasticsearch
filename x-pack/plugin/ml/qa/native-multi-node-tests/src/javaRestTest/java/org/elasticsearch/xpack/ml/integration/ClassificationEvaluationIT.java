@@ -32,6 +32,7 @@ import java.util.stream.IntStream;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,7 +82,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(
             evaluateDataFrameResponse.getMetrics().stream().map(EvaluationMetricResult::getMetricName).collect(toList()),
-            contains(MulticlassConfusionMatrix.NAME.getPreferredName()));
+            containsInAnyOrder(
+                MulticlassConfusionMatrix.NAME.getPreferredName(),
+                Accuracy.NAME.getPreferredName(),
+                Precision.NAME.getPreferredName(),
+                Recall.NAME.getPreferredName()
+            )
+        );
     }
 
     public void testEvaluate_AllMetrics() {

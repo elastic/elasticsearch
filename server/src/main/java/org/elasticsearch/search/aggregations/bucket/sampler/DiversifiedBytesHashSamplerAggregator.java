@@ -65,7 +65,7 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
     }
 
     @Override
-    public DeferringBucketCollector getDeferringCollector() {
+    public DeferringBucketCollector buildDeferringCollector() {
         bdd = new DiverseDocsDeferringCollector(this::addRequestCircuitBreakerBytes);
         return bdd;
     }
@@ -78,14 +78,14 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
         DiverseDocsDeferringCollector(Consumer<Long> circuitBreakerConsumer) {
-            super(shardSize, context.bigArrays(), circuitBreakerConsumer);
+            super(shardSize, bigArrays(), circuitBreakerConsumer);
         }
 
 
         @Override
         protected TopDocsCollector<ScoreDocKey> createTopDocsCollector(int size) {
             // Make sure we do not allow size > maxDoc, to prevent accidental OOM
-            int minMaxDocsPerValue = Math.min(maxDocsPerValue, context.searcher().getIndexReader().maxDoc());
+            int minMaxDocsPerValue = Math.min(maxDocsPerValue, searcher().getIndexReader().maxDoc());
             return new ValuesDiversifiedTopDocsCollector(size, minMaxDocsPerValue);
         }
 

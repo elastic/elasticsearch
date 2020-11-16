@@ -19,46 +19,48 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
-import java.util.function.Function;
 
 /**
  * All the required context to pull a field from the doc values.
+ * This contains:
+ * <ul>
+ *   <li>a list of field names and its format.
+ * </ul>
  */
 public class FetchDocValuesContext {
 
-    private final List<FieldAndFormat> fields;
+    private final List<FieldAndFormat> fields = new ArrayList<>();
 
-    public static FetchDocValuesContext create(Function<String, Set<String>> simpleMatchToFullName,
-                                               int maxAllowedDocvalueFields,
-                                               List<FieldAndFormat> fieldPatterns) {
-        List<FieldAndFormat> fields = new ArrayList<>();
+    /**
+     * Create a new FetchDocValuesContext using the provided input list.
+     * Field patterns containing wildcards are resolved and unmapped fields are filtered out.
+     */
+    public FetchDocValuesContext(QueryShardContext shardContext, List<FieldAndFormat> fieldPatterns) {
         for (FieldAndFormat field : fieldPatterns) {
-            Collection<String> fieldNames = simpleMatchToFullName.apply(field.field);
-            for (String fieldName: fieldNames) {
-                fields.add(new FieldAndFormat(fieldName, field.format));
+            Collection<String> fieldNames = shardContext.simpleMatchToIndexNames(field.field);
+            for (String fieldName : fieldNames) {
+                if (shardContext.isFieldMapped(fieldName)) {
+                    fields.add(new FieldAndFormat(fieldName, field.format));
+                }
             }
         }
+
+        int maxAllowedDocvalueFields = shardContext.getIndexSettings().getMaxDocvalueFields();
         if (fields.size() > maxAllowedDocvalueFields) {
             throw new IllegalArgumentException(
                 "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
                     + "] but was [" + fields.size() + "]. This limit can be set by changing the ["
                     + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
         }
-
-        return new FetchDocValuesContext(fields);
-    }
-
-    public FetchDocValuesContext(List<FieldAndFormat> fields) {
-        this.fields = fields;
     }
 
     /**
-     * Returns the required docvalue fields
+     * Returns the required docvalue fields.
      */
     public List<FieldAndFormat> fields() {
         return this.fields;

@@ -71,7 +71,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String sourceIndex = "test-outlier-detection-with-few-docs";
 
         client().admin().indices().prepareCreate(sourceIndex)
-            .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .setMapping("numeric_1", "type=double", "numeric_2", "type=unsigned_long", "categorical_1", "type=keyword")
             .get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -83,7 +83,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             // We insert one odd value out of 5 for one feature
             String docId = i == 0 ? "outlier" : "normal" + i;
             indexRequest.id(docId);
-            indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1.0, "categorical_1", "foo_" + i);
+            indexRequest.source("numeric_1", i == 0 ? 100.0 : 1.0, "numeric_2", 1, "categorical_1", "foo_" + i);
             bulkRequestBuilder.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();

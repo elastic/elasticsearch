@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequ
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.monitor.NodeHealthService;
@@ -36,7 +35,6 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -425,12 +423,7 @@ public class FollowersCheckerTests extends ESTestCase {
         followersChecker.updateFastResponseState(followerTerm, Mode.FOLLOWER);
         final AtomicReference<TransportException> receivedException = new AtomicReference<>();
         transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(leaderTerm, leader),
-            new TransportResponseHandler<TransportResponse.Empty>() {
-                @Override
-                public TransportResponse.Empty read(StreamInput in) {
-                    return TransportResponse.Empty.INSTANCE;
-                }
-
+            new TransportResponseHandler.Empty() {
                 @Override
                 public void handleResponse(TransportResponse.Empty response) {
                     fail("unexpected success");
@@ -440,11 +433,6 @@ public class FollowersCheckerTests extends ESTestCase {
                 public void handleException(TransportException exp) {
                     assertThat(exp, not(nullValue()));
                     assertTrue(receivedException.compareAndSet(null, exp));
-                }
-
-                @Override
-                public String executor() {
-                    return Names.SAME;
                 }
             });
         deterministicTaskQueue.runAllTasks();
@@ -504,12 +492,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
             final AtomicReference<TransportException> receivedException = new AtomicReference<>();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(leaderTerm, leader),
-                new TransportResponseHandler<TransportResponse.Empty>() {
-                    @Override
-                    public TransportResponse.Empty read(StreamInput in) {
-                        return TransportResponse.Empty.INSTANCE;
-                    }
-
+                new TransportResponseHandler.Empty() {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("unexpected success");
@@ -519,11 +502,6 @@ public class FollowersCheckerTests extends ESTestCase {
                     public void handleException(TransportException exp) {
                         assertThat(exp, not(nullValue()));
                         assertTrue(receivedException.compareAndSet(null, exp));
-                    }
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
                     }
                 });
             deterministicTaskQueue.runAllTasks();
@@ -568,12 +546,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
             final AtomicReference<TransportException> receivedException = new AtomicReference<>();
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term, leader),
-                new TransportResponseHandler<TransportResponse.Empty>() {
-                    @Override
-                    public TransportResponse.Empty read(StreamInput in) {
-                        return TransportResponse.Empty.INSTANCE;
-                    }
-
+                new TransportResponseHandler.Empty() {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("unexpected success");
@@ -583,11 +556,6 @@ public class FollowersCheckerTests extends ESTestCase {
                     public void handleException(TransportException exp) {
                         assertThat(exp, not(nullValue()));
                         assertTrue(receivedException.compareAndSet(null, exp));
-                    }
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
                     }
                 });
             deterministicTaskQueue.runAllTasks();
@@ -653,11 +621,11 @@ public class FollowersCheckerTests extends ESTestCase {
         return settingsBuilder.build();
     }
 
-    private static class ExpectsSuccess implements TransportResponseHandler<Empty> {
+    private static class ExpectsSuccess extends TransportResponseHandler.Empty {
         private final AtomicBoolean responseReceived = new AtomicBoolean();
 
         @Override
-        public void handleResponse(Empty response) {
+        public void handleResponse(TransportResponse.Empty response) {
             assertTrue(responseReceived.compareAndSet(false, true));
         }
 
@@ -666,18 +634,8 @@ public class FollowersCheckerTests extends ESTestCase {
             throw new AssertionError("unexpected", exp);
         }
 
-        @Override
-        public String executor() {
-            return Names.SAME;
-        }
-
         public boolean succeeded() {
             return responseReceived.get();
-        }
-
-        @Override
-        public TransportResponse.Empty read(StreamInput in) {
-            return TransportResponse.Empty.INSTANCE;
         }
 
     }

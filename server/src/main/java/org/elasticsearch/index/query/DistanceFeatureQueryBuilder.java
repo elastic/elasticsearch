@@ -112,8 +112,7 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         if (fieldType == null) {
             return Queries.newMatchNoDocsQuery("Can't run [" + NAME + "] query on unmapped fields!");
         }
-        // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
-        return fieldType.distanceFeatureQuery(origin.origin(), pivot, 1.0f, context);
+        return fieldType.distanceFeatureQuery(origin.origin(), pivot, context);
     }
 
     String fieldName() {

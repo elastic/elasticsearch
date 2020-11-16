@@ -20,9 +20,11 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -75,17 +77,18 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -359,7 +362,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
         final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.failedShards(), equalTo(0));
         return snapshotInfo;
     }
@@ -536,17 +539,34 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return snapshotInfos.get(0);
     }
 
+    protected static ThreadPoolStats.Stats snapshotThreadPoolStats(final String node) {
+        return StreamSupport.stream(internalCluster().getInstance(ThreadPool.class, node).stats().spliterator(), false)
+                .filter(threadPool -> threadPool.getName().equals(ThreadPool.Names.SNAPSHOT))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Failed to find snapshot pool on node [" + node + "]"));
+    }
+
     protected void awaitMasterFinishRepoOperations() throws Exception {
         logger.info("--> waiting for master to finish all repo operations on its SNAPSHOT pool");
-        final ThreadPool masterThreadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
-        assertBusy(() -> {
-            for (ThreadPoolStats.Stats stat : masterThreadPool.stats()) {
-                if (ThreadPool.Names.SNAPSHOT.equals(stat.getName())) {
-                    assertEquals(stat.getActive(), 0);
-                    break;
-                }
-            }
-        });
+        final String masterName = internalCluster().getMasterName();
+        assertBusy(() -> assertEquals(snapshotThreadPoolStats(masterName).getActive(), 0));
+    }
+
+    protected List<String> createNSnapshots(String repoName, int count) throws Exception {
+        final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
+        final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, count);
+        final List<String> snapshotNames = new ArrayList<>(count);
+        final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
+        for (int i = 0; i < count; i++) {
+            final String snapshot = prefix + i;
+            snapshotNames.add(snapshot);
+            client().admin().cluster().prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute(snapshotsListener);
+        }
+        for (CreateSnapshotResponse snapshotResponse : allSnapshotsDone.get()) {
+            assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
+        }
+        logger.info("--> created {} in [{}]", snapshotNames, repoName);
+        return snapshotNames;
     }
 
     public static void forEachFileRecursively(Path path,

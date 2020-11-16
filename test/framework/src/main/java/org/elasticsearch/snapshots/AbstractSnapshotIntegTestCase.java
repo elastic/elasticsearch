@@ -543,7 +543,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return StreamSupport.stream(internalCluster().getInstance(ThreadPool.class, node).stats().spliterator(), false)
                 .filter(threadPool -> threadPool.getName().equals(ThreadPool.Names.SNAPSHOT))
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("Failed to find snapshot pool"));
+                .orElseThrow(() -> new AssertionError("Failed to find snapshot pool on node [" + node + "]"));
     }
 
     protected void awaitMasterFinishRepoOperations() throws Exception {

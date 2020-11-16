@@ -66,12 +66,10 @@ public class SnapshotBrokenSettingsIT extends AbstractSnapshotIntegTestCase {
         BrokenSettingPlugin.breakSetting();
 
         logger.info("--> restore snapshot");
-        try {
-            client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true)
-                    .setWaitForCompletion(true).execute().actionGet();
-        } catch (IllegalArgumentException ex) {
-            assertEquals(BrokenSettingPlugin.EXCEPTION.getMessage(), ex.getMessage());
-        }
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true)
+                        .setWaitForCompletion(true).execute()::actionGet);
+        assertEquals(BrokenSettingPlugin.EXCEPTION.getMessage(), ex.getMessage());
 
         assertSettingValue.accept("new value 2");
     }

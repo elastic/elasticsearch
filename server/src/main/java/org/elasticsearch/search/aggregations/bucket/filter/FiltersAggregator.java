@@ -280,6 +280,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         private long maxCost = -1;
         private long estimateCostTime;
         private Weight[] weights;
+        /**
+         * If {@link #estimateCost} was called then this'll contain a
+         * scorer per leaf per filter. If it wasn't then this'll be {@code null}. 
+         */
         private BulkScorer[][] scorers;
         private int segmentsWithDeletedDocs;
 
@@ -309,35 +313,34 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             }
             long limit = profiling ? Long.MAX_VALUE : maxCost;
             long start = profiling ? System.nanoTime() : 0;
-            try {
-                estimatedCost = 0;
-                weights = buildWeights(topLevelQuery(), filters);
-                List<LeafReaderContext> leaves = searcher().getIndexReader().leaves();
-                scorers = new BulkScorer[leaves.size()][];
-                for (LeafReaderContext ctx : leaves) {
-                    scorers[ctx.ord] = new BulkScorer[filters.length];
-                    for (int f = 0; f < filters.length; f++) {
-                        scorers[ctx.ord][f] = weights[f].bulkScorer(ctx);
-                        if (scorers[ctx.ord][f] == null) {
-                            // Doesn't find anything in this leaf
-                            continue;
-                        }
+            estimatedCost = 0;
+            weights = buildWeights(topLevelQuery(), filters);
+            List<LeafReaderContext> leaves = searcher().getIndexReader().leaves();
+            /*
+             * Its important that we save a copy of the BulkScorer because for
+             * queries like PointInRangeQuery building the scorer can be a big
+             * chunk of the run time.
+             */
+            scorers = new BulkScorer[leaves.size()][];
+            for (LeafReaderContext ctx : leaves) {
+                scorers[ctx.ord] = new BulkScorer[filters.length];
+                for (int f = 0; f < filters.length; f++) {
+                    scorers[ctx.ord][f] = weights[f].bulkScorer(ctx);
+                    if (scorers[ctx.ord][f] == null) {
+                        // Doesn't find anything in this leaf
+                        continue;
+                    }
+                    if (estimatedCost >= 0 && estimatedCost <= limit) {
+                        // If we've overflowed or are past the limit skip the cost
                         estimatedCost += scorers[ctx.ord][f].cost();
-                        if (estimatedCost < 0) {
-                            // Overflow
-                            return Long.MAX_VALUE;
-                        }
-                        if (estimatedCost > limit) {
-                            return estimatedCost;
-                        }
                     }
                 }
-                return estimatedCost;
-            } finally {
-                if (profiling) {
-                    estimateCostTime = System.nanoTime() - start;
-                }
             }
+            if (profiling) {
+                estimateCostTime = System.nanoTime() - start;
+            }
+            // If we've overflowed use Long.MAX_VALUE
+            return estimatedCost < 0 ? Long.MAX_VALUE : estimatedCost;
         }
 
         /**
@@ -476,7 +479,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
      * top level query on a date and a filter on a date. This kind of thing
      * is very common when visualizing logs and metrics.
      */
-    private Query filterMatchingBoth(Query lhs, Query rhs) {
+    static Query filterMatchingBoth(Query lhs, Query rhs) {
         if (lhs instanceof MatchAllDocsQuery) {
             return rhs;
         }
@@ -498,7 +501,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         return builder.build();
     }
 
-    private Query unwrap(Query query) {
+    private static Query unwrap(Query query) {
         if (query instanceof IndexSortSortedNumericDocValuesRangeQuery) {
             query = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
         }

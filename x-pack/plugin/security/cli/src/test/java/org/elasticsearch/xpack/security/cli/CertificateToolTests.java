@@ -551,7 +551,7 @@ public class CertificateToolTests extends ESTestCase {
      * A multi-stage test that:
      * - Create a new CA
      * - Uses that CA to create 2 node certificates
-     * - Creates a 3rd node certificate using an auto-generated CA
+     * - Creates a 3rd node certificate using an auto-generated CA or a self-signed cert
      * - Checks that the first 2 node certificates trust one another
      * - Checks that the 3rd node certificate is _not_ trusted
      * - Checks that all 3 certificates have the right values based on the command line options provided during generation
@@ -631,7 +631,7 @@ public class CertificateToolTests extends ESTestCase {
 
         assertThat(node2File, pathExists());
 
-        // Node 3 uses an auto generated CA, and therefore should not be trusted by the other nodes.
+        // Node 3 uses an auto generated CA or a self-signed cert, and therefore should not be trusted by the other nodes.
         final List<String> gen3Args = CollectionUtils.arrayAsArrayList(
             "-pass", node3Password,
             "-out", "<node3>",

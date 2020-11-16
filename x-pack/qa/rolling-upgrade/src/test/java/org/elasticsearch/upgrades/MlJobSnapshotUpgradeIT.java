@@ -198,12 +198,12 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         GetModelSnapshotsResponse modelSnapshots = getModelSnapshots(job.getId());
         assertThat(modelSnapshots.snapshots(), hasSize(2));
-        if (UPGRADE_FROM_VERSION.before(Version.V_7_9_0)) {
+        if (UPGRADE_FROM_VERSION.before(Version.V_7_0_0)) {
+            assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo((byte) 6));
+            assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo((byte) 6));
+        } else {
             assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo((byte) 7));
             assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo((byte) 7));
-        } else {
-            assertThat(modelSnapshots.snapshots().get(0).getMinVersion(), is(nullValue()));
-            assertThat(modelSnapshots.snapshots().get(1).getMinVersion(), is(nullValue()));
         }
     }
 

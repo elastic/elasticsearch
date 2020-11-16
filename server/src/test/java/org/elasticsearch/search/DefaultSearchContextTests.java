@@ -32,7 +32,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -127,7 +126,7 @@ public class DefaultSearchContextTests extends ESTestCase {
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 
 
-            final Supplier<Engine.SearcherSupplier> searcherSupplier = () -> new Engine.SearcherSupplier(null, Function.identity()) {
+            final Supplier<Engine.SearcherSupplier> searcherSupplier = () -> new Engine.SearcherSupplier(Function.identity()) {
                 @Override
                 protected void doClose() {
                 }
@@ -135,7 +134,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 @Override
                 protected Engine.Searcher acquireSearcherInternal(String source) {
                     try {
-                        IndexReader reader = ElasticsearchDirectoryReader.wrap(w.getReader(), shardId, r -> getSearcherId());
+                        IndexReader reader = w.getReader();
                         return new Engine.Searcher("test", reader, IndexSearcher.getDefaultSimilarity(),
                             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), reader);
                     } catch (IOException exc) {
@@ -262,7 +261,7 @@ public class DefaultSearchContextTests extends ESTestCase {
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 
 
-            final Engine.SearcherSupplier searcherSupplier = new Engine.SearcherSupplier(null, Function.identity()) {
+            final Engine.SearcherSupplier searcherSupplier = new Engine.SearcherSupplier(Function.identity()) {
                 @Override
                 protected void doClose() {
                 }
@@ -270,7 +269,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 @Override
                 protected Engine.Searcher acquireSearcherInternal(String source) {
                     try {
-                        IndexReader reader = ElasticsearchDirectoryReader.wrap(w.getReader(), shardId, r -> getSearcherId());
+                        IndexReader reader = w.getReader();
                         return new Engine.Searcher("test", reader, IndexSearcher.getDefaultSimilarity(),
                             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), reader);
                     } catch (IOException exc) {

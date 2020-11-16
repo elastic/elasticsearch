@@ -24,7 +24,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -36,7 +35,6 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
-import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -100,7 +98,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -593,43 +590,13 @@ public class InternalEngine extends Engine {
         return uuid;
     }
 
-    // pkg level for testing
-    final boolean isFullyCommitted(DirectoryReader reader) {
-        final boolean hasUncommittedChanges;
-        if (flushLock.tryLock()) {
-            try {
-                hasUncommittedChanges = indexWriter.hasUncommittedChanges();
-            } finally {
-                flushLock.unlock();
-            }
-        } else {
-            hasUncommittedChanges = true; // can't determine
-        }
-        try {
-            return hasUncommittedChanges == false && reader.isCurrent();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
     private ExternalReaderManager createReaderManager(RefreshWarmerListener externalRefreshListener) throws EngineException {
         boolean success = false;
         ElasticsearchReaderManager internalReaderManager = null;
         try {
             try {
                 final ElasticsearchDirectoryReader directoryReader =
-                    ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId, reader -> {
-                        // With soft-deletes enables, all changes are always written to disk and we can use id of segments of the reader
-                        // to compute its signature.
-                        reader = FilterDirectoryReader.unwrap(reader);
-                        if (reader instanceof StandardDirectoryReader) {
-                            final StandardDirectoryReader unwrapped = (StandardDirectoryReader) reader;
-                            return ElasticsearchDirectoryReader.getReaderIdFromSegmentInfos(unwrapped.getSegmentInfos(),
-                                () -> isFullyCommitted(unwrapped));
-                        } else {
-                            return null;
-                        }
-                    });
+                    ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
                 internalReaderManager = new ElasticsearchReaderManager(directoryReader,
                        new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService()));
                 lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();

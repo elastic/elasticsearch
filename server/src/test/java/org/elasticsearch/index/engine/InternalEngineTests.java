@@ -33,7 +33,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -174,7 +173,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
 import java.util.stream.Collectors;
@@ -6088,127 +6086,6 @@ public class InternalEngineTests extends EngineTestCase {
             assertTrue(engine.isClosed.get());
         } finally {
             IndexWriterMaxDocsChanger.restoreMaxDocs();
-        }
-    }
-
-    public void testBasicSearcherId() throws Exception {
-        Predicate<Engine.SearcherSupplier> fullyCommitted = ss -> {
-            try (Engine.Searcher searcher = ss.acquireSearcher("test")) {
-                final DirectoryReader unwrap = FilterDirectoryReader.unwrap(searcher.getDirectoryReader());
-                return engine.isFullyCommitted(unwrap);
-            }
-        };
-        engine.refresh("test"); // warm the engine
-        final Engine.SearcherSupplier s1 = engine.acquireSearcherSupplier(Function.identity());
-        assertNotNull(s1.getSearcherId());
-
-        engine.index(indexForDoc(createParsedDoc("1", null)));
-        assertFalse(fullyCommitted.test(s1));
-        if (randomBoolean()) {
-            engine.refresh("test", Engine.SearcherScope.INTERNAL, randomBoolean());
-        }
-        final Engine.SearcherSupplier s2 = engine.acquireSearcherSupplier(Function.identity());
-        assertThat(s2.getSearcherId(), equalTo(s1.getSearcherId()));
-
-        engine.flush(randomBoolean(), true);
-        final Engine.SearcherSupplier s3 = engine.acquireSearcherSupplier(Function.identity());
-        assertThat(s3.getSearcherId(), equalTo(s1.getSearcherId()));
-        assertFalse(fullyCommitted.test(s3));
-
-        engine.refresh("test");
-        final Engine.SearcherSupplier s4 = engine.acquireSearcherSupplier(Function.identity());
-        assertNotNull(s4.getSearcherId());
-        assertThat(s4.getSearcherId(), not(equalTo(s1.getSearcherId())));
-        assertTrue(fullyCommitted.test(s4));
-
-        engine.index(indexForDoc(createParsedDoc("2", null)));
-        engine.refresh("test");
-        final Engine.SearcherSupplier s5 = engine.acquireSearcherSupplier(Function.identity());
-        assertNotNull(s5.getSearcherId());
-        assertThat(s5.getSearcherId(), not(equalTo(s4.getSearcherId())));
-        assertFalse(fullyCommitted.test(s5));
-
-        engine.flush(randomBoolean(), true);
-        final Engine.SearcherSupplier s6 = engine.acquireSearcherSupplier(Function.identity());
-        assertNotNull(s6.getSearcherId());
-        assertThat(s6.getSearcherId(), equalTo(s5.getSearcherId()));
-        assertFalse(fullyCommitted.test(s6));
-
-        engine.refresh("test");
-        final Engine.SearcherSupplier s7 = engine.acquireSearcherSupplier(Function.identity());
-        assertNotNull(s7.getSearcherId());
-        assertThat(s7.getSearcherId(), equalTo(s6.getSearcherId()));
-        assertTrue(fullyCommitted.test(s7));
-
-        engine.forceMerge(false, 1, false, false, false, UUIDs.base64UUID());
-        engine.refresh("test");
-        final Engine.SearcherSupplier s8 = engine.acquireSearcherSupplier(Function.identity());
-        assertNotNull(s8.getSearcherId());
-        assertThat(s8.getSearcherId(), not(equalTo(s7.getSearcherId())));
-        assertFalse(fullyCommitted.test(s8));
-
-        engine.flush(randomBoolean(), true);
-        engine.refresh("test");
-        final Engine.SearcherSupplier s9 = engine.acquireSearcherSupplier(Function.identity());
-        assertNotNull(s9.getSearcherId());
-        assertThat(s9.getSearcherId(), equalTo(s8.getSearcherId()));
-        assertTrue(fullyCommitted.test(s9));
-
-        final List<Engine.SearcherSupplier> searchers = List.of(s1, s2, s3, s4, s5, s6, s7, s8, s9);
-        final Map<String, Map<Integer, DocIdSeqNoAndSource>> docStats = new HashMap<>();
-        for (Engine.SearcherSupplier searcher : searchers) {
-            if (searcher.getSearcherId() != null) {
-                try (Engine.Searcher reader = searcher.acquireSearcher("test")) {
-                    final Map<Integer, DocIdSeqNoAndSource> docs = getDocIds(reader.getIndexReader(), true);
-                    final Map<Integer, DocIdSeqNoAndSource> existing = docStats.put(searcher.getSearcherId(), docs);
-                    if (existing != null) {
-                        assertThat(existing, equalTo(docs));
-                    }
-                }
-            }
-        }
-        IOUtils.close(searchers);
-    }
-
-    public void testSearchIdConcurrently() throws Exception {
-        engine.refresh("test");
-        final List<Engine.Operation> operations = generateHistoryOnReplica(
-            between(100, 1000), randomBoolean(), randomBoolean(), randomBoolean());
-        Thread[] acquirers = new Thread[between(1, 4)];
-        AtomicBoolean stopped = new AtomicBoolean();
-        Map<String, Map<Integer, DocIdSeqNoAndSource>> docStats = ConcurrentCollections.newConcurrentMap();
-        CountDownLatch latch = new CountDownLatch(1);
-        for (int i = 0; i < acquirers.length; i++) {
-            acquirers[i] = new Thread(() -> {
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-                while (stopped.get() == false) {
-                    try (Engine.Searcher searcher = engine.acquireSearcher("test", randomFrom(Engine.SearcherScope.values()))) {
-                        final ElasticsearchDirectoryReader reader = ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(
-                            searcher.getDirectoryReader());
-                        final Map<Integer, DocIdSeqNoAndSource> docs;
-                        try {
-                            docs = getDocIds(reader, true);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                        final Map<Integer, DocIdSeqNoAndSource> existing = docStats.put(reader.getReaderId(), docs);
-                        if (existing != null) {
-                            assertThat(existing, equalTo(docs));
-                        }
-                    }
-                }
-            });
-            acquirers[i].start();
-        }
-        latch.countDown();
-        concurrentlyApplyOps(operations, engine);
-        stopped.set(true);
-        for (Thread acquirer : acquirers) {
-            acquirer.join();
         }
     }
 }

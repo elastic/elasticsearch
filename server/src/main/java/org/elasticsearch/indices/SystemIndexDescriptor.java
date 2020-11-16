@@ -124,7 +124,7 @@ public class SystemIndexDescriptor {
 
     @Override
     public String toString() {
-        return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "]]";
+        return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "], aliasName=[" + aliasName + "]]";
     }
 
     public String getMappings() {

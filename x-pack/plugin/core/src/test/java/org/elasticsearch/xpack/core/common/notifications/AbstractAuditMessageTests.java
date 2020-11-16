@@ -120,12 +120,15 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
         String truncated = AbstractAuditMessage.truncateMessage(message, 20);
         assertEquals("a ... (truncated)", truncated);
         assertThat(truncated.length(), lessThanOrEqualTo(20));
+
         truncated = AbstractAuditMessage.truncateMessage(message, 23);
         assertEquals("a short ... (truncated)", truncated);
         assertThat(truncated.length(), lessThanOrEqualTo(23));
+
         truncated = AbstractAuditMessage.truncateMessage(message, 31);
         assertEquals("a short message ... (truncated)", truncated);
         assertThat(truncated.length(), lessThanOrEqualTo(31));
+
         truncated = AbstractAuditMessage.truncateMessage(message, 32);
         assertEquals("a short message ... (truncated)", truncated);
         assertThat(truncated.length(), lessThanOrEqualTo(32));

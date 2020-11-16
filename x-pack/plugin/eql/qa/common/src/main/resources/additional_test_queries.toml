@@ -268,7 +268,8 @@ sequence by unique_pid
   [any where true]
   [any where serial_event_id < 72]
 '''
-expected_event_ids  = [54, 55, 59,
+expected_event_ids  = [
+                       54, 55, 59,
                        55, 59, 61,
                        59, 61, 65,
                        16, 60, 66,

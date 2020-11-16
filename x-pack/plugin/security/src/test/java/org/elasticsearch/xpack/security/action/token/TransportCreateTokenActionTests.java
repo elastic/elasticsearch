@@ -26,6 +26,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -61,6 +62,7 @@ import java.time.Clock;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -281,13 +283,26 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             authenticationService, securityContext);
         final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
         createTokenRequest.setGrantType("_kerberos");
-        createTokenRequest.setKerberosTicket(new SecureString("(:I".toCharArray()));
+        final char[] invalidBase64Chars = "!\"#$%&\\'()*,./:;<>?@[]^_`{|}~\t\n\r".toCharArray();
+        final String kerberosTicketValue = Strings.arrayToDelimitedString(
+            randomArray(1, 10, Character[]::new,
+                () -> invalidBase64Chars[randomIntBetween(0, invalidBase64Chars.length - 1)]), "");
+        createTokenRequest.setKerberosTicket(new SecureString(kerberosTicketValue.toCharArray()));
 
         PlainActionFuture<CreateTokenResponse> tokenResponseFuture = new PlainActionFuture<>();
-        action.doExecute(null, createTokenRequest, tokenResponseFuture);
+        action.doExecute(null, createTokenRequest, assertListenerIsOnlyCalledOnce(tokenResponseFuture));
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> tokenResponseFuture.actionGet());
         assertThat(e.getMessage(), containsString("could not decode base64 kerberos ticket"));
         // The code flow should stop after above failure and never reach authenticationService
         Mockito.verifyZeroInteractions(authenticationService);
+    }
+
+    private static <T> ActionListener<T> assertListenerIsOnlyCalledOnce(ActionListener<T> delegate) {
+        final AtomicInteger callCount = new AtomicInteger(0);
+        return ActionListener.runBefore(delegate, () -> {
+            if (callCount.incrementAndGet() != 1) {
+                fail("Listener was called twice");
+            }
+        });
     }
 }

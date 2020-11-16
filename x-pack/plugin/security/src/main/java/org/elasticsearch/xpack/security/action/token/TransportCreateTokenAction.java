@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationTok
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Transport action responsible for creating a token based on a request. Requests provide user
@@ -79,9 +80,9 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     private void authenticateAndCreateToken(GrantType grantType, CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
         Authentication originatingAuthentication = securityContext.getAuthentication();
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            final Tuple<AuthenticationToken, Exception> tokenAndException = extractAuthenticationToken(grantType, request);
-            if (tokenAndException.v2() != null) {
-                listener.onFailure(tokenAndException.v2());
+            final Tuple<AuthenticationToken, Optional<Exception>> tokenAndException = extractAuthenticationToken(grantType, request);
+            if (tokenAndException.v2().isPresent()) {
+                listener.onFailure(tokenAndException.v2().get());
                 return;
             }
             final AuthenticationToken authToken = tokenAndException.v1();
@@ -107,7 +108,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
         }
     }
 
-    private Tuple<AuthenticationToken, Exception> extractAuthenticationToken(GrantType grantType, CreateTokenRequest request) {
+    private Tuple<AuthenticationToken, Optional<Exception>> extractAuthenticationToken(GrantType grantType, CreateTokenRequest request) {
         AuthenticationToken authToken = null;
         if (grantType == GrantType.PASSWORD) {
             authToken = new UsernamePasswordToken(request.getUsername(), request.getPassword());
@@ -119,11 +120,11 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                 decodedKerberosTicket = Base64.getDecoder().decode(base64EncodedToken);
             } catch (IllegalArgumentException iae) {
                 return new Tuple<>(null,
-                    new UnsupportedOperationException("could not decode base64 kerberos ticket " + base64EncodedToken, iae));
+                    Optional.of(new UnsupportedOperationException("could not decode base64 kerberos ticket " + base64EncodedToken, iae)));
             }
             authToken = new KerberosAuthenticationToken(decodedKerberosTicket);
         }
-        return new Tuple<>(authToken, null);
+        return new Tuple<>(authToken, Optional.empty());
     }
 
     private void clearCredentialsFromRequest(GrantType grantType, CreateTokenRequest request) {

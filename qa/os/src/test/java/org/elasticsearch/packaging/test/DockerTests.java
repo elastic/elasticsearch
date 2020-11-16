@@ -682,7 +682,7 @@ public class DockerTests extends PackagingTestCase {
         assertThat("Incorrect PID", fields[0], equalTo("1"));
         assertThat("Incorrect UID", fields[1], equalTo("0"));
         assertThat("Incorrect GID", fields[2], equalTo("0"));
-        assertThat("Incorrect init command", fields[3], startsWith("/tini"));
+        assertThat("Incorrect init command", fields[3], startsWith("/bin/tini"));
     }
 
     /**

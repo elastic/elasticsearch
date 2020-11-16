@@ -55,6 +55,8 @@ disableTasks('forbiddenApisMain')
 // No licenses for our benchmark deps (we don't ship benchmarks)
 tasks.named("dependencyLicenses").configure { enabled = false }
 tasks.named("dependenciesInfo").configure {  enabled = false }
+tasks.named("dependenciesGraph").configure {  enabled = false }
+
 
 tasks.named("thirdPartyAudit").configure {
   ignoreViolations(

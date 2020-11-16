@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -54,7 +55,7 @@ public abstract class RestActionTestCase extends ESTestCase {
         controller = new RestController(Collections.emptySet(), null,
             verifyingClient,
             new NoneCircuitBreakerService(),
-            new UsageService());
+            new UsageService(), CompatibleVersion.CURRENT_VERSION);
     }
 
     @After

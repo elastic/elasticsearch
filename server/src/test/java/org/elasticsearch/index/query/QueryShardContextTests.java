@@ -86,6 +86,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -211,7 +212,8 @@ public class QueryShardContextTests extends ESTestCase {
             null,
             null,
             () -> true,
-            null
+            null,
+            emptyMap()
         );
 
         assertTrue(context.indexSortedOnField("sort_field"));

@@ -505,7 +505,7 @@ support. Since PEM format is the most commonly supported format, the examples
 below will generate certificates in that format.
 
 Using the <<certutil,`elasticsearch-certutil` tool>>, you can generate a
-self-signed certificate with the following command:
+signing certificate with the following command:
 
 [source, sh]
 --------------------------------------------------

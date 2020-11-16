@@ -632,15 +632,24 @@ public class CertificateToolTests extends ESTestCase {
         assertThat(node2File, pathExists());
 
         // Node 3 uses an auto generated CA, and therefore should not be trusted by the other nodes.
+        final List<String> gen3Args = CollectionUtils.arrayAsArrayList(
+            "-pass", node3Password,
+            "-out", "<node3>",
+            "-keysize", String.valueOf(node3KeySize),
+            "-days", String.valueOf(days),
+            "-dns", "node03.cluster2.es.internal.corp.net",
+            "-ip", node3Ip
+        );
+        final boolean selfSigned = randomBoolean();
+        if (selfSigned) {
+            gen3Args.add("-self-signed");
+        } else {
+            gen3Args.add("-ca-dn");
+            gen3Args.add("CN=My ElasticSearch Cluster 2");
+        }
         final GenerateCertificateCommand gen3Command = new PathAwareGenerateCertificateCommand(null, node3File);
         final OptionSet gen3Options = gen3Command.getParser().parse(
-                "-ca-dn", "CN=My ElasticSearch Cluster 2",
-                "-pass", node3Password,
-                "-out", "<node3>",
-                "-keysize", String.valueOf(node3KeySize),
-                "-days", String.valueOf(days),
-                "-dns", "node03.cluster2.es.internal.corp.net",
-                "-ip", node3Ip);
+                Strings.toStringArray(gen3Args));
         gen3Command.execute(terminal, gen3Options, env);
 
         assertThat(node3File, pathExists());
@@ -677,6 +686,16 @@ public class CertificateToolTests extends ESTestCase {
         assertThat(getDurationInDays((X509Certificate) node3Cert), equalTo(days));
         final Key node3Key = node3KeyStore.getKey(CertificateTool.DEFAULT_CERT_NAME, node3Password.toCharArray());
         assertThat(getKeySize(node3Key), equalTo(node3KeySize));
+        final Certificate[] certificateChain = node3KeyStore.getCertificateChain(CertificateTool.DEFAULT_CERT_NAME);
+        final X509Certificate node3x509Certificate = (X509Certificate) certificateChain[0];
+        if (selfSigned) {
+            assertEquals(1, certificateChain.length);
+            assertEquals(node3x509Certificate.getSubjectX500Principal(), node3x509Certificate.getIssuerX500Principal());
+        } else {
+            assertEquals(2, certificateChain.length);
+            assertEquals(node3x509Certificate.getIssuerX500Principal(),
+                ((X509Certificate) certificateChain[1]).getSubjectX500Principal());
+        }
     }
 
 

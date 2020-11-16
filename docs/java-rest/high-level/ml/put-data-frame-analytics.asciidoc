@@ -7,7 +7,7 @@
 [id="{upid}-{api}"]
 === Put {dfanalytics-jobs} API
 
-experimental::[]
+beta::[]
 
 Creates a new {dfanalytics-job}.
 The API accepts a +{request}+ object as a request and returns a +{response}+.

@@ -54,6 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
+
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1), equalTo("1.0"));
         assertThat(simpleMappedFieldType().docValueFormat("#,##0.##", null).format(11), equalTo("11"));
@@ -256,7 +257,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     @Override
-    protected String runtimeType() {
+    protected String typeName() {
         return "long";
     }
 
@@ -338,7 +339,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             LongFieldScript.Factory factory = scriptService.compile(script, LongFieldScript.CONTEXT);
-            return new LongScriptFieldType("test", script, factory, emptyMap());
+            return new LongScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
         }
     }
 }

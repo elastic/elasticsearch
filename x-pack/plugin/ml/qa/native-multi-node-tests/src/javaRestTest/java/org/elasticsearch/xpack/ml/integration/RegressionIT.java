@@ -570,7 +570,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgressIsZero(jobId);
 
         startAnalytics(jobId);
-        waitUntilAnalyticsIsStopped(jobId);
+
+        // This seems to some times take a bit longer than 30 seconds on CI
+        // so we give it a minute.
+        waitUntilAnalyticsIsStopped(jobId, TimeValue.timeValueMinutes(1));
 
         double predictionErrorSum = 0.0;
 
@@ -698,7 +701,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "          \"type\": \"double\"\n" +
             "        }," +
             "        \"" + DISCRETE_NUMERICAL_FEATURE_FIELD + "\": {\n" +
-            "          \"type\": \"long\"\n" +
+            "          \"type\": \"unsigned_long\"\n" +
             "        }," +
             "        \"" + DEPENDENT_VARIABLE_FIELD + "\": {\n" +
             "          \"type\": \"double\"\n" +

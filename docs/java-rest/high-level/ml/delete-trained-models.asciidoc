@@ -7,7 +7,7 @@
 [id="{upid}-{api}"]
 === Delete trained models API
 
-experimental::[]
+beta::[]
 
 Deletes a previously saved trained model.
 The API accepts a +{request}+ object and returns a +{response}+.

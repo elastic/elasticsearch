@@ -78,7 +78,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
 
 `forbid_closed_indices`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, statistics are *not* collected from closed indices.
 Defaults to `true`.
 

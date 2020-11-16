@@ -38,12 +38,20 @@ public class KibanaPluginTests extends ESTestCase {
                 .stream()
                 .map(SystemIndexDescriptor::getIndexPattern)
                 .collect(Collectors.toUnmodifiableList()),
-            contains(".kibana*", ".reporting", ".apm-agent-configuration")
+            contains(".kibana", ".kibana_*", ".reporting-*", ".apm-agent-configuration", ".apm-custom-link")
         );
-        final List<String> names = List.of("." + randomAlphaOfLength(4), "." + randomAlphaOfLength(6));
+
+        final List<String> names = List.of("." + randomAlphaOfLength(4), "." + randomAlphaOfLength(5));
         final List<String> namesFromDescriptors = new KibanaPlugin().getSystemIndexDescriptors(
             Settings.builder().putList(KibanaPlugin.KIBANA_INDEX_NAMES_SETTING.getKey(), names).build()
         ).stream().map(SystemIndexDescriptor::getIndexPattern).collect(Collectors.toUnmodifiableList());
         assertThat(namesFromDescriptors, is(names));
+
+        assertThat(
+            new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY)
+                .stream()
+                .anyMatch(systemIndexDescriptor -> systemIndexDescriptor.matchesIndexPattern(".kibana-event-log-7-1")),
+            is(false)
+        );
     }
 }

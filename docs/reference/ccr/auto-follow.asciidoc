@@ -7,6 +7,13 @@ each new index in the series is replicated automatically. Whenever the name of
 a new index on the remote cluster matches the auto-follow pattern, a
 corresponding follower index is added to the local cluster.
 
+You can also create auto-follow patterns for data streams. When a new backing
+index is generated on a remote cluster, that index and its data stream are
+automatically followed if the data stream name matches an auto-follow
+pattern. If you create a data stream after creating the auto-follow pattern,
+all backing indices are followed automatically.
+
+
 Auto-follow patterns are especially useful with
 <<index-lifecycle-management,{ilm-cap}>>, which might continually create
 new indices on the cluster containing the leader index.

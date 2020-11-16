@@ -145,6 +145,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         waitUntilJobIsClosed(job.getId());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63973")
     public void testDatafeedTimingStats_DatafeedRecreated() throws Exception {
         client().admin().indices().prepareCreate("data")
             .setMapping("time", "type=date")

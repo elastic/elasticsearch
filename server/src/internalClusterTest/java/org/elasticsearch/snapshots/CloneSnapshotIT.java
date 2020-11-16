@@ -562,7 +562,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         } finally {
             unblockNode(repoName, masterName);
         }
-        awaitNumberOfSnapshotsInProgress(1);
+        awaitNoMoreRunningOperations();
 
         awaitMasterFinishRepoOperations();
 

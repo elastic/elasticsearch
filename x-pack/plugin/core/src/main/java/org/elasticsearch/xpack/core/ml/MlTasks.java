@@ -26,10 +26,12 @@ public final class MlTasks {
     public static final String JOB_TASK_NAME = "xpack/ml/job";
     public static final String DATAFEED_TASK_NAME = "xpack/ml/datafeed";
     public static final String DATA_FRAME_ANALYTICS_TASK_NAME = "xpack/ml/data_frame/analytics";
+    public static final String JOB_SNAPSHOT_UPGRADE_TASK_NAME = "xpack/ml/job/snapshot/upgrade";
 
     public static final String JOB_TASK_ID_PREFIX = "job-";
     public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
     public static final String DATA_FRAME_ANALYTICS_TASK_ID_PREFIX = "data_frame_analytics-";
+    public static final String JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX = "job-snapshot-upgrade-";
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE =
         new PersistentTasksCustomMetadata.Assignment(null,
@@ -54,6 +56,10 @@ public final class MlTasks {
         return DATAFEED_TASK_ID_PREFIX + datafeedId;
     }
 
+    public static String snapshotUpgradeTaskId(String jobId, String snapshotId) {
+        return JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX + jobId + "-" + snapshotId;
+    }
+
     /**
      * Namespaces the task ids for data frame analytics.
      */
@@ -76,6 +82,13 @@ public final class MlTasks {
     public static PersistentTasksCustomMetadata.PersistentTask<?> getDataFrameAnalyticsTask(String analyticsId,
                                                                                             @Nullable PersistentTasksCustomMetadata tasks) {
         return tasks == null ? null : tasks.getTask(dataFrameAnalyticsTaskId(analyticsId));
+    }
+
+    @Nullable
+    public static PersistentTasksCustomMetadata.PersistentTask<?> getSnapshotUpgraderTask(String jobId,
+                                                                                          String snapshotId,
+                                                                                          @Nullable PersistentTasksCustomMetadata tasks) {
+        return tasks == null ? null : tasks.getTask(snapshotUpgradeTaskId(jobId, snapshotId));
     }
 
     /**

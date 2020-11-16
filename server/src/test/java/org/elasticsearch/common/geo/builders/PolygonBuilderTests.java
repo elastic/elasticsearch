@@ -24,6 +24,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 
@@ -159,6 +160,18 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
         PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder()
             .coordinate(0.0, 0.0).coordinate(1.0, 1.0).coordinate(-1.0, -1.0).close());
         InvalidShapeException e = expectThrows(InvalidShapeException.class, pb::buildS4J);
-        assertEquals("Cannot determine orientation: edges adjacent to (-1.0,-1.0) coincide", e.getMessage());
+        assertEquals("Cannot determine orientation: signed area equal to 0", e.getMessage());
+    }
+
+    public void testCrossingDateline() {
+        PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(170, -10).coordinate(-170, -10).coordinate(-170, 10).coordinate(170, 10).coordinate(170, -10));
+        JtsGeometry geometry = pb.buildS4J();
+
+        assertTrue(geometry.getGeom() instanceof org.locationtech.jts.geom.MultiPolygon);
+        pb = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(180, -10).coordinate(-170, -5).coordinate(-170, 15).coordinate(170, -15).coordinate(180, -10));
+        geometry = pb.buildS4J();
+        assertTrue(geometry.getGeom() instanceof org.locationtech.jts.geom.MultiPolygon);
     }
 }

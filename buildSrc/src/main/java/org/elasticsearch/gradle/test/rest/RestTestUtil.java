@@ -62,10 +62,10 @@ public class RestTestUtil {
             project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
                 Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
                 testTask.dependsOn(bundle);
-                if (project.getPath().contains("modules:")) {
+                if (project.getPath().contains("modules:") || project.getPath().startsWith(":x-pack:plugin")) {
                     testTask.getClusters().forEach(c -> c.module(bundle.getArchiveFile()));
                 } else {
-                    testTask.getClusters().forEach(c -> c.plugin(project.getObjects().fileProperty().value(bundle.getArchiveFile())));
+                    testTask.getClusters().forEach(c -> c.plugin(bundle.getArchiveFile()));
                 }
             });
         });

@@ -12,7 +12,6 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -21,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Factory> {
     public static final DateFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
@@ -54,7 +52,7 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                 DateFieldScript script = new DateFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(mock(MapperService.class), (ft, lookup) -> null),
+                    new SearchLookup(field -> null, (ft, lookup) -> null),
                     DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random())),
                     reader.leaves().get(0)
                 ) {

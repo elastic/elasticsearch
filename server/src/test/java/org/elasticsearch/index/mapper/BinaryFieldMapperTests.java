@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,7 +32,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryFieldMapperTests extends MapperTestCase {
@@ -90,7 +91,10 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
 
         assertThat(mapper, instanceOf(BinaryFieldMapper.class));
-        assertThat(mapper.fieldType.stored(), equalTo(false));
+
+        byte[] value = new byte[100];
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", value)));
+        assertEquals(0, doc.rootDoc().getFields("field").length);
     }
 
     public void testStoredValue() throws IOException {
@@ -116,6 +120,9 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", value)));
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
             assertEquals(new BytesRef(value), indexedValue);
+            IndexableField field = doc.rootDoc().getField("field");
+            assertTrue(field.fieldType().stored());
+            assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
 
             MappedFieldType fieldType = mapperService.fieldType("field");
             Object originalValue = fieldType.valueForDisplay(indexedValue);

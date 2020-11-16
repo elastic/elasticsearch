@@ -1727,7 +1727,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(backingIndex.getIndex()), 1));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(backingIndex.getIndex())));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -1916,7 +1916,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(index1, false)
             .put(index2, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex()), 2));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -2089,6 +2089,31 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 1)));
         assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2)));
         assertThat(result[2].getName(), equalTo("logs-foobarbaz-0"));
+    }
+
+    public void testHiddenDataStreams() {
+        final String dataStream1 = "logs-foobar";
+        IndexMetadata index1 = createBackingIndex(dataStream1, 1).build();
+        IndexMetadata index2 = createBackingIndex(dataStream1, 2).build();
+        IndexMetadata justAnIndex = IndexMetadata.builder("logs-foobarbaz-0")
+            .settings(ESTestCase.settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        ClusterState state = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder()
+                .put(index1, false)
+                .put(index2, false)
+                .put(justAnIndex, false)
+                .put(new DataStream(dataStream1, createTimestampField("@timestamp"),
+                    List.of(index1.getIndex(), index2.getIndex()), 2, Collections.emptyMap(), true))).build();
+
+        Index[] result = indexNameExpressionResolver.concreteIndices(state, IndicesOptions.strictExpandHidden(), true, "logs-*");
+        assertThat(result, arrayContainingInAnyOrder(index1.getIndex(), index2.getIndex(), justAnIndex.getIndex() ));
+
+        result = indexNameExpressionResolver.concreteIndices(state, IndicesOptions.strictExpandOpen(), true, "logs-*");
+        assertThat(result, arrayContaining(justAnIndex.getIndex()));
     }
 
     public void testDataStreamsNames() {

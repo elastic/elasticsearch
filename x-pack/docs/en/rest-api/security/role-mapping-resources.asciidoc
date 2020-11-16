@@ -5,7 +5,7 @@
 A role mapping resource has the following properties: 
 
 `enabled`::
-(boolean)  Mappings that have `enabled` set to `false` are ignored when role
+(Boolean)  Mappings that have `enabled` set to `false` are ignored when role
 mapping is performed.
 
 `metadata`::

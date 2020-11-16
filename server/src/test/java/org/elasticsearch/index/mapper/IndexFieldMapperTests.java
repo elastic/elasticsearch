@@ -19,52 +19,23 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-
-import java.io.IOException;
-import java.util.Collection;
-
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class IndexFieldMapperTests extends ESSingleNodeTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
-    }
+public class IndexFieldMapperTests extends MapperServiceTestCase {
 
     public void testDefaultDisabledIndexMapper() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "value")
-                        .endObject()),
-                XContentType.JSON));
-
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument doc = docMapper.parse(source(b -> b.field("field", "value")));
         assertThat(doc.rootDoc().get("_index"), nullValue());
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
 
-    public void testIndexNotConfigurable() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_index").endObject()
-                .endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
+    public void testIndexNotConfigurable() {
         MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> mapperService.parse("type", new CompressedXContent(mapping)));
-        assertEquals("_index is not configurable", e.getMessage());
+                () -> createMapperService(topMapping(b -> b.startObject("_index").endObject())));
+        assertThat(e.getMessage(), containsString("_index is not configurable"));
     }
 
 }

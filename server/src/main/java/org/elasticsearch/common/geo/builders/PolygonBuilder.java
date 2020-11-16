@@ -46,8 +46,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.apache.lucene.geo.GeoUtils.orient;
-
 /**
  * The {@link PolygonBuilder} implements the groundwork to create polygons. This contains
  * Methods to wrap polygons at the dateline and building shapes from the data held by the
@@ -678,17 +676,27 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
      */
     private static Edge[] ring(int component, boolean direction, boolean handedness,
                                  Coordinate[] points, int offset, Edge[] edges, int toffset, int length, final AtomicBoolean translated) {
-
-        boolean orientation = getOrientation(points, offset, length);
+        double signedArea = 0;
+        double minX = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        for (int i = offset; i < offset + length; i++) {
+            signedArea += points[i].x * points[i + 1].y - points[i].y * points[i + 1].x;
+            minX = Math.min(minX, points[i].x);
+            maxX = Math.max(maxX, points[i].x);
+        }
+        if (signedArea == 0) {
+            // Points are collinear or self-intersection
+            throw new InvalidShapeException("Cannot determine orientation: signed area equal to 0");
+        }
+        boolean orientation = signedArea < 0;
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
         // thus if orientation is computed as cw, the logic will translate points across dateline
         // and convert to a right handed system
 
-        // compute the bounding box and calculate range
-        double[] range = range(points, offset, length);
-        final double rng = range[1] - range[0];
+        // calculate range
+        final double rng = maxX - minX;
         // translate the points if the following is true
         //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres
         //       (translation would result in a collapsed poly)
@@ -706,72 +714,6 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
             }
         }
         return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
-    }
-
-    /**
-     * @return whether the points are clockwise (true) or anticlockwise (false)
-     */
-    private static boolean getOrientation(Coordinate[] points, int offset, int length) {
-        // calculate the direction of the points: find the southernmost point
-        // and check its neighbors orientation.
-
-        final int top = top(points, offset, length);
-        final int prev = (top + length - 1) % length;
-        final int next = (top + 1) % length;
-
-        final int determinantSign = orient(
-            points[offset + prev].x, points[offset + prev].y,
-            points[offset + top].x, points[offset + top].y,
-            points[offset + next].x, points[offset + next].y);
-
-        if (determinantSign == 0) {
-            // Points are collinear, but `top` is not in the middle if so, so the edges either side of `top` are intersecting.
-            throw new InvalidShapeException("Cannot determine orientation: edges adjacent to ("
-                + points[offset + top].x + "," + points[offset +top].y + ") coincide");
-        }
-
-        return determinantSign < 0;
-    }
-
-    /**
-     * @return the (offset) index of the point that is furthest west amongst
-     * those points that are the furthest south in the set.
-     */
-    private static int top(Coordinate[] points, int offset, int length) {
-        int top = 0; // we start at 1 here since top points to 0
-        for (int i = 1; i < length; i++) {
-            if (points[offset + i].y < points[offset + top].y) {
-                top = i;
-            } else if (points[offset + i].y == points[offset + top].y) {
-                if (points[offset + i].x < points[offset + top].x) {
-                    top = i;
-                }
-            }
-        }
-        return top;
-    }
-
-    private static double[] range(Coordinate[] points, int offset, int length) {
-        double minX = points[0].x;
-        double maxX = points[0].x;
-        double minY = points[0].y;
-        double maxY = points[0].y;
-        // compute the bounding coordinates (@todo: cleanup brute force)
-        for (int i = 1; i < length; ++i) {
-            if (points[offset + i].x < minX) {
-                minX = points[offset + i].x;
-            }
-            if (points[offset + i].x > maxX) {
-                maxX = points[offset + i].x;
-            }
-            if (points[offset + i].y < minY) {
-                minY = points[offset + i].y;
-            }
-            if (points[offset + i].y > maxY) {
-                maxY = points[offset + i].y;
-            }
-        }
-        return new double[] {minX, maxX, minY, maxY};
     }
 
     /**

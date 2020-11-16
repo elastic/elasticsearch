@@ -51,9 +51,11 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalGeoDistanceTes
 import org.elasticsearch.search.aggregations.bucket.range.InternalRangeTests;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSamplerTests;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.LongRareTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.StringRareTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMaxTests;
@@ -135,6 +137,8 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new LongTermsTests());
         aggsTests.add(new DoubleTermsTests());
         aggsTests.add(new StringTermsTests());
+        aggsTests.add(new LongRareTermsTests());
+        aggsTests.add(new StringRareTermsTests());
         aggsTests.add(new InternalMissingTests());
         aggsTests.add(new InternalNestedTests());
         aggsTests.add(new InternalReverseNestedTests());

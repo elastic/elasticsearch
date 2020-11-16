@@ -102,6 +102,7 @@ public class NestedDocuments {
 
         @Override
         public SearchHit.NestedIdentity advance(int doc) {
+            assert doc >= 0 && doc < ctx.reader().maxDoc();
             if (parentFilter.get(doc)) {
                 // parent doc, no nested identity
                 this.nestedIdentity = null;

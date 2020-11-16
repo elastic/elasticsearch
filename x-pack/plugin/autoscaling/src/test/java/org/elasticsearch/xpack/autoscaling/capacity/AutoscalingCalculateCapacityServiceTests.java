@@ -15,8 +15,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -37,7 +41,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCase {
     public void testMultiplePoliciesFixedCapacity() {
-        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
+            Set.of(new FixedAutoscalingDeciderService()),
+            null,
+            null
+        );
         Set<String> policyNames = IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(i -> "test_ " + randomAlphaOfLength(10))
             .collect(Collectors.toSet());
@@ -113,11 +121,19 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         ClusterInfo info = ClusterInfo.EMPTY;
         SortedSet<String> roleNames = randomRoles();
-        AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext context =
-            new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info);
+
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Set.of());
+        ShardsAllocator shardsAllocator = new BalancedShardsAllocator(Settings.EMPTY);
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
+            Set.of(new FixedAutoscalingDeciderService()),
+            allocationDeciders,
+            shardsAllocator
+        );
+        AutoscalingDeciderContext context = service.createContext(roleNames, state, info);
 
         assertSame(state, context.state());
-
+        assertSame(allocationDeciders, context.allocationDeciders());
+        assertSame(shardsAllocator, context.shardsAllocator());
         assertThat(context.nodes(), equalTo(Set.of()));
         assertThat(context.currentCapacity(), equalTo(AutoscalingCapacity.ZERO));
 
@@ -130,7 +146,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 DiscoveryNodes.builder().add(new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Map.of(), roles, Version.CURRENT))
             )
             .build();
-        context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info);
+        context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null, null);
 
         assertThat(context.nodes().size(), equalTo(1));
         assertThat(context.nodes(), equalTo(StreamSupport.stream(state.nodes().spliterator(), false).collect(Collectors.toSet())));
@@ -167,7 +183,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         }
         state = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
         info = new ClusterInfo(leastUsages.build(), mostUsages.build(), null, null, null);
-        context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info);
+        context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null, null);
 
         assertThat(context.nodes(), equalTo(expectedNodes));
         AutoscalingCapacity capacity = context.currentCapacity();

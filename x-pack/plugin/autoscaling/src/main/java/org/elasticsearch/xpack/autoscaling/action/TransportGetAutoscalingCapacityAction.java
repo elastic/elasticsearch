@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -35,7 +37,9 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final AutoscalingCalculateCapacityService.Holder capacityServiceHolder,
-        final ClusterInfoService clusterInfoService
+        final ClusterInfoService clusterInfoService,
+        final AllocationDeciders allocationDeciders,
+        final ShardsAllocator shardsAllocator
     ) {
         super(
             GetAutoscalingCapacityAction.NAME,
@@ -48,7 +52,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
             GetAutoscalingCapacityAction.Response::new,
             ThreadPool.Names.SAME
         );
-        this.capacityService = capacityServiceHolder.get();
+        this.capacityService = capacityServiceHolder.get(allocationDeciders, shardsAllocator);
         this.clusterInfoService = clusterInfoService;
         assert this.capacityService != null;
     }

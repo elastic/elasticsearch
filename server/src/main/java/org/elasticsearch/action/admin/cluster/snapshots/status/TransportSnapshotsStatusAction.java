@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
@@ -86,24 +85,14 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                           ThreadPool threadPool, RepositoriesService repositoriesService, NodeClient client,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              SnapshotsStatusRequest::new, indexNameExpressionResolver);
+              SnapshotsStatusRequest::new, indexNameExpressionResolver, SnapshotsStatusResponse::new, ThreadPool.Names.GENERIC);
         this.repositoriesService = repositoriesService;
         this.client = client;
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(SnapshotsStatusRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
-    }
-
-    @Override
-    protected SnapshotsStatusResponse read(StreamInput in) throws IOException {
-        return new SnapshotsStatusResponse(in);
     }
 
     @Override

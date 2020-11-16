@@ -22,9 +22,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 import org.junit.Assert;
@@ -47,7 +50,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     final AtomicInteger numSuccess;
     final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
     SearchTransportService searchTransport;
-    final Set<SearchContextId> releasedSearchContexts = new HashSet<>();
+    final Set<ShardSearchContextId> releasedSearchContexts = new HashSet<>();
     final SearchRequest searchRequest = new SearchRequest();
     final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
@@ -74,7 +77,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public SearchTask getTask() {
-        return new SearchTask(0, "n/a", "n/a", "test", null, Collections.emptyMap());
+        return new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
     }
 
     @Override
@@ -83,9 +86,12 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
+    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+        String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
+        String searchContextId =
+            getRequest().pointInTimeBuilder() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
         searchResponse.set(new SearchResponse(internalSearchResponse, scrollId, numShards, numSuccess.get(), 0, 0,
-            failures.toArray(ShardSearchFailure.EMPTY_ARRAY), SearchResponse.Clusters.EMPTY));
+            failures.toArray(ShardSearchFailure.EMPTY_ARRAY), SearchResponse.Clusters.EMPTY, searchContextId));
     }
 
     @Override
@@ -126,6 +132,11 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
+    public void addReleasable(Releasable releasable) {
+        // Noop
+    }
+
+    @Override
     public void execute(Runnable command) {
         command.run();
     }
@@ -136,7 +147,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public void sendReleaseSearchContext(SearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
         releasedSearchContexts.add(contextId);
     }
 }

@@ -55,6 +55,7 @@ import java.util.Properties;
 import java.util.Set;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
+import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 
 /**
  * Initializes natives and installs test security manager
@@ -109,7 +110,7 @@ public class BootstrapForTesting {
                 Permissions perms = new Permissions();
                 Security.addClasspathPermissions(perms);
                 // java.io.tmpdir
-                FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete");
+                FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete", false);
                 // custom test config file
                 if (Strings.hasLength(System.getProperty("tests.config"))) {
                     FilePermissionUtils.addSingleFilePath(perms, PathUtils.get(System.getProperty("tests.config")), "read,readlink");
@@ -137,22 +138,37 @@ public class BootstrapForTesting {
                 // TODO: cut over all tests to bind to ephemeral ports
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
 
+                boolean inGradle = System.getProperty("tests.gradle") != null;
+
                 // read test-framework permissions
-                Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
-                if (System.getProperty("tests.gradle") == null) {
+                Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
+                // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
+                addClassCodebase(codebases,"elasticsearch", "org.elasticsearch.plugins.PluginsService");
+                if (inGradle == false) {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
-                    addClassCodebase(codebases,"plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
+                    addClassCodebase(codebases,"elasticsearch-plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
                     addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
                     addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
                     addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
                 }
-                final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
-                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true);
+                final Policy testFramework = PolicyUtil.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
+                final Policy runnerPolicy;
+                if (inGradle) {
+                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("gradle.policy"), codebases);
+                } else {
+                    runnerPolicy = PolicyUtil.readPolicy(Bootstrap.class.getResource("intellij.policy"), codebases);
+                }
+                // this mimicks the recursive data path permission added in Security.java
+                Permissions fastPathPermissions = new Permissions();
+                addDirectoryPath(fastPathPermissions, "java.io.tmpdir-fastpath", javaTmpDir, "read,readlink,write,delete", true);
+
+                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, fastPathPermissions);
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
                         // implements union
-                        return esPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
+                        return esPolicy.implies(domain, permission) || testFramework.implies(domain, permission) ||
+                            runnerPolicy.implies(domain, permission);
                     }
                 });
                 System.setSecurityManager(SecureSM.createTestSecureSM());
@@ -222,7 +238,7 @@ public class BootstrapForTesting {
         // parse each policy file, with codebase substitution from the classpath
         final List<Policy> policies = new ArrayList<>(pluginPolicies.size());
         for (URL policyFile : pluginPolicies) {
-            policies.add(Security.readPolicy(policyFile, Security.getCodebaseJarMap(codebases)));
+            policies.add(PolicyUtil.readPolicy(policyFile, PolicyUtil.getCodebaseJarMap(codebases)));
         }
 
         // consult each policy file for those codebases

@@ -19,15 +19,10 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Type;
 
-public class StoreDotDefNode extends StoreAccessNode {
+public class StoreDotDefNode extends StoreNode {
 
     /* ---- begin node data ---- */
 
@@ -50,21 +45,13 @@ public class StoreDotDefNode extends StoreAccessNode {
 
     @Override
     public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
-        getAccessNode().visit(irTreeVisitor, scope);
+        // do nothing; terminal node
     }
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        getAccessNode().write(classWriter, methodWriter, writeScope);
-        getChildNode().write(classWriter, methodWriter, writeScope);
-
-        methodWriter.writeDebugInfo(location);
-        Type methodType = Type.getMethodType(
-                MethodWriter.getType(void.class),
-                MethodWriter.getType(def.class),
-                MethodWriter.getType(getStoreType()));
-        methodWriter.invokeDefCall(value, methodType, DefBootstrap.STORE);
+    public StoreDotDefNode(Location location) {
+        super(location);
     }
+
 }

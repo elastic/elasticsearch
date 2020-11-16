@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -178,7 +179,9 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metadata(metadata);
 
         ClusterState cs = csBuilder.build();
-        assertEquals(0, TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, new IndexNameExpressionResolver()).size());
+        assertEquals(0,
+            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs,
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))).size());
 
         metadata = new Metadata.Builder(cs.metadata());
         routingTable = new RoutingTable.Builder(cs.routingTable());
@@ -204,7 +207,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metadata(metadata);
         List<String> result = TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(
             csBuilder.build(),
-            new IndexNameExpressionResolver()
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
         );
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));
@@ -391,7 +394,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             mock(ThreadPool.class),
             clusterService,
             Settings.EMPTY,
-            new IndexNameExpressionResolver()
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
         );
     }
 }

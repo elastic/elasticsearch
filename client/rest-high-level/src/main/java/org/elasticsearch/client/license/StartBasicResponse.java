@@ -67,7 +67,7 @@ public class StartBasicResponse {
                             throw new XContentParseException(parser.getTokenLocation(), "expected message header or acknowledgement");
                         }
                         if (new ParseField("message").getPreferredName().equals(currentFieldName)) {
-                            ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser::getTokenLocation);
+                            ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
                             message = parser.text();
                         } else {
                             if (token != XContentParser.Token.START_ARRAY) {
@@ -75,7 +75,7 @@ public class StartBasicResponse {
                             }
                             List<String> acknowledgeMessagesList = new ArrayList<>();
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser::getTokenLocation);
+                                ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
                                 acknowledgeMessagesList.add(parser.text());
                             }
                             acknowledgeMessages.put(currentFieldName, acknowledgeMessagesList.toArray(new String[0]));

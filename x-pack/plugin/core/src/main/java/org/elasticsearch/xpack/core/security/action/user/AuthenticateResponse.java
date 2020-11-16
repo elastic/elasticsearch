@@ -34,4 +34,4 @@ public class AuthenticateResponse extends ActionResponse {
         authentication.writeTo(out);
     }
 
-    }
+}

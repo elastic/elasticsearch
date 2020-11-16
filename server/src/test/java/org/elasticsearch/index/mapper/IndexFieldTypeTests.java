@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.function.Predicate;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 
 public class IndexFieldTypeTests extends ESTestCase {
@@ -46,14 +47,16 @@ public class IndexFieldTypeTests extends ESTestCase {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("ind*x", null, createContext()));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("iNd*x", null, true, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("other_ind*x", null, createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("Other_ind*x", null, true, createContext()));
     }
 
     public void testRegexpQuery() {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
         QueryShardException e = expectThrows(QueryShardException.class, () ->
-            assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 10, null, createContext())));
+            assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext())));
         assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
     }
 
@@ -67,6 +70,6 @@ public class IndexFieldTypeTests extends ESTestCase {
 
         Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
         return new QueryShardContext(0, indexSettings, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, System::currentTimeMillis, null, indexNameMatcher, () -> true, null);
+            null, null, System::currentTimeMillis, null, indexNameMatcher, () -> true, null, emptyMap());
     }
 }

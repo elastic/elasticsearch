@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -35,18 +34,19 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING;
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.VALUE;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     public static final String TYPE = "data_frame_analytics_config";
 
-    public static final ByteSizeValue DEFAULT_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.GB);
-    public static final ByteSizeValue MIN_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.KB);
+    public static final ByteSizeValue DEFAULT_MODEL_MEMORY_LIMIT = ByteSizeValue.ofGb(1);
+    public static final ByteSizeValue MIN_MODEL_MEMORY_LIMIT = ByteSizeValue.ofKb(1);
     /**
      * This includes the overhead of thread stacks and data structures that the program might use that
      * are not instrumented.  But it does NOT include the memory used by loading the executable code.
      */
-    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(5, ByteSizeUnit.MB);
+    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = ByteSizeValue.ofMb(5);
 
     public static final ParseField ID = new ParseField("id");
     public static final ParseField DESCRIPTION = new ParseField("description");
@@ -98,10 +98,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     }
 
     private static DataFrameAnalysis parseAnalysis(XContentParser parser, boolean ignoreUnknownFields) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
         DataFrameAnalysis analysis = parser.namedObject(DataFrameAnalysis.class, parser.currentName(), ignoreUnknownFields);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return analysis;
     }
 
@@ -228,33 +228,33 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
+        if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
+            if (createTime != null) {
+                builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+            }
+            if (version != null) {
+                builder.field(VERSION.getPreferredName(), version);
+            }
+            if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                builder.field(HEADERS.getPreferredName(), headers);
+            }
+            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
+            }
+        }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         builder.field(SOURCE.getPreferredName(), source);
         builder.field(DEST.getPreferredName(), dest);
-
         builder.startObject(ANALYSIS.getPreferredName());
         builder.field(analysis.getWriteableName(), analysis,
             new MapParams(Collections.singletonMap(VERSION.getPreferredName(), version == null ? null : version.toString())));
         builder.endObject();
-
-        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
-        }
         if (analyzedFields != null) {
             builder.field(ANALYZED_FIELDS.getPreferredName(), analyzedFields);
         }
         builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), getModelMemoryLimit().getStringRep());
-        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(HEADERS.getPreferredName(), headers);
-        }
-        if (createTime != null) {
-            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
-        }
-        if (version != null) {
-            builder.field(VERSION.getPreferredName(), version);
-        }
         builder.field(ALLOW_LAZY_START.getPreferredName(), allowLazyStart);
         builder.field(MAX_NUM_THREADS.getPreferredName(), maxNumThreads);
         builder.endObject();

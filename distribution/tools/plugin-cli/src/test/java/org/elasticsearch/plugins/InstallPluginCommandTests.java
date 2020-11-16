@@ -75,13 +75,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -106,6 +103,7 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.forEachFileRecursively;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -228,14 +226,10 @@ public class InstallPluginCommandTests extends ESTestCase {
     static Path writeZip(Path structure, String prefix) throws IOException {
         Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
-            Files.walkFileTree(structure, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    String target = (prefix == null ? "" : prefix + "/") + structure.relativize(file).toString();
-                    stream.putNextEntry(new ZipEntry(target));
-                    Files.copy(file, stream);
-                    return FileVisitResult.CONTINUE;
-                }
+            forEachFileRecursively(structure, (file, attrs) -> {
+                String target = (prefix == null ? "" : prefix + "/") + structure.relativize(file).toString();
+                stream.putNextEntry(new ZipEntry(target));
+                Files.copy(file, stream);
             });
         }
         return zip;

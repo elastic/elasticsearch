@@ -99,7 +99,6 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         if (expectedTemplates.isEmpty()) {
             return;
         }
-
         assertBusy(() -> {
             final Request catRequest = new Request("GET", "_cat/templates?h=n&s=n");
             final Response catResponse = adminClient().performRequest(catRequest);

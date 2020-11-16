@@ -1,5 +1,5 @@
 [[percolator]]
-=== Percolator type
+=== Percolator field type
 ++++
 <titleabbrev>Percolator</titleabbrev>
 ++++

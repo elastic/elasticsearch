@@ -28,6 +28,6 @@ dependencies {
 }
 
 testClusters.all {
-  module file(project(':modules:reindex').tasks.bundlePlugin.archiveFile)
+  module ':modules:reindex'
 }
 

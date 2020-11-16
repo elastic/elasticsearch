@@ -32,6 +32,7 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
@@ -91,8 +92,8 @@ class Netty4HttpClient implements Closeable {
             .group(new NioEventLoopGroup(1));
     }
 
-    public Collection<FullHttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {
-        Collection<HttpRequest> requests = new ArrayList<>(uris.length);
+    public List<FullHttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {
+        List<HttpRequest> requests = new ArrayList<>(uris.length);
         for (int i = 0; i < uris.length; i++) {
             final HttpRequest httpRequest = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
             httpRequest.headers().add(HOST, "localhost");
@@ -107,10 +108,10 @@ class Netty4HttpClient implements Closeable {
         return processRequestsWithBody(HttpMethod.POST, remoteAddress, urisAndBodies);
     }
 
-    public final FullHttpResponse post(SocketAddress remoteAddress, FullHttpRequest httpRequest) throws InterruptedException {
-        Collection<FullHttpResponse> responses = sendRequests(remoteAddress, Collections.singleton(httpRequest));
+    public final FullHttpResponse send(SocketAddress remoteAddress, FullHttpRequest httpRequest) throws InterruptedException {
+        List<FullHttpResponse> responses = sendRequests(remoteAddress, Collections.singleton(httpRequest));
         assert responses.size() == 1 : "expected 1 and only 1 http response";
-        return responses.iterator().next();
+        return responses.get(0);
     }
 
     public final Collection<FullHttpResponse> put(SocketAddress remoteAddress, List<Tuple<String, CharSequence>> urisAndBodies)
@@ -118,9 +119,9 @@ class Netty4HttpClient implements Closeable {
         return processRequestsWithBody(HttpMethod.PUT, remoteAddress, urisAndBodies);
     }
 
-    private Collection<FullHttpResponse> processRequestsWithBody(HttpMethod method, SocketAddress remoteAddress, List<Tuple<String,
+    private List<FullHttpResponse> processRequestsWithBody(HttpMethod method, SocketAddress remoteAddress, List<Tuple<String,
         CharSequence>> urisAndBodies) throws InterruptedException {
-        Collection<HttpRequest> requests = new ArrayList<>(urisAndBodies.size());
+        List<HttpRequest> requests = new ArrayList<>(urisAndBodies.size());
         for (Tuple<String, CharSequence> uriAndBody : urisAndBodies) {
             ByteBuf content = Unpooled.copiedBuffer(uriAndBody.v2(), StandardCharsets.UTF_8);
             HttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uriAndBody.v1(), content);
@@ -132,11 +133,11 @@ class Netty4HttpClient implements Closeable {
         return sendRequests(remoteAddress, requests);
     }
 
-    private synchronized Collection<FullHttpResponse> sendRequests(
+    private synchronized List<FullHttpResponse> sendRequests(
         final SocketAddress remoteAddress,
         final Collection<HttpRequest> requests) throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(requests.size());
-        final Collection<FullHttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));
+        final List<FullHttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));
 
         clientBootstrap.handler(new CountDownLatchHandler(latch, content));
 
@@ -180,16 +181,20 @@ class Netty4HttpClient implements Closeable {
         }
 
         @Override
-        protected void initChannel(SocketChannel ch) throws Exception {
+        protected void initChannel(SocketChannel ch) {
             final int maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB).bytesAsInt();
             ch.pipeline().addLast(new HttpResponseDecoder());
             ch.pipeline().addLast(new HttpRequestEncoder());
+            ch.pipeline().addLast(new HttpContentDecompressor());
             ch.pipeline().addLast(new HttpObjectAggregator(maxContentLength));
             ch.pipeline().addLast(new SimpleChannelInboundHandler<HttpObject>() {
                 @Override
-                protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) throws Exception {
+                protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
                     final FullHttpResponse response = (FullHttpResponse) msg;
-                    content.add(response.copy());
+                    // We copy the buffer manually to avoid a huge allocation on a pooled allocator. We have
+                    // a test that tracks huge allocations, so we want to avoid them in this test code.
+                    ByteBuf newContent = Unpooled.copiedBuffer(((FullHttpResponse) msg).content());
+                    content.add(response.replace(newContent));
                     latch.countDown();
                 }
 

@@ -76,6 +76,8 @@ public abstract class SourceGenerator {
             }
         }
 
+        optimize(container, source);
+
         return source;
     }
 
@@ -94,7 +96,7 @@ public abstract class SourceGenerator {
                     sortBuilder = fieldSort(fa.name())
                             .missing(as.missing().position())
                             .unmappedType(fa.dataType().esType());
-                    
+
                     if (fa.isNested()) {
                         FieldSortBuilder fieldSort = fieldSort(fa.name())
                                 .missing(as.missing().position())
@@ -134,8 +136,6 @@ public abstract class SourceGenerator {
     }
 
     private static void optimize(QueryContainer query, SearchSourceBuilder builder) {
-        if (query.shouldTrackHits()) {
-            builder.trackTotalHits(true);
-        }
+        builder.trackTotalHits(query.shouldTrackHits());
     }
 }

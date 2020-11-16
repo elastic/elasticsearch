@@ -1,25 +1,24 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
+
+// let the javaRestTest see the classpath of main
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", javaRestTest)
+
 
 File repoDir = file("$buildDir/testclusters/repo")
 
-integTest {
+javaRestTest {
   /* To support taking index snapshots, we have to set path.repo setting */
   systemProperty 'tests.path.repo', repoDir
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
   numberOfNodes = 4
 
   setting 'path.repo', repoDir.absolutePath

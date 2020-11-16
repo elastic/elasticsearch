@@ -66,6 +66,9 @@ public class SameShardAllocationDecider extends AllocationDecider {
         this.sameHost = sameHost;
     }
 
+    private static final Decision YES_NONE_HOLD_COPY =
+            Decision.single(Decision.Type.YES, NAME, "none of the nodes on this host hold a copy of this shard");
+
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         Iterable<ShardRouting> assignedShards = allocation.routingNodes().assignedShards(shardRouting.shardId());
@@ -94,18 +97,24 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 if (checkNodeOnSameHostAddress || checkNodeOnSameHostName) {
                     for (ShardRouting assignedShard : assignedShards) {
                         if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
-                            String hostType = checkNodeOnSameHostAddress ? "address" : "name";
-                            String host = checkNodeOnSameHostAddress ? node.node().getHostAddress() : node.node().getHostName();
-                            return allocation.decision(Decision.NO, NAME,
-                                "a copy of this shard is already allocated to host %s [%s], on node [%s], and [%s] is [true] which " +
-                                    "forbids more than one node on this host from holding a copy of this shard",
-                                hostType, host, node.nodeId(), CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey());
+                            return allocation.debugDecision() ?
+                                    debugNoAlreadyAllocatedToHost(node, allocation, checkNodeOnSameHostAddress) : Decision.NO;
                         }
                     }
                 }
             }
         }
-        return allocation.decision(Decision.YES, NAME, "none of the nodes on this host hold a copy of this shard");
+        return YES_NONE_HOLD_COPY;
+    }
+
+    private static Decision debugNoAlreadyAllocatedToHost(RoutingNode node, RoutingAllocation allocation,
+                                                          boolean checkNodeOnSameHostAddress) {
+        String hostType = checkNodeOnSameHostAddress ? "address" : "name";
+        String host = checkNodeOnSameHostAddress ? node.node().getHostAddress() : node.node().getHostName();
+        return allocation.decision(Decision.NO, NAME,
+            "a copy of this shard is already allocated to host %s [%s], on node [%s], and [%s] is [true] which " +
+                "forbids more than one node on this host from holding a copy of this shard",
+            hostType, host, node.nodeId(), CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey());
     }
 
     @Override
@@ -115,21 +124,26 @@ public class SameShardAllocationDecider extends AllocationDecider {
         return decideSameNode(shardRouting, node, allocation, assignedShards);
     }
 
+    private static final Decision YES_NO_COPY = Decision.single(Decision.Type.YES, NAME, "this node does not hold a copy of this shard");
+
     private Decision decideSameNode(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation,
                                     Iterable<ShardRouting> assignedShards) {
+        boolean debug = allocation.debugDecision();
         for (ShardRouting assignedShard : assignedShards) {
             if (node.nodeId().equals(assignedShard.currentNodeId())) {
-                if (assignedShard.isSameAllocation(shardRouting)) {
-                    return allocation.decision(Decision.NO, NAME,
-                        "this shard is already allocated to this node [%s]",
-                        shardRouting.toString());
-                } else {
-                    return allocation.decision(Decision.NO, NAME,
-                        "a copy of this shard is already allocated to this node [%s]",
-                        assignedShard.toString());
-                }
+                return debug ? debugNo(shardRouting, assignedShard) : Decision.NO;
             }
         }
-        return allocation.decision(Decision.YES, NAME, "this node does not hold a copy of this shard");
+        return YES_NO_COPY;
+    }
+
+    private static Decision debugNo(ShardRouting shardRouting, ShardRouting assignedShard) {
+        final String explanation;
+        if (assignedShard.isSameAllocation(shardRouting)) {
+            explanation = "this shard is already allocated to this node [" + shardRouting.toString() + "]";
+        } else {
+            explanation = "a copy of this shard is already allocated to this node [" + assignedShard.toString() + "]";
+        }
+        return Decision.single(Decision.Type.NO, NAME, explanation);
     }
 }

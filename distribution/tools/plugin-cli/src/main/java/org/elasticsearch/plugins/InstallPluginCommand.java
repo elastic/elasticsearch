@@ -38,6 +38,8 @@ import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProv
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.bootstrap.PluginPolicyInfo;
+import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -848,15 +850,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     private PluginInfo installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot, Environment env, List<Path> deleteOnFailure)
         throws Exception {
         final PluginInfo info = loadPluginInfo(terminal, tmpRoot, env);
-        // read optional security policy (extra permissions), if it exists, confirm or warn the user
-        Path policy = tmpRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
-        final Set<String> permissions;
-        if (Files.exists(policy)) {
-            permissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
-        } else {
-            permissions = Collections.emptySet();
+        PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot);
+        if (pluginPolicy != null) {
+            Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
+            PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
         }
-        PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
 
         final Path destination = env.pluginsFile().resolve(info.getName());
         deleteOnFailure.add(destination);

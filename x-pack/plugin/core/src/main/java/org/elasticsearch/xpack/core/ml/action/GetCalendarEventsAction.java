@@ -126,7 +126,7 @@ public class GetCalendarEventsAction extends ActionType<GetCalendarEventsAction.
 
             if (jobId != null && Strings.isAllOrWildcard(calendarId) == false) {
                 e = ValidateActions.addValidationError("If " + Job.ID.getPreferredName() + " is used " +
-                        Calendar.ID.getPreferredName() + " must be '" + GetCalendarsAction.Request.ALL + "'", e);
+                        Calendar.ID.getPreferredName() + " must be '" + GetCalendarsAction.Request.ALL + "' or '*'", e);
             }
             return e;
         }

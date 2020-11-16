@@ -20,7 +20,10 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -30,6 +33,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndices;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,24 +43,21 @@ import java.util.List;
  * a write operation is about to happen in a non existing index.
  */
 public final class AutoCreateIndex {
-
     public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING =
         new Setting<>("action.auto_create_index", "true", AutoCreate::new, Property.NodeScope, Setting.Property.Dynamic);
 
     private final IndexNameExpressionResolver resolver;
+    private final SystemIndices systemIndices;
     private volatile AutoCreate autoCreate;
 
-    public AutoCreateIndex(Settings settings, ClusterSettings clusterSettings, IndexNameExpressionResolver resolver) {
+    public AutoCreateIndex(Settings settings,
+                           ClusterSettings clusterSettings,
+                           IndexNameExpressionResolver resolver,
+                           SystemIndices systemIndices) {
         this.resolver = resolver;
+        this.systemIndices = systemIndices;
         this.autoCreate = AUTO_CREATE_INDEX_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(AUTO_CREATE_INDEX_SETTING, this::setAutoCreate);
-    }
-
-    /**
-     * Do we really need to check if an index should be auto created?
-     */
-    public boolean needToCheck() {
-        return this.autoCreate.autoCreateIndex;
     }
 
     /**
@@ -67,6 +68,23 @@ public final class AutoCreateIndex {
         if (resolver.hasIndexAbstraction(index, state)) {
             return false;
         }
+
+        // Always auto-create system indexes
+        if (systemIndices.isSystemIndex(index)) {
+            return true;
+        }
+
+        // Templates can override the AUTO_CREATE_INDEX_SETTING setting
+        final ComposableIndexTemplate template = findTemplate(index, state.metadata());
+        if (template != null && template.getAllowAutoCreate() != null) {
+            if (template.getAllowAutoCreate()) {
+                return true;
+            } else {
+                // An explicit false value overrides AUTO_CREATE_INDEX_SETTING
+                throw new IndexNotFoundException("composable template " + template.indexPatterns() + " forbids index auto creation");
+            }
+        }
+
         // One volatile read, so that all checks are done against the same instance:
         final AutoCreate autoCreate = this.autoCreate;
         if (autoCreate.autoCreateIndex == false) {
@@ -98,6 +116,11 @@ public final class AutoCreateIndex {
 
     void setAutoCreate(AutoCreate autoCreate) {
         this.autoCreate = autoCreate;
+    }
+
+    private ComposableIndexTemplate findTemplate(String indexName, Metadata metadata) {
+        final String templateName = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
+        return metadata.templatesV2().get(templateName);
     }
 
     static class AutoCreate {

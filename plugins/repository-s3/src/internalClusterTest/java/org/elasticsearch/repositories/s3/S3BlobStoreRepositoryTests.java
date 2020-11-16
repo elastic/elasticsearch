@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -120,11 +121,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @Override
-    protected List<String> requestTypesTracked() {
-        return List.of("GET", "LIST", "PUT", "POST");
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "access");
@@ -201,8 +197,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         @Override
         protected S3Repository createRepository(RepositoryMetadata metadata, NamedXContentRegistry registry,
-                                                ClusterService clusterService, RecoverySettings recoverySettings) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings) {
+                                                ClusterService clusterService, BigArrays bigArrays, RecoverySettings recoverySettings) {
+            return new S3Repository(metadata, registry, service, clusterService, bigArrays, recoverySettings) {
 
                 @Override
                 public BlobStore blobStore() {
@@ -287,13 +283,13 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         @Override
         public void maybeTrack(final String request, Headers requestHeaders) {
             if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
-                trackRequest("LIST");
+                trackRequest("ListObjects");
             } else if (Regex.simpleMatch("GET /*/*", request)) {
-                trackRequest("GET");
+                trackRequest("GetObject");
             } else if (isMultiPartUpload(request)) {
-                trackRequest("POST");
+                trackRequest("PutMultipartObject");
             } else if (Regex.simpleMatch("PUT /*/*", request)) {
-                trackRequest("PUT");
+                trackRequest("PutObject");
             }
         }
 

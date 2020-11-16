@@ -73,7 +73,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
     }
 
     static RestResponse buildRestResponse(boolean aliasesExplicitlyRequested, String[] requestedAliases,
-            ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap, XContentBuilder builder) throws Exception {
+                                          ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
+                                          XContentBuilder builder) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
         for (final ObjectObjectCursor<String, List<AliasMetadata>> cursor : responseAliasMap) {

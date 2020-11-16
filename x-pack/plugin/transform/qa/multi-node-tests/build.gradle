@@ -1,11 +1,9 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('transform'))
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackModule('transform'))
 }
 
 // location for keys and certificates
@@ -21,11 +19,11 @@ tasks.register("copyKeyCerts", Copy) {
 }
 // Add keys and cets to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-tasks.named("processTestResources").configure { dependsOn("copyKeyCerts") }
+tasks.named("processJavaRestTestResources").configure { dependsOn("copyKeyCerts") }
 
-tasks.named("integTest").configure { dependsOn "copyKeyCerts" }
+tasks.named("javaRestTest").configure { dependsOn "copyKeyCerts" }
 
-testClusters.integTest {
+testClusters.javaRestTest {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

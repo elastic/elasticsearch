@@ -1,25 +1,14 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testImplementation project(':x-pack:qa')
-}
-
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
+  yamlRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
+  javaRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
+  javaRestTestImplementation project(':x-pack:qa')
 }
 
 artifacts {
-  testArtifacts testJar
-  restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 restResources {
@@ -30,7 +19,7 @@ restResources {
   }
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

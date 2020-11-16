@@ -24,7 +24,9 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
 
     @Override
     protected FrequencyEncoding doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? FrequencyEncoding.fromXContentLenient(parser) : FrequencyEncoding.fromXContentStrict(parser);
+        return lenient ?
+            FrequencyEncoding.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT) :
+            FrequencyEncoding.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
     }
 
     @Override
@@ -33,6 +35,10 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
     }
 
     public static FrequencyEncoding createRandom() {
+        return createRandom(randomBoolean() ? null : randomBoolean());
+    }
+
+    public static FrequencyEncoding createRandom(Boolean isCustom) {
         int valuesSize = randomIntBetween(1, 10);
         Map<String, Double> valueMap = new HashMap<>();
         for (int i = 0; i < valuesSize; i++) {
@@ -41,7 +47,7 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
         return new FrequencyEncoding(randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             valueMap,
-            randomBoolean() ? null : randomBoolean());
+            isCustom);
     }
 
     @Override

@@ -18,6 +18,10 @@ For additional information about working with the explore API, see the Graph
 {kibana-ref}/graph-troubleshooting.html[Troubleshooting] and
 {kibana-ref}/graph-limitations.html[Limitations] topics.
 
+NOTE: The graph explore API is enabled by default. To disable access to the
+graph explore API and the Kibana {kibana-ref}/graph-getting-started.html[Graph
+UI], add `xpack.graph.enabled: false` to `elasticsearch.yml`.
+
 [discrete]
 === Request
 

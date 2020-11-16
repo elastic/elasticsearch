@@ -34,12 +34,12 @@ import java.util.Objects;
 public class EqlSearchRequest implements Validatable, ToXContentObject {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, true, false);
 
     private QueryBuilder filter = null;
     private String timestampField = "@timestamp";
     private String eventCategoryField = "event.category";
-    private boolean isCaseSensitive = true;
+    private String resultPosition = "head";
 
     private int size = 10;
     private int fetchSize = 1000;
@@ -55,10 +55,10 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
     static final String KEY_TIEBREAKER_FIELD = "tiebreaker_field";
     static final String KEY_EVENT_CATEGORY_FIELD = "event_category_field";
-    static final String KEY_CASE_SENSITIVE = "case_sensitive";
     static final String KEY_SIZE = "size";
     static final String KEY_FETCH_SIZE = "fetch_size";
     static final String KEY_QUERY = "query";
+    static final String KEY_RESULT_POSITION = "result_position";
     static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
     static final String KEY_KEEP_ALIVE = "keep_alive";
     static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
@@ -81,7 +81,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         builder.field(KEY_EVENT_CATEGORY_FIELD, eventCategoryField());
         builder.field(KEY_SIZE, size());
         builder.field(KEY_FETCH_SIZE, fetchSize());
-        builder.field(KEY_CASE_SENSITIVE, isCaseSensitive());
+        builder.field(KEY_RESULT_POSITION, resultPosition());
 
         builder.field(KEY_QUERY, query);
         if (waitForCompletionTimeout != null) {
@@ -143,12 +143,16 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return this;
     }
 
-    public boolean isCaseSensitive() {
-        return this.isCaseSensitive;
+    public String resultPosition() {
+        return resultPosition;
     }
 
-    public EqlSearchRequest isCaseSensitive(boolean isCaseSensitive) {
-        this.isCaseSensitive = isCaseSensitive;
+    public EqlSearchRequest resultPosition(String position) {
+        if ("head".equals(position) || "tail".equals(position)) {
+            resultPosition = position;
+        } else {
+            throw new IllegalArgumentException("result position needs to be 'head' or 'tail', received '" + position + "'");
+        }
         return this;
     }
 
@@ -157,10 +161,10 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     }
 
     public EqlSearchRequest size(int size) {
-        this.size = size;
-        if (fetchSize <= 0) {
-            throw new IllegalArgumentException("size must be greater than 0");
+        if (size < 0) {
+            throw new IllegalArgumentException("size must be greater than or equal to 0");
         }
+        this.size = size;
         return this;
     }
 
@@ -169,10 +173,10 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     }
 
     public EqlSearchRequest fetchSize(int fetchSize) {
-        this.fetchSize = fetchSize;
         if (fetchSize < 2) {
             throw new IllegalArgumentException("fetch size must be greater than 1");
         }
+        this.fetchSize = fetchSize;
         return this;
     }
 
@@ -223,14 +227,16 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         EqlSearchRequest that = (EqlSearchRequest) o;
         return size == that.size &&
                 fetchSize == that.fetchSize &&
+                resultPosition == that.resultPosition &&
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
+                Objects.equals(size, that.size) &&
+                Objects.equals(fetchSize, that.fetchSize) &&
                 Objects.equals(timestampField, that.timestampField) &&
                 Objects.equals(tiebreakerField, that.tiebreakerField) &&
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
                 Objects.equals(query, that.query) &&
-                Objects.equals(isCaseSensitive, that.isCaseSensitive) &&
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
                 Objects.equals(keepAlive, that.keepAlive) &&
                 Objects.equals(keepOnCompletion, that.keepOnCompletion);
@@ -248,7 +254,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             tiebreakerField,
             eventCategoryField,
             query,
-            isCaseSensitive,
+            resultPosition,
             waitForCompletionTimeout,
             keepAlive,
             keepOnCompletion);

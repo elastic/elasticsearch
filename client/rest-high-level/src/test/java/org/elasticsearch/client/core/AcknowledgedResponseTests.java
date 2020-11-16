@@ -32,7 +32,7 @@ public class AcknowledgedResponseTests extends AbstractResponseTestCase<org.elas
 
     @Override
     protected org.elasticsearch.action.support.master.AcknowledgedResponse createServerTestInstance(XContentType xContentType) {
-        return new org.elasticsearch.action.support.master.AcknowledgedResponse(randomBoolean());
+        return org.elasticsearch.action.support.master.AcknowledgedResponse.of(randomBoolean());
     }
 
     @Override

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.eql.execution.assembler;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
-import org.elasticsearch.xpack.eql.execution.search.BasicQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
+import org.elasticsearch.xpack.eql.execution.search.PITAwareQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
@@ -49,7 +49,7 @@ public class ExecutionManager {
                                TimeValue maxSpan,
                                Limit limit) {
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
-        
+
         boolean descending = direction == OrderDirection.DESC;
 
         // fields
@@ -57,11 +57,10 @@ public class ExecutionManager {
         HitExtractor tbExtractor = Expressions.isPresent(tiebreaker) ? hitExtractor(tiebreaker, extractorRegistry) : null;
         // NB: since there's no aliasing inside EQL, the attribute name is the same as the underlying field name
         String timestampName = Expressions.name(timestamp);
-        String tiebreakerName = Expressions.isPresent(tiebreaker) ? Expressions.name(tiebreaker) : null;
 
         // secondary criteria
         List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(plans.size() - 1);
-        
+
         // build a criterion for each query
         for (int i = 0; i < plans.size(); i++) {
             List<Attribute> keys = listOfKeys.get(i);
@@ -72,7 +71,7 @@ public class ExecutionManager {
             if (query instanceof EsQueryExec) {
                 SearchSourceBuilder source = ((EsQueryExec) query).source(session);
                 QueryRequest original = () -> source;
-                BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, tiebreakerName);
+                BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName);
                 Criterion<BoxedQueryRequest> criterion =
                         new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i == 0 && descending);
                 criteria.add(criterion);
@@ -85,11 +84,11 @@ public class ExecutionManager {
                 }
             }
         }
-        
+
         int completionStage = criteria.size() - 1;
         SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit);
 
-        TumblingWindow w = new TumblingWindow(new BasicQueryClient(session),
+        TumblingWindow w = new TumblingWindow(new PITAwareQueryClient(session),
                 criteria.subList(0, completionStage),
                 criteria.get(completionStage),
                 matcher);

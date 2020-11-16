@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.actions.email.EmailActionTests;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
-import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -268,7 +268,7 @@ public class WebhookActionTests extends ESTestCase {
         return WatcherTestUtils.createTestWatch(watchId,
                 mock(Client.class),
                 ExecuteScenario.Success.client(),
-                new AbstractWatcherIntegrationTestCase.NoopEmailService(),
+                new EmailActionTests.NoopEmailService(),
                 mock(WatcherSearchTemplateService.class),
                 logger);
     }

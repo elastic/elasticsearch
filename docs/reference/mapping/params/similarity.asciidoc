@@ -16,7 +16,7 @@ The only similarities which can be used out of the box, without any further
 configuration are:
 
 `BM25`::
-The https://en.wikipedia.org/wiki/Okapi_BM25[Okapi BM25 algorithm]. The
+The {wikipedia}/Okapi_BM25[Okapi BM25 algorithm]. The
 algorithm used by default in {es} and Lucene.
 
 `boolean`::

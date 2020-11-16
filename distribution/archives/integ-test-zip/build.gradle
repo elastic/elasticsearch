@@ -16,8 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+import org.elasticsearch.gradle.MavenFilteringHack
 
-integTest {
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+// The integ-test-distribution is published to maven
+apply plugin: 'elasticsearch.publish'
+
+group = "org.elasticsearch.distribution.integ-test-zip"
+
+tasks.named("processTestResources").configure {
+  inputs.properties(project(':distribution').restTestExpansions)
+  MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
+}
+
+// make the pom file name use elasticsearch instead of the project name
+archivesBaseName = "elasticsearch"
+ext.buildDist = parent.tasks.named("buildIntegTestZip")
+
+publishing {
+  publications {
+    nebula {
+      pom.packaging = 'zip'
+      artifact(buildDist.flatMap { it.archiveFile })
+    }
+  }
+}
+
+tasks.named("integTest").configure {
+  dependsOn "assemble"
   /*
    * There are two unique things going on here:
    * 1. These tests can be run against an external cluster with
@@ -25,7 +53,7 @@ integTest {
    * 2. *One* of these tests is incompatible with that and should be skipped
    *    when running against an external cluster.
    */
-  if (System.getProperty("tests.rest.cluster") == null) {
+  if (project.providers.systemProperty("tests.rest.cluster").forUseAtConfigurationTime().isPresent()) {
     nonInputProperties.systemProperty 'tests.logfile',
       "${-> testClusters.integTest.singleNode().getServerLog()}"
   } else {

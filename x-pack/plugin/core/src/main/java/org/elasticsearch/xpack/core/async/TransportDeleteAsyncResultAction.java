@@ -54,7 +54,7 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
         } else {
             TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
             transportService.sendRequest(node, DeleteAsyncResultAction.NAME, request, builder.build(),
-                new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::new, ThreadPool.Names.SAME));
+                new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME));
         }
     }
 }

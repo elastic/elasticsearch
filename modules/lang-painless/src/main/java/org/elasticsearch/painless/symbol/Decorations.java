@@ -336,10 +336,6 @@ public class Decorations {
         }
     }
 
-    public interface Concatenate extends Condition {
-
-    }
-
     public static class StandardPainlessField implements Decoration {
 
         private final PainlessField standardPainlessField;
@@ -602,6 +598,17 @@ public class Decorations {
 
         public IRNode getIRNode() {
             return irNode;
+        }
+    }
+
+    public static class Converter implements Decoration {
+        private final LocalFunction converter;
+        public Converter(LocalFunction converter) {
+            this.converter = converter;
+        }
+
+        public LocalFunction getConverter() {
+            return converter;
         }
     }
 

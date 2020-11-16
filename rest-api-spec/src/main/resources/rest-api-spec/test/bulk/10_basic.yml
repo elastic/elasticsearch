@@ -199,3 +199,33 @@
       catch: missing
       indices.get:
         index: new_index_not_created
+---
+"Return item-level error when no write index defined for an alias":
+
+  - do:
+      indices.create:
+        index: test_index1
+  - do:
+      indices.create:
+        index: test_index2
+
+  - do:
+      indices.put_alias:
+        index: test_index1
+        name: test_index
+  - do:
+      indices.put_alias:
+        index: test_index2
+        name: test_index
+
+  - do:
+      bulk:
+        body:
+          - '{"index": {"_index": "test_index"}}'
+          - '{"field": "test"}'
+
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: illegal_argument_exception }
+  - match: { items.0.index.error.reason: "no write index is defined for alias [test_index]. The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one being designated as a write index" }
+

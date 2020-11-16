@@ -21,7 +21,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import java.io.IOException;
 
 public class DeprecatedQueryBuilder extends AbstractQueryBuilder<DeprecatedQueryBuilder> {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("Deprecated");
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DeprecatedQueryBuilder.class);
 
     public static final String NAME = "deprecated";
 

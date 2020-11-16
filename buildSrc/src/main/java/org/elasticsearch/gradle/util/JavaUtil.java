@@ -29,7 +29,7 @@ import java.util.Optional;
 public class JavaUtil {
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
-    static String getJavaHome(final int version) {
+    public static String getJavaHome(final int version) {
         List<JavaHome> javaHomes = BuildParams.getJavaVersions();
         Optional<JavaHome> java = javaHomes.stream().filter(j -> j.getVersion() == version).findFirst();
         return java.orElseThrow(() -> new GradleException("JAVA" + version + "_HOME required")).getJavaHome().get().getAbsolutePath();

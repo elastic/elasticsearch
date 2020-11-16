@@ -48,6 +48,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -84,11 +85,10 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -180,7 +180,7 @@ public class IndexModuleTests extends ESTestCase {
                 engineFactory,
                 Collections.emptyMap(),
                 () -> true,
-                new IndexNameExpressionResolver(),
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
                 Collections.emptyMap());
         module.setReaderWrapper(s -> new Wrapper());
 
@@ -202,7 +202,7 @@ public class IndexModuleTests extends ESTestCase {
         final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = singletonMap(
             "foo_store", new FooFunction());
         final IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), indexStoreFactories,
-            () -> true, new IndexNameExpressionResolver(), Collections.emptyMap());
+            () -> true, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), Collections.emptyMap());
 
         final IndexService indexService = newIndexService(module);
         assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
@@ -288,9 +288,8 @@ public class IndexModuleTests extends ESTestCase {
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
         AtomicBoolean executed = new AtomicBoolean(false);
         SearchOperationListener listener = new SearchOperationListener() {
-
             @Override
-            public void onNewContext(SearchContext context) {
+            public void onNewReaderContext(ReaderContext readerContext) {
                 executed.set(true);
             }
         };
@@ -303,9 +302,8 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(2, indexService.getSearchOperationListener().size());
         assertEquals(SearchSlowLog.class, indexService.getSearchOperationListener().get(0).getClass());
         assertSame(listener, indexService.getSearchOperationListener().get(1));
-
         for (SearchOperationListener l : indexService.getSearchOperationListener()) {
-            l.onNewContext(new TestSearchContext(null));
+            l.onNewReaderContext(mock(ReaderContext.class));
         }
         assertTrue(executed.get());
         indexService.close("simon says", false);
@@ -517,7 +515,7 @@ public class IndexModuleTests extends ESTestCase {
             new InternalEngineFactory(),
             Collections.emptyMap(),
             () -> true,
-            new IndexNameExpressionResolver(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
             recoveryStateFactories);
 
         final IndexService indexService = newIndexService(module);
@@ -538,7 +536,7 @@ public class IndexModuleTests extends ESTestCase {
 
     private static IndexModule createIndexModule(IndexSettings indexSettings, AnalysisRegistry emptyAnalysisRegistry) {
         return new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap(), () -> true,
-            new IndexNameExpressionResolver(), Collections.emptyMap());
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), Collections.emptyMap());
     }
 
     class CustomQueryCache implements QueryCache {

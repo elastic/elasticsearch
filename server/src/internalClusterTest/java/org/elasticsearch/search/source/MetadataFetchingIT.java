@@ -34,6 +34,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MetadataFetchingIT extends ESIntegTestCase {
@@ -48,9 +49,11 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .prepareSearch("test")
             .storedFields("_none_")
             .setFetchSource(false)
+            .setVersion(true)
             .get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+        assertThat(response.getHits().getAt(0).getVersion(), notNullValue());
 
         response = client()
             .prepareSearch("test")
@@ -127,15 +130,6 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             assertThat(rootCause.getClass(), equalTo(SearchException.class));
             assertThat(rootCause.getMessage(),
                 equalTo("[stored_fields] cannot be disabled if [_source] is requested"));
-        }
-        {
-            SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("test").storedFields("_none_").setVersion(true).get());
-            Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchException.class);
-            assertNotNull(rootCause);
-            assertThat(rootCause.getClass(), equalTo(SearchException.class));
-            assertThat(rootCause.getMessage(),
-                equalTo("[stored_fields] cannot be disabled if [version] is requested"));
         }
         {
             SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,

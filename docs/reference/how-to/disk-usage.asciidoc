@@ -171,7 +171,7 @@ When Elasticsearch stores `_source`, it compresses multiple documents at once
 in order to improve the overall compression ratio. For instance it is very
 common that documents share the same field names, and quite common that they
 share some field values, especially on fields that have a low cardinality or
-a https://en.wikipedia.org/wiki/Zipf%27s_law[zipfian] distribution.
+a {wikipedia}/Zipf%27s_law[zipfian] distribution.
 
 By default documents are compressed together in the order that they are added
 to the index. If you enabled <<index-modules-index-sorting,index sorting>>

@@ -77,10 +77,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class PersistedClusterStateServiceTests extends ESTestCase {
 
     private PersistedClusterStateService newPersistedClusterStateService(NodeEnvironment nodeEnvironment) {
-        return new PersistedClusterStateService(nodeEnvironment, xContentRegistry(),
-            usually()
-                ? BigArrays.NON_RECYCLING_INSTANCE
-                : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+        return new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             () -> 0L);
     }
@@ -356,7 +353,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
@@ -394,7 +391,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
@@ -440,7 +437,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
@@ -798,12 +795,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(nodeEnvironment,
-                xContentRegistry(),
-                usually()
-                    ? BigArrays.NON_RECYCLING_INSTANCE
-                    : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
-                clusterSettings,
-                () -> currentTime.getAndAdd(writeDurationMillis.get()));
+                    xContentRegistry(), getBigArrays(), clusterSettings, () -> currentTime.getAndAdd(writeDurationMillis.get()));
 
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 assertExpectedLogs(1L, null, clusterState, writer, new MockLogAppender.SeenEventExpectation(
@@ -921,5 +913,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT).version(version).metadata(metadata).build();
     }
 
+    private static BigArrays getBigArrays() {
+        return usually()
+                ? BigArrays.NON_RECYCLING_INSTANCE
+                : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    }
 
 }

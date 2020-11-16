@@ -171,7 +171,7 @@ public abstract class BucketedSort implements Releasable {
      */
     @FunctionalInterface
     public interface ResultBuilder<T> {
-        T build(long index, SortValue sortValue);
+        T build(long index, SortValue sortValue) throws IOException;
     }
 
     /**
@@ -180,7 +180,7 @@ public abstract class BucketedSort implements Releasable {
      * @param builder builds results. See {@link ExtraData} for how to store
      *                data along side the sort for this to extract.
      */
-    public final <T extends Comparable<T>> List<T> getValues(long bucket, ResultBuilder<T> builder) {
+    public final <T extends Comparable<T>> List<T> getValues(long bucket, ResultBuilder<T> builder) throws IOException {
         long rootIndex = bucket * bucketSize;
         if (rootIndex >= values().size()) {
             // We've never seen this bucket.
@@ -201,7 +201,7 @@ public abstract class BucketedSort implements Releasable {
      * Get the values for a bucket if it has been collected. If it hasn't
      * then returns an empty array.
      */
-    public final List<SortValue> getValues(long bucket) {
+    public final List<SortValue> getValues(long bucket) throws IOException {
         return getValues(bucket, (i, sv) -> sv);
     }
 
@@ -209,7 +209,7 @@ public abstract class BucketedSort implements Releasable {
      * Is this bucket a min heap {@code true} or in gathering mode {@code false}? 
      */
     private boolean inHeapMode(long bucket) {
-        return heapMode.get((int) bucket);
+        return heapMode.get(bucket);
     }
 
     /**
@@ -419,11 +419,7 @@ public abstract class BucketedSort implements Releasable {
             setIndexToDocValue(index);
             loader().loadFromDoc(index, doc);
             if (next == 0) {
-                if (bucket > Integer.MAX_VALUE) {
-                    throw new UnsupportedOperationException("Bucketed sort doesn't support more than [" + Integer.MAX_VALUE + "] buckets");
-                    // BitArray needs int keys and this'd take a ton of memory to use that many buckets. So we just don't.
-                }
-                heapMode.set((int) bucket);
+                heapMode.set(bucket);
                 heapify(rootIndex);
             } else {
                 setNextGatherOffset(rootIndex, next - 1);

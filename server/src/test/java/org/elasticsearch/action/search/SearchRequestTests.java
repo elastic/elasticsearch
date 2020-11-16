@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.tasks.TaskId;
@@ -80,6 +81,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         Version version = VersionUtils.randomVersion(random());
+        if (version.before(Version.V_7_11_0) && searchRequest.source() != null) {
+            // Versions before 7.11.0 don't support runtime mappings
+            searchRequest.source().runtimeMappings(emptyMap());
+        }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
@@ -163,6 +168,16 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [rescore] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // Reader context with scroll
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id")))
+                .scroll(TimeValue.timeValueMillis(randomIntBetween(1, 100)));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("using [point in time] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
         }
     }
 

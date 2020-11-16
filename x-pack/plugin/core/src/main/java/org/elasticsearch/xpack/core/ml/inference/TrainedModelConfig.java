@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaseline;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportance;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
@@ -36,13 +38,16 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper.writeNamedObject;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 
 public class TrainedModelConfig implements ToXContentObject, Writeable {
@@ -50,7 +55,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final String NAME = "trained_model_config";
     public static final int CURRENT_DEFINITION_COMPRESSION_VERSION = 1;
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
-    public static final String FOR_EXPORT = "for_export";
+    public static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
+    public static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
+    private static final Set<String> RESERVED_METADATA_FIELDS = new HashSet<>(Arrays.asList(
+        TOTAL_FEATURE_IMPORTANCE,
+        FEATURE_IMPORTANCE_BASELINE));
 
     private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
 
@@ -295,16 +304,16 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(MODEL_ID.getPreferredName(), modelId);
         // If the model is to be exported for future import to another cluster, these fields are irrelevant.
-        if (params.paramAsBoolean(FOR_EXPORT, false) == false) {
-            builder.field(MODEL_ID.getPreferredName(), modelId);
+        if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             builder.field(CREATED_BY.getPreferredName(), createdBy);
             builder.field(VERSION.getPreferredName(), version.toString());
             builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
             builder.humanReadableField(
                 ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
                 ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
-                new ByteSizeValue(estimatedHeapMemory));
+                ByteSizeValue.ofBytes(estimatedHeapMemory));
             builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
             builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());
         }
@@ -408,7 +417,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.definition = config.definition == null ? null : new LazyModelDefinition(config.definition);
             this.description = config.getDescription();
             this.tags = config.getTags();
-            this.metadata = config.getMetadata();
+            this.metadata = config.getMetadata() == null ? null : new HashMap<>(config.getMetadata());
             this.input = config.getInput();
             this.estimatedOperations = config.estimatedOperations;
             this.estimatedHeapMemory = config.estimatedHeapMemory;
@@ -457,6 +466,29 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         public Builder setMetadata(Map<String, Object> metadata) {
             this.metadata = metadata;
+            return this;
+        }
+
+        public Builder setFeatureImportance(List<TotalFeatureImportance> totalFeatureImportance) {
+            if (totalFeatureImportance == null) {
+                return this;
+            }
+            if (this.metadata == null) {
+                this.metadata = new HashMap<>();
+            }
+            this.metadata.put(TOTAL_FEATURE_IMPORTANCE,
+                totalFeatureImportance.stream().map(TotalFeatureImportance::asMap).collect(Collectors.toList()));
+            return this;
+        }
+
+        public Builder setBaselineFeatureImportance(FeatureImportanceBaseline featureImportanceBaseline) {
+            if (featureImportanceBaseline == null) {
+                return this;
+            }
+            if (this.metadata == null) {
+                this.metadata = new HashMap<>();
+            }
+            this.metadata.put(FEATURE_IMPORTANCE_BASELINE, featureImportanceBaseline.asMap());
             return this;
         }
 
@@ -616,6 +648,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                     ESTIMATED_OPERATIONS.getPreferredName(),
                     validationException);
                 validationException = checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName(), validationException);
+                if (metadata != null) {
+                    validationException = checkIllegalSetting(
+                        metadata.get(TOTAL_FEATURE_IMPORTANCE),
+                        METADATA.getPreferredName() + "." + TOTAL_FEATURE_IMPORTANCE,
+                        validationException);
+                }
             }
 
             if (validationException != null) {

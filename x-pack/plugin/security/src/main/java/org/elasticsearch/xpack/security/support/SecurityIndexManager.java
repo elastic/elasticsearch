@@ -430,7 +430,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         final String mappingSource = request.mappings();
         try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, mappingSource)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation); // {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser); // {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.generator().copyCurrentStructure(parser);
             return new Tuple<>(Strings.toString(builder), request.settings());

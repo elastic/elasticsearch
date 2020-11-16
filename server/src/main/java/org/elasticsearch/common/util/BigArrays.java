@@ -145,6 +145,16 @@ public class BigArrays {
             assert indexIsInt(toIndex);
             Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
         }
+
+        @Override
+        public boolean hasArray() {
+            return true;
+        }
+
+        @Override
+        public byte[] array() {
+            return array;
+        }
     }
 
     private static class IntArrayWrapper extends AbstractArrayWrapper implements IntArray {

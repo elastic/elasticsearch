@@ -19,26 +19,21 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
+import java.util.function.LongSupplier;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -92,36 +87,31 @@ public class LongBoundsTests extends ESTestCase {
 
     public void testParseAndValidate() {
         long now = randomLong();
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        QueryShardContext qsc = new QueryShardContext(0,
-                new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-                null, null, () -> now, null, null, () -> true, null);
+        LongSupplier nowInMillis = () -> now;
         DateFormatter formatter = DateFormatter.forPattern("date_optional_time");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS);
 
         LongBounds expected = randomParsedExtendedBounds();
-        LongBounds parsed = unparsed(expected).parseAndValidate("test", "extended_bounds", qsc, format);
+        LongBounds parsed = unparsed(expected).parseAndValidate("test", "extended_bounds", nowInMillis, format);
         // parsed won't *equal* expected because equal includes the String parts
         assertEquals(expected.getMin(), parsed.getMin());
         assertEquals(expected.getMax(), parsed.getMax());
 
-        parsed = new LongBounds("now", null).parseAndValidate("test", "extended_bounds", qsc, format);
+        parsed = new LongBounds("now", null).parseAndValidate("test", "extended_bounds", nowInMillis, format);
         assertEquals(now, (long) parsed.getMin());
         assertNull(parsed.getMax());
 
-        parsed = new LongBounds(null, "now").parseAndValidate("test", "extended_bounds", qsc, format);
+        parsed = new LongBounds(null, "now").parseAndValidate("test", "extended_bounds", nowInMillis, format);
         assertNull(parsed.getMin());
         assertEquals(now, (long) parsed.getMax());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new LongBounds(100L, 90L).parseAndValidate("test", "extended_bounds", qsc, format));
+                () -> new LongBounds(100L, 90L).parseAndValidate("test", "extended_bounds", nowInMillis, format));
         assertEquals("[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
                 e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class,
-                () -> unparsed(new LongBounds(100L, 90L)).parseAndValidate("test", "extended_bounds", qsc, format));
+                () -> unparsed(new LongBounds(100L, 90L)).parseAndValidate("test", "extended_bounds", nowInMillis, format));
         assertEquals("[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
                 e.getMessage());
     }

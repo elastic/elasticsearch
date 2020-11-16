@@ -14,9 +14,9 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldTyp
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -33,12 +33,13 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     private final Double predictionProbability;
     private final Double predictionScore;
     private final List<TopClassEntry> topClasses;
+    private final List<ClassificationFeatureImportance> featureImportance;
     private final PredictionFieldType predictionFieldType;
 
     public ClassificationInferenceResults(double value,
                                           String classificationLabel,
                                           List<TopClassEntry> topClasses,
-                                          List<FeatureImportance> featureImportance,
+                                          List<ClassificationFeatureImportance> featureImportance,
                                           InferenceConfig config,
                                           Double predictionProbability,
                                           Double predictionScore) {
@@ -54,13 +55,11 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     private ClassificationInferenceResults(double value,
                                            String classificationLabel,
                                            List<TopClassEntry> topClasses,
-                                           List<FeatureImportance> featureImportance,
+                                           List<ClassificationFeatureImportance> featureImportance,
                                            ClassificationConfig classificationConfig,
                                            Double predictionProbability,
                                            Double predictionScore) {
-        super(value,
-            SingleValueInferenceResults.takeTopFeatureImportances(featureImportance,
-                classificationConfig.getNumTopFeatureImportanceValues()));
+        super(value);
         this.classificationLabel = classificationLabel;
         this.topClasses = topClasses == null ? Collections.emptyList() : Collections.unmodifiableList(topClasses);
         this.topNumClassesField = classificationConfig.getTopClassesResultsField();
@@ -68,10 +67,23 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         this.predictionFieldType = classificationConfig.getPredictionFieldType();
         this.predictionProbability = predictionProbability;
         this.predictionScore = predictionScore;
+        this.featureImportance = takeTopFeatureImportances(featureImportance, classificationConfig.getNumTopFeatureImportanceValues());
+    }
+
+    static List<ClassificationFeatureImportance> takeTopFeatureImportances(List<ClassificationFeatureImportance> featureImportances,
+                                                                           int numTopFeatures) {
+        if (featureImportances == null || featureImportances.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return featureImportances.stream()
+            .sorted((l, r)-> Double.compare(r.getTotalImportance(), l.getTotalImportance()))
+            .limit(numTopFeatures)
+            .collect(Collectors.toUnmodifiableList());
     }
 
     public ClassificationInferenceResults(StreamInput in) throws IOException {
         super(in);
+        this.featureImportance = in.readList(ClassificationFeatureImportance::new);
         this.classificationLabel = in.readOptionalString();
         this.topClasses = Collections.unmodifiableList(in.readList(TopClassEntry::new));
         this.topNumClassesField = in.readString();
@@ -93,9 +105,14 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         return predictionFieldType;
     }
 
+    public List<ClassificationFeatureImportance> getFeatureImportance() {
+        return featureImportance;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeList(featureImportance);
         out.writeOptionalString(classificationLabel);
         out.writeCollection(topClasses);
         out.writeString(topNumClassesField);
@@ -118,7 +135,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             && Objects.equals(predictionFieldType, that.predictionFieldType)
             && Objects.equals(predictionProbability, that.predictionProbability)
             && Objects.equals(predictionScore, that.predictionScore)
-            && Objects.equals(getFeatureImportance(), that.getFeatureImportance());
+            && Objects.equals(featureImportance, that.featureImportance);
     }
 
     @Override
@@ -130,7 +147,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             topNumClassesField,
             predictionProbability,
             predictionScore,
-            getFeatureImportance(),
+            featureImportance,
             predictionFieldType);
     }
 
@@ -165,8 +182,9 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         if (predictionScore != null) {
             map.put(PREDICTION_SCORE, predictionScore);
         }
-        if (getFeatureImportance().isEmpty() == false) {
-            map.put(FEATURE_IMPORTANCE, getFeatureImportance().stream().map(FeatureImportance::toMap).collect(Collectors.toList()));
+        if (featureImportance.isEmpty() == false) {
+            map.put(FEATURE_IMPORTANCE, featureImportance.stream().map(ClassificationFeatureImportance::toMap)
+                .collect(Collectors.toList()));
         }
         return map;
     }
@@ -188,8 +206,8 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         if (predictionScore != null) {
             builder.field(PREDICTION_SCORE, predictionScore);
         }
-        if (getFeatureImportance().size() > 0) {
-            builder.field(FEATURE_IMPORTANCE, getFeatureImportance());
+        if (featureImportance.isEmpty() == false) {
+            builder.field(FEATURE_IMPORTANCE, featureImportance);
         }
         return builder;
     }

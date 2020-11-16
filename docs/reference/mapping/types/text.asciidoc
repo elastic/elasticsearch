@@ -1,5 +1,5 @@
 [[text]]
-=== Text data type
+=== Text field type
 ++++
 <titleabbrev>Text</titleabbrev>
 ++++

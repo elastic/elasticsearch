@@ -25,7 +25,7 @@ public class ValidateDetectorAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/job/validate/detector";
 
     protected ValidateDetectorAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

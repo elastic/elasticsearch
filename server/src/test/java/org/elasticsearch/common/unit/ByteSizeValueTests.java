@@ -25,6 +25,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,6 +51,13 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         assertThat(ByteSizeUnit.GB.toGB(10), is(new ByteSizeValue(10, ByteSizeUnit.GB).getGb()));
         assertThat(ByteSizeUnit.TB.toTB(10), is(new ByteSizeValue(10, ByteSizeUnit.TB).getTb()));
         assertThat(ByteSizeUnit.PB.toPB(10), is(new ByteSizeValue(10, ByteSizeUnit.PB).getPb()));
+    }
+
+    public void testToIntBytes() {
+        assertThat(ByteSizeUnit.BYTES.toIntBytes(4), equalTo(4));
+        assertThat(ByteSizeUnit.KB.toIntBytes(4), equalTo(4096));
+        assertThat(expectThrows(AssertionError.class, () -> ByteSizeUnit.GB.toIntBytes(4)).getMessage(),
+            containsString("could not convert [4 GB] to an int"));
     }
 
     public void testEquality() {
@@ -316,6 +324,39 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             } else {
                 assertEquals((int) bytesValue, instance.bytesAsInt());
             }
+        }
+    }
+
+    public void testOfBytes() {
+        testOf(ByteSizeUnit.BYTES, ByteSizeValue::ofBytes);
+    }
+
+    public void testOfKb() {
+        testOf(ByteSizeUnit.KB, ByteSizeValue::ofKb);
+    }
+
+    public void testOfMb() {
+        testOf(ByteSizeUnit.MB, ByteSizeValue::ofMb);
+    }
+
+    public void testOfGb() {
+        testOf(ByteSizeUnit.GB, ByteSizeValue::ofGb);
+    }
+
+    public void testOfTb() {
+        testOf(ByteSizeUnit.TB, ByteSizeValue::ofTb);
+    }
+
+    public void testOfPb() {
+        testOf(ByteSizeUnit.PB, ByteSizeValue::ofPb);
+    }
+
+    private void testOf(ByteSizeUnit unit, Function<Long, ByteSizeValue> byteSizeValueFunction) {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
+            long size = randomIntBetween(1, 1000);
+            ByteSizeValue expected = new ByteSizeValue(size, unit);
+            ByteSizeValue actual = byteSizeValueFunction.apply(size);
+            assertThat(actual, equalTo(expected));
         }
     }
 }

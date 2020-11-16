@@ -25,13 +25,17 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -49,7 +53,11 @@ import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.time.Clock;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -67,6 +75,8 @@ public class DataFrameAnalyticsManager {
     private final AnalyticsProcessManager processManager;
     private final DataFrameAnalyticsAuditor auditor;
     private final IndexNameExpressionResolver expressionResolver;
+    /** Indicates whether the node is shutting down. */
+    private final AtomicBoolean nodeShuttingDown = new AtomicBoolean();
 
     public DataFrameAnalyticsManager(NodeClient client, DataFrameAnalyticsConfigProvider configProvider,
                                      AnalyticsProcessManager processManager, DataFrameAnalyticsAuditor auditor,
@@ -82,10 +92,29 @@ public class DataFrameAnalyticsManager {
         // With config in hand, determine action to take
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
-                // At this point we have the config at hand and we can reset the progress tracker
-                // to use the analyses phases. We preserve reindexing progress as if reindexing was
-                // finished it will not be reset.
-                task.getStatsHolder().resetProgressTrackerPreservingReindexingProgress(config.getAnalysis().getProgressPhases(),
+                // Check if existing destination index is incompatible.
+                // If it is, we delete it and start from reindexing.
+                IndexMetadata destIndex = clusterState.getMetadata().index(config.getDest().getIndex());
+                if (destIndex != null) {
+                    MappingMetadata destIndexMapping = clusterState.getMetadata().index(config.getDest().getIndex()).mapping();
+                    DestinationIndex.Metadata metadata = DestinationIndex.readMetadata(config.getId(), destIndexMapping);
+                    if (metadata.hasMetadata() && (metadata.isCompatible() == false)) {
+                        LOGGER.info("[{}] Destination index was created in version [{}] but minimum supported version is [{}]. " +
+                            "Deleting index and starting from scratch.", config.getId(), metadata.getVersion(),
+                            DestinationIndex.MIN_COMPATIBLE_VERSION);
+                        task.getStatsHolder().resetProgressTracker(config.getAnalysis().getProgressPhases(),
+                            config.getAnalysis().supportsInference());
+                        DataFrameAnalyticsTaskState reindexingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.REINDEXING,
+                            task.getAllocationId(), "destination index was out of date");
+                        task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
+                            updatedTask -> executeJobInMiddleOfReindexing(task, config),
+                            task::setFailed
+                        ));
+                        return;
+                    }
+                }
+
+                task.getStatsHolder().adjustProgressTracker(config.getAnalysis().getProgressPhases(),
                     config.getAnalysis().supportsInference());
 
                 switch(currentState) {
@@ -229,7 +258,7 @@ public class DataFrameAnalyticsManager {
 
                 Exception reindexError = getReindexError(task.getParams().getId(), reindexResponse);
                 if (reindexError != null) {
-                    task.markAsFailed(reindexError);
+                    task.setFailed(reindexError);
                     return;
                 }
 
@@ -260,11 +289,27 @@ public class DataFrameAnalyticsManager {
                 reindexRequest.setRefresh(true);
                 reindexRequest.setSourceIndices(config.getSource().getIndex());
                 reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
-                reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
-                reindexRequest.setDestIndex(config.getDest().getIndex());
-                reindexRequest.setScript(new Script("ctx._source." + DestinationIndex.ID_COPY + " = ctx._id"));
-                reindexRequest.setParentTask(task.getParentTaskId());
                 reindexRequest.getSearchRequest().allowPartialSearchResults(false);
+                reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
+                reindexRequest.getSearchRequest().source().sort(SeqNoFieldMapper.NAME, SortOrder.ASC);
+                reindexRequest.setDestIndex(config.getDest().getIndex());
+
+                // We explicitly set slices to 1 as we cannot parallelize in order to have the incremental id
+                reindexRequest.setSlices(1);
+                Map<String, Object> counterValueParam = new HashMap<>();
+                counterValueParam.put("value", -1);
+                reindexRequest.setScript(
+                    new Script(
+                        Script.DEFAULT_SCRIPT_TYPE,
+                        Script.DEFAULT_SCRIPT_LANG,
+                        // We use indirection here because top level params are immutable.
+                        // This is a work around at the moment but the plan is to make this a feature of reindex API.
+                        "ctx._source." + DestinationIndex.INCREMENTAL_ID + " = ++params.counter.value",
+                        Collections.singletonMap("counter", counterValueParam)
+                    )
+                );
+
+                reindexRequest.setParentTask(task.getParentTaskId());
 
                 final ThreadContext threadContext = parentTaskClient.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
@@ -391,5 +436,13 @@ public class DataFrameAnalyticsManager {
 
     public void stop(DataFrameAnalyticsTask task) {
         processManager.stop(task);
+    }
+
+    public boolean isNodeShuttingDown() {
+        return nodeShuttingDown.get();
+    }
+
+    public void markNodeAsShuttingDown() {
+        nodeShuttingDown.set(true);
     }
 }

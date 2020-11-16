@@ -56,12 +56,12 @@ tasks.named("processYamlRestTestResources").configure {
 }
 
 yamlRestTest {
-  dependsOn gceFixture, project(':plugins:discovery-gce').bundlePlugin
+  dependsOn gceFixture
 }
 
 testClusters.yamlRestTest {
   numberOfNodes = gceNumberOfNodes
-  plugin project(':plugins:discovery-gce').bundlePlugin.archiveFile
+  plugin ':plugins:discovery-gce'
   // use gce fixture for Auth calls instead of http://metadata.google.internal
   environment 'GCE_METADATA_HOST', { "http://${gceFixture.addressAndPort}" }, IGNORE_VALUE
   // allows to configure hidden settings (`cloud.gce.host` and `cloud.gce.root_url`)

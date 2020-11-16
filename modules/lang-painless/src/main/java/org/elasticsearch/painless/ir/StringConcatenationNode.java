@@ -19,26 +19,12 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
 
 public class StringConcatenationNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
-
-    private boolean cat;
-
-    public void setCat(boolean cat) {
-        this.cat = cat;
-    }
-
-    public boolean getCat() {
-        return cat;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
@@ -52,30 +38,8 @@ public class StringConcatenationNode extends ArgumentsNode {
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
-        if (cat == false) {
-            methodWriter.writeNewStrings();
-        }
-
-        ExpressionNode leftNode = getArgumentNodes().get(0);
-        leftNode.write(classWriter, methodWriter, writeScope);
-
-        if (leftNode instanceof StringConcatenationNode == false || ((StringConcatenationNode)leftNode).getCat() == false) {
-            methodWriter.writeAppendStrings(leftNode.getExpressionType());
-        }
-
-        ExpressionNode rightNode = getArgumentNodes().get(1);
-        rightNode.write(classWriter, methodWriter, writeScope);
-
-        if (rightNode instanceof StringConcatenationNode == false || ((StringConcatenationNode)rightNode).getCat() == false) {
-            methodWriter.writeAppendStrings(rightNode.getExpressionType());
-        }
-
-        if (cat == false) {
-            methodWriter.writeToStrings();
-        }
+    public StringConcatenationNode(Location location) {
+        super(location);
     }
+
 }

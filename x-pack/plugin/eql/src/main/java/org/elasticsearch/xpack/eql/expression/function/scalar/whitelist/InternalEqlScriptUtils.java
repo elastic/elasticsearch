@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist;
 
+import org.elasticsearch.xpack.eql.expression.function.scalar.math.ToNumberFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.BetweenFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatchFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ConcatFunctionProcessor;
@@ -14,11 +15,12 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOfFunc
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContainsFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor;
-import org.elasticsearch.xpack.eql.expression.function.scalar.math.ToNumberFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToStringFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 
 import java.util.List;
+
+import static org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation;
 
 /*
  * Whitelisted class for EQL scripts.
@@ -28,6 +30,14 @@ import java.util.List;
 public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     InternalEqlScriptUtils() {}
+
+    public static Boolean seq(Object left, Object right) {
+        return InsensitiveBinaryComparisonOperation.SEQ.apply(left, right);
+    }
+
+    public static Boolean sneq(Object left, Object right) {
+        return InsensitiveBinaryComparisonOperation.SNEQ.apply(left, right);
+    }
 
     public static String between(String s, String left, String right, Boolean greedy, Boolean caseSensitive) {
         return (String) BetweenFunctionProcessor.doProcess(s, left, right, greedy, caseSensitive);

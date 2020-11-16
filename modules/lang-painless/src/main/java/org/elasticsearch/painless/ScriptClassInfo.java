@@ -22,12 +22,13 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
@@ -46,7 +47,8 @@ public class ScriptClassInfo {
     private final List<org.objectweb.asm.commons.Method> needsMethods;
     private final List<org.objectweb.asm.commons.Method> getMethods;
     private final List<Class<?>> getReturns;
-    private final List<ConverterSignature> converterSignatures;
+    public final List<FunctionTable.LocalFunction> converters;
+    public final FunctionTable.LocalFunction defConverter;
 
     public ScriptClassInfo(PainlessLookup painlessLookup, Class<?> baseClass) {
         this.baseClass = baseClass;
@@ -92,17 +94,30 @@ public class ScriptClassInfo {
         if (executeMethod == null) {
             throw new IllegalStateException("no execute method found");
         }
-        ArrayList<ConverterSignature> converterSignatures = new ArrayList<>();
+        ArrayList<FunctionTable.LocalFunction> converters = new ArrayList<>();
+        FunctionTable.LocalFunction defConverter = null;
         for (java.lang.reflect.Method m : baseClass.getMethods()) {
             if (m.getName().startsWith("convertFrom") &&
                 m.getParameterTypes().length == 1 &&
                 m.getReturnType() == returnType &&
                 Modifier.isStatic(m.getModifiers())) {
 
-                converterSignatures.add(new ConverterSignature(m));
+                if (m.getName().equals("convertFromDef")) {
+                    if (m.getParameterTypes()[0] != Object.class) {
+                        throw new IllegalStateException("convertFromDef must take a single Object as an argument, " +
+                            "not [" + m.getParameterTypes()[0] + "]");
+                    }
+                    defConverter = new FunctionTable.LocalFunction(m.getName(), m.getReturnType(), Arrays.asList(m.getParameterTypes()),
+                                                                   true, true);
+                } else {
+                    converters.add(
+                        new FunctionTable.LocalFunction(m.getName(), m.getReturnType(), Arrays.asList(m.getParameterTypes()), true, true)
+                    );
+                }
             }
         }
-        this.converterSignatures = unmodifiableList(converterSignatures);
+        this.defConverter = defConverter;
+        this.converters = unmodifiableList(converters);
 
         MethodType methodType = MethodType.methodType(executeMethod.getReturnType(), executeMethod.getParameterTypes());
         this.executeMethod = new org.objectweb.asm.commons.Method(executeMethod.getName(), methodType.toMethodDescriptorString());
@@ -238,24 +253,5 @@ public class ScriptClassInfo {
         } catch (IllegalArgumentException | IllegalAccessException e) {
             throw new IllegalArgumentException("Error trying to read [" + iface.getName() + "#ARGUMENTS]", e);
         }
-    }
-
-    private static class ConverterSignature {
-        final Class<?> parameter;
-        final Method method;
-
-        ConverterSignature(Method method) {
-            this.method = method;
-            this.parameter = method.getParameterTypes()[0];
-        }
-    }
-
-    public Method getConverter(Class<?> original) {
-        for (ConverterSignature converterSignature: converterSignatures) {
-            if (converterSignature.parameter.isAssignableFrom(original)) {
-                return converterSignature.method;
-            }
-        }
-        return null;
     }
 }

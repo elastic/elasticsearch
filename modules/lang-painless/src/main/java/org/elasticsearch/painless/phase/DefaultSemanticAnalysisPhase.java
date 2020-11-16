@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
@@ -89,7 +90,6 @@ import org.elasticsearch.painless.symbol.Decorations.BinaryType;
 import org.elasticsearch.painless.symbol.Decorations.CapturesDecoration;
 import org.elasticsearch.painless.symbol.Decorations.ComparisonType;
 import org.elasticsearch.painless.symbol.Decorations.CompoundType;
-import org.elasticsearch.painless.symbol.Decorations.Concatenate;
 import org.elasticsearch.painless.symbol.Decorations.ContinuousLoop;
 import org.elasticsearch.painless.symbol.Decorations.DefOptimized;
 import org.elasticsearch.painless.symbol.Decorations.DowncastPainlessCast;
@@ -309,7 +309,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 semanticScope.replicateCondition(userStatementNode, userBlockNode, LoopEscape.class);
 
                 if (allEscape) {
-                    semanticScope.setCondition(userStatementNode, AllEscape.class);
+                    semanticScope.setCondition(userBlockNode, AllEscape.class);
                 }
             } else {
                 if (allEscape) {
@@ -975,13 +975,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         "cannot apply [" + operation.symbol + "=] to types [" + leftValueType + "] and [" + rightValueType + "]"));
             }
 
-            boolean cat = operation == Operation.ADD && compoundType == String.class;
-
-            if (cat && userRightNode instanceof EBinary &&
-                    ((EBinary)userRightNode).getOperation() == Operation.ADD && rightValueType == String.class) {
-                semanticScope.setCondition(userRightNode, Concatenate.class);
-            }
-
             if (isShift) {
                 if (compoundType == def.class) {
                     // shifts are promoted independently, but for the def type, we need object.
@@ -1004,10 +997,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             semanticScope.putDecoration(userAssignmentNode, new CompoundType(compoundType));
 
-            if (cat) {
-                semanticScope.setCondition(userAssignmentNode, Concatenate.class);
-            }
-
             if (upcast != null) {
                 semanticScope.putDecoration(userAssignmentNode, new UpcastPainlessCast(upcast));
             }
@@ -1015,7 +1004,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             if (downcast != null) {
                 semanticScope.putDecoration(userAssignmentNode, new DowncastPainlessCast(downcast));
             }
-            // if the lhs node is a def optimized node we update the actual type to remove the need for a cast
+        // if the lhs node is a def optimized node we update the actual type to remove the need for a cast
         } else if (semanticScope.getCondition(userLeftNode, DefOptimized.class)) {
             checkedVisit(userRightNode, semanticScope);
             Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
@@ -1187,23 +1176,13 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             valueType = binaryType;
 
-            if (operation == Operation.ADD && binaryType == String.class) {
-                if (userLeftNode instanceof EBinary &&
-                        ((EBinary)userLeftNode).getOperation() == Operation.ADD && leftValueType == String.class) {
-                    semanticScope.setCondition(userLeftNode, Concatenate.class);
-                }
-
-                if (userRightNode instanceof EBinary &&
-                        ((EBinary)userRightNode).getOperation() == Operation.ADD && rightValueType == String.class) {
-                    semanticScope.setCondition(userRightNode, Concatenate.class);
-                }
-            } else if (binaryType == def.class || shiftType == def.class) {
+            if (binaryType == def.class || shiftType == def.class) {
                 TargetType targetType = semanticScope.getDecoration(userBinaryNode, TargetType.class);
 
                 if (targetType != null) {
                     valueType = targetType.getTargetType();
                 }
-            } else {
+            } else if (operation != Operation.ADD || binaryType != String.class) {
                 semanticScope.putDecoration(userLeftNode, new TargetType(binaryType));
 
                 if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
@@ -2071,7 +2050,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
         }
 
-        if (semanticScope.getScriptScope().getCompilerSettings().areRegexesEnabled() == false) {
+        if (semanticScope.getScriptScope().getCompilerSettings().areRegexesEnabled() == CompilerSettings.RegexEnabled.FALSE) {
             throw userRegexNode.createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
                     + "recursion and long loops."));
@@ -2250,7 +2229,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             semanticScope.putDecoration(userLambdaNode, new EncodingDecoration(defReferenceEncoding));
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                    location, targetType.getTargetType(), "this", name, capturedVariables.size());
+                    location, targetType.getTargetType(), "this", name, capturedVariables.size(),
+                    scriptScope.getCompilerSettings().asMap());
             valueType = targetType.getTargetType();
             semanticScope.putDecoration(userLambdaNode, new ReferenceDecoration(ref));
         }
@@ -2298,7 +2278,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 semanticScope.putDecoration(userFunctionRefNode, new EncodingDecoration(defReferenceEncoding));
             } else {
                 FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                        location, targetType.getTargetType(), symbol, methodName, 0);
+                        location, targetType.getTargetType(), symbol, methodName, 0,
+                        scriptScope.getCompilerSettings().asMap());
                 valueType = targetType.getTargetType();
                 semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
             }
@@ -2331,7 +2312,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 // static case
                 if (captured.getType() != def.class) {
                     FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(), location,
-                            targetType.getTargetType(), captured.getCanonicalTypeName(), methodName, 1);
+                            targetType.getTargetType(), captured.getCanonicalTypeName(), methodName, 1,
+                            scriptScope.getCompilerSettings().asMap());
                     semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
                 }
             }
@@ -2380,7 +2362,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             scriptScope.putDecoration(userNewArrayFunctionRefNode, new EncodingDecoration(defReferenceEncoding));
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                    userNewArrayFunctionRefNode.getLocation(), targetType.getTargetType(), "this", name, 0);
+                    userNewArrayFunctionRefNode.getLocation(), targetType.getTargetType(), "this", name, 0,
+                    scriptScope.getCompilerSettings().asMap());
             valueType = targetType.getTargetType();
             semanticScope.putDecoration(userNewArrayFunctionRefNode, new ReferenceDecoration(ref));
         }
@@ -2502,11 +2485,14 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                             "Field [" + index + "] does not exist for type [" + prefixValueType.getValueCanonicalTypeName() + "]."));
                 }
             } else if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
-                TargetType targetType = semanticScope.getDecoration(userDotNode, TargetType.class);
+                TargetType targetType = userDotNode.isNullSafe() ? null : semanticScope.getDecoration(userDotNode, TargetType.class);
                 // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
                 valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
                         semanticScope.getCondition(userDotNode, Explicit.class) ? def.class : targetType.getTargetType();
-                semanticScope.setCondition(userDotNode, DefOptimized.class);
+
+                if (write) {
+                    semanticScope.setCondition(userDotNode, DefOptimized.class);
+                }
             } else {
                 Class<?> prefixType;
                 String prefixCanonicalTypeName;
@@ -2725,7 +2711,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
             valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
                     semanticScope.getCondition(userBraceNode, Explicit.class) ? def.class : targetType.getTargetType();
-            semanticScope.setCondition(userBraceNode, DefOptimized.class);
+
+            if (write) {
+                semanticScope.setCondition(userBraceNode, DefOptimized.class);
+            }
         } else if (Map.class.isAssignableFrom(prefixValueType)) {
             String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
 
@@ -2871,7 +2860,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 }
             }
 
-            TargetType targetType = semanticScope.getDecoration(userCallNode, TargetType.class);
+            TargetType targetType = userCallNode.isNullSafe() ? null : semanticScope.getDecoration(userCallNode, TargetType.class);
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
             valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
                     semanticScope.getCondition(userCallNode, Explicit.class) ? def.class : targetType.getTargetType();

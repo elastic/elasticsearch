@@ -8,9 +8,16 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
@@ -27,10 +34,13 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.ReferenceInput;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
 public final class RuntimeUtils {
 
@@ -38,7 +48,45 @@ public final class RuntimeUtils {
 
     private RuntimeUtils() {}
 
-    static void logSearchResponse(SearchResponse response, Logger logger) {
+    public static ActionListener<SearchResponse> searchLogListener(ActionListener<SearchResponse> listener, Logger log) {
+        return ActionListener.wrap(response -> {
+            ShardSearchFailure[] failures = response.getShardFailures();
+            if (CollectionUtils.isEmpty(failures) == false) {
+                listener.onFailure(new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause()));
+                return;
+            }
+            if (log.isTraceEnabled()) {
+                logSearchResponse(response, log);
+            }
+            listener.onResponse(response);
+        }, listener::onFailure);
+    }
+
+    public static ActionListener<MultiSearchResponse> multiSearchLogListener(ActionListener<MultiSearchResponse> listener, Logger log) {
+        return ActionListener.wrap(items -> {
+            for (MultiSearchResponse.Item item : items) {
+                Exception failure = item.getFailure();
+                SearchResponse response = item.getResponse();
+
+                if (failure == null) {
+                    ShardSearchFailure[] failures = response.getShardFailures();
+                    if (CollectionUtils.isEmpty(failures) == false) {
+                        failure = new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause());
+                    }
+                }
+                if (failure != null) {
+                    listener.onFailure(failure);
+                    return;
+                }
+                if (log.isTraceEnabled()) {
+                    logSearchResponse(response, log);
+                }
+            }
+            listener.onResponse(items);
+        }, listener::onFailure);
+    }
+
+    private static void logSearchResponse(SearchResponse response, Logger logger) {
         List<Aggregation> aggs = Collections.emptyList();
         if (response.getAggregations() != null) {
             aggs = response.getAggregations().asList();
@@ -48,10 +96,12 @@ public final class RuntimeUtils {
             aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
         }
 
-        logger.trace("Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
-                + "{} successful shards, {} total shards, took {}, timed out [{}]]", response.getHits().getTotalHits().relation.toString(),
-                response.getHits().getTotalHits().value, aggs.size(), aggsNames, response.getFailedShards(), response.getSkippedShards(),
-                response.getSuccessfulShards(), response.getTotalShards(), response.getTook(), response.isTimedOut());
+        SearchHit[] hits = response.getHits().getHits();
+        int count = hits != null ? hits.length : 0;
+        logger.trace("Got search response [hits {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
+                + "{} successful shards, {} total shards, took {}, timed out [{}]]", count, aggs.size(),
+                aggsNames, response.getFailedShards(), response.getSkippedShards(), response.getSuccessfulShards(),
+                response.getTotalShards(), response.getTook(), response.isTimedOut());
     }
 
     public static List<HitExtractor> createExtractor(List<FieldExtraction> fields, EqlConfiguration cfg) {
@@ -62,7 +112,7 @@ public final class RuntimeUtils {
         }
         return extractors;
     }
-    
+
     public static HitExtractor createExtractor(FieldExtraction ref, EqlConfiguration cfg) {
         if (ref instanceof SearchHitFieldRef) {
             SearchHitFieldRef f = (SearchHitFieldRef) ref;
@@ -92,7 +142,7 @@ public final class RuntimeUtils {
 
         throw new EqlIllegalArgumentException("Unexpected value reference {}", ref.getClass());
     }
-    
+
 
     public static SearchRequest prepareRequest(Client client,
                                                SearchSourceBuilder source,
@@ -104,5 +154,35 @@ public final class RuntimeUtils {
                 .setIndicesOptions(
                         includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
                 .request();
+    }
+
+    public static List<SearchHit> searchHits(SearchResponse response) {
+        return Arrays.asList(response.getHits().getHits());
+    }
+
+    // optimized method that adds filter to existing bool queries without additional wrapping
+    // additionally checks whether the given query exists for safe decoration
+    public static SearchSourceBuilder addFilter(QueryBuilder filter, SearchSourceBuilder source) {
+        BoolQueryBuilder bool = null;
+        QueryBuilder query = source.query();
+
+        if (query instanceof BoolQueryBuilder) {
+            bool = (BoolQueryBuilder) query;
+            if (filter != null && bool.filter().contains(filter) == false) {
+                bool.filter(filter);
+            }
+        }
+        else {
+            bool = boolQuery();
+            if (query != null) {
+                bool.filter(query);
+            }
+            if (filter != null) {
+                bool.filter(filter);
+            }
+
+            source.query(bool);
+        }
+        return source;
     }
 }

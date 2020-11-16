@@ -272,11 +272,6 @@ public class TransportFieldCapabilitiesIndexAction
                         }
 
                         @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
-                        }
-
-                        @Override
                         public void handleResponse(final FieldCapabilitiesIndexResponse response) {
                             if (response.canMatch()) {
                                 listener.onResponse(response);

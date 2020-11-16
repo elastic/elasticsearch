@@ -16,16 +16,21 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetector;
@@ -36,6 +41,9 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
+import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 /**
  * Provides explanations on aspects of the given data frame analytics spec like memory estimation, field selection, etc.
@@ -49,6 +57,8 @@ public class TransportExplainDataFrameAnalyticsAction
     private final ClusterService clusterService;
     private final NodeClient client;
     private final MemoryUsageEstimationProcessManager processManager;
+    private final SecurityContext securityContext;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportExplainDataFrameAnalyticsAction(TransportService transportService,
@@ -56,13 +66,19 @@ public class TransportExplainDataFrameAnalyticsAction
                                                     ClusterService clusterService,
                                                     NodeClient client,
                                                     XPackLicenseState licenseState,
-                                                    MemoryUsageEstimationProcessManager processManager) {
+                                                    MemoryUsageEstimationProcessManager processManager,
+                                                    Settings settings,
+                                                    ThreadPool threadPool) {
         super(ExplainDataFrameAnalyticsAction.NAME, transportService, actionFilters, PutDataFrameAnalyticsAction.Request::new);
         this.transportService = transportService;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);
         this.licenseState = licenseState;
         this.processManager = Objects.requireNonNull(processManager);
+        this.threadPool = threadPool;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
+            new SecurityContext(settings, threadPool.getThreadContext()) :
+            null;
     }
 
     @Override
@@ -84,17 +100,38 @@ public class TransportExplainDataFrameAnalyticsAction
 
     private void explain(Task task, PutDataFrameAnalyticsAction.Request request,
                          ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
-        ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory =
-                new ExtractedFieldsDetectorFactory(new ParentTaskAssigningClient(client, task.getParentTaskId()));
-        extractedFieldsDetectorFactory.createFromSource(
-            request.getConfig(),
-            ActionListener.wrap(
-                extractedFieldsDetector -> explain(task, request, extractedFieldsDetector, listener),
-                listener::onFailure)
+
+        final ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(
+            new ParentTaskAssigningClient(client, task.getParentTaskId())
         );
+        if (licenseState.isSecurityEnabled()) {
+            useSecondaryAuthIfAvailable(this.securityContext, () -> {
+                // Set the auth headers (preferring the secondary headers) to the caller's. 
+                // Regardless if the config was previously stored or not.
+                DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder(request.getConfig())
+                    .setHeaders(filterSecurityHeaders(threadPool.getThreadContext().getHeaders()))
+                    .build();
+                extractedFieldsDetectorFactory.createFromSource(
+                    config,
+                    ActionListener.wrap(
+                        extractedFieldsDetector -> explain(task, config, extractedFieldsDetector, listener),
+                        listener::onFailure
+                    )
+                );
+            });
+        } else {
+            extractedFieldsDetectorFactory.createFromSource(
+                request.getConfig(),
+                ActionListener.wrap(
+                    extractedFieldsDetector -> explain(task, request.getConfig(), extractedFieldsDetector, listener),
+                    listener::onFailure
+                )
+            );
+        }
+
     }
 
-    private void explain(Task task, PutDataFrameAnalyticsAction.Request request, ExtractedFieldsDetector extractedFieldsDetector,
+    private void explain(Task task, DataFrameAnalyticsConfig config, ExtractedFieldsDetector extractedFieldsDetector,
                          ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
@@ -103,7 +140,7 @@ public class TransportExplainDataFrameAnalyticsAction
             listener::onFailure
         );
 
-        estimateMemoryUsage(task, request, fieldExtraction.v1(), memoryEstimationListener);
+        estimateMemoryUsage(task, config, fieldExtraction.v1(), memoryEstimationListener);
     }
 
     /**
@@ -112,15 +149,15 @@ public class TransportExplainDataFrameAnalyticsAction
      * the ML node.
      */
     private void estimateMemoryUsage(Task task,
-                                     PutDataFrameAnalyticsAction.Request request,
+                                     DataFrameAnalyticsConfig config,
                                      ExtractedFields extractedFields,
                                      ActionListener<MemoryEstimation> listener) {
         final String estimateMemoryTaskId = "memory_usage_estimation_" + task.getId();
         DataFrameDataExtractorFactory extractorFactory = DataFrameDataExtractorFactory.createForSourceIndices(
-            new ParentTaskAssigningClient(client, task.getParentTaskId()), estimateMemoryTaskId, request.getConfig(), extractedFields);
+            new ParentTaskAssigningClient(client, task.getParentTaskId()), estimateMemoryTaskId, config, extractedFields);
         processManager.runJobAsync(
             estimateMemoryTaskId,
-            request.getConfig(),
+            config,
             extractorFactory,
             ActionListener.wrap(
                 result -> listener.onResponse(

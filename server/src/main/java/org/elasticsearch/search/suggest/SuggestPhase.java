@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
@@ -35,12 +34,8 @@ import java.util.Map;
 /**
  * Suggest phase of a search request, used to collect suggestions
  */
-public class SuggestPhase implements SearchPhase {
-    @Override
-    public void preProcess(SearchContext context) {
-    }
+public class SuggestPhase {
 
-    @Override
     public void execute(SearchContext context) {
         final SuggestionSearchContext suggest = context.suggest();
         if (suggest == null) {
@@ -66,8 +61,5 @@ public class SuggestPhase implements SearchPhase {
         }
     }
 
-    static class SortedHits {
-        int[] docs;
-    }
 }
 

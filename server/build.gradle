@@ -39,8 +39,7 @@ dependencies {
   api project(':libs:elasticsearch-x-content')
   api project(":libs:elasticsearch-geo")
 
-  compileOnly project(':libs:elasticsearch-plugin-classloader')
-  testRuntimeOnly project(':libs:elasticsearch-plugin-classloader')
+  implementation project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -294,4 +293,7 @@ tasks.named("dependencyLicenses").configure {
 tasks.named("licenseHeaders").configure {
     // Ignore our vendored version of Google Guice
     excludes << 'org/elasticsearch/common/inject/**/*'
+    // Ignore temporary copies of impending 8.7 Lucene classes
+    excludes << 'org/apache/lucene/search/RegExp87*'
+    excludes << 'org/apache/lucene/search/RegexpQuery87*'
 }

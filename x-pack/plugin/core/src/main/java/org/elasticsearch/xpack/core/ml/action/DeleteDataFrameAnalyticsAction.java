@@ -27,7 +27,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
     public static final String DELETION_TASK_DESCRIPTION_PREFIX = "delete-analytics-";
 
     private DeleteDataFrameAnalyticsAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

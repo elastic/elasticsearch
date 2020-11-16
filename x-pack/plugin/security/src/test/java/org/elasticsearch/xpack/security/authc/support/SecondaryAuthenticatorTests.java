@@ -13,7 +13,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -47,6 +46,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
@@ -121,7 +121,8 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         tokenService = new TokenService(settings, clock, client, licenseState, securityContext, securityIndex, tokensIndex, clusterService);
         final ApiKeyService apiKeyService = new ApiKeyService(settings, clock, client, licenseState,
-            securityIndex, clusterService, threadPool);
+                                                              securityIndex, clusterService,
+                                                              mock(CacheInvalidatorRegistry.class),threadPool);
         authenticationService = new AuthenticationService(settings, realms, auditTrail, failureHandler, threadPool, anonymous,
             tokenService, apiKeyService);
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService);
@@ -274,9 +275,9 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             tokenSource.set(request.source());
         });
 
-        final PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        final PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(auth, auth, Map.of(), false, tokenFuture);
-        final String token = tokenFuture.actionGet().v1();
+        final String token = tokenFuture.actionGet().getAccessToken();
 
         threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Bearer " + token);
 

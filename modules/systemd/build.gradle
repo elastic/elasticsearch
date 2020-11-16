@@ -22,4 +22,3 @@ esplugin {
   classname 'org.elasticsearch.systemd.SystemdPlugin'
 }
 
-integTest.enabled = false

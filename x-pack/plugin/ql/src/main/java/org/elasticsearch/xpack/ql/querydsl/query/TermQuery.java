@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Objects;
@@ -16,11 +17,17 @@ public class TermQuery extends LeafQuery {
 
     private final String term;
     private final Object value;
+    private final boolean caseInsensitive;
 
     public TermQuery(Source source, String term, Object value) {
+        this(source, term, value, false);
+    }
+
+    public TermQuery(Source source, String term, Object value, boolean caseInsensitive) {
         super(source);
         this.term = term;
         this.value = value;
+        this.caseInsensitive = caseInsensitive;
     }
 
     public String term() {
@@ -31,14 +38,20 @@ public class TermQuery extends LeafQuery {
         return value;
     }
 
+    public Boolean caseInsensitive() {
+        return caseInsensitive;
+    }
+
     @Override
     public QueryBuilder asBuilder() {
-        return termQuery(term, value);
+        TermQueryBuilder qb = termQuery(term, value);
+        // ES does not allow case_insensitive to be set to "false", it should be either "true" or not specified
+        return caseInsensitive == false ? qb : qb.caseInsensitive(caseInsensitive);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(term, value);
+        return Objects.hash(term, value, caseInsensitive);
     }
 
     @Override
@@ -53,7 +66,8 @@ public class TermQuery extends LeafQuery {
 
         TermQuery other = (TermQuery) obj;
         return Objects.equals(term, other.term)
-                && Objects.equals(value, other.value);
+                && Objects.equals(value, other.value)
+                && Objects.equals(caseInsensitive, other.caseInsensitive);
     }
 
     @Override

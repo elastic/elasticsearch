@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -53,7 +54,9 @@ public class DoubleTermsTests extends InternalTermsTestCase {
             int docCount = randomIntBetween(1, 100);
             buckets.add(new DoubleTerms.Bucket(term, docCount, aggregations, showTermDocCountError, docCountError, format));
         }
-        return new DoubleTerms(name, order, requiredSize, minDocCount,
+        BucketOrder reduceOrder = rarely() ? order : BucketOrder.key(true);
+        Collections.sort(buckets, reduceOrder.comparator());
+        return new DoubleTerms(name, reduceOrder, order, requiredSize, minDocCount,
                 metadata, format, shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -115,7 +118,8 @@ public class DoubleTermsTests extends InternalTermsTestCase {
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
-            return new DoubleTerms(name, order, requiredSize, minDocCount, metadata, format, shardSize,
+            Collections.sort(buckets, doubleTerms.reduceOrder.comparator());
+            return new DoubleTerms(name, doubleTerms.reduceOrder, order, requiredSize, minDocCount, metadata, format, shardSize,
                     showTermDocCountError, otherDocCount, buckets, docCountError);
         } else {
             String name = instance.getName();

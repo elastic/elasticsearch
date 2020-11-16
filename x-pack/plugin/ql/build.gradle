@@ -12,6 +12,9 @@ dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testImplementation project(':test:framework')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(project(xpackModule('ql:test'))) {
+    exclude group: 'org.elasticsearch.plugin', module: 'ql'
+  }
 }
 
 configurations {
@@ -28,9 +31,4 @@ artifacts {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
   archives tasks.named("jar")
   testArtifacts testJar
-}
-
-// disable integration tests for now
-tasks.named("integTest").configure {
-  enabled = false
 }

@@ -119,6 +119,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
             }, listener::onFailure
         );
 
+        // We must update the progress of the reindexing task as it might be stale
         task.updateReindexTaskProgress(reindexingProgressListener);
     }
 

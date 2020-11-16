@@ -33,10 +33,10 @@ the stability of the cluster. Those queries can be categorised as follows:
 * Queries that need to do linear scans to identify matches:
 ** <<query-dsl-script-query, `script queries`>>
 * Queries that have a high up-front cost :
-** <<query-dsl-fuzzy-query,`fuzzy queries`>> (except on <<wildcard, `wildcard`>> fields)
-** <<query-dsl-regexp-query,`regexp queries`>> (except on <<wildcard, `wildcard`>> fields)
-** <<query-dsl-prefix-query,`prefix queries`>>  (except on <<wildcard, `wildcard`>> fields or those without <<index-prefixes, `index_prefixes`>>)
-** <<query-dsl-wildcard-query, `wildcard queries`>> (except on <<wildcard, `wildcard`>> fields)
+** <<query-dsl-fuzzy-query,`fuzzy queries`>> (except on <<wildcard-field-type, `wildcard`>> fields)
+** <<query-dsl-regexp-query,`regexp queries`>> (except on <<wildcard-field-type, `wildcard`>> fields)
+** <<query-dsl-prefix-query,`prefix queries`>>  (except on <<wildcard-field-type, `wildcard`>> fields or those without <<index-prefixes, `index_prefixes`>>)
+** <<query-dsl-wildcard-query, `wildcard queries`>> (except on <<wildcard-field-type, `wildcard`>> fields)
 ** <<query-dsl-range-query, `range queries>> on <<text, `text`>> and <<keyword, `keyword`>> fields
 * <<joining-queries, `Joining queries`>>
 * Queries on <<prefix-trees, deprecated geo shapes>>

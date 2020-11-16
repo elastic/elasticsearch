@@ -223,8 +223,16 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * aggregations are of the same type (the same type as this aggregation). For best efficiency, when implementing,
      * try reusing an existing instance (typically the first in the given list) to save on redundant object
      * construction.
+     *
+     * @see #mustReduceOnSingleInternalAgg()
      */
     public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
+
+    /**
+     * Signal the framework if the {@linkplain InternalAggregation#reduce(List, ReduceContext)} phase needs to be called
+     * when there is only one {@linkplain InternalAggregation}.
+     */
+    protected abstract boolean mustReduceOnSingleInternalAgg();
 
     /**
      * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns

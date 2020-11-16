@@ -72,7 +72,7 @@ yamlRestTest.enabled = false
   }
 
   tasks.create(name: "yamlRestTest${action}", type: RestIntegTestTask) {
-    dependsOn fixture, project(':plugins:discovery-ec2').bundlePlugin
+    dependsOn fixture
   }
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
@@ -84,7 +84,7 @@ yamlRestTest.enabled = false
 
   testClusters."yamlRestTest${action}" {
     numberOfNodes = ec2NumberOfNodes
-    plugin project(':plugins:discovery-ec2').bundlePlugin.archiveFile
+    plugin ':plugins:discovery-ec2'
 
     setting 'discovery.seed_providers', 'ec2'
     setting 'network.host', '_ec2_'

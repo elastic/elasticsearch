@@ -32,33 +32,51 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Manages loading information about nested documents
+ */
 public class NestedDocuments {
 
     private final Map<String, BitSetProducer> parentObjectFilters = new HashMap<>();
     private final BitSetProducer parentDocumentFilter;
     private final MapperService mapperService;
 
-    public NestedDocuments(MapperService mapperService, Function<Query, BitSetProducer> filterCache) {
+    /**
+     * Create a new NestedDocuments object for an index
+     * @param mapperService     the index's MapperService
+     * @param filterProducer    a function to build BitSetProducers from filter queries
+     */
+    public NestedDocuments(MapperService mapperService, Function<Query, BitSetProducer> filterProducer) {
         this.mapperService = mapperService;
         if (mapperService.hasNested() == false) {
             this.parentDocumentFilter = null;
         } else {
-            this.parentDocumentFilter = filterCache.apply(Queries.newNonNestedFilter());
+            this.parentDocumentFilter = filterProducer.apply(Queries.newNonNestedFilter());
             for (ObjectMapper mapper : mapperService.documentMapper().mappers().objectMappers().values()) {
                 if (mapper.nested().isNested() == false) {
                     continue;
                 }
                 parentObjectFilters.put(mapper.name(),
-                    filterCache.apply(mapper.nestedTypeFilter()));
+                    filterProducer.apply(mapper.nestedTypeFilter()));
             }
         }
     }
 
+    /**
+     * Returns a LeafNestedDocuments for an index segment
+     */
     public LeafNestedDocuments getLeafNestedDocuments(LeafReaderContext ctx) throws IOException {
         if (parentDocumentFilter == null) {
             return LeafNestedDocuments.NO_NESTED_MAPPERS;
         }
         return new HasNestedDocuments(ctx);
+    }
+
+    /**
+     * Given an object path, returns whether or not any of its parents are plain objects
+     */
+    public boolean hasNonNestedParent(String path) {
+        return mapperService.documentMapper().hasNonNestedParent(path);
     }
 
     private class HasNestedDocuments implements LeafNestedDocuments {
@@ -75,23 +93,25 @@ public class NestedDocuments {
             this.ctx = ctx;
             this.parentFilter = parentDocumentFilter.getBitSet(ctx);
             for (Map.Entry<String, BitSetProducer> filter : parentObjectFilters.entrySet()) {
-                objectFilters.put(filter.getKey(), filter.getValue().getBitSet(ctx));
+                BitSet bits = filter.getValue().getBitSet(ctx);
+                if (bits != null) {
+                    objectFilters.put(filter.getKey(), bits);
+                }
             }
         }
 
         @Override
-        public boolean advance(int doc) throws IOException {
+        public SearchHit.NestedIdentity advance(int doc) {
             if (parentFilter.get(doc)) {
                 // parent doc, no nested identity
                 this.nestedIdentity = null;
                 this.doc = doc;
                 this.rootDoc = doc;
-                return false;
+                return null;
             } else {
                 this.doc = doc;
                 this.rootDoc = parentFilter.nextSetBit(doc);
-                this.nestedIdentity = loadNestedIdentity();
-                return true;
+                return this.nestedIdentity = loadNestedIdentity();
             }
         }
 
@@ -111,11 +131,6 @@ public class NestedDocuments {
         public SearchHit.NestedIdentity nestedIdentity() {
             assert doc != -1 : "Called nestedIdentity() when unpositioned";
             return nestedIdentity;
-        }
-
-        @Override
-        public boolean hasNonNestedParent(String path) {
-            return mapperService.documentMapper().hasNonNestedParent(path);
         }
 
         private SearchHit.NestedIdentity loadNestedIdentity() {

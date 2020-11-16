@@ -19,24 +19,38 @@
 
 package org.elasticsearch.search;
 
-import java.io.IOException;
-
+/**
+ * Manages loading information about nested documents for a single index segment
+ */
 public interface LeafNestedDocuments {
 
-    boolean advance(int doc) throws IOException;
+    /**
+     * Advance to a specific doc, and return its NestedIdentity, or {@code null} if not a child
+     */
+    SearchHit.NestedIdentity advance(int doc);
 
+    /**
+     * The current doc
+     */
     int doc();
 
+    /**
+     * The ultimate parent of the current doc
+     */
     int rootDoc();
 
+    /**
+     * The NestedIdentity of the current doc
+     */
     SearchHit.NestedIdentity nestedIdentity();
 
-    boolean hasNonNestedParent(String path);
-
+    /**
+     * An implementation of LeafNestedDocuments for use when there are no nested field mappers
+     */
     LeafNestedDocuments NO_NESTED_MAPPERS = new LeafNestedDocuments() {
         @Override
-        public boolean advance(int doc) {
-            return false;
+        public SearchHit.NestedIdentity advance(int doc) {
+            return null;
         }
 
         @Override
@@ -51,11 +65,6 @@ public interface LeafNestedDocuments {
 
         @Override
         public SearchHit.NestedIdentity nestedIdentity() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean hasNonNestedParent(String path) {
             throw new UnsupportedOperationException();
         }
     };

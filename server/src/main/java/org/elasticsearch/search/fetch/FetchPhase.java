@@ -24,13 +24,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -65,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 
@@ -151,6 +150,7 @@ public class FetchPhase {
                 HitContext hit = prepareHitContext(
                     context,
                     leafNestedDocuments,
+                    nestedDocuments::hasNonNestedParent,
                     fetchContext.searchLookup(),
                     fieldsVisitor,
                     docId,
@@ -258,20 +258,9 @@ public class FetchPhase {
         return context.sourceRequested() || context.fetchFieldsContext() != null;
     }
 
-    private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
-        if (context.getQueryShardContext().hasNested()) {
-            BitSet bits = context.bitsetFilterCache()
-                .getBitSetProducer(Queries.newNonNestedFilter())
-                .getBitSet(subReaderContext);
-            if (!bits.get(subDocId)) {
-                return bits.nextSetBit(subDocId);
-            }
-        }
-        return -1;
-    }
-
     private HitContext prepareHitContext(SearchContext context,
                                          LeafNestedDocuments nestedDocuments,
+                                         Predicate<String> hasNonNestedParent,
                                          SearchLookup lookup,
                                          FieldsVisitor fieldsVisitor,
                                          int docId,
@@ -279,11 +268,11 @@ public class FetchPhase {
                                          LeafReaderContext subReaderContext,
                                          CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader,
                                          Map<String, Object> sharedCache) throws IOException {
-        if (nestedDocuments.advance(docId - subReaderContext.docBase) == false) {
+        if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
             return prepareNonNestedHitContext(
                 context, lookup, fieldsVisitor, docId, storedToRequestedFields, subReaderContext, storedFieldReader, sharedCache);
         } else {
-            return prepareNestedHitContext(context, docId, nestedDocuments, storedToRequestedFields,
+            return prepareNestedHitContext(context, docId, nestedDocuments, hasNonNestedParent, storedToRequestedFields,
                 subReaderContext, storedFieldReader, sharedCache);
         }
     }
@@ -339,6 +328,7 @@ public class FetchPhase {
     private HitContext prepareNestedHitContext(SearchContext context,
                                                int topDocId,
                                                LeafNestedDocuments nestedInfo,
+                                               Predicate<String> hasNonNestedParent,
                                                Map<String, Set<String>> storedToRequestedFields,
                                                LeafReaderContext subReaderContext,
                                                CheckedBiConsumer<Integer, FieldsVisitor, IOException> storedFieldReader,
@@ -420,7 +410,7 @@ public class FetchPhase {
                 } else {
                     throw new IllegalStateException("extracted source isn't an object or an array");
                 }
-                if ((nestedParsedSource.get(0) instanceof Map) == false && nestedInfo.hasNonNestedParent(nestedPath)) {
+                if ((nestedParsedSource.get(0) instanceof Map) == false && hasNonNestedParent.test(nestedPath)) {
                     // When one of the parent objects are not nested then XContentMapValues.extractValue(...) extracts the values
                     // from two or more layers resulting in a list of list being returned. This is because nestedPath
                     // encapsulates two or more object layers in the _source.

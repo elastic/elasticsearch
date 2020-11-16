@@ -516,11 +516,15 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         OpenJobAction.JobParams::new),
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                     StartDataFrameAnalyticsAction.TaskParams::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+                    SnapshotUpgradeTaskParams::new),
                 // ML - Task states
                 new NamedWriteableRegistry.Entry(PersistentTaskState.class, JobTaskState.NAME, JobTaskState::new),
                 new NamedWriteableRegistry.Entry(PersistentTaskState.class, DatafeedState.NAME, DatafeedState::fromStream),
                 new NamedWriteableRegistry.Entry(PersistentTaskState.class, DataFrameAnalyticsTaskState.NAME,
                     DataFrameAnalyticsTaskState::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, SnapshotUpgradeTaskState.NAME,
+                    SnapshotUpgradeTaskState::new),
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.MACHINE_LEARNING,
                         MachineLearningFeatureSetUsage::new),
                 // ML - Data frame analytics

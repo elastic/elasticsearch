@@ -38,6 +38,7 @@ The API returns the following response:
 [source,js]
 --------------------------------------------------
 {
-    "xml_metadata":"<?xml version=\"1.0\" encoding=\"UTF-8\"?><md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://kibana.example.com/\">\n  <md:SPSSODescriptor AuthnRequestsSigned=\"false\" WantAssertionsSigned=\"true\" protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">\n    <md:SingleLogoutService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"https://kibana.example.com/logout\"/>\n    <md:AssertionConsumerService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"https://kibana.example.com/api/security/v1/saml\" index=\"1\" isDefault=\"true\"/>\n  </md:SPSSODescriptor>\n</md:EntityDescriptor>\n"
+    "metadata" : "<?xml version="1.0" encoding="UTF-8"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://kibana.example.com/"><md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"><md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://kibana.example.com/logout"/><md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://kibana.example.com/api/security/v1/saml" index="1" isDefault="true"/></md:SPSSODescriptor></md:EntityDescriptor>"
 }
 --------------------------------------------------
+// NOTCONSOLE

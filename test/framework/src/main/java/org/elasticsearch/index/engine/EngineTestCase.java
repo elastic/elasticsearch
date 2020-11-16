@@ -31,6 +31,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -126,6 +127,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -1025,41 +1027,55 @@ public abstract class EngineTestCase extends ESTestCase {
             engine.refresh("test_get_doc_ids");
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids", Engine.SearcherScope.INTERNAL)) {
-            List<DocIdSeqNoAndSource> docs = new ArrayList<>();
-            for (LeafReaderContext leafContext : searcher.getIndexReader().leaves()) {
-                LeafReader reader = leafContext.reader();
-                NumericDocValues seqNoDocValues = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
-                NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-                NumericDocValues versionDocValues = reader.getNumericDocValues(VersionFieldMapper.NAME);
-                Bits liveDocs = reader.getLiveDocs();
-                for (int i = 0; i < reader.maxDoc(); i++) {
-                    if (liveDocs == null || liveDocs.get(i)) {
-                        if (primaryTermDocValues.advanceExact(i) == false) {
-                            // We have to skip non-root docs because its _id field is not stored (indexed only).
-                            continue;
-                        }
-                        final long primaryTerm = primaryTermDocValues.longValue();
-                        Document doc = reader.document(i, Set.of(IdFieldMapper.NAME, SourceFieldMapper.NAME));
-                        BytesRef binaryID = doc.getBinaryValue(IdFieldMapper.NAME);
-                        String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
-                        final BytesRef source = doc.getBinaryValue(SourceFieldMapper.NAME);
-                        if (seqNoDocValues.advanceExact(i) == false) {
-                            throw new AssertionError("seqNoDocValues not found for doc[" + i + "] id[" + id + "]");
-                        }
-                        final long seqNo = seqNoDocValues.longValue();
-                        if (versionDocValues.advanceExact(i) == false) {
-                            throw new AssertionError("versionDocValues not found for doc[" + i + "] id[" + id + "]");
-                        }
-                        final long version = versionDocValues.longValue();
-                        docs.add(new DocIdSeqNoAndSource(id, source, seqNo, primaryTerm, version));
-                    }
-                }
-            }
-            docs.sort(Comparator.comparingLong(DocIdSeqNoAndSource::getSeqNo)
-                .thenComparingLong(DocIdSeqNoAndSource::getPrimaryTerm)
-                .thenComparing((DocIdSeqNoAndSource::getId)));
-            return docs;
+            return getDocIds(searcher.getIndexReader(), false).values()
+                .stream()
+                .sorted(Comparator.comparingLong(DocIdSeqNoAndSource::getSeqNo)
+                    .thenComparingLong(DocIdSeqNoAndSource::getPrimaryTerm)
+                    .thenComparing((DocIdSeqNoAndSource::getId)))
+                .collect(Collectors.toList());
         }
+    }
+
+    public static Map<Integer, DocIdSeqNoAndSource> getDocIds(IndexReader indexReader, boolean includeDeletes) throws IOException {
+        Map<Integer, DocIdSeqNoAndSource> docs = new HashMap<>();
+        for (LeafReaderContext leafContext : indexReader.leaves()) {
+            LeafReader reader = leafContext.reader();
+            NumericDocValues seqNoDocValues = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
+            NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+            NumericDocValues versionDocValues = reader.getNumericDocValues(VersionFieldMapper.NAME);
+            Bits liveDocs = reader.getLiveDocs();
+            for (int docId = 0; docId < reader.maxDoc(); docId++) {
+                final boolean isDeleted = liveDocs != null && liveDocs.get(docId) == false;
+                if (includeDeletes == false && isDeleted) {
+                    continue;
+                }
+                if (primaryTermDocValues.advanceExact(docId) == false) {
+                    // We have to skip non-root docs because its _id field is not stored (indexed only).
+                    continue;
+                }
+                final long primaryTerm = primaryTermDocValues.longValue();
+                Document doc = reader.document(docId, Set.of(IdFieldMapper.NAME, SourceFieldMapper.NAME));
+                BytesRef binaryID = doc.getBinaryValue(IdFieldMapper.NAME);
+                final String id;
+                if (binaryID == null) {
+                    assert includeDeletes;
+                    id = null;
+                } else {
+                    id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
+                }
+                final BytesRef source = doc.getBinaryValue(SourceFieldMapper.NAME);
+                if (seqNoDocValues.advanceExact(docId) == false) {
+                    throw new AssertionError("seqNoDocValues not found for doc[" + docId + "] id[" + id + "]");
+                }
+                final long seqNo = seqNoDocValues.longValue();
+                if (versionDocValues.advanceExact(docId) == false) {
+                    throw new AssertionError("versionDocValues not found for doc[" + docId + "] id[" + id + "]");
+                }
+                final long version = versionDocValues.longValue();
+                docs.put(leafContext.docBase + docId, new DocIdSeqNoAndSource(id, source, seqNo, primaryTerm, version, isDeleted));
+            }
+        }
+        return docs;
     }
 
     /**

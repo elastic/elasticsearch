@@ -106,6 +106,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id"; // TODO: Remove sync_id in 9.0
+    public static final String ES_COMMIT_ID = "es_commit_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String FORCE_MERGE_UUID_KEY = "force_merge_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
@@ -617,7 +618,7 @@ public abstract class Engine implements Closeable {
         try {
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
-            SearcherSupplier reader = new SearcherSupplier(wrapper) {
+            SearcherSupplier reader = new SearcherSupplier(acquire.getCommitId(), wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
                     assert assertSearcherIsWarmedUp(source, scope);
@@ -1180,8 +1181,10 @@ public abstract class Engine implements Closeable {
     public abstract static class SearcherSupplier implements Releasable {
         private final Function<Searcher, Searcher> wrapper;
         private final AtomicBoolean released = new AtomicBoolean(false);
+        private final String commitId;
 
-        public SearcherSupplier(Function<Searcher, Searcher> wrapper) {
+        public SearcherSupplier(String commitId, Function<Searcher, Searcher> wrapper) {
+            this.commitId = commitId;
             this.wrapper = wrapper;
         }
 
@@ -1205,6 +1208,15 @@ public abstract class Engine implements Closeable {
         protected abstract void doClose();
 
         protected abstract Searcher acquireSearcherInternal(String source);
+
+        /**
+         * Returns a commit id associated with this searcher if it's opened from an index commit; otherwise, return null.
+         * Two searcher with the same commit id must have identical content at the Lucene document level.
+         */
+        @Nullable
+        public String getCommitId() {
+            return commitId;
+        }
     }
 
     public static final class Searcher extends IndexSearcher implements Releasable {

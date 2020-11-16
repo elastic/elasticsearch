@@ -6088,4 +6088,92 @@ public class InternalEngineTests extends EngineTestCase {
             IndexWriterMaxDocsChanger.restoreMaxDocs();
         }
     }
+
+    public void testBasicSearcherId() throws Exception {
+        engine.refresh("test"); // warm the engine
+        final Engine.SearcherSupplier s1 = engine.acquireSearcherSupplier(Function.identity());
+        assertNull(s1.getCommitId());
+
+        engine.index(indexForDoc(createParsedDoc("1", null)));
+        if (randomBoolean()) {
+            engine.refresh("test", Engine.SearcherScope.INTERNAL, randomBoolean());
+        }
+        final Engine.SearcherSupplier s2 = engine.acquireSearcherSupplier(Function.identity());
+        assertNull(s2.getCommitId());
+
+        engine.flush(randomBoolean(), true);
+        final Engine.SearcherSupplier s3 = engine.acquireSearcherSupplier(Function.identity());
+        assertNull(s3.getCommitId());
+
+        engine.refresh("test");
+        final Engine.SearcherSupplier s4 = engine.acquireSearcherSupplier(Function.identity());
+        assertNotNull(s4.getCommitId());
+
+        engine.flush(true, true);
+        final Engine.SearcherSupplier s5 = engine.acquireSearcherSupplier(Function.identity());
+        assertThat(s5.getCommitId(), equalTo(s4.getCommitId()));
+        engine.refresh("test");
+        final Engine.SearcherSupplier s6 = engine.acquireSearcherSupplier(Function.identity());
+        assertNotNull(s6);
+        assertThat(s6.getCommitId(), not(equalTo(s5.getCommitId())));
+
+        engine.index(indexForDoc(createParsedDoc("1", null)));
+        engine.refresh("test");
+        final Engine.SearcherSupplier s7 = engine.acquireSearcherSupplier(Function.identity());
+        assertNull(s7.getCommitId());
+        engine.flush(randomBoolean(), true);
+        final Engine.SearcherSupplier s8 = engine.acquireSearcherSupplier(Function.identity());
+        assertNull(s8.getCommitId());
+        engine.refresh("test");
+        final Engine.SearcherSupplier s9 = engine.acquireSearcherSupplier(Function.identity());
+        assertNotNull(s9.getCommitId());
+        assertThat(s9.getCommitId(), not(equalTo(s6.getCommitId())));
+
+        IOUtils.close(List.of(s1, s2, s3, s4, s5, s6, s7, s8, s9));
+    }
+
+    public void testSearchIdConcurrently() throws Exception {
+        engine.refresh("test");
+        final List<Engine.Operation> operations = generateHistoryOnReplica(
+            between(100, 1000), randomBoolean(), randomBoolean(), randomBoolean());
+        Thread[] acquirers = new Thread[between(1, 4)];
+        AtomicBoolean stopped = new AtomicBoolean();
+        Map<String, Map<Integer, DocIdSeqNoAndSource>> docStats = ConcurrentCollections.newConcurrentMap();
+        CountDownLatch latch = new CountDownLatch(1);
+        for (int i = 0; i < acquirers.length; i++) {
+            acquirers[i] = new Thread(() -> {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+                while (stopped.get() == false) {
+                    try (Engine.Searcher searcher = engine.acquireSearcher("test", randomFrom(Engine.SearcherScope.values()))) {
+                        final ElasticsearchDirectoryReader reader = ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(
+                            searcher.getDirectoryReader());
+                        if (reader.getCommitId() == null) {
+                            continue;
+                        }
+                        final Map<Integer, DocIdSeqNoAndSource> docs;
+                        try {
+                            docs = getDocIds(reader, true);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                        final Map<Integer, DocIdSeqNoAndSource> existing = docStats.put(reader.getCommitId(), docs);
+                        if (existing != null) {
+                            assertThat(existing, equalTo(docs));
+                        }
+                    }
+                }
+            });
+            acquirers[i].start();
+        }
+        latch.countDown();
+        concurrentlyApplyOps(operations, engine);
+        stopped.set(true);
+        for (Thread acquirer : acquirers) {
+            acquirer.join();
+        }
+    }
 }

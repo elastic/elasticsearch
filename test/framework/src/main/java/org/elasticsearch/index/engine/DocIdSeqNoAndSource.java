@@ -31,13 +31,15 @@ public final class DocIdSeqNoAndSource {
     private final long seqNo;
     private final long primaryTerm;
     private final long version;
+    private final boolean isDeleted;
 
-    public DocIdSeqNoAndSource(String id, BytesRef source, long seqNo, long primaryTerm, long version) {
+    public DocIdSeqNoAndSource(String id, BytesRef source, long seqNo, long primaryTerm, long version, boolean isDeleted) {
         this.id = id;
         this.source = source;
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
         this.version = version;
+        this.isDeleted = isDeleted;
     }
 
     public String getId() {
@@ -60,23 +62,27 @@ public final class DocIdSeqNoAndSource {
         return version;
     }
 
+    public boolean isDeleted() {
+        return isDeleted;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DocIdSeqNoAndSource that = (DocIdSeqNoAndSource) o;
         return Objects.equals(id, that.id) && Objects.equals(source, that.source)
-            && seqNo == that.seqNo && primaryTerm == that.primaryTerm && version == that.version;
+            && seqNo == that.seqNo && primaryTerm == that.primaryTerm && version == that.version && isDeleted == that.isDeleted;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, seqNo, primaryTerm, version);
+        return Objects.hash(id, source, seqNo, primaryTerm, version, isDeleted);
     }
 
     @Override
     public String toString() {
         return "doc{" + "id='" + id + " seqNo=" + seqNo + " primaryTerm=" + primaryTerm
-            + " version=" + version + " source= " + (source != null ? source.utf8ToString() : null) + "}";
+            + " version=" + version + " deleted=" + isDeleted + " source= " + (source != null ? source.utf8ToString() : null) + "}";
     }
 }

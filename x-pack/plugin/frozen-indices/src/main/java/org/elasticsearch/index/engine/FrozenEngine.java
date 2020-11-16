@@ -178,7 +178,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
     public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
         final Store store = this.store;
         store.incRef();
-        return new SearcherSupplier(wrapper) {
+        final String commitId = getLastCommittedSegmentInfos().userData.get(Engine.ES_COMMIT_ID);
+        return new SearcherSupplier(commitId, wrapper) {
             @Override
             @SuppressForbidden(reason = "we manage references explicitly here")
             public Searcher acquireSearcherInternal(String source) {

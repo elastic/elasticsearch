@@ -27,10 +27,10 @@ import static java.util.Collections.singletonList;
 
 public class CriterionOrdinalExtractionTests extends ESTestCase {
     private String tsField = "timestamp";
-    private String tieField = "tiebreaker";
+    private String tbField = "tiebreaker";
 
     private HitExtractor tsExtractor = new FieldHitExtractor(tsField, tsField, DataTypes.LONG, null, true, null, false);
-    private HitExtractor tieExtractor = new FieldHitExtractor(tieField, tieField, DataTypes.LONG, null, true, null, false);
+    private HitExtractor tbExtractor = new FieldHitExtractor(tbField, tbField, DataTypes.LONG, null, true, null, false);
 
     public void testTimeOnly() throws Exception {
         long time = randomLong();
@@ -39,15 +39,15 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
         assertNull(ordinal.tiebreaker());
     }
 
-    public void testTimeAndTie() throws Exception {
+    public void testTimeAndTiebreaker() throws Exception {
         long time = randomLong();
-        long ts = randomLong();
-        Ordinal ordinal = ordinal(searchHit(time, ts), true);
+        long tb = randomLong();
+        Ordinal ordinal = ordinal(searchHit(time, tb), true);
         assertEquals(time, ordinal.timestamp());
-        assertEquals(ts, ordinal.tiebreaker());
+        assertEquals(tb, ordinal.tiebreaker());
     }
 
-    public void testTimeAndTieNull() throws Exception {
+    public void testTimeAndTiebreakerNull() throws Exception {
         long time = randomLong();
         Ordinal ordinal = ordinal(searchHit(time, null), true);
         assertEquals(time, ordinal.timestamp());
@@ -62,7 +62,7 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
         assertTrue(exception.getMessage().startsWith("Expected timestamp"));
     }
 
-    public void testTieNotComparable() throws Exception {
+    public void testTiebreakerNotComparable() throws Exception {
         final Object o = randomDateTimeZone();
         HitExtractor badExtractor = new HitExtractor() {
             @Override
@@ -90,15 +90,15 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
         assertTrue(exception.getMessage().startsWith("Expected tiebreaker"));
     }
 
-    private SearchHit searchHit(Object timeValue, Object tieValue) {
+    private SearchHit searchHit(Object timeValue, Object tiebreakerValue) {
         Map<String, DocumentField> fields = new HashMap<>();
         fields.put(tsField, new DocumentField(tsField, singletonList(timeValue)));
-        fields.put(tieField, new DocumentField(tsField, singletonList(tieValue)));
+        fields.put(tbField, new DocumentField(tsField, singletonList(tiebreakerValue)));
 
         return new SearchHit(randomInt(), randomAlphaOfLength(10), fields, emptyMap());
     }
 
-    private Ordinal ordinal(SearchHit hit, boolean withTie) {
-        return new Criterion<BoxedQueryRequest>(0, null, emptyList(), tsExtractor, withTie ? tieExtractor : null, false).ordinal(hit);
+    private Ordinal ordinal(SearchHit hit, boolean withTiebreaker) {
+        return new Criterion<BoxedQueryRequest>(0, null, emptyList(), tsExtractor, withTiebreaker ? tbExtractor : null, false).ordinal(hit);
     }
 }

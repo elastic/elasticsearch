@@ -15,13 +15,13 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.cache.CacheFile;
@@ -34,9 +34,8 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 
@@ -78,16 +77,26 @@ public class CacheService extends AbstractLifecycleComponent {
         Setting.Property.Dynamic
     );
 
-    private static final Supplier<Set<CacheFile>> SUPPLIER_OF_CACHE_FILES_TO_SYNC = ConcurrentCollections::newConcurrentSet;
+    public static final Setting<Integer> SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING = Setting.intSetting(
+        SETTINGS_PREFIX + "max_files_to_sync",
+        10_000,                                                 // default
+        0,                                                      // min
+        Integer.MAX_VALUE,                                      // min
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final Logger logger = LogManager.getLogger(CacheService.class);
 
     private final ThreadPool threadPool;
-    private final AtomicReference<Set<CacheFile>> cacheFilesToSyncRef;
+    private final ConcurrentLinkedQueue<CacheFile> cacheFilesToSync;
     private final CacheSynchronizationTask cacheSyncTask;
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
     private final Runnable cacheCleaner;
     private final ByteSizeValue rangeSize;
+
+    private volatile int maxCacheFilesToSyncAtOnce;
 
     public CacheService(
         final Settings settings,
@@ -106,9 +115,12 @@ public class CacheService extends AbstractLifecycleComponent {
             // are done with reading/writing the cache file
             .removalListener(notification -> onCacheFileRemoval(notification.getValue()))
             .build();
-        this.cacheFilesToSyncRef = new AtomicReference<>(SUPPLIER_OF_CACHE_FILES_TO_SYNC.get());
+        this.cacheFilesToSync = new ConcurrentLinkedQueue<>();
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        this.maxCacheFilesToSyncAtOnce = SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING, this::setMaxCacheFilesToSyncAtOnce);
         this.cacheSyncTask = new CacheSynchronizationTask(threadPool, SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING.get(settings));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING, this::setCacheSyncInterval);
+        clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING, this::setCacheSyncInterval);
     }
 
     public static Path getShardCachePath(ShardPath shardPath) {
@@ -185,8 +197,11 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     void setCacheSyncInterval(TimeValue interval) {
-        assert cacheSyncTask != null;
         cacheSyncTask.setInterval(interval);
+    }
+
+    private void setMaxCacheFilesToSyncAtOnce(int maxCacheFilesToSyncAtOnce) {
+        this.maxCacheFilesToSyncAtOnce = maxCacheFilesToSyncAtOnce;
     }
 
     /**
@@ -197,27 +212,25 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param cacheFile the instance that needs to be fsync
      */
     void onCacheFileUpdate(CacheFile cacheFile) {
-        final boolean added = cacheFilesToSyncRef.get().add(cacheFile);
-        assert added : "cache file already marked as updated " + cacheFile;
+        cacheFilesToSync.offer(cacheFile);
     }
 
     /**
      * This method is invoked after a {@link CacheFile} is evicted from the cache.
      * <p>
      * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted. It also removes the instance from the current
-     * set of cache files to synchronize if the instance is referenced there.
+     * queue of cache files to synchronize if the instance is referenced there.
      *
      * @param cacheFile the evicted instance
      */
     void onCacheFileRemoval(CacheFile cacheFile) {
         IOUtils.closeWhileHandlingException(cacheFile::startEviction);
-        final Set<CacheFile> cacheFilesToSync = cacheFilesToSyncRef.get();
         cacheFilesToSync.remove(cacheFile);
     }
 
     // used in tests
     boolean isCacheFileToSync(CacheFile cacheFile) {
-        return cacheFilesToSyncRef.get().contains(cacheFile);
+        return cacheFilesToSync.contains(cacheFile);
     }
 
     /**
@@ -225,30 +238,27 @@ public class CacheService extends AbstractLifecycleComponent {
      *
      * This method synchronizes the cache files that have been updated since the last time the method was invoked. To be able to do this,
      * the cache files must notify the {@link CacheService} when they need to be fsync. When a {@link CacheFile} notifies the service the
-     * {@link CacheFile} instance is added to the current set of cache files to synchronize referenced by {@link #cacheFilesToSyncRef}. When
-     * this method is invoked it atomically retrieves the current set of cache files to synchronize and replaces it with a new empty one.
-     * The previous set of cache files will be used to synchronize the files while the new set will be used to add the cache files to
-     * synchronize the next time this method runs.
+     * {@link CacheFile} instance is added to the current queue of cache files to synchronize referenced by {@link #cacheFilesToSync}.
      *
      * Cache files are serially synchronized using the {@link CacheFile#fsync()} method. When the {@link CacheFile#fsync()} call returns a
      * non empty set of completed ranges this method also fsync the shard's snapshot cache directory, which is the parent directory of the
      * cache entry. Note that cache files might be evicted during the synchronization.
      */
     protected void synchronizeCache() {
-        if (lifecycleState() != Lifecycle.State.STARTED) {
-            logger.debug("skipping cache synchronization (cache service is closing)");
-            return;
-        }
-
-        final Set<CacheFile> cacheFilesToSync = cacheFilesToSyncRef.getAndSet(SUPPLIER_OF_CACHE_FILES_TO_SYNC.get());
-        if (cacheFilesToSync.isEmpty()) {
-            logger.debug("skipping cache synchronization (no cache files to fsync)");
-            return;
-        }
-
+        long count = 0L;
         final Set<Path> cacheDirs = new HashSet<>();
         final long startTimeNanos = threadPool.relativeTimeInNanos();
-        for (CacheFile cacheFile : cacheFilesToSync) {
+        final int maxCacheFilesToSync = this.maxCacheFilesToSyncAtOnce;
+        for (long i = 0L; i < maxCacheFilesToSync; i++) {
+            if (lifecycleState() != Lifecycle.State.STARTED) {
+                logger.debug("stopping cache synchronization (cache service is closing)");
+                break;
+            }
+            final CacheFile cacheFile = cacheFilesToSync.poll();
+            if (cacheFile == null) {
+                logger.debug("stopping cache synchronization (no more cache files to fsync)");
+                break;
+            }
             final Path cacheFilePath = cacheFile.getFile();
             try {
                 final SortedSet<Tuple<Long, Long>> ranges = cacheFile.fsync();
@@ -264,15 +274,19 @@ public class CacheService extends AbstractLifecycleComponent {
                         }
                     }
                     // TODO Index searchable snapshot shard information + cache file ranges in Lucene
+                    count += 1L;
                 }
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("failed to fsync cache file [{}]", cacheFilePath.getFileName()), e);
             }
         }
-
         if (logger.isDebugEnabled()) {
             final long elapsedNanos = threadPool.relativeTimeInNanos() - startTimeNanos;
-            logger.debug("cache files synchronized in [{}]", TimeValue.timeValueNanos(elapsedNanos));
+            logger.debug(
+                "cache files synchronization is done ({} cache files synchronized in {})",
+                count,
+                TimeValue.timeValueNanos(elapsedNanos)
+            );
         }
     }
 

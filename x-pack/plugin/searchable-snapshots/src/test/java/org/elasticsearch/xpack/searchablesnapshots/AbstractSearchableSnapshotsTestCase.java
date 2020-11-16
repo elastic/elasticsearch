@@ -53,7 +53,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             Set.of(
                 CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
                 CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING,
-                CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING
+                CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING,
+                CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING
             )
         )
     );

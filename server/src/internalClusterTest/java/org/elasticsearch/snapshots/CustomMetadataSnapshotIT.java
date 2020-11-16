@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
 
 import java.io.IOException;
@@ -47,6 +48,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequ
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@ESIntegTestCase.ClusterScope(transportClientRatio = 0)
 public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     @Override

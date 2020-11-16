@@ -308,10 +308,6 @@ public final class TestUtils {
             this.delegateInstance = delegate;
         }
 
-        public void clear() {
-            files.clear();
-        }
-
         @Nullable
         public Integer getNumberOfFSyncs(Path path) {
             final AtomicInteger counter = files.get(path);

@@ -39,6 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.synchronizedNavigableSet;
 import static org.elasticsearch.common.settings.Settings.builder;
@@ -55,7 +56,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testAcquireAndRelease() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, null);
 
         assertThat("Cache file is not acquired: no channel exists", cacheFile.getChannel(), nullValue());
         assertThat("Cache file is not acquired: file does not exist", Files.exists(file), is(false));
@@ -94,7 +95,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testCacheFileNotAcquired() throws IOException {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, null);
 
         assertThat(Files.exists(file), is(false));
         assertThat(cacheFile.getChannel(), nullValue());
@@ -116,7 +117,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testDeleteOnCloseAfterLastRelease() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, null);
 
         final List<TestEvictionListener> acquiredListeners = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 20); i++) {
@@ -148,7 +149,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testConcurrentAccess() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file);
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, null);
 
         final TestEvictionListener evictionListener = new TestEvictionListener();
         cacheFile.acquire(evictionListener);
@@ -195,8 +196,15 @@ public class CacheFileTests extends ESTestCase {
 
     public void testFSync() throws Exception {
         try (FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem()) {
-            final CacheFile cacheFile = new CacheFile("test", randomLongBetween(100, 1000), fileSystem.resolve("test"));
+            final AtomicReference<CacheFile> cacheFileToSync = new AtomicReference<>();
+            final CacheFile cacheFile = new CacheFile(
+                "test",
+                randomLongBetween(100, 1000),
+                fileSystem.resolve("test"),
+                cacheFileToSync::set
+            );
             assertFalse(cacheFile.needsFsync());
+            assertThat(cacheFileToSync.get(), nullValue());
 
             final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
@@ -207,19 +215,23 @@ public class CacheFileTests extends ESTestCase {
                     assertNumberOfFSyncs(cacheFile.getFile(), equalTo(0L));
                     assertThat(completedRanges, hasSize(0));
                     assertFalse(cacheFile.needsFsync());
+                    assertThat(cacheFileToSync.get(), nullValue());
                 }
 
                 final SortedSet<Tuple<Long, Long>> expectedCompletedRanges = randomPopulateAndReads(cacheFile);
                 if (expectedCompletedRanges.isEmpty() == false) {
                     assertTrue(cacheFile.needsFsync());
+                    assertThat(cacheFileToSync.getAndSet(null), is(cacheFile));
                 } else {
                     assertFalse(cacheFile.needsFsync());
+                    assertThat(cacheFileToSync.get(), nullValue());
                 }
 
                 final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
                 assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0L : 1L));
                 assertArrayEquals(completedRanges.toArray(Tuple[]::new), expectedCompletedRanges.toArray(Tuple[]::new));
                 assertFalse(cacheFile.needsFsync());
+                assertThat(cacheFileToSync.get(), nullValue());
             } finally {
                 cacheFile.release(listener);
             }
@@ -228,8 +240,15 @@ public class CacheFileTests extends ESTestCase {
 
     public void testFSyncOnEvictedFile() throws Exception {
         try (FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem()) {
-            final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1L, 1000L), fileSystem.resolve("test"));
+            final AtomicReference<CacheFile> cacheFileToSync = new AtomicReference<>();
+            final CacheFile cacheFile = new CacheFile(
+                "test",
+                randomLongBetween(1L, 1000L),
+                fileSystem.resolve("test"),
+                cacheFileToSync::set
+            );
             assertFalse(cacheFile.needsFsync());
+            assertThat(cacheFileToSync.get(), nullValue());
 
             final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
@@ -238,12 +257,14 @@ public class CacheFileTests extends ESTestCase {
                 final SortedSet<Tuple<Long, Long>> expectedCompletedRanges = randomPopulateAndReads(cacheFile);
                 if (expectedCompletedRanges.isEmpty() == false) {
                     assertTrue(cacheFile.needsFsync());
+                    assertThat(cacheFileToSync.getAndSet(null), is(cacheFile));
+
                     final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
                     assertArrayEquals(completedRanges.toArray(Tuple[]::new), expectedCompletedRanges.toArray(Tuple[]::new));
                     assertNumberOfFSyncs(cacheFile.getFile(), equalTo(1L));
-                    assertFalse(cacheFile.needsFsync());
                 }
                 assertFalse(cacheFile.needsFsync());
+                assertThat(cacheFileToSync.get(), nullValue());
 
                 cacheFile.startEviction();
 
@@ -251,6 +272,7 @@ public class CacheFileTests extends ESTestCase {
                 assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0L : 1L));
                 assertThat(completedRangesAfterEviction, hasSize(0));
                 assertFalse(cacheFile.needsFsync());
+                assertThat(cacheFileToSync.get(), nullValue());
             } finally {
                 cacheFile.release(listener);
             }
@@ -261,8 +283,15 @@ public class CacheFileTests extends ESTestCase {
         try (FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem()) {
             fileSystem.failFSyncs.set(true);
 
-            final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1L, 1000L), fileSystem.resolve("test"));
+            final AtomicReference<CacheFile> cacheFileToSync = new AtomicReference<>();
+            final CacheFile cacheFile = new CacheFile(
+                "test",
+                randomLongBetween(1L, 1000L),
+                fileSystem.resolve("test"),
+                cacheFileToSync::set
+            );
             assertFalse(cacheFile.needsFsync());
+            assertThat(cacheFileToSync.get(), nullValue());
 
             final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
@@ -271,7 +300,10 @@ public class CacheFileTests extends ESTestCase {
                 final SortedSet<Tuple<Long, Long>> expectedCompletedRanges = randomPopulateAndReads(cacheFile);
                 if (expectedCompletedRanges.isEmpty() == false) {
                     assertTrue(cacheFile.needsFsync());
+                    assertThat(cacheFileToSync.getAndSet(null), is(cacheFile));
                     expectThrows(IOException.class, cacheFile::fsync);
+                    assertTrue(cacheFile.needsFsync());
+                    assertThat(cacheFileToSync.getAndSet(null), is(cacheFile));
                 } else {
                     assertFalse(cacheFile.needsFsync());
                     final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
@@ -285,6 +317,7 @@ public class CacheFileTests extends ESTestCase {
                 assertArrayEquals(completedRanges.toArray(Tuple[]::new), expectedCompletedRanges.toArray(Tuple[]::new));
                 assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0L : 1L));
                 assertFalse(cacheFile.needsFsync());
+                assertThat(cacheFileToSync.get(), nullValue());
             } finally {
                 cacheFile.release(listener);
             }

@@ -8,13 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
@@ -28,39 +21,33 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.SortedSet;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
 
 /**
  * {@link CacheService} maintains a cache entry for all files read from searchable snapshot directories (see
  * {@link org.elasticsearch.index.store.SearchableSnapshotDirectory}).
  *
- * Cache files created by this service are periodically synchronized on disk in order to make the cached data durable. The synchronization
- * is executed over all the searchable snapshot shards that exist in the cluster state and are assigned to the local node at the time the
- * method {@link #synchronizeCache()} is executed.
+ * Cache files created by this service are periodically synchronized on disk in order to make the cached data durable
+ * (see {@link #synchronizeCache()} for more information).
  */
-public class CacheService extends AbstractLifecycleComponent implements ClusterStateListener {
+public class CacheService extends AbstractLifecycleComponent {
 
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.cache.";
 
@@ -91,11 +78,11 @@ public class CacheService extends AbstractLifecycleComponent implements ClusterS
         Setting.Property.Dynamic
     );
 
+    private static final Supplier<Set<CacheFile>> SUPPLIER_OF_CACHE_FILES_TO_SYNC = ConcurrentCollections::newConcurrentSet;
     private static final Logger logger = LogManager.getLogger(CacheService.class);
 
-    private final ClusterService clusterService;
-    private final NodeEnvironment nodeEnvironment;
     private final ThreadPool threadPool;
+    private final AtomicReference<Set<CacheFile>> cacheFilesToSyncRef;
     private final CacheSynchronizationTask cacheSyncTask;
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
@@ -106,11 +93,8 @@ public class CacheService extends AbstractLifecycleComponent implements ClusterS
         final Settings settings,
         final ClusterService clusterService,
         final ThreadPool threadPool,
-        final NodeEnvironment nodeEnvironment,
         final Runnable cacheCleaner
     ) {
-        this.clusterService = Objects.requireNonNull(clusterService);
-        this.nodeEnvironment = Objects.requireNonNull(nodeEnvironment);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
         this.cacheCleaner = Objects.requireNonNull(cacheCleaner);
@@ -120,17 +104,11 @@ public class CacheService extends AbstractLifecycleComponent implements ClusterS
             .weigher((key, entry) -> entry.getLength())
             // NORELEASE This does not immediately free space on disk, as cache file are only deleted when all index inputs
             // are done with reading/writing the cache file
-            .removalListener(notification -> IOUtils.closeWhileHandlingException(() -> notification.getValue().startEviction()))
+            .removalListener(notification -> onCacheFileRemoval(notification.getValue()))
             .build();
-
-        if (DiscoveryNode.isDataNode(settings)) {
-            final TimeValue syncInterval = SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING.get(settings);
-            this.cacheSyncTask = new CacheSynchronizationTask(threadPool, syncInterval);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING, this::setCacheSyncInterval);
-            clusterService.addListener(this);
-        } else {
-            this.cacheSyncTask = null;
-        }
+        this.cacheFilesToSyncRef = new AtomicReference<>(SUPPLIER_OF_CACHE_FILES_TO_SYNC.get());
+        this.cacheSyncTask = new CacheSynchronizationTask(threadPool, SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING.get(settings));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING, this::setCacheSyncInterval);
     }
 
     public static Path getShardCachePath(ShardPath shardPath) {
@@ -143,15 +121,14 @@ public class CacheService extends AbstractLifecycleComponent implements ClusterS
 
     @Override
     protected void doStart() {
+        cacheSyncTask.rescheduleIfNecessary();
         cacheCleaner.run();
     }
 
     @Override
     protected void doStop() {
+        cacheSyncTask.close();
         cache.invalidateAll();
-        if (cacheSyncTask != null) {
-            cacheSyncTask.close();
-        }
     }
 
     @Override
@@ -189,7 +166,7 @@ public class CacheService extends AbstractLifecycleComponent implements ClusterS
             final Path path = cacheDir.resolve(uuid);
             assert Files.notExists(path) : "cache file already exists " + path;
 
-            return new CacheFile(key.toString(), fileLength, path);
+            return new CacheFile(key.toString(), fileLength, path, CacheService.this::onCacheFileUpdate);
         });
     }
 
@@ -207,152 +184,99 @@ public class CacheService extends AbstractLifecycleComponent implements ClusterS
         cache.refresh();
     }
 
-    // used in tests
-    CacheSynchronizationTask getCacheSyncTask() {
-        return cacheSyncTask;
-    }
-
     void setCacheSyncInterval(TimeValue interval) {
         assert cacheSyncTask != null;
         cacheSyncTask.setInterval(interval);
     }
 
     /**
-     * Reschedule the {@link CacheSynchronizationTask} if the local data node is hosting searchable snapshot shards.
+     * This method is invoked when a {@link CacheFile} notifies the current {@link CacheService} that it needs to be fsync on disk.
+     * <p>
+     * It adds the {@link CacheFile} instance to current set of cache files to synchronize.
+     *
+     * @param cacheFile the instance that needs to be fsync
      */
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        assert cacheSyncTask != null;
-
-        if (event.routingTableChanged()) {
-            final ClusterState clusterState = event.state();
-            final DiscoveryNode localNode = clusterState.getNodes().getLocalNode();
-            assert localNode.isDataNode();
-
-            final boolean shouldSynchronize = hasSearchableSnapshotShards(clusterState, localNode.getId());
-            cacheSyncTask.allowReschedule.set(shouldSynchronize);
-
-            if (shouldSynchronize == false) {
-                logger.trace("canceling cache synchronization task (no searchable snapshots shard(s) assigned to local node)");
-                cacheSyncTask.cancel();
-
-            } else if (cacheSyncTask.isScheduled() == false) {
-                logger.trace("scheduling cache synchronization task (searchable snapshots shard(s) assigned to local node)");
-                cacheSyncTask.rescheduleIfNecessary();
-            }
-        }
+    void onCacheFileUpdate(CacheFile cacheFile) {
+        final boolean added = cacheFilesToSyncRef.get().add(cacheFile);
+        assert added : "cache file already marked as updated " + cacheFile;
     }
 
     /**
-     * Synchronize the cache files and dirs.
+     * This method is invoked after a {@link CacheFile} is evicted from the cache.
+     * <p>
+     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted. It also removes the instance from the current
+     * set of cache files to synchronize if the instance is referenced there.
      *
-     * This method iterates over all the searchable snapshot shards assigned to the local node in order to execute {@link CacheFile#fsync()}
-     * on cache entries belonging to shards. When at least one {@link CacheFile#fsync()} call returns a non empty set of completed ranges
-     * this method also fsync the shard's snapshot cache directory, which is the parent directory of the cache entries. Note that this
-     * method is best effort as cache entries might be evicted during iterations and cache files/dirs removed from disk.
+     * @param cacheFile the evicted instance
      */
-    protected synchronized void synchronizeCache() {
+    void onCacheFileRemoval(CacheFile cacheFile) {
+        IOUtils.closeWhileHandlingException(cacheFile::startEviction);
+        final Set<CacheFile> cacheFilesToSync = cacheFilesToSyncRef.get();
+        cacheFilesToSync.remove(cacheFile);
+    }
+
+    // used in tests
+    boolean isCacheFileToSync(CacheFile cacheFile) {
+        return cacheFilesToSyncRef.get().contains(cacheFile);
+    }
+
+    /**
+     * Synchronize the cache files and their parent directories on disk.
+     *
+     * This method synchronizes the cache files that have been updated since the last time the method was invoked. To be able to do this,
+     * the cache files must notify the {@link CacheService} when they need to be fsync. When a {@link CacheFile} notifies the service the
+     * {@link CacheFile} instance is added to the current set of cache files to synchronize referenced by {@link #cacheFilesToSyncRef}. When
+     * this method is invoked it atomically retrieves the current set of cache files to synchronize and replaces it with a new empty one.
+     * The previous set of cache files will be used to synchronize the files while the new set will be used to add the cache files to
+     * synchronize the next time this method runs.
+     *
+     * Cache files are serially synchronized using the {@link CacheFile#fsync()} method. When the {@link CacheFile#fsync()} call returns a
+     * non empty set of completed ranges this method also fsync the shard's snapshot cache directory, which is the parent directory of the
+     * cache entry. Note that cache files might be evicted during the synchronization.
+     */
+    protected void synchronizeCache() {
         if (lifecycleState() != Lifecycle.State.STARTED) {
+            logger.debug("skipping cache synchronization (cache service is closing)");
             return;
         }
-        final ClusterState clusterState = clusterService.state();
-        final RoutingNode routingNode = clusterState.getRoutingNodes().node(clusterState.getNodes().getLocalNodeId());
-        assert routingNode != null;
 
+        final Set<CacheFile> cacheFilesToSync = cacheFilesToSyncRef.getAndSet(SUPPLIER_OF_CACHE_FILES_TO_SYNC.get());
+        if (cacheFilesToSync.isEmpty()) {
+            logger.debug("skipping cache synchronization (no cache files to fsync)");
+            return;
+        }
+
+        final Set<Path> cacheDirs = new HashSet<>();
         final long startTimeNanos = threadPool.relativeTimeInNanos();
-        for (ShardRouting shardRouting : routingNode) {
-            if (shardRouting.active()) {
-                final IndexMetadata indexMetadata = clusterState.metadata().getIndexSafe(shardRouting.index());
-                final Settings indexSettings = indexMetadata.getSettings();
-                if (isSearchableSnapshotStore(indexSettings)) {
-                    final ShardId shardId = shardRouting.shardId();
-                    final SnapshotId snapshotId = new SnapshotId(
-                        SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings),
-                        SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)
-                    );
-                    final IndexId indexId = new IndexId(
-                        SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings),
-                        SNAPSHOT_INDEX_ID_SETTING.get(indexSettings)
-                    );
-
-                    boolean syncDirectory = false;
-                    for (Tuple<CacheKey, CacheFile> entry : cache.entries()) {
-                        final CacheKey cacheKey = entry.v1();
-                        if (cacheKey.belongsTo(snapshotId, indexId, shardId)) {
-                            final CacheFile cacheFile = entry.v2();
-                            try {
-                                final SortedSet<Tuple<Long, Long>> ranges = cacheFile.fsync();
-                                if (ranges.isEmpty() == false) {
-                                    logger.trace(
-                                        "{} cache file [{}] synchronized with [{}] completed range(s)",
-                                        shardId,
-                                        cacheFile.getFile().getFileName(),
-                                        ranges.size()
-                                    );
-                                    syncDirectory = true;
-                                    // TODO Index searchable snapshot shard information + cache file ranges in Lucene
-                                }
-                            } catch (Exception e) {
-                                logger.warn(
-                                    () -> new ParameterizedMessage(
-                                        "{} failed to fsync cache file [{}]",
-                                        shardId,
-                                        cacheFile.getFile().getFileName()
-                                    ),
-                                    e
-                                );
-                            }
+        for (CacheFile cacheFile : cacheFilesToSync) {
+            final Path cacheFilePath = cacheFile.getFile();
+            try {
+                final SortedSet<Tuple<Long, Long>> ranges = cacheFile.fsync();
+                if (ranges.isEmpty() == false) {
+                    logger.trace("cache file [{}] synchronized with [{}] completed range(s)", cacheFilePath.getFileName(), ranges.size());
+                    final Path cacheDir = cacheFilePath.toAbsolutePath().getParent();
+                    if (cacheDirs.add(cacheDir)) {
+                        try {
+                            IOUtils.fsync(cacheDir, true, false);
+                            logger.trace("cache directory [{}] synchronized", cacheDir);
+                        } catch (Exception e) {
+                            logger.warn(() -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir), e);
                         }
                     }
-
-                    if (syncDirectory) {
-                        assert IndexMetadata.INDEX_DATA_PATH_SETTING.exists(indexSettings) == false;
-                        for (Path shardPath : nodeEnvironment.availableShardPaths(shardId)) {
-                            final Path snapshotCacheDir = resolveSnapshotCache(shardPath).resolve(snapshotId.getUUID());
-                            if (Files.exists(snapshotCacheDir)) {
-                                try {
-                                    IOUtils.fsync(snapshotCacheDir, true, false);
-                                    logger.trace("{} cache directory [{}] synchronized", shardId, snapshotCacheDir);
-                                } catch (Exception e) {
-                                    logger.warn(
-                                        () -> new ParameterizedMessage(
-                                            "{} failed to synchronize cache directory [{}]",
-                                            shardId,
-                                            snapshotCacheDir
-                                        ),
-                                        e
-                                    );
-                                }
-                            }
-                        }
-                    }
+                    // TODO Index searchable snapshot shard information + cache file ranges in Lucene
                 }
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage("failed to fsync cache file [{}]", cacheFilePath.getFileName()), e);
             }
         }
+
         if (logger.isDebugEnabled()) {
             final long elapsedNanos = threadPool.relativeTimeInNanos() - startTimeNanos;
             logger.debug("cache files synchronized in [{}]", TimeValue.timeValueNanos(elapsedNanos));
         }
     }
 
-    static boolean hasSearchableSnapshotShards(final ClusterState clusterState, final String nodeId) {
-        final RoutingNode routingNode = clusterState.getRoutingNodes().node(nodeId);
-        if (routingNode != null) {
-            for (ShardRouting shardRouting : routingNode) {
-                if (shardRouting.active()) {
-                    final IndexMetadata indexMetadata = clusterState.metadata().getIndexSafe(shardRouting.index());
-                    if (isSearchableSnapshotStore(indexMetadata.getSettings())) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
     class CacheSynchronizationTask extends AbstractAsyncTask {
-
-        private final AtomicBoolean allowReschedule = new AtomicBoolean(false);
 
         CacheSynchronizationTask(ThreadPool threadPool, TimeValue interval) {
             super(logger, Objects.requireNonNull(threadPool), Objects.requireNonNull(interval), true);
@@ -360,7 +284,7 @@ public class CacheService extends AbstractLifecycleComponent implements ClusterS
 
         @Override
         protected boolean mustReschedule() {
-            return allowReschedule.get();
+            return true;
         }
 
         @Override

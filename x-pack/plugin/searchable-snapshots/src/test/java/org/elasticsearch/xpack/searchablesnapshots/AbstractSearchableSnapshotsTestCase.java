@@ -86,13 +86,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * @return a new {@link CacheService} instance configured with default settings
      */
     protected CacheService defaultCacheService() {
-        return new CacheService(
-            Settings.EMPTY,
-            clusterService,
-            threadPool,
-            nodeEnvironment,
-            AbstractSearchableSnapshotsTestCase::noOpCacheCleaner
-        );
+        return new CacheService(Settings.EMPTY, clusterService, threadPool, AbstractSearchableSnapshotsTestCase::noOpCacheCleaner);
     }
 
     /**
@@ -112,13 +106,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 TimeValue.timeValueSeconds(randomLongBetween(MIN_SNAPSHOT_CACHE_SYNC_INTERVAL.getSeconds(), Long.MAX_VALUE))
             );
         }
-        return new CacheService(
-            cacheSettings.build(),
-            clusterService,
-            threadPool,
-            nodeEnvironment,
-            AbstractSearchableSnapshotsTestCase::noOpCacheCleaner
-        );
+        return new CacheService(cacheSettings.build(), clusterService, threadPool, AbstractSearchableSnapshotsTestCase::noOpCacheCleaner);
     }
 
     /**
@@ -132,7 +120,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 .build(),
             clusterService,
             threadPool,
-            nodeEnvironment,
             AbstractSearchableSnapshotsTestCase::noOpCacheCleaner
         );
     }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -67,6 +68,7 @@ import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnaps
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -201,25 +203,29 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final IndexNameExpressionResolver resolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        final CacheService cacheService = new CacheService(
-            settings,
-            clusterService,
-            threadPool,
-            nodeEnvironment,
-            new NodeEnvironmentCacheCleaner(nodeEnvironment)
-        );
-        this.cacheService.set(cacheService);
+        final List<Object> components = new ArrayList<>();
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.threadPool.set(threadPool);
-        final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
-            clusterService,
-            threadPool,
-            client,
-            SNAPSHOT_BLOB_CACHE_INDEX
-        );
-        this.blobStoreCacheService.set(blobStoreCacheService);
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
-        return List.of(cacheService, blobStoreCacheService);
+        if (DiscoveryNode.isDataNode(settings)) {
+            final CacheService cacheService = new CacheService(
+                settings,
+                clusterService,
+                threadPool,
+                new NodeEnvironmentCacheCleaner(nodeEnvironment)
+            );
+            this.cacheService.set(cacheService);
+            components.add(cacheService);
+            final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
+                clusterService,
+                threadPool,
+                client,
+                SNAPSHOT_BLOB_CACHE_INDEX
+            );
+            this.blobStoreCacheService.set(blobStoreCacheService);
+            components.add(blobStoreCacheService);
+        }
+        return Collections.unmodifiableList(components);
     }
 
     @Override

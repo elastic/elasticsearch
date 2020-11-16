@@ -77,6 +77,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
@@ -91,7 +92,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         settings = createIndexSettings();
         queryShardContext = new QueryShardContext(0, settings,
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-                null, null, null, null, () -> 0L, null, null, () -> true, null);
+                null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
     }
 
     public void testSimpleDateHisto() throws Exception {

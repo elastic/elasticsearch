@@ -456,7 +456,7 @@ final class DefaultSearchContext extends SearchContext {
     public IndexShard indexShard() {
         return this.indexShard;
     }
-    
+
     @Override
     public BigArrays bigArrays() {
         return bigArrays;

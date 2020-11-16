@@ -148,6 +148,7 @@ public class NestedDocuments {
             }
             SearchHit.NestedIdentity ni = null;
             int currentLevelDoc = doc;
+            int parentNameLength;
             while (path != null) {
                 String parent = mapperService.documentMapper().getNestedParent(path);
                 BitSet childBitSet = objectFilters.get(path);
@@ -157,18 +158,20 @@ public class NestedDocuments {
                 BitSet parentBitSet;
                 if (parent == null) {
                     parentBitSet = parentFilter;
+                    parentNameLength = 0;
                 } else {
                     if (objectFilters.containsKey(parent) == false) {
                         throw new IllegalStateException("Cannot find parent mapper for path " + path + " in doc " + doc);
                     }
                     parentBitSet = objectFilters.get(parent);
+                    parentNameLength = parent.length() + 1;
                 }
                 int lastParent = parentBitSet.prevSetBit(currentLevelDoc);
                 int offset = 0;
                 for (int i = childBitSet.nextSetBit(lastParent + 1); i < currentLevelDoc; i = childBitSet.nextSetBit(i + 1)) {
                     offset++;
                 }
-                ni = new SearchHit.NestedIdentity(path.substring(path.indexOf(".") + 1), offset, ni);
+                ni = new SearchHit.NestedIdentity(path.substring(parentNameLength), offset, ni);
                 path = parent;
                 currentLevelDoc = parentBitSet.nextSetBit(currentLevelDoc);
             }

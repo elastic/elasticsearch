@@ -175,12 +175,12 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     @Override
-    public void testRangeQuery() throws IOException {
+    public void testRangeQuery() {
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> simpleMappedFieldType().rangeQuery("0.0", "45.0", false, false, null, null, null, mockContext())
         );
-        assertThat(e.getMessage(), equalTo("Field [test] of type [runtime] does not support range queries"));
+        assertThat(e.getMessage(), equalTo("Runtime field [test] of type [" + typeName() + "] does not support range queries"));
     }
 
     @Override
@@ -218,7 +218,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     @Override
     protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
-        return ft.termsQuery(randomList(100, () -> GeometryTestUtils.randomPoint()), mockContext());
+        return ft.termsQuery(randomList(100, GeometryTestUtils::randomPoint), mockContext());
     }
 
     @Override
@@ -232,7 +232,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     @Override
-    protected String runtimeType() {
+    protected String typeName() {
         return "geo_point";
     }
 
@@ -296,7 +296,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
         );
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             GeoPointFieldScript.Factory factory = scriptService.compile(script, GeoPointFieldScript.CONTEXT);
-            return new GeoPointScriptFieldType("test", script, factory, emptyMap());
+            return new GeoPointScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
         }
     }
 }

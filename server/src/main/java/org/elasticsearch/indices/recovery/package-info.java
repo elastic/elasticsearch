@@ -60,8 +60,8 @@
  *
  * Peer recovery is the process of bringing a shard copy on one node, referred to as the target node below, in-sync with the shard copy on
  * another node, referred to as the source node below. It is always the primary node of a shard that serves as the source of the recovery.
- * On a high level, recovery happens by a combination of comparing and subsequently synchronizing files and operations from the target to
- * the source.
+ * On a high level, recovery happens by a combination of comparing and subsequently synchronizing files and operations from the source to
+ * the target.
  * Synchronizing the on-disk file structure on the target with those on the source node is referred to as file-based recovery.
  * Synchronizing operations based on comparing checkpoints is commonly referred to as ops-based recovery. As primaries and replicas are
  * independent Lucene indices that will execute their Lucene level merges independently the concrete on-disk file structure on a pair of
@@ -69,8 +69,7 @@
  * and operations. Peer recovery will therefore try to avoid file-based recovery where possible to reduce the amount of data that has to be
  * transferred. It will prefer replaying just those operations missing on the target relative to the source instead as this
  * avoids copying files from source to target that could contain data that is for the most part already present on the target.
- * Replaying operations is possible as long as the primary node retains the missing operations in its
- * {@link org.elasticsearch.indices.recovery.RecoveryState.Translog} and soft-deletes in its Lucene index.
+ * Replaying operations is possible as long as the primary node retains the missing operations as soft-deletes in its Lucene index.
  *
  * <h4>State Machine</h4>
  *

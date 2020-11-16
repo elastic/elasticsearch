@@ -55,12 +55,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
+
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat(null, null), sameInstance(DocValueFormat.IP));
         Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat("ASDFA", null));
-        assertThat(e.getMessage(), equalTo("Field [test] of type [runtime] with runtime type [ip] does not support custom formats"));
+        assertThat(e.getMessage(), equalTo("Runtime field [test] of type [ip] does not support custom formats"));
         e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat(null, ZoneId.of("America/New_York")));
-        assertThat(e.getMessage(), equalTo("Field [test] of type [runtime] with runtime type [ip] does not support custom time zones"));
+        assertThat(e.getMessage(), equalTo("Runtime field [test] of type [ip] does not support custom time zones"));
     }
 
     @Override
@@ -254,7 +255,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     }
 
     @Override
-    protected String runtimeType() {
+    protected String typeName() {
         return "ip";
     }
 
@@ -325,7 +326,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             IpFieldScript.Factory factory = scriptService.compile(script, IpFieldScript.CONTEXT);
-            return new IpScriptFieldType("test", script, factory, emptyMap());
+            return new IpScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
         }
     }
 }

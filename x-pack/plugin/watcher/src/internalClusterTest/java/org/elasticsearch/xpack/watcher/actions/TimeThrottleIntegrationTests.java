@@ -95,9 +95,9 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
     }
 
     private Map<String, Object> assertLatestHistoryEntry(String id) {
-        refresh(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*");
+        refresh(HistoryStoreField.DATA_STREAM + "*");
 
-        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
+        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
                 .setSize(1)
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery()
                         .must(termQuery("watch_id", id))))
@@ -111,7 +111,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
     }
 
     private void assertTotalHistoryEntries(String id, long expectedCount) {
-        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
+        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
                 .setSize(0)
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
                 .get();

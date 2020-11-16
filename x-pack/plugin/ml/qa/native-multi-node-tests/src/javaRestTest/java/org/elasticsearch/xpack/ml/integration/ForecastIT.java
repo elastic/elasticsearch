@@ -214,10 +214,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
     public void testOverflowToDisk() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/44609", Constants.WINDOWS);
-        // This test repeatedly fails in encryption-at-rest (EAR) builds, and
-        // the only way to detect such a build appears to be the CI job name
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/58806",
-            System.getenv().getOrDefault("JOB_NAME", "not a CI build").contains("EAR"));
+
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("clientIP");
 

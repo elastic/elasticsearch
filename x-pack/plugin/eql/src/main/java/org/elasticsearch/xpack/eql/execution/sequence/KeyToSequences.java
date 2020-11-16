@@ -13,9 +13,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
-/** Dedicated collection for mapping a key to a list of sequences */
-/** The list represents the sequence for each stage (based on its index) and is fixed in size */
-
+/**
+ * Dedicated collection for mapping a key to a list of sequences
+ * The list represents the sequence for each stage (based on its index) and is fixed in size
+ */
 class KeyToSequences {
 
     private final int listSize;
@@ -50,24 +51,6 @@ class KeyToSequences {
             groups[stage] = new SequenceGroup(key);
         }
         groups[stage].add(sequence);
-    }
-
-    void resetGroupInsertPosition() {
-        for (SequenceGroup[] groups : keyToSequences.values()) {
-            for (SequenceGroup group : groups) {
-                if (group != null) {
-                    group.resetInsertPosition();
-                }
-            }
-        }
-    }
-
-    void resetUntilInsertPosition() {
-        for (UntilGroup until : keyToUntil.values()) {
-            if (until != null) {
-                until.resetInsertPosition();
-            }
-        }
     }
 
     void until(Iterable<KeyAndOrdinal> until) {
@@ -116,13 +99,22 @@ class KeyToSequences {
         keyToUntil.clear();
     }
 
+    /**
+     * Remove all matches expect the latest.
+     */
+    void trimToTail() {
+        for (SequenceGroup[] groups : keyToSequences.values()) {
+            for (SequenceGroup group : groups) {
+                if (group != null) {
+                    group.trimToLast();
+                }
+            }
+        }
+    }
+
     public void clear() {
         keyToSequences.clear();
         keyToUntil.clear();
-    }
-
-    int numberOfKeys() {
-        return keyToSequences.size();
     }
 
     @Override

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.datastreams.action.DataStreamUsageTransportAction
 import org.elasticsearch.xpack.datastreams.action.DeleteDataStreamTransportAction;
 import org.elasticsearch.xpack.datastreams.action.GetDataStreamsTransportAction;
 import org.elasticsearch.xpack.datastreams.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.xpack.datastreams.rest.RestMigrateToDataStreamAction;
 
 import java.util.List;
 import java.util.Map;
@@ -76,6 +77,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
         var deleteDsAction = new RestDeleteDataStreamAction();
         var getDsAction = new RestGetDataStreamsAction();
         var dsStatsAction = new RestDataStreamsStatsAction();
-        return List.of(createDsAction, deleteDsAction, getDsAction, dsStatsAction);
+        var migrateAction = new RestMigrateToDataStreamAction();
+        return List.of(createDsAction, deleteDsAction, getDsAction, dsStatsAction, migrateAction);
     }
 }

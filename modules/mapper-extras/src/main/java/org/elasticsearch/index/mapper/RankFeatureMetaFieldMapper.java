@@ -52,7 +52,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
         }
 

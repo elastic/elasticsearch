@@ -770,16 +770,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (o1.primary() ^ o2.primary()) {
                     return o1.primary() ? -1 : 1;
                 }
-                final int indexCmp;
-                if ((indexCmp = o1.getIndexName().compareTo(o2.getIndexName())) == 0) {
+                if (o1.getIndexName().compareTo(o2.getIndexName()) == 0) {
                     return o1.getId() - o2.getId();
                 }
                 // this comparator is more expensive than all the others up there
                 // that's why it's added last even though it could be easier to read
                 // if we'd apply it earlier. this comparator will only differentiate across
                 // indices all shards of the same index is treated equally.
-                final int secondary = secondaryComparator.compare(o1, o2);
-                return secondary == 0 ? indexCmp : secondary;
+                return secondaryComparator.compare(o1, o2);
             };
             /*
              * we use 2 arrays and move replicas to the second array once we allocated an identical

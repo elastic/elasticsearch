@@ -90,7 +90,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(AutodetectResult.PARSER,
             NamedXContentRegistry.EMPTY);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
-            job.getId(), nativeController, processPipes, numberOfFields,
+            job.getId(), processPipes, numberOfFields,
             filesToDelete, resultsParser, onProcessCrash);
         try {
             autodetect.start(executorService, stateProcessor);

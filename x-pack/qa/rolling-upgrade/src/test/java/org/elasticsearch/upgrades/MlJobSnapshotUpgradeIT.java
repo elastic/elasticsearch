@@ -6,6 +6,7 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.MachineLearningClient;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -57,6 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
@@ -86,7 +88,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      */
     public void testSnapshotUpgrader() throws Exception {
         hlrc = new HLRC(client()).machineLearning();
-        //assumeTrue("Snapshot upgrader should only upgrade from the last major", UPGRADE_FROM_VERSION.major < 7);
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(
             "{\"transient\": {" +
@@ -136,6 +137,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         List<ModelSnapshot> snapshots = getModelSnapshots(job.getId(), snapshot.getSnapshotId()).snapshots();
         assertThat(snapshots, hasSize(1));
         assertThat(snapshot.getLatestRecordTimeStamp(), equalTo(snapshots.get(0).getLatestRecordTimeStamp()));
+        // min version in upgraded 7.series is 7.9.0
+        assertThat(snapshot.getMinVersion(), equalTo(Version.V_7_9_0));
 
         // Does the snapshot still work?
         assertThat(hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
@@ -195,8 +198,13 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         GetModelSnapshotsResponse modelSnapshots = getModelSnapshots(job.getId());
         assertThat(modelSnapshots.snapshots(), hasSize(2));
-        assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo((byte)7));
-        assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo((byte)7));
+        if (UPGRADE_FROM_VERSION.before(Version.V_7_9_0)) {
+            assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo((byte) 7));
+            assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo((byte) 7));
+        } else {
+            assertThat(modelSnapshots.snapshots().get(0).getMinVersion(), is(nullValue()));
+            assertThat(modelSnapshots.snapshots().get(1).getMinVersion(), is(nullValue()));
+        }
     }
 
     private PutJobResponse buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {

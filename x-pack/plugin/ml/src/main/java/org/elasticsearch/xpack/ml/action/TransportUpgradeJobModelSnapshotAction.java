@@ -28,7 +28,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -88,8 +87,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState state,
-                                   ActionListener<Response> listener) {
+    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
         if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), state)) {
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("upgrade job snapshot", request.getJobId()));
             return;

@@ -126,7 +126,7 @@ public class DefaultSearchContextTests extends ESTestCase {
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 
 
-            final Supplier<Engine.SearcherSupplier> searcherSupplier = () -> new Engine.SearcherSupplier(null, Function.identity()) {
+            final Supplier<Engine.SearcherSupplier> searcherSupplier = () -> new Engine.SearcherSupplier(Function.identity()) {
                 @Override
                 protected void doClose() {
                 }
@@ -261,7 +261,7 @@ public class DefaultSearchContextTests extends ESTestCase {
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 
 
-            final Engine.SearcherSupplier searcherSupplier = new Engine.SearcherSupplier(null, Function.identity()) {
+            final Engine.SearcherSupplier searcherSupplier = new Engine.SearcherSupplier(Function.identity()) {
                 @Override
                 protected void doClose() {
                 }

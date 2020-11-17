@@ -22,15 +22,10 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.StandardDirectoryReader;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * A {@link org.apache.lucene.index.FilterDirectoryReader} that exposes
@@ -39,7 +34,6 @@ import java.util.Objects;
 public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
 
     private final ShardId shardId;
-    private final String commitId;
     private final FilterDirectoryReader.SubReaderWrapper wrapper;
 
     private ElasticsearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper,
@@ -47,7 +41,6 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
         super(in, wrapper);
         this.wrapper = wrapper;
         this.shardId = shardId;
-        this.commitId = tryExtractCommitId(in);
     }
 
     /**
@@ -55,33 +48,6 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
      */
     public ShardId shardId() {
         return this.shardId;
-    }
-
-    /**
-     * Returns a commit id associated with this reader if it's opened from an index commit; otherwise, return null.
-     * Two readers with the same commit id have identical content at the Lucene document level.
-     */
-    @Nullable
-    public String getCommitId() {
-        return commitId;
-    }
-
-    private static String tryExtractCommitId(DirectoryReader in) {
-        in = FilterDirectoryReader.unwrap(in);
-        if (in instanceof StandardDirectoryReader) {
-            try {
-                final StandardDirectoryReader reader = (StandardDirectoryReader) in;
-                final SegmentInfos sis = SegmentInfos.readLatestCommit(reader.directory());
-                if (sis.version == reader.getSegmentInfos().version &&
-                    Objects.equals(sis.userData.get(Engine.ES_COMMIT_ID), reader.getSegmentInfos().userData.get(Engine.ES_COMMIT_ID))) {
-                    assert sis.userData.equals(reader.getSegmentInfos().userData) : sis + " != " + reader.getSegmentInfos();
-                    return sis.userData.get(Engine.ES_COMMIT_ID);
-                }
-            } catch (Exception ignored) {
-                return null;
-            }
-        }
-        return null;
     }
 
     @Override

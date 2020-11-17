@@ -3,6 +3,7 @@
 #
 # Beginning of multi stage Dockerfile
 ################################################################################
+
 <% /*
   This file is passed through Groovy's SimpleTemplateEngine, so dollars and backslashes
   have to be escaped in order for them to appear in the final Dockerfile. You
@@ -13,13 +14,16 @@
   We use control-flow tags in this file to conditionally render the content. The
   layout/presentation here has been adjusted so that it looks reasonable when rendered,
   at the slight expense of how it looks here.
+
+  Note that this file is also filtered to squash together newlines, so we can
+  add as many newlines here as necessary to improve legibility.
 */ %>
+
 <% if (docker_base == "ubi") { %>
 ################################################################################
 # Build stage 0 `builder`:
 # Extract Elasticsearch artifact
 ################################################################################
-
 FROM ${base_image} AS builder
 
 # Install required packages to extract the Elasticsearch distribution
@@ -44,7 +48,21 @@ RUN set -eux ; \\
     rm \${tini_bin}.sha256sum ; \\
     mv \${tini_bin} /bin/tini ; \\
     chmod +x /bin/tini
+
+<% } else if (docker_base == 'iron_bank') { %>
+${build_args}
+
+FROM ${base_image} AS builder
+
+# `tini` is a tiny but valid init for containers. This is used to cleanly
+# control how ES and any child processes are shut down.
+COPY tini /bin/tini
+RUN chmod 0755 /bin/tini
+
 <% } else { %>
+
+<% /* CentOS builds are actaully a custom base image with a minimal set of dependencies */ %>
+
 ################################################################################
 # Stage 1. Build curl statically. Installing it from RPM on CentOS pulls in too
 # many dependencies.
@@ -194,6 +212,7 @@ COPY --from=curl /work/curl /rootfs/usr/bin/curl
 # Step 3. Fetch the Elasticsearch distribution and configure it for Docker
 ################################################################################
 FROM ${base_image} AS builder
+
 <% } %>
 
 RUN mkdir /usr/share/elasticsearch
@@ -202,16 +221,17 @@ WORKDIR /usr/share/elasticsearch
 # Fetch the appropriate Elasticsearch distribution for this architecture
 ${source_elasticsearch}
 
-RUN tar zxf /opt/elasticsearch.tar.gz --strip-components=1
+RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 
 # Configure the distribution for Docker
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
-RUN mkdir -p config config/jvm.options.d data logs
+RUN mkdir -p config config/jvm.options.d data logs plugins
 RUN chmod 0775 config config/jvm.options.d data logs plugins
-COPY config/elasticsearch.yml config/log4j2.properties config/
+COPY ${config_dir}/elasticsearch.yml ${config_dir}/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
-<% if (docker_base == "ubi") { %>
+<% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
+
 ################################################################################
 # Build stage 1 (the actual Elasticsearch image):
 #
@@ -220,6 +240,8 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 ################################################################################
 
 FROM ${base_image}
+
+<% if (docker_base == "ubi") { %>
 
 RUN for iter in {1..10}; do \\
       ${package_manager} update --setopt=tsflags=nodocs -y && \\
@@ -231,11 +253,26 @@ RUN for iter in {1..10}; do \\
     done; \\
     (exit \$exit_code)
 
+%> } else { %>
+
+<%
+/* Reviews of the Iron Bank Dockerfile said that they preferred simpler */
+/* scripting so this version doesn't have the retry loop featured above. */
+%>
+RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
+    ${package_manager} install --setopt=tsflags=nodocs -y \\
+      nc shadow-utils zip unzip && \\
+    ${package_manager} clean all
+
+<% } %>
+
 RUN groupadd -g 1000 elasticsearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chown -R 1000:0 /usr/share/elasticsearch
+
 <% } else { %>
+
 ################################################################################
 # Stage 4. Build the final image, using the rootfs above as the basis, and
 # copying in the Elasticsearch distribution
@@ -250,13 +287,15 @@ RUN addgroup -g 1000 elasticsearch && \\
     addgroup elasticsearch root && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chgrp 0 /usr/share/elasticsearch
+
 <% } %>
 
 ENV ELASTIC_CONTAINER true
 
 WORKDIR /usr/share/elasticsearch
 COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticsearch
-<% if (docker_base == "ubi") { %>
+
+<% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 <% } %>
 
@@ -267,7 +306,7 @@ RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
-COPY bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # 1. The JDK's directories' permissions don't allow `java` to be executed under a different
 #    group to the default. Fix this.
@@ -303,7 +342,8 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
-<% if (docker_base == 'ubi') { %>
+
+<% if (docker_base == 'ubi' || docker_base == 'iron_bank') { %>
 LABEL name="Elasticsearch" \\
   maintainer="infra@elastic.co" \\
   vendor="Elastic" \\
@@ -323,6 +363,10 @@ ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
+
+<% if (docker_base == 'iron_bank') { %>
+HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1
+<% } %>
 
 ################################################################################
 # End of multi-stage Dockerfile

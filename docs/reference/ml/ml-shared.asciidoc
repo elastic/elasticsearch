@@ -974,8 +974,9 @@ There are three available modes:
 +
 --
 * `auto`: The chunk size is dynamically calculated. This is the default and
-recommended value.
-* `manual`: Chunking is applied according to the specified `time_span`.
+recommended value when the {dfeed} does not use aggregations.
+* `manual`: Chunking is applied according to the specified `time_span`. Use this 
+mode when the {dfeed} uses aggregations.
 * `off`: No chunking is applied.
 --
 end::mode[]

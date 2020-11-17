@@ -150,7 +150,7 @@ The SMTP server port to connect to. Defaults to 25.
 The user name for SMTP. Required.
 
 `smtp.secure_password`::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)
 The password for the specified SMTP user.
 
 `smtp.starttls.enable`::
@@ -295,7 +295,7 @@ via Slack. You can specify the following Slack account attributes:
 +
 --
 `secure_url`::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)
 The Incoming Webhook URL to use to post messages to Slack. Required.
 
 `message_defaults`::
@@ -357,15 +357,15 @@ If `false`, Watcher rejects URL settings that use a HTTP protocol. Defaults to
 `false`.
 
 `secure_url`::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)
 The URL of the Jira Software server. Required.
 
 `secure_user`::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)
 The name of the user to connect to the Jira Software server. Required.
 
 `secure_password`::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)
 The password of the user to connect to the Jira Software server. Required.
 
 `issue_defaults`::
@@ -401,7 +401,7 @@ A name for the PagerDuty account associated with the API key you
 are using to access PagerDuty. Required.
 
 `secure_service_api_key`::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)
 The https://developer.pagerduty.com/documentation/rest/authentication[
 PagerDuty API key] to use to access PagerDuty. Required.
 --

@@ -135,6 +135,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/65048")
     public void testActionConditionWithFailures() throws Exception {
         final String id = "testActionConditionWithFailures";
         final ExecutableCondition[] actionConditionsWithFailure = new ExecutableCondition[] {
@@ -179,6 +180,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/65064")
     public void testActionCondition() throws Exception {
         final String id = "testActionCondition";
         final List<ExecutableCondition> actionConditions = new ArrayList<>();

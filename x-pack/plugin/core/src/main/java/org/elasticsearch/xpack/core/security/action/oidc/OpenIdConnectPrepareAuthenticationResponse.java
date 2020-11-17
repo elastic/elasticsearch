@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,11 +29,16 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
      * String value used to associate a Client session with an ID Token, and to mitigate replay attacks.
      */
     private String nonce;
+    /*
+     * String value: name of the realm used to perform authentication.
+     */
+    private String realmName;
 
-    public OpenIdConnectPrepareAuthenticationResponse(String authorizationEndpointUrl, String state, String nonce) {
+    public OpenIdConnectPrepareAuthenticationResponse(String authorizationEndpointUrl, String state, String nonce, String realmName) {
         this.authenticationRequestUrl = authorizationEndpointUrl;
         this.state = state;
         this.nonce = nonce;
+        this.realmName = realmName;
     }
 
     public OpenIdConnectPrepareAuthenticationResponse(StreamInput in) throws IOException {
@@ -40,6 +46,9 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
         authenticationRequestUrl = in.readString();
         state = in.readString();
         nonce = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+            realmName = in.readString();
+        }
     }
 
     public String getAuthenticationRequestUrl() {
@@ -54,15 +63,23 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
         return nonce;
     }
 
+    public String getRealmName() {
+        return realmName;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(authenticationRequestUrl);
         out.writeString(state);
         out.writeString(nonce);
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            out.writeString(realmName);
+        }
     }
 
     public String toString() {
-        return "{authenticationRequestUrl=" + authenticationRequestUrl + ", state=" + state + ", nonce=" + nonce + "}";
+        return "{authenticationRequestUrl=" + authenticationRequestUrl + ", state=" + state + ", nonce="
+            + nonce + ", realmName" + realmName + "}";
     }
 
     @Override
@@ -71,6 +88,9 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
         builder.field("redirect", authenticationRequestUrl);
         builder.field("state", state);
         builder.field("nonce", nonce);
+        if(realmName != null){
+            builder.field("realm", realmName);
+        }
         builder.endObject();
         return builder;
     }

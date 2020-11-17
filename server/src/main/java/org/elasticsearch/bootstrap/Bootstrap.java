@@ -357,10 +357,10 @@ final class Bootstrap {
         }
         if (JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0) {
             final String message = String.format(
-                            Locale.ROOT,
-                            "future versions of Elasticsearch will require Java 11; " +
-                                    "your Java version from [%s] does not meet this requirement",
-                            System.getProperty("java.home"));
+                Locale.ROOT,
+                "future versions of Elasticsearch will require Java 11; your Java version from [%s] does not meet this "
+                    + "requirement. Consider switching to a distribution of Elasticsearch with a bundled JDK",
+                System.getProperty("java.home"));
             DeprecationLogger.getLogger(Bootstrap.class).deprecate("java_version_11_required", message);
         }
         if (environment.pidFile() != null) {

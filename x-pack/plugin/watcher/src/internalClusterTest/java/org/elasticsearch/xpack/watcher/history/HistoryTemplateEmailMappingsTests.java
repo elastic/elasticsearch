@@ -65,6 +65,7 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
                 .build();
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/65052")
     public void testEmailFields() throws Exception {
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))

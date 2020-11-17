@@ -61,7 +61,7 @@ public class UnifiedHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
         @SuppressWarnings("unchecked")
-        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.hitContext.cache()
+        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.cache
             .computeIfAbsent(UnifiedHighlighter.class.getName(), k -> new HashMap<>());
         if (cache.containsKey(fieldContext.fieldName) == false) {
             cache.put(fieldContext.fieldName, buildHighlighter(fieldContext));

@@ -476,17 +476,32 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final String repoName = cloneEntry.repository();
                 final ShardGenerations shardGenerations = repoData.shardGenerations();
                 for (int i = 0; i < updatedEntries.size(); i++) {
-                    if (cloneEntry.snapshot().equals(updatedEntries.get(i).snapshot())) {
+                    final SnapshotsInProgress.Entry entry = updatedEntries.get(i);
+                    if (cloneEntry.repository().equals(entry.repository()) == false) {
+                        // different repo => just continue without modification
+                        continue;
+                    }
+                    if (cloneEntry.snapshot().getSnapshotId().equals(entry.snapshot().getSnapshotId())) {
                         final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> clonesBuilder =
                                 ImmutableOpenMap.builder();
-                        final InFlightShardSnapshotStates inFlightShardStates =
-                            InFlightShardSnapshotStates.forRepo(repoName, snapshotsInProgress.entries());
+                        final boolean readyToExecute = currentState.custom(
+                                SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries().stream()
+                                .noneMatch(e -> e.repository().equals(repoName) && e.state() == SnapshotDeletionsInProgress.State.STARTED);
+                        final InFlightShardSnapshotStates inFlightShardStates;
+                        if (readyToExecute) {
+                            inFlightShardStates = InFlightShardSnapshotStates.forRepo(repoName, snapshotsInProgress.entries());
+                        } else {
+                            // no need to compute these, we'll mark all shards as queued anyway because we wait for the delete
+                            inFlightShardStates = null;
+                        }
+                        boolean queuedShards = false;
                         for (Tuple<IndexId, Integer> count : counts) {
                             for (int shardId = 0; shardId < count.v2(); shardId++) {
                                 final RepositoryShardId repoShardId = new RepositoryShardId(count.v1(), shardId);
                                 final String indexName = repoShardId.indexName();
-                                if (inFlightShardStates.isActive(indexName, shardId)) {
+                                if (readyToExecute == false || inFlightShardStates.isActive(indexName, shardId)) {
                                     clonesBuilder.put(repoShardId, ShardSnapshotStatus.UNASSIGNED_QUEUED);
+                                    queuedShards = true;
                                 } else {
                                     clonesBuilder.put(repoShardId, new ShardSnapshotStatus(localNodeId,
                                         inFlightShardStates.generationForShard(repoShardId.index(), shardId, shardGenerations)));
@@ -494,7 +509,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         }
                         updatedEntry = cloneEntry.withClones(clonesBuilder.build());
-                        updatedEntries.set(i, updatedEntry);
+                        if (queuedShards) {
+                            // We queued up some shards based on the in-flight operations found in all snapshots for the current
+                            // repository, so in order to make sure we don't set a shard to QUEUED before (as in before it in the
+                            // `updatedEntries` list) one that is actively executing we just put it to the back of the list as if we had
+                            // just created the entry
+                            // TODO: If we could eventually drop the snapshot clone init phase we don't need this any longer
+                            updatedEntries.remove(i);
+                            updatedEntries.add(updatedEntry);
+                        } else {
+                            updatedEntries.set(i, updatedEntry);
+                        }
                         changed = true;
                         break;
                     }
@@ -797,11 +822,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Set<String> reposSeen = new HashSet<>();
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
             if (reposSeen.add(entry.repository())) {
-                for (ObjectCursor<ShardSnapshotStatus> value : entry.shards().values()) {
+                for (ObjectCursor<ShardSnapshotStatus> value : (entry.isClone() ? entry.clones() : entry.shards()).values()) {
                     if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
                         assert reposWithRunningDelete.contains(entry.repository())
                                 : "Found shard snapshot waiting to be assigned in [" + entry +
                                 "] but it is not blocked by any running delete";
+                    } else if (value.value.isActive()) {
+                        assert reposWithRunningDelete.contains(entry.repository()) == false
+                                : "Found shard snapshot actively executing in [" + entry +
+                                "] when it should be blocked by a running delete";
                     }
                 }
             }
@@ -1894,6 +1923,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     endSnapshot(entry, newState.metadata(), repositoryData);
                 }
             }
+            // TODO: be more efficient here, we could collect newly ready shard clones as we compute them and then directly start them
+            //       instead of looping over all possible clones to execute
+            startExecutableClones(newState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY), null);
         }
 
         /**
@@ -1929,50 +1961,88 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             // Keep track of shardIds that we started snapshots for as a result of removing this delete so we don't assign
             // them to multiple snapshots by accident
-            final Set<ShardId> reassignedShardIds = new HashSet<>();
+            final Map<String, Set<Integer>> reassignedShardIds = new HashMap<>();
 
             boolean changed = false;
 
+            final String localNodeId = currentState.nodes().getLocalNodeId();
             final String repoName = deleteEntry.repository();
             // Computing the new assignments can be quite costly, only do it once below if actually needed
             ImmutableOpenMap<ShardId, ShardSnapshotStatus> shardAssignments = null;
+            InFlightShardSnapshotStates inFlightShardStates = null;
             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
                 if (entry.repository().equals(repoName)) {
                     if (entry.state().completed() == false) {
-                        // Collect waiting shards that in entry that we can assign now that we are done with the deletion
-                        final List<ShardId> canBeUpdated = new ArrayList<>();
-                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> value : entry.shards()) {
-                            if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)
-                                    && reassignedShardIds.contains(value.key) == false) {
-                                canBeUpdated.add(value.key);
-                            }
-                        }
-                        if (canBeUpdated.isEmpty()) {
-                            // No shards can be updated in this snapshot so we just add it as is again
-                            snapshotEntries.add(entry);
-                        } else {
-                            if (shardAssignments == null) {
-                                shardAssignments = shards(snapshotsInProgress,
-                                        updatedDeletions, currentState.metadata(), currentState.routingTable(), entry.indices(),
-                                        entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION), repositoryData, repoName);
-                            }
-                            final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder =
-                                    ImmutableOpenMap.builder(entry.shards());
-                            for (ShardId shardId : canBeUpdated) {
-                                final ShardSnapshotStatus updated = shardAssignments.get(shardId);
-                                if (updated == null) {
-                                    // We don't have a new assignment for this shard because its index was concurrently deleted
-                                    assert currentState.routingTable().hasIndex(shardId.getIndex()) == false :
-                                            "Missing assignment for [" + shardId + "]";
-                                    updatedAssignmentsBuilder.put(shardId, ShardSnapshotStatus.MISSING);
-                                } else {
-                                    final boolean added = reassignedShardIds.add(shardId);
-                                    assert added;
-                                    updatedAssignmentsBuilder.put(shardId, updated);
+                        // TODO: dry up redundant computation and code between clone and non-clone case, in particular reuse
+                        //  `inFlightShardStates` across both clone and standard snapshot code
+                        if (entry.isClone()) {
+                            // Collect waiting shards from that entry that we can assign now that we are done with the deletion
+                            final List<RepositoryShardId> canBeUpdated = new ArrayList<>();
+                            for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> value : entry.clones()) {
+                                if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)
+                                        && alreadyReassigned(value.key.indexName(), value.key.shardId(), reassignedShardIds) == false) {
+                                    canBeUpdated.add(value.key);
                                 }
                             }
-                            snapshotEntries.add(entry.withStartedShards(updatedAssignmentsBuilder.build()));
-                            changed = true;
+                            // TODO: the below logic is very similar to that in #startCloning and both could be dried up against each other
+                            //       also the code for standard snapshots could make use of this breakout as well
+                            if (canBeUpdated.isEmpty() || updatedDeletions.getEntries().stream().anyMatch(
+                                    e -> e.repository().equals(repoName) && e.state() == SnapshotDeletionsInProgress.State.STARTED)) {
+                                // No shards can be updated in this snapshot so we just add it as is again
+                                snapshotEntries.add(entry);
+                            } else {
+                                if (inFlightShardStates == null) {
+                                    inFlightShardStates = InFlightShardSnapshotStates.forRepo(repoName, snapshotsInProgress.entries());
+                                }
+                                final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> updatedAssignmentsBuilder =
+                                        ImmutableOpenMap.builder(entry.clones());
+                                for (RepositoryShardId shardId : canBeUpdated) {
+                                    if (inFlightShardStates.isActive(shardId.indexName(), shardId.shardId()) == false) {
+                                        markShardReassigned(shardId.indexName(), shardId.shardId(), reassignedShardIds);
+                                        updatedAssignmentsBuilder.put(shardId,
+                                                new ShardSnapshotStatus(localNodeId,
+                                                        inFlightShardStates.generationForShard(
+                                                                shardId.index(), shardId.shardId(), repositoryData.shardGenerations())));
+                                    }
+                                }
+                                snapshotEntries.add(entry.withClones(updatedAssignmentsBuilder.build()));
+                                changed = true;
+                            }
+                        } else {
+                            // Collect waiting shards that in entry that we can assign now that we are done with the deletion
+                            final List<ShardId> canBeUpdated = new ArrayList<>();
+                            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> value : entry.shards()) {
+                                if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)
+                                        && alreadyReassigned(value.key.getIndexName(), value.key.getId(), reassignedShardIds) == false) {
+                                    canBeUpdated.add(value.key);
+                                }
+                            }
+                            if (canBeUpdated.isEmpty()) {
+                                // No shards can be updated in this snapshot so we just add it as is again
+                                snapshotEntries.add(entry);
+                            } else {
+                                if (shardAssignments == null) {
+                                    shardAssignments = shards(snapshotsInProgress,
+                                            updatedDeletions, currentState.metadata(), currentState.routingTable(), entry.indices(),
+                                            entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION), repositoryData, repoName);
+                                }
+                                final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder =
+                                        ImmutableOpenMap.builder(entry.shards());
+                                for (ShardId shardId : canBeUpdated) {
+                                    final ShardSnapshotStatus updated = shardAssignments.get(shardId);
+                                    if (updated == null) {
+                                        // We don't have a new assignment for this shard because its index was concurrently deleted
+                                        assert currentState.routingTable().hasIndex(shardId.getIndex()) == false :
+                                                "Missing assignment for [" + shardId + "]";
+                                        updatedAssignmentsBuilder.put(shardId, ShardSnapshotStatus.MISSING);
+                                    } else {
+                                        markShardReassigned(shardId.getIndexName(), shardId.id(), reassignedShardIds);
+                                        updatedAssignmentsBuilder.put(shardId, updated);
+                                    }
+                                }
+                                snapshotEntries.add(entry.withStartedShards(updatedAssignmentsBuilder.build()));
+                                changed = true;
+                            }
                         }
                     } else {
                         // Entry is already completed so we will finalize it now that the delete doesn't block us after
@@ -1986,6 +2056,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
             return changed ? SnapshotsInProgress.of(snapshotEntries) : null;
+        }
+
+        private void markShardReassigned(String indexName, int shardId, Map<String, Set<Integer>> reassignments) {
+            final boolean added = reassignments.computeIfAbsent(indexName, k -> new HashSet<>()).add(shardId);
+            assert added : "should only ever reassign each shard once but assigned [" + indexName + "][" + shardId + "] multiple times";
+        }
+
+        private boolean alreadyReassigned(String indexName, int shardId, Map<String, Set<Integer>> reassignments) {
+            return reassignments.getOrDefault(indexName, Collections.emptySet()).contains(shardId);
         }
     }
 

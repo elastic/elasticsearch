@@ -850,6 +850,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     private PluginInfo installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot, Environment env, List<Path> deleteOnFailure)
         throws Exception {
         final PluginInfo info = loadPluginInfo(terminal, tmpRoot, env);
+
+        checkCanInstallationProceed(terminal, Build.CURRENT.flavor(), info);
+
         PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot);
         if (pluginPolicy != null) {
             Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
@@ -1003,4 +1006,24 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[pathsToDeleteOnShutdown.size()]));
     }
 
+    static void checkCanInstallationProceed(Terminal terminal, Build.Flavor flavor, PluginInfo info) throws Exception {
+        if (info.isLicensed() == false) {
+            return;
+        }
+
+        if (flavor == Build.Flavor.DEFAULT) {
+            return;
+        }
+
+        List.of(
+            "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+            "@            ERROR: This is a licensed plugin             @",
+            "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+            "",
+            "This plugin is covered by the Elastic license, but this",
+            "installation of Elasticsearch is: [" + flavor + "]."
+        ).forEach(terminal::errorPrintln);
+
+        throw new UserException(ExitCodes.NOPERM, "Plugin license is incompatible with [" + flavor + "] installation");
+    }
 }

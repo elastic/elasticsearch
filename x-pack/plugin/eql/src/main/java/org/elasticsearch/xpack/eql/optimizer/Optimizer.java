@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -402,7 +401,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     Join join = (Join) child;
                     List<KeyedFilter> queries = join.queries();
 
-                    // the main reason ASC is used is the lack of search_before (which is emulated through search_after + ASC)
+                    // the main reason DESC is used is the lack of search_before (which is emulated through search_after + ASC)
+                    // see https://github.com/elastic/elasticsearch/issues/62118
                     List<Order> ascendingOrders = changeOrderDirection(orderBy.order(), OrderDirection.ASC);
                     // preserve the order direction as is (can be DESC) for the base query
                     List<KeyedFilter> orderedQueries = new ArrayList<>(queries.size());
@@ -430,7 +430,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             LogicalPlan child = orderBy.child();
             // the default order by is the first pipe
             // so it has to be on top of a event query or join/sequence
-            return child instanceof Project || child instanceof Join;
+            return child instanceof Filter || child instanceof Join;
         }
 
         private static List<Order> changeOrderDirection(List<Order> orders, Order.OrderDirection direction) {

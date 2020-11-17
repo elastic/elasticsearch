@@ -33,7 +33,6 @@ import java.util.stream.Stream;
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
 final class FieldTypeLookup {
-
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
 
     /**
@@ -47,7 +46,8 @@ final class FieldTypeLookup {
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
     FieldTypeLookup(Collection<FieldMapper> fieldMappers,
-                    Collection<FieldAliasMapper> fieldAliasMappers) {
+                    Collection<FieldAliasMapper> fieldAliasMappers,
+                    Collection<RuntimeFieldType> runtimeFieldTypes) {
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
@@ -75,6 +75,11 @@ final class FieldTypeLookup {
             String path = fieldAliasMapper.path();
             aliasToConcreteName.put(aliasName, path);
             fullNameToFieldType.put(aliasName, fullNameToFieldType.get(path));
+        }
+
+        for (RuntimeFieldType runtimeFieldType : runtimeFieldTypes) {
+            //this will override concrete fields with runtime fields that have the same name
+            fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
         }
 
         this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);

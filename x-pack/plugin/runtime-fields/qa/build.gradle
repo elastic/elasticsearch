@@ -1,4 +1,4 @@
-// Shared infratructure
+// Shared infrastructure
 
 apply plugin: 'elasticsearch.build'
 
@@ -43,6 +43,8 @@ subprojects {
         'suggest',
       ]
       if (project.name.equals('core-with-mapped')) {
+        //disabled until runtime fields can be created from a dynamic template
+        yamlRestTest.enabled = false
         suites += [
           // These two don't support runtime fields on the request. Should they?
           'field_caps',

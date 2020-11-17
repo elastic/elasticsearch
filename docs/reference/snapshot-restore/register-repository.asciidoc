@@ -108,10 +108,11 @@ same location on all master and data nodes. Then add the file system's
 path or parent directory to the `path.repo` setting in `elasticsearch.yml` for
 each master and data node. For running clusters, this requires a
 <<restart-cluster-rolling,rolling restart>> of each node.
-[NOTE]
-====
-When using NFS mounts make sure that all of the cluster nodes use the same UID and GUID numbers for the elasticsearch user, otherwise the repository verification will fail because of file permission mismatch when writing to the shared filesystem.
-====
+
+IMPORTANT: If using a network file system (NFS) mount, use the same `elasticsearch`
+user ID (UID) and group ID (GUID) across all nodes. Otherwise, mismatched file
+permissions may cause write failures.
+
 Supported `path.repo` values vary by platform:
 
 include::{es-repo-dir}/tab-widgets/code.asciidoc[]

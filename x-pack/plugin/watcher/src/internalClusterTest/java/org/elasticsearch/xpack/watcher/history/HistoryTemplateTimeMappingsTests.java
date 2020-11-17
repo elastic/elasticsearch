@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegrationTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65089")
     public void testTimeFields() throws Exception {
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))

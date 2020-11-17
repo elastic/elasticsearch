@@ -50,6 +50,7 @@ jarHell.enabled = false
 // TODO: should we have licenses for our test deps?
 tasks.named("dependencyLicenses").configure { enabled = false }
 tasks.named("dependenciesInfo").configure { enabled = false }
+tasks.named("dependenciesGraph").configure { it.enabled = false }
 
 //we aren't releasing this jar
 tasks.named("thirdPartyAudit").configure { enabled = false }

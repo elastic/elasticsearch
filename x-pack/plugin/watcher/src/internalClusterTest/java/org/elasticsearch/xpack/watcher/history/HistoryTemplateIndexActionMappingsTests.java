@@ -29,6 +29,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherIntegrationTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65091")
     public void testIndexActionFields() throws Exception {
         String index = "the-index";
 

@@ -183,6 +183,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedS
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -514,11 +516,15 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         OpenJobAction.JobParams::new),
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                     StartDataFrameAnalyticsAction.TaskParams::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+                    SnapshotUpgradeTaskParams::new),
                 // ML - Task states
                 new NamedWriteableRegistry.Entry(PersistentTaskState.class, JobTaskState.NAME, JobTaskState::new),
                 new NamedWriteableRegistry.Entry(PersistentTaskState.class, DatafeedState.NAME, DatafeedState::fromStream),
                 new NamedWriteableRegistry.Entry(PersistentTaskState.class, DataFrameAnalyticsTaskState.NAME,
                     DataFrameAnalyticsTaskState::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, SnapshotUpgradeTaskState.NAME,
+                    SnapshotUpgradeTaskState::new),
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.MACHINE_LEARNING,
                         MachineLearningFeatureSetUsage::new),
                 // ML - Data frame analytics
@@ -673,11 +679,15 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         OpenJobAction.JobParams::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME),
                         StartDataFrameAnalyticsAction.TaskParams::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME),
+                        SnapshotUpgradeTaskParams::fromXContent),
                 // ML - Task states
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DatafeedState.NAME), DatafeedState::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(JobTaskState.NAME), JobTaskState::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameAnalyticsTaskState.NAME),
                     DataFrameAnalyticsTaskState::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(SnapshotUpgradeTaskState.NAME),
+                    SnapshotUpgradeTaskState::fromXContent),
                 // watcher
                 new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(WatcherMetadata.TYPE),
                         WatcherMetadata::fromXContent),

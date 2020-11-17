@@ -199,5 +199,9 @@ public class AbstractNativeProcessTests extends ESTestCase {
         @Override
         public void persistState() {
         }
+
+        @Override
+        public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
+        }
     }
 }

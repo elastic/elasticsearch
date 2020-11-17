@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
@@ -68,6 +69,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
     protected volatile int maxMachineMemoryPercent;
     protected volatile int maxLazyMLNodes;
     protected volatile int maxOpenJobs;
+    protected final long maxNodeMemory;
 
     protected AbstractJobPersistentTasksExecutor(String taskName,
                                                  String executor,
@@ -83,6 +85,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.useAutoMemoryPercentage = USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
+        this.maxNodeMemory = MAX_ML_NODE_SIZE.get(settings).getBytes();
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
         clusterService.getClusterSettings()

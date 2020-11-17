@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -179,8 +180,8 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             if (false == index.getAliases().containsKey(alias)) {
-                if (mustExist != null && mustExist.booleanValue()) {
-                    throw new IllegalArgumentException("required alias [" + alias  + "] does not exist");
+                if (mustExist != null && mustExist) {
+                    throw new ResourceNotFoundException("required alias [" + alias  + "] does not exist");
                 }
                 return false;
             }

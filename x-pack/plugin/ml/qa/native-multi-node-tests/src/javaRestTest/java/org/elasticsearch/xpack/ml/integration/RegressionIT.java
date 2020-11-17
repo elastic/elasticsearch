@@ -15,9 +15,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -40,7 +39,6 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -306,7 +304,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             }
         }
 
-        waitUntilAnalyticsIsStopped(jobId, TimeValue.timeValueMinutes(1));
+        waitUntilAnalyticsIsStopped(jobId);
 
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {

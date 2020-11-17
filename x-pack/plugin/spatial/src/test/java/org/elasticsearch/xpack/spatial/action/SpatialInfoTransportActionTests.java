@@ -59,9 +59,7 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
     public void testAvailable() throws Exception {
         SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), licenseState);
-        boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.SPATIAL)).thenReturn(available);
-        assertThat(featureSet.available(), is(available));
+        assertThat(featureSet.available(), is(true));
 
         var usageAction = new SpatialUsageTransportAction(mock(TransportService.class), clusterService, null,
             mock(ActionFilters.class), null, licenseState, mockClient());
@@ -69,12 +67,12 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
         Task task = new Task(1L, "_type", "_action", "_description", null, Collections.emptyMap());
         usageAction.masterOperation(task, null, clusterService.state(), future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
-        assertThat(usage.available(), is(available));
+        assertThat(usage.available(), is(true));
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new SpatialFeatureSetUsage(out.bytes().streamInput());
-        assertThat(serializedUsage.available(), is(available));
+        assertThat(serializedUsage.available(), is(true));
     }
 
     public void testEnabled() throws Exception {

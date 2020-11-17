@@ -43,16 +43,10 @@ public class SpatialUsageTransportAction extends XPackUsageFeatureTransportActio
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.SPATIAL)) {
-            SpatialStatsAction.Request statsRequest = new SpatialStatsAction.Request();
-            statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-            client.execute(SpatialStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r ->
-                    listener.onResponse(new XPackUsageFeatureResponse(new SpatialFeatureSetUsage(true, true, r))),
-                listener::onFailure));
-        } else {
-            SpatialFeatureSetUsage usage = new SpatialFeatureSetUsage(false, true,
-                new SpatialStatsAction.Response(state.getClusterName(), Collections.emptyList(), Collections.emptyList()));
-            listener.onResponse(new XPackUsageFeatureResponse(usage));
-        }
+        SpatialStatsAction.Request statsRequest = new SpatialStatsAction.Request();
+        statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        client.execute(SpatialStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r ->
+                listener.onResponse(new XPackUsageFeatureResponse(new SpatialFeatureSetUsage(true, true, r))),
+            listener::onFailure));
     }
 }

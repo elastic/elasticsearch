@@ -1430,12 +1430,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
      * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
      * as well as a mock runtime field parser.
      */
-    public static final class DocumentParserTestsPlugin extends Plugin implements MapperPlugin {
-
+    private static final class DocumentParserTestsPlugin extends Plugin implements MapperPlugin {
         /**
          * A mock metadata field mapper that supports being set from the document source.
          */
-        public static final class MockMetadataMapper extends MetadataFieldMapper {
+        private static final class MockMetadataMapper extends MetadataFieldMapper {
             private static final String CONTENT_TYPE = "_mock_metadata";
             private static final String FIELD_NAME = "_mock_metadata";
 

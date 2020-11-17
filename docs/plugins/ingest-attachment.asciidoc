@@ -62,7 +62,7 @@ PUT _ingest/pipeline/attachment
     }
   ]
 }
-PUT my-index-00001/_doc/my_id?pipeline=attachment
+PUT my-index-000001/_doc/my_id?pipeline=attachment
 {
   "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
 }
@@ -75,7 +75,7 @@ The document's `attachment` object contains extracted properties for the file:
 ----
 {
   "found": true,
-  "_index": "my-index-00001",
+  "_index": "my-index-000001",
   "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
@@ -191,11 +191,11 @@ PUT _ingest/pipeline/attachment
     }
   ]
 }
-PUT my-index-00001/_doc/my_id?pipeline=attachment
+PUT my-index-000001/_doc/my_id?pipeline=attachment
 {
   "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
 }
-GET my-index-00001/_doc/my_id
+GET my-index-000001/_doc/my_id
 --------------------------------------------------
 
 Returns this:
@@ -204,7 +204,7 @@ Returns this:
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my-index-00001",
+  "_index": "my-index-000001",
   "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
@@ -239,12 +239,12 @@ PUT _ingest/pipeline/attachment
     }
   ]
 }
-PUT my-index-00001/_doc/my_id_2?pipeline=attachment
+PUT my-index-000001/_doc/my_id_2?pipeline=attachment
 {
   "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
   "max_size": 5
 }
-GET my-index-00001/_doc/my_id_2
+GET my-index-000001/_doc/my_id_2
 --------------------------------------------------
 
 Returns this:
@@ -253,7 +253,7 @@ Returns this:
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my-index-00001",
+  "_index": "my-index-000001",
   "_type": "_doc",
   "_id": "my_id_2",
   "_version": 1,
@@ -325,7 +325,7 @@ PUT _ingest/pipeline/attachment
     }
   ]
 }
-PUT my-index-00001/_doc/my_id?pipeline=attachment
+PUT my-index-000001/_doc/my_id?pipeline=attachment
 {
   "attachments" : [
     {
@@ -338,7 +338,7 @@ PUT my-index-00001/_doc/my_id?pipeline=attachment
     }
   ]
 }
-GET my-index-00001/_doc/my_id
+GET my-index-000001/_doc/my_id
 --------------------------------------------------
 
 Returns this:
@@ -346,7 +346,7 @@ Returns this:
 [source,console-result]
 --------------------------------------------------
 {
-  "_index" : "my-index-00001",
+  "_index" : "my-index-000001",
   "_type" : "_doc",
   "_id" : "my_id",
   "_version" : 1,

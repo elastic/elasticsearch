@@ -40,6 +40,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static java.util.Collections.synchronizedNavigableSet;
 import static org.elasticsearch.common.settings.Settings.builder;
@@ -54,9 +55,11 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class CacheFileTests extends ESTestCase {
 
+    private static final Consumer<CacheFile> NOOP = cacheFile -> {};
+
     public void testAcquireAndRelease() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, null);
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, NOOP);
 
         assertThat("Cache file is not acquired: no channel exists", cacheFile.getChannel(), nullValue());
         assertThat("Cache file is not acquired: file does not exist", Files.exists(file), is(false));
@@ -95,7 +98,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testCacheFileNotAcquired() throws IOException {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, null);
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, NOOP);
 
         assertThat(Files.exists(file), is(false));
         assertThat(cacheFile.getChannel(), nullValue());
@@ -117,7 +120,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testDeleteOnCloseAfterLastRelease() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, null);
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, NOOP);
 
         final List<TestEvictionListener> acquiredListeners = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 20); i++) {
@@ -149,7 +152,7 @@ public class CacheFileTests extends ESTestCase {
 
     public void testConcurrentAccess() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, null);
+        final CacheFile cacheFile = new CacheFile("test", randomLongBetween(1, 100), file, NOOP);
 
         final TestEvictionListener evictionListener = new TestEvictionListener();
         cacheFile.acquire(evictionListener);

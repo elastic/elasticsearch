@@ -124,11 +124,11 @@ public class CacheFile {
     @Nullable
     private volatile FileChannelReference channelRef;
 
-    public CacheFile(String description, long length, Path file, @Nullable Consumer<CacheFile> fsyncListener) {
+    public CacheFile(String description, long length, Path file, Consumer<CacheFile> fsyncListener) {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.description = Objects.requireNonNull(description);
         this.file = Objects.requireNonNull(file);
-        this.needsFsyncListener = fsyncListener != null ? fsyncListener : cacheFile -> {};
+        this.needsFsyncListener = Objects.requireNonNull(fsyncListener);
         assert invariant();
     }
 

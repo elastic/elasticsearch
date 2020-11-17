@@ -91,7 +91,7 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
 
     public static long tryParseDate(Object val, DateFormatter formatter) {
         if (val instanceof String) {
-            return formatter.parseMillis((String)val);
+            return formatter.parseMillis((String) val);
         }
         throw new IllegalArgumentException("Cannot parse value " + val + " as date");
     }

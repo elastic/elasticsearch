@@ -65,10 +65,10 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
 
     public static long tryParseLong(Object value) {
         if (value instanceof Number) {
-            return ((Number)value).longValue();
+            return ((Number) value).longValue();
         }
         if (value instanceof String) {
-            return Long.parseLong((String)value);
+            return Long.parseLong((String) value);
         }
         throw new IllegalArgumentException("Cannot coerce " + value + " to long");
     }

@@ -103,10 +103,10 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
 
     public static double tryParseDouble(Object value) {
         if (value instanceof Number) {
-            return ((Number)value).doubleValue();
+            return ((Number) value).doubleValue();
         }
         if (value instanceof String) {
-            return Double.parseDouble((String)value);
+            return Double.parseDouble((String) value);
         }
         throw new IllegalArgumentException("Cannot coerce " + value + " to double");
     }

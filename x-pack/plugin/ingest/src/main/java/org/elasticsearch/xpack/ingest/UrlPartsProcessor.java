@@ -92,7 +92,7 @@ public class UrlPartsProcessor extends AbstractProcessor {
             }
         }
 
-        if (removeIfSuccessful) {
+        if (removeIfSuccessful && targetField.equals(field) == false) {
             ingestDocument.removeField(field);
         }
         ingestDocument.setFieldValue(targetField, urlParts);

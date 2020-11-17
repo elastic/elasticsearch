@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 
 public class UrlPartsProcessorTests extends ESTestCase {
 
@@ -109,6 +110,32 @@ public class UrlPartsProcessorTests extends ESTestCase {
             "http://www.google.com:88/foo#bar",
             Map.of("scheme", "http", "domain", "www.google.com", "fragment", "bar", "path", "/foo", "port", 88)
         );
+    }
+
+    public void testRemoveIfSuccessfulDoesNotRemoveTargetField() throws Exception {
+        String field = "field";
+        UrlPartsProcessor processor = new UrlPartsProcessor(null, null, field, field, true, false);
+
+        Map<String, Object> source = new HashMap<>();
+        source.put(field, "http://www.google.com");
+        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument output = processor.execute(input);
+
+        Map<String, Object> expectedSourceAndMetadata = new HashMap<>();
+        expectedSourceAndMetadata.put(field, Map.of("scheme", "http", "domain", "www.google.com", "path", ""));
+        assertThat(output.getSourceAndMetadata().entrySet(), containsInAnyOrder(expectedSourceAndMetadata.entrySet().toArray()));
+    }
+
+    public void testInvalidUrl() {
+        String url = "not_a_valid_url";
+        UrlPartsProcessor processor = new UrlPartsProcessor(null, null, "field", "url", true, false);
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("field", url);
+        IngestDocument input = new IngestDocument(source, Map.of());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(input));
+        assertThat(e.getMessage(), containsString("unable to parse URL [" + url + "]"));
     }
 
     private void testUrlParsing(String url, Map<String, Object> expectedValues) throws Exception {

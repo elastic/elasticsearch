@@ -42,14 +42,13 @@ public class HttpStats implements Writeable, ToXContentFragment {
     }
 
     public HttpStats(long serverOpen, long totalOpened) {
-        this(null, serverOpen, totalOpened);
+        this(List.of(), serverOpen, totalOpened);
     }
 
     public HttpStats(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
         totalOpen = in.readVLong();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            // add deserialization here
             clientStats = in.readList(ClientStats::new);
         } else {
             clientStats = List.of();

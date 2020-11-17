@@ -67,7 +67,7 @@ public class UrlPartsProcessor extends AbstractProcessor {
         if (keepOriginal) {
             urlParts.put("original", value);
         }
-        final String path = url.getPath();
+        final String path = url.toURI().getPath();
         if (path != null) {
             urlParts.put("path", path);
             if (path.contains(".")) {

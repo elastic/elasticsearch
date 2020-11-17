@@ -42,7 +42,7 @@ public class TestRuntimeField extends RuntimeFieldType {
 
     @Override
     public String typeName() {
-        return null;
+        return "test";
     }
 
     @Override
